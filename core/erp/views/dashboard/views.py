@@ -167,6 +167,42 @@ class DashboardView(TemplateView):
         return context
 
 
+class UpdatesView(LoginRequiredMixin, TemplateView):
+    template_name = 'vtc/updates.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_superuser:
+            return redirect('erp:dashboard')
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+
+        current_version = getattr(settings, 'APP_VERSION', '1.0.0')
+        ctx['app_version'] = current_version
+
+        latest_version = None
+        update_available = False
+        try:
+            url = 'https://api.github.com/repos/galeanolukas/SitioMTCRM/releases/latest'
+            req = urllib.request.Request(url, headers={'Accept': 'application/vnd.github+json'})
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+            tag = data.get('tag_name') or ''
+            if tag.startswith('v'):
+                tag = tag[1:]
+            latest_version = tag or None
+        except Exception:
+            latest_version = None
+
+        if latest_version and current_version and latest_version != current_version:
+            update_available = True
+
+        ctx['latest_version'] = latest_version
+        ctx['update_available'] = update_available
+        return ctx
+
+
 class ExpenseListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView):
     model = Expense
     template_name = 'expense/list.html'

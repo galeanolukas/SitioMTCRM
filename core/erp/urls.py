@@ -12,6 +12,7 @@ from core.erp.views.dashboard.views import (
     LauncherView,
     SupplierView,
     ReportsHomeView,
+    UpdatesView,
     report_inventory_export,
     report_sales_export,
     report_expenses_export,
@@ -62,6 +63,7 @@ urlpatterns = [
     path('launcher/', LauncherView.as_view(), name='launcher'),
     path('sync/', sync_data_view, name='sync_data'),
     path('dashboard/', DashboardView.as_view(), name='dashboard'),
+    path('updates/', UpdatesView.as_view(), name='updates'),
     # reports (superuser)
     path('reports/', ReportsHomeView.as_view(), name='reports_home'),
     path('reports/inventory/export/', report_inventory_export, name='reports_inventory_export'),

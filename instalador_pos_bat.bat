@@ -7,6 +7,18 @@ echo Instalador POS Local - SitioMTCRM (Windows)
 echo ============================================
 echo.
 
+REM Verificar si Git esta instalado (recomendado para futuras actualizaciones)
+git --version >nul 2>&1
+if errorlevel 1 (
+    echo [ADVERTENCIA] Git no esta instalado o no se encuentra en el PATH.
+    echo Para poder usar el actualizador automatico (actualizar_pos.bat), instale Git para Windows.
+    echo Puede descargarlo desde:
+    echo   https://git-scm.com/download/win
+    echo.
+    echo Este instalador continuara, pero las actualizaciones futuras deberan hacerse manualmente si no instala Git.
+    echo.
+)
+
 REM 1) Crear entorno virtual si no existe
 IF NOT EXIST venv (
     echo Creando entorno virtual...
@@ -74,6 +86,11 @@ echo Para iniciar el POS local:
 echo   call venv\Scripts\activate
 echo   python manage.py runserver 0.0.0.0:8000
 echo y luego abre: http://localhost:8000/erp/sale/pos/
+echo.
+echo Para futuras actualizaciones del POS (nueva version desde GitHub):
+echo   1) Cierre el POS.
+echo   2) Ejecute: actualizar_pos.bat
+echo   3) Vuelva a iniciar con lanzar_pos.bat
 echo ============================================
 
 REM Crear acceso directo (launcher) en el escritorio para el POS local

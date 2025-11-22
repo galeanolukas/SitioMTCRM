@@ -1,0 +1,63 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<div class="container-fluid py-3">
+  <div class="row mb-3">
+    <div class="col-12 col-lg-8 mx-auto">
+      <div class="card card-outline card-primary">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h3 class="card-title mb-0"><i class="fas fa-download me-2"></i>Actualizaciones del sistema</h3>
+        </div>
+        <div class="card-body">
+          <p class="text-muted">Aquí podés ver la versión instalada en este POS y la última versión publicada en GitHub.</p>
+
+          <div class="row mb-3">
+            <div class="col-12 col-md-6 mb-2">
+              <div class="border rounded p-3 h-100">
+                <h5 class="mb-2">Versión instalada</h5>
+                <p class="mb-0"><strong>{{ app_version }}</strong></p>
+              </div>
+            </div>
+            <div class="col-12 col-md-6 mb-2">
+              <div class="border rounded p-3 h-100">
+                <h5 class="mb-2">Última versión en GitHub</h5>
+                {% if latest_version %}
+                  <p class="mb-1"><strong>{{ latest_version }}</strong></p>
+                  {% if update_available %}
+                    <span class="badge bg-warning text-dark">Actualización disponible</span>
+                  {% else %}
+                    <span class="badge bg-success">Este POS está actualizado</span>
+                  {% endif %}
+                {% else %}
+                  <p class="mb-1 text-muted">No se pudo consultar la última versión (sin conexión o error de GitHub).</p>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <hr>
+
+          <h5>Cómo actualizar este POS</h5>
+          <ol class="mb-3">
+            <li>Cerrar todas las ventanas del POS (navegador y servidor local si aplica).</li>
+            <li>En esta PC, ejecutar tu instalador/actualizador (por ejemplo <code>instalador_pos_bat.bat</code>) o el procedimiento que uses para desplegar la nueva versión.</li>
+            <li>Si usás Git directamente en este equipo, los pasos típicos son:
+              <ul>
+                <li>Abrir una consola en la carpeta del proyecto.</li>
+                <li>Actualizar código: <code>git pull</code>.</li>
+                <li>Actualizar dependencias: <code>pip install -r requirements.txt</code>.</li>
+                <li>Aplicar migraciones: <code>python manage.py migrate</code>.</li>
+              </ul>
+            </li>
+            <li>Volver a iniciar el POS (script de lanzamiento o servidor local) y entrar de nuevo al sistema.</li>
+          </ol>
+
+          <p class="small text-muted mb-0">
+            Nota: este módulo solo informa la disponibilidad de una nueva versión. La ejecución del instalador o comandos de actualización sigue siendo manual para mantener el control en cada local.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
