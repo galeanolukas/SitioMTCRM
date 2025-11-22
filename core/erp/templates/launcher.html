@@ -30,6 +30,16 @@
           </div>
           {% endif %}
 
+          {% if latest_version %}
+          <div class="mt-1 small">
+            <span class="text-muted">Última versión disponible:</span>
+            <strong>{{ latest_version }}</strong>
+            {% if update_available %}
+              <span class="badge bg-warning text-dark ms-1">Actualización disponible</span>
+            {% endif %}
+          </div>
+          {% endif %}
+
           {% if user.is_superuser %}
           <div class="d-grid gap-2 mt-2">
             <button id="btn-sync-manual" type="button" class="btn btn-outline-secondary btn-sm">
@@ -47,8 +57,9 @@
             </a>
           </div>
         </div>
-        <div class="card-footer text-muted small text-center">
-          Accesos rápidos
+        <div class="card-footer text-muted small text-center d-flex justify-content-between align-items-center">
+          <span>Accesos rápidos</span>
+          <span>Versión {{ app_version }}</span>
         </div>
       </div>
     </div>
