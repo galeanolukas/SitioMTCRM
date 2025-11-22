@@ -1,0 +1,125 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-8 col-lg-6">
+      <div class="card card-outline card-primary">
+        <div class="card-header text-center">
+          <h3 class="card-title">Bienvenido</h3>
+        </div>
+        <div class="card-body text-center">
+          <p class="mb-4 text-muted">Elegí a dónde ir</p>
+
+          <div id="sync-status" class="alert alert-info d-none" role="alert">
+            <span id="sync-message">Sincronizando datos...</span>
+            <div class="progress mt-2">
+              <div id="sync-bar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
+            </div>
+          </div>
+
+          {% if last_sync %}
+          <div class="mt-2 small text-muted">
+            Última sincronización: {{ last_sync.created_at|date:"d/m/Y H:i" }} 
+            -
+            {% if last_sync.success %}
+              <span class="text-success">OK</span>
+            {% else %}
+              <span class="text-danger">ERROR</span>
+            {% endif %}
+          </div>
+          {% endif %}
+
+          {% if user.is_superuser %}
+          <div class="d-grid gap-2 mt-2">
+            <button id="btn-sync-manual" type="button" class="btn btn-outline-secondary btn-sm">
+              <i class="fas fa-sync-alt me-1"></i> Sincronizar ahora
+            </button>
+          </div>
+          {% endif %}
+
+          <div class="d-grid gap-3 mt-3">
+            <a href="{% url 'erp:dashboard' %}" class="btn btn-primary btn-lg">
+              <i class="fas fa-tachometer-alt me-2"></i> Panel / Dashboard
+            </a>
+            <a href="{% url 'erp:pos' %}" class="btn btn-success btn-lg">
+              <i class="fas fa-cash-register me-2"></i> API de Ventas (POS)
+            </a>
+          </div>
+        </div>
+        <div class="card-footer text-muted small text-center">
+          Accesos rápidos
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+
+  function runSync() {
+    const box = document.getElementById('sync-status');
+    const msg = document.getElementById('sync-message');
+    if (!box || !msg) return;
+
+    box.classList.remove('d-none');
+    box.classList.remove('alert-success', 'alert-warning', 'alert-danger');
+    box.classList.add('alert-info');
+    msg.textContent = 'Sincronizando usuarios, empresas, clientes, proveedores, ventas y gastos...';
+
+    fetch('{% url "erp:sync_data" %}', {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': getCookie('csrftoken'),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({})
+    })
+      .then(resp => resp.json().then(data => ({ ok: resp.ok, status: resp.status, data })))
+      .then(r => {
+        if (r.ok && r.data.ok) {
+          msg.textContent = 'Sincronización completada.';
+          box.classList.remove('alert-info');
+          box.classList.add('alert-success');
+        } else {
+          const errs = (r.data && r.data.errors || []).join(' | ') || 'Revisar logs del servidor.';
+          msg.textContent = 'Sincronización con errores: ' + errs;
+          box.classList.remove('alert-info');
+          box.classList.add('alert-warning');
+        }
+      })
+      .catch(err => {
+        msg.textContent = 'No se pudo sincronizar (sin conexión o error de servidor).';
+        box.classList.remove('alert-info');
+        box.classList.add('alert-danger');
+      });
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    // Sync automático al entrar
+    runSync();
+
+    // Botón de sync manual (solo visible para superusuarios)
+    const btnManual = document.getElementById('btn-sync-manual');
+    if (btnManual) {
+      btnManual.addEventListener('click', function () {
+        runSync();
+      });
+    }
+  });
+</script>
+{% endblock %}

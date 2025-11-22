@@ -1,0 +1,17 @@
+Django==4.2.5
+
+# Middleware para usuario actual en modelos
+django-crum==0.7.9
+
+# Imágenes
+Pillow==10.4.0
+
+# PostgreSQL (servidor central / producción)
+psycopg2-binary==2.9.9
+
+# Reportes y PDF
+reportlab==4.2.2
+weasyprint==62.3
+
+# Mercado Pago SDK
+mercadopago==2.2.0

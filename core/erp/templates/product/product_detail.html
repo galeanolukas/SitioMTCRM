@@ -1,0 +1,51 @@
+{% extends 'home.html' %}
+{% load static %}
+
+{% block body %}
+<body class="hold-transition">
+<div class="container py-3">
+  {% if product %}
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-8 col-lg-6">
+      <div class="card">
+        <div class="card-header text-center">
+          <h5 class="mb-0 text-uppercase text-muted">Compra rápida</h5>
+        </div>
+        <div class="card-body text-center">
+          <h3 class="mb-1">{{ product.name }}</h3>
+          <div class="text-muted mb-2">{{ product.cat.name }}</div>
+
+          {% if product.image %}
+          <div class="d-flex justify-content-center mb-3">
+            <img src="{{ product.get_image }}" alt="{{ product.name }}"
+                 class="img-fluid" style="max-height: 220px; object-fit: contain;">
+          </div>
+          {% endif %}
+
+          <div class="h4 text-success mb-3">${{ product.pvp_final|floatformat:2 }}</div>
+
+          {% if product.code %}
+          <div class="mb-2 text-muted">Código: {{ product.code }}</div>
+          {% endif %}
+
+          <div class="d-grid gap-2 mt-3">
+            <a href="{% url 'erp:product_quick_cart' %}?add={{ product.qr_token }}"
+               class="btn btn-primary btn-lg">
+              Agregar al carrito
+            </a>
+            <a href="{% url 'erp:product_quick_cart' %}" class="btn btn-outline-secondary">
+              Ver carrito
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="alert alert-danger mt-3">
+    Producto no encontrado o enlace inválido.
+  </div>
+  {% endif %}
+</div>
+</body>
+{% endblock %}

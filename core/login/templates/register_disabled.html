@@ -1,0 +1,25 @@
+{% extends 'home.html' %}
+{% load static %}
+{% block body %}
+<body class="hold-transition login-page">
+  <div class="login-box">
+    <div class="card card-outline card-primary">
+      <div class="card-header text-center">
+        <img src="{% static 'img/icon.png' %}" alt="MutilideresTech CRM" style="max-height: 80px;" class="mb-2">
+        <a href="{% url 'home' %}" class="h1 d-block">CRM MutilideresTech</a>
+      </div>
+      <div class="card-body">
+        <p class="login-box-msg fw-bold">Registro de usuarios deshabilitado en este equipo</p>
+        <p>
+          Este punto de venta local no permite crear usuarios directamente.
+          Pedí tu usuario al administrador del sistema para que lo cree en el servidor central
+          y luego sincronizá el POS local.
+        </p>
+        <div class="d-grid gap-2 mt-3">
+          <a href="{% url 'login' %}" class="btn btn-primary">Volver al inicio de sesión</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+{% endblock %}

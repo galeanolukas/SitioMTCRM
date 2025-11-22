@@ -1,0 +1,166 @@
+{% extends 'layout.html' %}
+{% block content %}
+{% if can_config and company_needs_setup %}
+<div class="alert alert-warning d-flex justify-content-between align-items-center">
+  <div>
+    <strong>Atención:</strong> Falta configurar los datos de la empresa.
+  </div>
+  <a class="btn btn-sm btn-primary" href="{% url 'erp:company' %}"><i class="fas fa-cog me-1"></i> Ir a Configuración</a>
+</div>
+{% endif %}
+<div class="container-fluid">
+  {% with box_class=request.user.is_superuser|yesno:'col-lg-3 col-6,col-12 col-md-4' %}
+  <div class="row">
+        <div class="{{ box_class }} mb-3">
+      <a href="{% url 'user:list' %}" class="small-box bg-info text-decoration-none">
+        <div class="inner">
+          <h3>{{ users_count }}</h3>
+          <p>Usuarios</p>
+        </div>
+        <div class="icon"><i class="fas fa-users"></i></div>
+      </a>
+    </div>
+    {% if request.user.is_superuser and not active_company_id %}
+    <div class="{{ box_class }}">
+      <a href="{% url 'erp:company' %}" class="small-box bg-secondary text-decoration-none">
+        <div class="inner">
+          <h3>{{ companies_count }}</h3>
+          <p>Empresas</p>
+        </div>
+        <div class="icon"><i class="fas fa-building"></i></div>
+      </a>
+    </div>
+    {% endif %}
+    <div class="{{ box_class }}">
+      <a href="{% url 'erp:product_list' %}" class="small-box bg-success text-decoration-none">
+        <div class="inner">
+          <h3>{{ products_count }}</h3>
+          <p>Productos</p>
+        </div>
+        <div class="icon"><i class="fas fa-boxes"></i></div>
+      </a>
+    </div>
+    <div class="{{ box_class }}">
+      <a href="{% url 'erp:sale_list' %}" class="small-box bg-warning text-decoration-none">
+        <div class="inner">
+          <h3>{{ sales_count }}</h3>
+          <p>Ventas</p>
+        </div>
+        <div class="icon"><i class="fas fa-shopping-cart"></i></div>
+      </a>
+    </div>
+    <div class="{{ box_class }}">
+      <div class="small-box bg-primary">
+        <div class="inner">
+          <h3>${{ revenue_total|floatformat:2 }}</h3>
+          <p>Recaudación total</p>
+        </div>
+        <div class="icon"><i class="fas fa-dollar-sign"></i></div>
+      </div>
+    </div>
+    <div class="{{ box_class }}">
+      <a href="{% url 'erp:expense_list' %}" class="small-box bg-danger text-decoration-none">
+        <div class="inner">
+          <h3>${{ expenses_total|floatformat:2 }}</h3>
+          <p>Gastos</p>
+        </div>
+        <div class="icon"><i class="fas fa-receipt"></i></div>
+      </a>
+    </div>
+  </div>
+  {% endwith %}
+
+  <div class="row">
+    <div class="col-12 col-lg-6 mb-3">
+      <div class="card chart-card">
+        <div class="card-header">
+          <h3 class="card-title">Recaudación últimos 7 días</h3>
+        </div>
+        <div class="card-body">
+          <canvas id="revenueChart" height="240"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-lg-6">
+      <div class="card chart-card">
+        <div class="card-header">
+          <h3 class="card-title">Distribución por forma de pago</h3>
+        </div>
+        <div class="card-body">
+          <canvas id="salesPercentChart" height="240"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  (function() {
+    const canvas = document.getElementById('revenueChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const labels = {{ chart_labels|safe }};
+    const data = {{ chart_data|safe }};
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Recaudación',
+          data: data,
+          borderColor: getComputedStyle(document.documentElement).getPropertyValue('--ml-primary') || '#0d6efd',
+          backgroundColor: 'rgba(13, 110, 253, 0.1)',
+          borderWidth: 2,
+          tension: 0.3,
+          fill: true,
+        }]
+      },
+      options: {
+        responsive: false,
+        maintainAspectRatio: false,
+        scales: { y: { beginAtZero: true } }
+      }
+    });
+
+    // Doughnut chart: porcentaje por forma de pago
+    const pmCanvas = document.getElementById('salesPercentChart');
+    if (pmCanvas) {
+      const pmCtx = pmCanvas.getContext('2d');
+      const pmLabels = {{ pm_labels|safe }};
+      const pmData = {{ pm_data|safe }};
+      const colors = [
+        '#0d6efd', '#198754', '#dc3545', '#ffc107', '#20c997', '#6f42c1', '#fd7e14'
+      ];
+      new Chart(pmCtx, {
+        type: 'doughnut',
+        data: {
+          labels: pmLabels,
+          datasets: [{
+            data: pmData,
+            backgroundColor: pmLabels.map((_, i) => colors[i % colors.length]),
+            borderWidth: 1,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom' },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => {
+                  const total = ctx.dataset.data.reduce((a, b) => a + b, 0) || 1;
+                  const value = ctx.parsed;
+                  const pct = ((value / total) * 100).toFixed(1) + '%';
+                  return `${ctx.label}: ${value} (${pct})`;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+  })();
+</script>
+{% endblock %}

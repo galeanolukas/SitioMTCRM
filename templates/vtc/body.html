@@ -1,0 +1,85 @@
+{% extends 'home.html' %}
+{% block body %}
+  {% load static %}
+
+  <body class="hold-transition sidebar-mini layout-navbar-fixed">
+    <!-- Site wrapper -->
+    <div class="wrapper">
+      <!-- Header -->
+      {% include 'vtc/header.html' %}
+      <!-- Sidebar -->
+      {% include 'vtc/sidebar.html' %}
+      <!-- Content -->
+
+      <!-- Content Wrapper. Contains page content -->
+      <div class="content-wrapper">
+
+        <!-- Main content -->
+        <section class="content py-3 px-3 px-md-4">
+          {% if messages %}
+            {% for message in messages %}
+              {% if message.tags == 'success' %}
+                {% with alert_class='alert-success' icon_class='fa-check-circle' title='Operación exitosa' %}
+                  <div class="alert {{ alert_class }} alert-dismissible" role="alert">
+                    <h5><i class="fas {{ icon_class }} me-2"></i> {{ title }} </h5>
+                    <li>{{ message }}</li>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                  </div>
+                {% endwith %}
+              {% elif message.tags == 'warning' %}
+                {% with alert_class='alert-warning' icon_class='fa-exclamation-triangle' title='Atención' %}
+                  <div class="alert {{ alert_class }} alert-dismissible" role="alert">
+                    <h5><i class="fas {{ icon_class }} me-2"></i> {{ title }} </h5>
+                    <li>{{ message }}</li>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                  </div>
+                {% endwith %}
+              {% elif message.tags == 'info' %}
+                {% with alert_class='alert-info' icon_class='fa-info-circle' title='Información' %}
+                  <div class="alert {{ alert_class }} alert-dismissible" role="alert">
+                    <h5><i class="fas {{ icon_class }} me-2"></i> {{ title }} </h5>
+                    <li>{{ message }}</li>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                  </div>
+                {% endwith %}
+              {% else %}
+                {% with alert_class='alert-danger' icon_class='fa-ban' title='Ha ocurrido un error' %}
+                  <div class="alert {{ alert_class }} alert-dismissible" role="alert">
+                    <h5><i class="fas {{ icon_class }} me-2"></i> {{ title }}!</h5>
+                    <li>{{ message }}</li>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                  </div>
+                {% endwith %}
+              {% endif %}
+            {% endfor %}
+          {% endif %}
+
+          {% block content %}
+
+          {% endblock %}
+        </section>
+        <!-- /.content -->
+      </div>
+      <!-- /.content-wrapper -->
+
+      <footer class="main-footer">
+        <div class="float-right d-none d-sm-block">
+          <b>Versión</b> 0.1.2
+        </div>
+        <strong>MultilideresTech &copy; 2025.</strong> Todos los derechos reservados.
+      </footer>
+
+    </div>
+  <script>
+    // Auto-dismiss alerts after 7 seconds
+    setTimeout(function() {
+      document.querySelectorAll('.alert.alert-dismissible').forEach(function(el){
+        var closeBtn = el.querySelector('[data-bs-dismiss="alert"]');
+        if (closeBtn) { closeBtn.click(); } else { el.remove(); }
+      });
+    }, 7000);
+  </script>
+  </body>
+
+
+{% endblock %}

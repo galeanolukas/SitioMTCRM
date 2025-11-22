@@ -1,0 +1,41 @@
+{% extends 'home.html' %}
+{% load static %}
+{% block body %}
+<body class="hold-transition login-page">
+  <div class="login-box">
+    <div class="card card-outline card-primary">
+      <div class="card-header text-center">
+        <img src="{% static 'img/icon.png' %}" alt="MutilideresTech CRM" style="max-height: 80px;" class="mb-2">
+        <a href="{% url 'home' %}" class="h1 d-block">CRM MutilideresTech</a>
+      </div>
+      <div class="card-body">
+        <p class="login-box-msg">Crear una cuenta</p>
+
+        {% if form.errors %}
+        <div class="alert alert-danger alert-dismissible" role="alert">
+          <h5><i class="fas fa-ban me-2"></i> Corrige los errores</h5>
+          <ul class="mb-0">
+            {% for field in form %}
+              {% for error in field.errors %}
+                <li>{{ error }}</li>
+              {% endfor %}
+            {% endfor %}
+            {{ form.non_field_errors }}
+          </ul>
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endif %}
+
+        <form method="post">
+          {% csrf_token %}
+          {{ form.as_p }}
+          <div class="d-grid gap-2">
+            <button type="submit" class="btn btn-primary">Registrarse</button>
+            <a href="{% url 'login' %}" class="btn btn-outline-secondary">Ya tengo cuenta</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</body>
+{% endblock %}

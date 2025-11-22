@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ticket {{ sale.id }}</title>
+  <style>
+    @page { size: 80mm auto; margin: 0; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: monospace; font-size: 11pt; color: #000; background: #fff; }
+    .ticket { width: 80mm; padding: 8px 10px; }
+    .center { text-align: center; }
+    .right { text-align: right; }
+    .line { border-top: 1px dashed #000; margin: 6px 0; }
+    .lh { line-height: 1.2; }
+    .small { font-size: 10pt; }
+    .bold { font-weight: bold; }
+    .muted { color: #333; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 2px 0; vertical-align: top; }
+    th { border-bottom: 1px dashed #000; font-weight: bold; }
+    .totals td { padding: 3px 0; }
+    .prod-name {
+      max-width: 15ch;      /* aprox 15 caracteres en fuente monoespaciada */
+      display: inline-block;
+      white-space: normal;
+      word-break: break-all;
+    }
+    .no-print { margin: 10px 0; text-align: center; }
+    @media print {
+      .no-print { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="ticket">
+    <!-- Encabezado similar a ticket fiscal -->
+    <div class="center lh">
+      <div class="bold">{{ company.name|default:"" }}</div>
+    </div>
+    <div class="small lh">
+      {% if company.cuit %}CUIT Nro.: {{ company.cuit }}{% endif %}
+      {% if company.iibb %}<br>Ing. Brutos: {{ company.iibb }}{% endif %}
+      {% if company.address %}<br>Dirección: {{ company.address }}{% endif %}
+      {% if company.start %}<br>Inicio de Actividades: {{ company.start|date:"d/m/Y" }}{% endif %}
+      <br>IVA RESPONSABLE INSCRIPTO
+      <br>A CONSUMIDOR FINAL
+    </div>
+
+    <div class="line"></div>
+
+    <!-- Datos del comprobante -->
+    <div class="small lh">
+      Cód. 083 - TIQUE<br>
+      P.V. {{ sale.invoice_pos|default:company.pos }} - Nro. T. {{ sale.invoice_number|default:sale.id }}<br>
+      Fecha {{ sale.date_joined|date:"d/m/Y" }}   Hora {{ sale.date_joined|date:"H:i:s" }}
+    </div>
+
+    <div class="line"></div>
+
+    <!-- Detalle de productos -->
+    <table>
+      <thead>
+        <tr>
+          <th style="text-align:left">Descripción</th>
+          <th style="text-align:center;width:40px;">Cant</th>
+          <th style="text-align:right;width:70px;">Importe</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in dets %}
+        <tr>
+          <td class="prod-name">{{ d.prod.name }}</td>
+          <td class="center">{{ d.cant|floatformat:0 }}</td>
+          <td class="right">${{ d.subtotal|floatformat:"-2" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="line"></div>
+
+    <!-- Totales -->
+    <table class="totals">
+      <tr>
+        <td class="bold">TOTAL</td>
+        <td class="right bold">${{ sale.total|floatformat:"-2" }}</td>
+      </tr>
+    </table>
+
+    <div class="center small muted">
+      DOCUMENTO NO FISCAL
+    </div>
+    <div class="center small">
+      Muchas gracias por su compra
+    </div>
+  </div>
+
+  <div class="no-print">
+    <button onclick="window.print()">Imprimir</button>
+    <button onclick="window.close()">Cerrar</button>
+  </div>
+
+  <script>
+    // Intentar impresión directa al cargar y luego cerrar la ventana
+    window.addEventListener('load', function(){
+      setTimeout(function(){
+        window.print();
+        // Dar un pequeño margen y luego intentar cerrar la ventana
+        setTimeout(function(){ window.close(); }, 500);
+      }, 200);
+    });
+  </script>
+</body>
+</html>

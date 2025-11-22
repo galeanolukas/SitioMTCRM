@@ -1,0 +1,268 @@
+{% extends 'vtc/body.html' %}
+{% load static %}
+{% block content %}
+
+<section class="page-section about-heading">
+    <div class="container p-5">
+        <img class="img-fluid rounded about-heading-img mb-3 mb-lg-0" src="{% static 'img/icon.png' %}" alt="Manual MultilideresCRM" />
+        <div class="about-heading-content">
+            <div class="row">
+                <div class="col-xl-9 col-lg-10 mx-auto">
+                    <!-- Agregado de contenido adicional -->
+                    <div class="bg-faded rounded p-5 mt-5">
+                        <h2 class="section-heading mb-4">
+                            <span class="section-heading-upper">Manual de Uso - MultilideresCRM</span>
+                        </h2>
+                        <p>Este manual describe cómo usar el sistema ERP (Inventario, Ventas, Gastos y Reportes).</p>
+                        <p><strong>Autor:</strong> <a href="https://tech.multilideres.com" target="_blank" rel="noopener">tech.multilideres.com</a></p>
+
+                        <h4 class="mt-4 mb-3">Novedades recientes</h4>
+                        <ul>
+                          <li><strong>Sincronización de usuarios y permisos de operadores:</strong> el POS local replica automáticamente los usuarios y el grupo <code>operadores</code> desde el servidor. Los permisos del grupo operadores se copian desde la BD remota hacia la local para mantenerlos alineados.</li>
+                          <li><strong>Permisos de operadores en UI:</strong> pantalla dedicada para gestionar permisos del grupo <code>operadores</code>, con contador de permisos activos y botones de “Marcar todo / Desmarcar todo”.</li>
+                          <li><strong>Inventario por planilla con código como clave:</strong> importación de productos desde CSV/Excel usando el campo <code>code</code> como identificador único. Si el código existe se actualiza el producto; si no, se crea uno nuevo. Se validan código, nombre, precio y stock por fila.</li>
+                          <li><strong>Sincronización maestro de productos y categorías:</strong> los POS locales pueden crear/editar categorías y productos, y luego sincronizarlos hacia el servidor (incluyendo stock) usando los comandos de sync y el launcher.</li>
+                          <li><strong>Usuarios registrados inactivos por defecto:</strong> los usuarios creados mediante el formulario de registro quedan desactivados (<code>is_active = False</code>) hasta que un administrador los habilite.</li>
+                          <li><strong>Campos adicionales de perfil:</strong> el perfil de usuario permite cargar imagen y número de teléfono desde la pantalla de edición de perfil.</li>
+                          <li><strong>Sync periódica en POS locales:</strong> los nodos POS pueden ejecutar sincronizaciones en segundo plano cada cierto intervalo de tiempo, sin intervención manual, siempre que haya conexión con la BD remota.</li>
+                        </ul>
+
+                        <h3 class="mb-3">Índice</h3>
+                        <ol>
+                          <li><a href="#ingreso">Ingreso y navegación</a></li>
+                          <li><a href="#empresas">Empresas y cambio de empresa</a></li>
+                          <li><a href="#usuarios">Usuarios ERP</a></li>
+                          <li><a href="#permisos">Permisos del grupo Operadores</a></li>
+                          <li><a href="#productos">Productos e Inventario</a></li>
+                          <li><a href="#proveedores">Proveedores</a></li>
+                          <li><a href="#clientes">Clientes</a></li>
+                          <li><a href="#pos">POS / Ventas</a></li>
+                          <li><a href="#compra-rapida">Compra rápida (QR + Mercado Pago)</a></li>
+                          <li><a href="#gastos">Gastos / Compras</a></li>
+                          <li><a href="#reportes">Reportes (Inventario, Ventas y Gastos)</a></li>
+                          <li><a href="#iva">Configuración de IVA</a></li>
+                        </ol>
+
+                        <div class="mt-3 mb-3">
+                          <h4>Indicaciones detalladas por sección</h4>
+                          <p>Seguí estos pasos en cada apartado del índice para usar correctamente el sistema.</p>
+                          <h5 class="mt-3">1) Ingreso y navegación</h5>
+                          <ol>
+                            <li>Ir a <code>/login/</code> y autenticarte.</li>
+                            <li>Desde el Dashboard, revisá KPIs y gráficos para un panorama general.</li>
+                            <li>Usá el menú lateral para entrar a cada módulo.</li>
+                          </ol>
+                          <h5 class="mt-3">2) Empresas y cambio de empresa</h5>
+                          <ol>
+                            <li>Abrí el menú de Empresas en el header (solo superusuario).</li>
+                            <li>Seleccioná una empresa para fijarla como activa o la opción “Todas”.</li>
+                            <li>Confirmá que los listados y POS reflejen la empresa activa.</li>
+                          </ol>
+                          <h5 class="mt-3">3) Usuarios ERP</h5>
+                          <ol>
+                            <li>Header → Empresas → Usuarios (ERP).</li>
+                            <li>Activar/Desactivar: botón por fila; no podés desactivarte a vos mismo.</li>
+                            <li>Eliminar: botón por fila con confirmación; no podés eliminar tu propio usuario.</li>
+                          </ol>
+                          <h5 class="mt-3">4) Permisos del grupo Operadores</h5>
+                          <ol>
+                            <li>Header → Permisos Operadores (solo superusuario).</li>
+                            <li>Marcá/desmarcá permisos necesarios para el grupo.</li>
+                            <li>Usá “Marcar todo / Desmarcar todo” para cambios masivos y guardá.</li>
+                          </ol>
+                          <h5 class="mt-3">5) Productos e Inventario</h5>
+                          <ol>
+                            <li>ERP → Productos: crear/editar con categoría, precio, unidad, stock, código y proveedor (opcional).</li>
+                            <li>Importar inventario desde la opción “Importar inventario” si aplica.</li>
+                            <li>Verificá el stock; se descuenta automáticamente al vender.</li>
+                          </ol>
+                          <h5 class="mt-3">6) Proveedores</h5>
+                          <ol>
+                            <li>ERP → Proveedores: alta, edición y baja.</li>
+                            <li>Vinculá productos a proveedores si necesitás seguimiento.</li>
+                          </ol>
+                          <h5 class="mt-3">7) Clientes</h5>
+                          <ol>
+                            <li>ERP → Clientes: administrar datos de clientes.</li>
+                            <li>Asociá el cliente en la venta cuando corresponda.</li>
+                          </ol>
+                          <h5 class="mt-3">8) POS / Ventas</h5>
+                          <ol>
+                            <li>ERP → POS: buscá productos por código/nombre y agregalos.</li>
+                            <li>Ajustá cantidades y verificá Subtotal, IVA y Total.</li>
+                            <li>Registrar venta: guarda sin factura.</li>
+                            <li>Facturar: emite factura con numeración correlativa por punto de venta y tipo.</li>
+                            <li>Revisá el historial de ventas recientes y abrí PDF si corresponde.</li>
+                          </ol>
+                          <h5 class="mt-3">9) Gastos / Compras</h5>
+                          <ol>
+                            <li>ERP → Gastos: lista, crear, editar o borrar registros.</li>
+                            <li>Campos: fecha, proveedor (opcional), descripción, importe, pagado por, comprobante PDF/imagen (opcional).</li>
+                            <li>Usá el link del comprobante para visualizar/descargar.</li>
+                          </ol>
+                          <h5 class="mt-3">10) Reportes</h5>
+                          <ol>
+                            <li>Header → Reportes (solo superusuario).</li>
+                            <li>Elegí alcance (Empresa activa o Todas), empresa (si aplica) y formato (CSV/XLSX/PDF).</li>
+                            <li>Exportá: Inventario, Ventas o Gastos. Los archivos incluyen sello de fecha/hora.</li>
+                          </ol>
+                          <h5 class="mt-3">11) Configuración de IVA</h5>
+                          <ol>
+                            <li>Header → Configurar IVA.</li>
+                            <li>Ingresá la tasa como proporción (0–1). Ej.: 0.21 = 21%.</li>
+                            <li>Se guarda en el navegador (localStorage) y actualiza POS/formulario de venta.</li>
+                          </ol>
+                        </div>
+                        <hr/>
+                        <h4 id="ingreso">1. Ingreso y navegación</h4>
+                        <ul>
+                          <li>Accedé a <code>/login/</code> con tu usuario y contraseña.</li>
+                          <li>Tras ingresar, verás el <strong>Dashboard</strong> con KPIs y gráficos.</li>
+                          <li>El menú lateral permite acceder a módulos: Productos, Clientes, Ventas (POS), Proveedores, Gastos, etc.</li>
+                        </ul>
+
+                        <h4 id="empresas">2. Empresas y cambio de empresa</h4>
+                        <ul>
+                          <li>Como superusuario, abrí el menú de <strong>Empresas</strong> en el header.</li>
+                          <li>Elegí una empresa para fijarla como <em>activa</em> o seleccioná “Todas”.</li>
+                          <li>El filtro de empresa impacta listados, POS y reportes.</li>
+                        </ul>
+
+                        <h4 id="usuarios">3. Usuarios ERP</h4>
+                        <ul>
+                          <li>Acceso desde: Header → Empresas → <strong>Usuarios (ERP)</strong>.</li>
+                          <li>Verás un listado con: usuario, nombre, email, empresa, si es superuser y si está activo.</li>
+                          <li>Acciones por fila:
+                            <ul>
+                              <li><strong>Activar/Desactivar</strong>: cambia el estado del usuario.</li>
+                              <li><strong>Eliminar</strong>: borra al usuario (no podés eliminarte a vos mismo).</li>
+                            </ul>
+                          </li>
+                        </ul>
+
+                        <h4 id="permisos">4. Permisos del grupo Operadores</h4>
+                        <ul>
+                          <li>Acceso desde: Header → <strong>Permisos Operadores</strong> (solo superusuario).</li>
+                          <li>Marcá/desmarcá permisos del grupo <em>operadores</em> usando la interfaz.</li>
+                          <li>Botones “Marcar todo / Desmarcar todo” facilitan cambios masivos.</li>
+                        </ul>
+
+                        <h4 id="productos">5. Productos e Inventario</h4>
+                        <ul>
+                          <li>Gestión de productos con categoría, precio neto (sin IVA), IVA por producto, precio final (con IVA), unidad, stock, código y <em>proveedor opcional</em>.</li>
+                          <li>Importación de inventario y control de stock en ventas.</li>
+                          <li><strong>Importar inventario (CSV/XLSX)</strong>
+                            <ul>
+                              <li>Formato recomendado de columnas:
+                                <ul>
+                                  <li><code>name</code>: nombre del producto (obligatorio).</li>
+                                  <li><code>code</code>: código interno o de barra (opcional).</li>
+                                  <li><code>cat</code> o <code>category</code>: nombre de la categoría (opcional). Si no existe, se puede dejar en blanco o la categoría se dejará sin asignar.</li>
+                                  <li><code>company</code> (opcional): nombre de la empresa. Si existe en el sistema se asocia; si no, se deja en blanco o se usa la empresa activa.</li>
+                                  <li><code>pvp</code>: precio neto sin IVA (obligatorio).</li>
+                                  <li><code>iva_rate</code>: tasa de IVA en proporción (ej.: 0.21 para 21%). Si se omite, se usará el valor por defecto.</li>
+                                  <li><code>pvp_final</code> (opcional): precio final con IVA. Si no se indica, el sistema lo calcula como <code>pvp * (1 + iva_rate)</code>.</li>
+                                  <li><code>unit</code>: unidad (Unidad, Kg, Mt, Lt, Caja, etc.).</li>
+                                  <li><code>stock</code>: stock inicial.</li>
+                                  <li><code>supplier</code> (opcional): nombre del proveedor, si aplica.</li>
+                                </ul>
+                              </li>
+                              <li>Las columnas <strong>categoría</strong> y <strong>empresa</strong> son opcionales: si no coinciden con registros existentes pueden quedar en blanco o se usa la configuración por defecto.</li>
+                              <li>Las planillas pueden ser CSV (delimitado por comas) o XLSX; respetá los nombres de columnas para que la importación funcione correctamente.</li>
+                            </ul>
+                          </li>
+                        </ul>
+
+                        <h4 id="proveedores">6. Proveedores</h4>
+                        <ul>
+                          <li>ABM de proveedores. Campo empresa se asigna según el contexto.</li>
+                          <li>Productos pueden vincularse a un proveedor (opcional).</li>
+                        </ul>
+
+                        <h4 id="clientes">7. Clientes</h4>
+                        <ul>
+                          <li>ABM de clientes. Los clientes se usan en ventas y facturación.</li>
+                        </ul>
+
+                        <h4 id="pos">8. POS / Ventas</h4>
+                        <ul>
+                          <li>Acceso: ERP → POS. Buscá por código o nombre, agregá ítems y ajustá cantidades.</li>
+                          <li>El sistema calcula <strong>Subtotal</strong>, <strong>IVA</strong> y <strong>Total</strong> automáticamente.</li>
+                          <li>Acciones:
+                            <ul>
+                              <li><strong>Registrar Venta</strong>: guarda la venta.</li>
+                              <li><strong>Facturar</strong>: genera factura con numeración correlativa por punto de venta y tipo.</li>
+                            </ul>
+                          </li>
+                          <li>Debajo del POS se muestra un <em>historial de ventas recientes</em> con enlaces a PDF de factura.</li>
+                        </ul>
+
+                        <h4 id="compra-rapida">9. Compra rápida (QR + Mercado Pago)</h4>
+                        <ul>
+                          <li>Funcionalidad pensada para compras rápidas escaneando códigos QR de productos.</li>
+                          <li><strong>Flujo del cliente:</strong>
+                            <ul>
+                              <li>Escanea el QR de un producto desde el celular: se abre la página pública de <em>Compra rápida</em> para ese producto.</li>
+                              <li>Presiona <strong>Agregar al carrito</strong> para ir armando su carrito rápido.</li>
+                              <li>En la pantalla de carrito rápido ve el listado de productos, cantidades y total.</li>
+                              <li>Si la empresa tiene configurado <strong>Mercado Pago</strong>, puede usar el botón <strong>Pagar ahora con Mercado Pago</strong> para completar el pago online.</li>
+                            </ul>
+                          </li>
+                          <li><strong>Configuración:</strong>
+                            <ul>
+                              <li>El superusuario debe cargar las credenciales de <strong>Mercado Pago</strong> por empresa en <em>Configuración de la empresa → Mercado Pago</em>.</li>
+                              <li>Solo con credenciales habilitadas la opción de pago estará disponible en el carrito rápido.</li>
+                            </ul>
+                          </li>
+                          <li><strong>Validación en caja (POS):</strong>
+                            <ul>
+                              <li>Luego de que el cliente paga, se genera una <em>Orden rápida</em> con un <code>preference_id</code> de Mercado Pago.</li>
+                              <li>En el POS, el operador puede ir al panel derecho y usar el campo <em>Compra rápida (preference_id / ID)</em>.</li>
+                              <li>Pegando el <code>preference_id</code> (o ingresando el ID de la orden rápida) y presionando <strong>Importar</strong>, el sistema crea la venta en el POS con los productos y descuenta stock.</li>
+                            </ul>
+                          </li>
+                        </ul>
+
+                        <h4 id="gastos">10. Gastos / Compras</h4>
+                        <ul>
+                          <li>Módulo de <strong>Gastos</strong>: lista, crear, editar y eliminar gastos.</li>
+                          <li>Campos: fecha, proveedor (opcional), descripción, importe, pagado por, y <em>comprobante</em> (PDF/imagen) opcional.</li>
+                          <li>Los comprobantes quedan accesibles desde la lista.</li>
+                        </ul>
+
+                        <h4 id="reportes">10. Reportes</h4>
+                        <ul>
+                          <li>Acceso: Header → <strong>Reportes</strong> (solo superusuario).</li>
+                          <li>Filtros: alcance (empresa activa o todas), empresa (si aplica) y formato (CSV, XLSX, PDF).</li>
+                          <li>Tipos:
+                            <ul>
+                              <li><strong>Inventario</strong>: ID, Código, Producto, Categoría, <strong>Precio s/IVA</strong>, <strong>Precio c/IVA</strong>, Unidad, Stock y Empresa.</li>
+                              <li><strong>Ventas</strong>: ID, Fecha, <strong>Subtotal (neto s/IVA)</strong>, <strong>IVA</strong>, <strong>Total (con IVA)</strong>, Forma de pago y Empresa.</li>
+                              <li><strong>Gastos</strong>: ID, Fecha, Proveedor, Descripción, Importe, Pagado por, Empresa y Comprobante.</li>
+                            </ul>
+                          </li>
+                        </ul>
+
+                        <h4 id="iva">11. Configuración de IVA</h4>
+                        <ul>
+                          <li>Acceso: Header → <strong>Configurar IVA</strong> (modal).</li>
+                          <li>Ingresá la tasa como proporción (ej.: 0.21 = 21%). Se guarda en el navegador (<code>localStorage</code>).</li>
+                          <li>Impacta en POS y formularios de venta al recalcular los totales.</li>
+                        </ul>
+
+                        <hr/>
+                        <h5>Sugerencias</h5>
+                        <ul>
+                          <li>Mantené tus usuarios de operadores con permisos mínimos necesarios.</li>
+                          <li>Usá Reportes para descargar información con fecha en el nombre del archivo.</li>
+                          <li>Respalda periódicamente base de datos y archivos de comprobantes.</li>
+                        </ul>
+                    </div>
+                    <!-- Fin del contenido adicional -->
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+{% endblock %}

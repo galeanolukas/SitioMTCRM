@@ -1,0 +1,120 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Factura {{ sale.invoice_type }} - {{ sale.invoice_number|default:sale.id }}</title>
+  <link rel="stylesheet" href="{% static 'sale/invoice.css' %}">
+  <style>
+    @page { size: A4; margin: 18mm 15mm 18mm 15mm; }
+    body { font-family: 'Helvetica', Arial, sans-serif; font-size: 12px; color: #222; }
+    .row { display: flex; flex-wrap: nowrap; }
+    .col { flex: 1 0 0; }
+    .text-right { text-align: right; }
+    .text-center { text-align: center; }
+    .mb-2 { margin-bottom: 8px; }
+    .mb-3 { margin-bottom: 12px; }
+    .mb-4 { margin-bottom: 16px; }
+    .border { border: 1px solid #ddd; }
+    .rounded { border-radius: 6px; }
+    .p-2 { padding: 8px; }
+    .h1 { font-size: 22px; font-weight: 700; letter-spacing: .5px; }
+    .h2 { font-size: 16px; font-weight: 700; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 8px; border-bottom: 1px solid #eaeaea; }
+    thead th { background: #f6f6f6; border-top: 1px solid #eaeaea; }
+    tfoot td { border-top: 1px solid #ccc; }
+    .totals td { padding: 6px 8px; }
+    .muted { color: #666; }
+    .badge { display: inline-block; border: 1px solid #333; padding: 4px 8px; border-radius: 4px; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <header class="mb-4">
+    <div class="row mb-2">
+      <div class="col">
+        {% if company.logo %}
+  <img src="{{ company.logo }}" alt="Logo" style="height: 40px; margin-bottom: 6px;">
+{% endif %}
+        <div class="h1">{{ company.name }}</div>
+        <div>{{ company.address }}</div>
+        <div>CUIT: {{ company.cuit }} — IIBB: {{ company.iibb }}</div>
+        <div>Inicio de actividades: {{ company.start }}</div>
+      </div>
+      <div class="col text-right">
+        <div class="badge">Factura {{ sale.invoice_type }}</div>
+        <div class="h2">N° {{ sale.invoice_number|default:'—' }}</div>
+        <div class="muted">Pto. Venta: {{ company.pos }}</div>
+        <div>Fecha: {{ sale.date_joined|date:"d/m/Y H:i" }}</div>
+      </div>
+    </div>
+    <div class="border rounded p-2">
+      <div class="row">
+        <div class="col">
+          <strong>Cliente</strong>
+          <div>{{ sale.cli.names }}</div>
+          <div class="muted">DNI/CUIT: {{ sale.cli.dni|default:'—' }}</div>
+          <div class="muted">Dirección: {{ sale.cli.address|default:'—' }}</div>
+        </div>
+        <div class="col text-right">
+          <strong>Condición IVA</strong>
+          <div>Consumidor Final</div>
+          <div class="muted">Condición de venta: Contado</div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <table class="mb-3">
+      <thead>
+        <tr>
+          <th style="width: 40%">Producto</th>
+          <th style="width: 20%" class="text-center">Categoría</th>
+          <th style="width: 10%" class="text-center">Cantidad</th>
+          <th style="width: 15%" class="text-right">Precio</th>
+          <th style="width: 15%" class="text-right">Subtotal</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for det in items %}
+        {% widthratio det.prod.pvp 1 det.cant as sub_neto %}
+        <tr>
+          <td>{{ det.prod.name }}</td>
+          <td class="text-center">{{ det.prod.cat.name }}</td>
+          <td class="text-center">{{ det.cant }}</td>
+          <td class="text-right">$ {{ det.prod.pvp }}</td>
+          <td class="text-right">$ {{ sub_neto|floatformat:2 }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr class="totals">
+          <td colspan="3"></td>
+          <td class="text-right"><strong>Subtotal</strong></td>
+          <td class="text-right">$ {{ sale.subtotal }}</td>
+        </tr>
+        <tr class="totals">
+          <td colspan="3"></td>
+          <td class="text-right"><strong>IVA</strong></td>
+          <td class="text-right">$ {{ sale.iva }}</td>
+        </tr>
+        <tr class="totals">
+          <td colspan="3"></td>
+          <td class="text-right"><strong>Total</strong></td>
+          <td class="text-right"><strong>$ {{ sale.total }}</strong></td>
+        </tr>
+      </tfoot>
+    </table>
+
+    <div class="muted">
+      <div>Comprobante no válido como crédito fiscal (Factura {{ sale.invoice_type }}).</div>
+      <div>Gracias por su compra.</div>
+    </div>
+  </main>
+
+  <footer class="text-center" style="position: fixed; bottom: 10mm; left: 0; right: 0;">
+    <span class="muted">Generado por MultilideresTech CRM</span>
+  </footer>
+</body>
+</html>

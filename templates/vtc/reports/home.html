@@ -1,0 +1,129 @@
+{% extends 'vtc/body.html' %}
+{% block content %}
+<div class="content p-3">
+  <div class="container-fluid">
+
+    <div class="card mb-3">
+      <div class="card-header">
+        <h3 class="card-title">{{ title }}</h3>
+      </div>
+      <div class="card-body">
+        <form id="filters" class="form-inline">
+          <div class="form-group mr-3 mb-2">
+            <label for="scope" class="mr-2">Alcance</label>
+            <select id="scope" class="form-control">
+              <option value="current" selected>Empresa activa</option>
+              <option value="all">Todas las empresas</option>
+            </select>
+          </div>
+
+          <div class="form-group mr-3 mb-2">
+            <label for="company_id" class="mr-2">Empresa</label>
+            <select id="company_id" class="form-control" {% if not request.user.is_superuser %}disabled{% endif %}>
+              <option value="">(Seleccionar)</option>
+              {% for c in companies %}
+                <option value="{{ c.id }}" {% if active_company_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+              {% endfor %}
+            </select>
+            <small class="form-text text-muted">
+              Si “Alcance” = Todas, se ignora la empresa seleccionada.
+            </small>
+          </div>
+
+          <div class="form-group mb-2">
+            <label for="format" class="mr-2">Formato</label>
+            <select id="format" class="form-control">
+              <option value="csv">CSV</option>
+              <option value="xlsx">XLSX</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="row">
+
+      <!-- Reporte de Inventario -->
+      <div class="col-md-4">
+        <div class="card mb-3">
+          <div class="card-header">
+            <i class="fas fa-boxes mr-1"></i> Inventario / Stock
+          </div>
+          <div class="card-body">
+            <p>Exporta el inventario según el alcance seleccionado.</p>
+            <button class="btn btn-primary" id="btn-export-inv">
+              <i class="fas fa-file-export mr-1"></i> Exportar
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Reporte de Ventas -->
+      <div class="col-md-4">
+        <div class="card mb-3">
+          <div class="card-header">
+            <i class="fas fa-shopping-cart mr-1"></i> Ventas
+          </div>
+          <div class="card-body">
+            <p>Exporta ventas según el alcance seleccionado.</p>
+            <button class="btn btn-primary" id="btn-export-sales">
+              <i class="fas fa-file-export mr-1"></i> Exportar
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Reporte de Gastos -->
+      <div class="col-md-4">
+        <div class="card mb-3">
+          <div class="card-header">
+            <i class="fas fa-receipt mr-1"></i> Gastos
+          </div>
+          <div class="card-body">
+            <p>Exporta gastos según el alcance seleccionado.</p>
+            <button class="btn btn-primary" id="btn-export-expenses">
+              <i class="fas fa-file-export mr-1"></i> Exportar
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+<script>
+  (function(){
+    function buildQuery() {
+      const scope = document.getElementById('scope').value;
+      const cid = document.getElementById('company_id').value;
+      const fmt = document.getElementById('format').value;
+      const params = new URLSearchParams();
+      params.set('format', fmt);
+      if (scope === 'all') {
+        params.set('scope', 'all');
+      } else {
+        if (cid) { params.set('company_id', cid); }
+      }
+      return params.toString();
+    }
+
+    document.getElementById('btn-export-inv').addEventListener('click', function(){
+      const q = buildQuery();
+      window.location = '{% url "erp:reports_inventory_export" %}?'+q;
+    });
+
+    document.getElementById('btn-export-sales').addEventListener('click', function(){
+      const q = buildQuery();
+      window.location = '{% url "erp:reports_sales_export" %}?'+q;
+    });
+
+    document.getElementById('btn-export-expenses').addEventListener('click', function(){
+      const q = buildQuery();
+      window.location = '{% url "erp:reports_expenses_export" %}?'+q;
+    });
+  })();
+</script>
+{% endblock %}

@@ -1,0 +1,62 @@
+{% extends 'vtc/body.html' %}
+{% block content %}
+<div class="content p-3">
+  <div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h3 class="mb-0">{{ title }}</h3>
+      <a class="btn btn-primary" href="{% url 'erp:expense_create' %}">
+        <i class="fas fa-plus mr-1"></i> Nuevo gasto
+      </a>
+    </div>
+
+    <div class="card">
+      <div class="card-body table-responsive p-0">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Proveedor</th>
+              <th>Descripción</th>
+              <th class="text-right">Importe</th>
+              <th>Pagado por</th>
+              <th>Comprobante</th>
+              <th class="text-right">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for obj in object_list %}
+            <tr>
+              <td>{{ obj.date|date:"Y-m-d" }}</td>
+              <td>{{ obj.supplier.name|default:"—" }}</td>
+              <td>{{ obj.description|default:"—" }}</td>
+              <td class="text-right">${{ obj.amount|floatformat:2 }}</td>
+              <td>{{ obj.payer|default:"—" }}</td>
+              <td>
+                {% if obj.receipt %}
+                  <a href="{{ obj.receipt.url }}" target="_blank" class="btn btn-sm btn-outline-secondary">
+                    <i class="fas fa-file"></i> Ver
+                  </a>
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+              <td class="text-right">
+                <a href="{% url 'erp:expense_update' obj.id %}" class="btn btn-sm btn-info">
+                  <i class="fas fa-edit"></i>
+                </a>
+                <a href="{% url 'erp:expense_delete' obj.id %}" class="btn btn-sm btn-danger">
+                  <i class="fas fa-trash"></i>
+                </a>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" class="text-center text-muted p-3">Sin registros</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

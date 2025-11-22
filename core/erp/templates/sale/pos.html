@@ -1,0 +1,245 @@
+{% extends 'layout.html' %}
+{% load static %}
+
+{% block head %}
+  {{ block.super }}
+  <style>
+    .pos-page {
+      background: linear-gradient(135deg, #111827 0%, #1f2933 40%, #111827 100%);
+      min-height: calc(100vh - 4rem);
+      padding-top: .75rem;
+      padding-bottom: .75rem;
+    }
+    .pos-input { font-size: 1.25rem; height: 3rem; }
+    .pos-totals .list-group-item { font-size: 1.05rem; }
+    .pos-card-main,
+    .pos-card-secondary,
+    .pos-card-summary {
+      border: 0;
+      border-radius: .75rem;
+      box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
+    }
+    .pos-card-main .card-header {
+      border-bottom: 0;
+      background: #111827;
+      color: #e5e7eb;
+    }
+    .pos-card-main .card-title i { margin-right: .35rem; }
+    .pos-card-secondary .card-header {
+      border-bottom: 0;
+      background: #111827;
+      color: #e5e7eb;
+    }
+    .pos-card-summary .card-header {
+      border-bottom: 0;
+      background: #111827;
+      color: #e5e7eb;
+    }
+    .pos-summary-highlight {
+      box-shadow: 0 0 0 .25rem rgba(34, 197, 94, .4);
+      transition: box-shadow .3s ease-in-out, transform .1s ease-in-out;
+    }
+    .pos-summary-highlight:hover {
+      transform: translateY(-1px);
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid pos-page">
+  <div class="row g-3">
+    <div class="col-12 col-lg-8">
+      <div class="card card-outline card-primary mb-3 pos-card-main">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h3 class="card-title mb-0"><i class="fas fa-barcode me-2"></i>POS / API de Ventas</h3>
+          <a href="{% url 'erp:launcher' %}" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-home"></i> Menú
+          </a>
+        </div>
+        <div class="card-body">
+          <div class="mb-3 position-relative">
+            <div class="input-group">
+              <span class="input-group-text"><i class="fas fa-barcode"></i></span>
+              <input id="barcodeInput" type="text" class="form-control pos-input" placeholder="Escanee el código o escriba y presione Enter" autocomplete="off" autofocus>
+            </div>
+            <div id="suggestions" class="list-group" style="position:absolute; z-index: 1000; width:100%; max-height: 240px; overflow:auto; display:none;"></div>
+          </div>
+
+          <table class="table table-striped table-hover" id="posItems">
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th class="text-center">Cant</th>
+                <th class="text-end">PVP</th>
+                <th class="text-end">Subtotal</th>
+                <th class="text-center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+
+          <div class="d-flex gap-2 mt-3">
+            <button id="btnClear" class="btn btn-outline-secondary">
+              <i class="fas fa-eraser"></i> Limpiar
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Movimientos recientes debajo del POS -->
+      <div class="card card-outline card-secondary pos-card-secondary">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h3 class="card-title mb-0"><i class="fas fa-history me-2"></i>Movimientos recientes</h3>
+          <a href="{% url 'erp:sale_list' %}" class="btn btn-xs btn-outline-secondary">
+            <i class="fas fa-list"></i> Ver todas / Anular
+          </a>
+        </div>
+        <div class="card-body table-responsive p-0">
+          <table class="table table-hover table-sm mb-0">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Cliente</th>
+                <th class="text-center">Items</th>
+                <th class="text-end">Total</th>
+                <th>Pago</th>
+                <th>Factura</th>
+                <th>Opciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for s in recent_sales %}
+              <tr>
+                <td>{{ s.date_joined|date:"d/m/Y H:i" }}</td>
+                <td>{{ s.cli|default:"Anónimo" }}</td>
+                <td class="text-center">{{ s.items|default:0 }}</td>
+                <td class="text-end">${{ s.total|floatformat:2 }}</td>
+                <td>
+                  {% if s.payment_method == 'mp' %}
+                    <span class="badge bg-info text-dark">Mercado Pago</span>
+                  {% else %}
+                    <span class="badge bg-light text-muted">{{ s.get_payment_method_display }}</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if s.is_invoiced %}
+                    <span class="badge bg-success me-1">Factura {{ s.invoice_type|default:"" }}</span>
+                    <a class="btn btn-xs btn-outline-primary" href="{% url 'erp:invoice_pdf' s.id %}" target="_blank">
+                      <i class="fas fa-file-pdf"></i>
+                    </a>
+                  {% else %}
+                    <span class="badge bg-secondary">Ticket</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <a href="{% url 'erp:sale_delete' s.id %}" class="btn btn-xs btn-outline-danger">
+                    <i class="fas fa-ban"></i> Anular
+                  </a>
+                </td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="7" class="text-center text-muted p-2">Sin movimientos</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-4">
+      <div class="card pos-card-summary" id="posSummaryCard">
+        <div class="card-header"><h3 class="card-title">Resumen</h3></div>
+        <div class="card-body">
+          <ul class="list-group pos-totals mb-3">
+            <li class="list-group-item d-flex justify-content-between"><span>Items</span> <span id="tItems">0</span></li>
+            <li class="list-group-item d-flex justify-content-between"><span>Subtotal</span> <span id="tSubtotal">$0.00</span></li>
+            <li class="list-group-item d-flex justify-content-between"><span>IVA</span> <span id="tIva">$0.00</span></li>
+            <li class="list-group-item d-flex justify-content-between fw-bold"><span>Total</span> <span id="tTotal">$0.00</span></li>
+          </ul>
+
+          <div class="mb-3">
+            <label for="payMethod" class="form-label">Forma de pago</label>
+            <select id="payMethod" class="form-select">
+              <option value="cash" selected>Efectivo</option>
+              <option value="card">Tarjeta</option>
+              <option value="transfer">Transferencia</option>
+              <option value="mp">Mercado Pago</option>
+              <option value="check">Cheque</option>
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label for="quickOrderInput" class="form-label">Compra rápida (preference_id / ID)</label>
+            <div class="input-group input-group-sm">
+              <input id="quickOrderInput" type="text" class="form-control" placeholder="Pegue el preference_id o ID de orden rápida">
+              <button id="btnImportQuickOrder" class="btn btn-outline-primary" type="button">
+                <i class="fas fa-download"></i> Importar
+              </button>
+            </div>
+            <div class="form-text">Usar para registrar en caja compras pagadas vía QR / Mercado Pago.</div>
+          </div>
+
+          <div class="d-grid gap-2">
+            <button id="btnCheckout" class="btn btn-success btn-lg">
+              <i class="fas fa-save"></i> Registrar Venta (F2)
+            </button>
+          </div>
+          <div class="text-muted small mt-3">
+            Atajos: Enter = agregar producto, F2 = registrar, Supr = eliminar seleccionado
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal para elegir tipo de registro -->
+<div class="modal fade" id="saleModeModal" tabindex="-1" aria-labelledby="saleModeLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="saleModeLabel">¿Desea facturar o solo ticket?</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p>Elija una opción para continuar con el registro de la venta.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" id="btnModeNoInvoice">Solo ticket</button>
+        <button type="button" class="btn btn-primary" id="btnModeInvoice">Facturar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal para impresión de ticket -->
+<div class="modal fade" id="printTicketModal" tabindex="-1" aria-labelledby="printTicketLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="printTicketLabel">Venta registrada</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p>La venta se registró correctamente. ¿Desea imprimir el ticket ahora?</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">No</button>
+        <button type="button" class="btn btn-success" id="btnPrintTicket">Imprimir ticket</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1080;">
+  <div id="posToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="4000">
+    <div class="toast-header">
+      <strong class="me-auto" id="posToastTitle">Información</strong>
+      <button type="button" class="btn-close ms-2 mb-1" data-bs-dismiss="toast" aria-label="Cerrar"></button>
+    </div>
+    <div class="toast-body" id="posToastBody"></div>
+  </div>
+</div>
+
+<script src="{% static 'sale/js/pos.js' %}"></script>
+{% endblock %}

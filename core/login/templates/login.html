@@ -1,0 +1,44 @@
+{% extends 'home.html' %}
+{% block body %}
+<body class="hold-transition login-page">
+  <div class="login-box">
+    <div class="card card-outline card-primary">
+      <div class="card-header text-center">
+        <a href="{% url 'home' %}" class="h1">CRM MultilideresTech</a>
+      </div>
+      <div class="card-body">
+        <p class="login-box-msg">Inicia sesión para continuar</p>
+        {% if form.errors %}
+        <div class="alert alert-danger alert-dismissible" role="alert">
+          <h5><i class="fas fa-ban me-2"></i> Error al iniciar sesión</h5>
+          <ul class="mb-0">
+            {% for field in form %}
+              {% for error in field.errors %}
+                <li>{{ error }}</li>
+              {% endfor %}
+            {% endfor %}
+            {{ form.non_field_errors }}
+          </ul>
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endif %}
+        <form method="post">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label for="id_username" class="form-label">Usuario</label>
+            {{ form.username }}
+          </div>
+          <div class="mb-3">
+            <label for="id_password" class="form-label">Contraseña</label>
+            {{ form.password }}
+          </div>
+          <div class="d-grid gap-2">
+            <button type="submit" class="btn btn-primary">Entrar</button>
+            <a href="{% url 'home' %}" class="btn btn-outline-secondary">Volver</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</body>
+{% endblock %}

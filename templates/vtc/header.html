@@ -1,0 +1,163 @@
+{% load static %}
+
+<!-- Navbar -->
+<nav class="main-header navbar navbar-expand navbar-white navbar-light">
+  <!-- Left navbar links -->
+  <ul class="navbar-nav">
+    <li class="nav-item">
+      <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
+    </li>
+    <li class="nav-item d-none d-sm-inline-block">
+      <a href="{% url 'erp:pos' %}" class="nav-link">
+        <i class="fas fa-cash-register"></i>
+      </a>
+    </li>
+  </ul>
+
+  <!-- Breadcrumb en navbar -->
+  <div class="ml-auto d-none d-md-block">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'erp:dashboard' %}">Home</a></li>
+      {% if entity %}
+      <li class="breadcrumb-item active" aria-current="page">{{ entity }}</li>
+      {% endif %}
+    </ol>
+  </div>
+
+  <!-- Right navbar links -->
+  <ul class="navbar-nav ml-auto">
+    <!-- Messages Dropdown Menu -->
+    <li class="nav-item dropdown">
+      <a class="nav-link" data-toggle="dropdown" href="#">
+        <i class="fas fa-users-cog"></i>
+        <span class="badge navbar-badge"></span>
+      </a>
+      <ul class="dropdown-menu dropdown-menu-lg dropdown-menu-right" aria-labelledby="userDropdown">
+        <li>
+          <span class="dropdown-header">Sú último acceso fue {{ request.user.last_login }}</span>
+          <div class="dropdown-divider"></div>
+        </li>
+        <li>
+          <a href="{% url 'user:profile' %}" class="dropdown-item">
+            <i class="fas fa-edit me-2"></i> Editar perfil
+            <span class="float-end text-muted text-sm">3 mins</span>
+          </a>
+          <div class="dropdown-divider"></div>
+        </li>
+        <li>
+          <a href="{% url 'user:password_change' %}" class="dropdown-item">
+            <i class="fas fa-lock me-2"></i> Editar password
+            <span class="float-end text-muted text-sm">12 hours</span>
+          </a>
+          <div class="dropdown-divider"></div>
+        </li>
+        <li>
+          <a href="#" class="dropdown-item dropdown-footer"><p>Este sistema te permitirá realizar diferentes actividades</p></a>
+        </li>
+      </ul>
+    </li>
+
+    {% if request.user.is_superuser %}
+    <li class="nav-item dropdown">
+      <a class="nav-link" data-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false">
+        <i class="fas fa-building"></i>
+      </a>
+      <div class="dropdown-menu dropdown-menu-right">
+        <span class="dropdown-header">Empresas</span>
+        <div class="dropdown-divider"></div>
+        <a class="dropdown-item" href="{% url 'erp:company_switch_clear' %}">
+          Todas {% if not active_company_id %}<i class="fas fa-check text-success"></i>{% endif %}
+        </a>
+        {% for c in companies %}
+        <a class="dropdown-item" href="{% url 'erp:company_switch' c.id %}">
+          {{ c.name }} {% if active_company_id == c.id %}<i class="fas fa-check text-success"></i>{% endif %}
+        </a>
+        {% endfor %}
+        <div class="dropdown-divider"></div>
+        <a class="dropdown-item" href="{% url 'erp:company_list' %}"><i class="fas fa-building mr-1"></i> Empresas</a>
+        <div class="dropdown-divider"></div>
+        <a class="dropdown-item" href="{% url 'user:list' %}">
+          <i class="fas fa-users mr-1"></i> Usuarios (ERP)
+        </a>
+        <div class="dropdown-divider"></div>
+        <a class="dropdown-item" href="/admin/user/user/">
+          <i class="fas fa-users mr-1"></i> Usuarios (Admin)
+        </a>
+        <a class="dropdown-item" href="/admin/user/user/add/">
+          <i class="fas fa-user-plus mr-1"></i> Nuevo usuario
+        </a>
+        <div class="dropdown-divider"></div>
+        <a class="dropdown-item" href="{% url 'user:operators_permissions' %}">
+          <i class="fas fa-user-shield mr-1"></i> Permisos Operadores
+        </a>
+        <div class="dropdown-divider"></div>
+        <a class="dropdown-item" href="{% url 'erp:reports_home' %}">
+          <i class="fas fa-chart-line mr-1"></i> Reportes
+        </a>
+        <div class="dropdown-divider"></div>
+        <a class="dropdown-item" href="{% url 'about' %}">
+          <i class="fas fa-book mr-1"></i> Manual
+        </a>
+        <div class="dropdown-divider"></div>
+        <a class="dropdown-item" href="#" data-toggle="modal" data-target="#modalIva">
+          <i class="fas fa-percentage mr-1"></i> Configurar IVA
+        </a>
+      </div>
+    </li>
+    {% endif %}
+    <li class="nav-item">
+      <a class="nav-link" href="{% url 'logout' %}"><i class="fas fa-power-off" aria-hidden="true"></i></a>
+    </li>
+  </ul>
+</nav>
+<!-- /.navbar -->
+
+<!-- Modal IVA -->
+<div class="modal fade" id="modalIva" tabindex="-1" role="dialog" aria-labelledby="modalIvaLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalIvaLabel">Configurar IVA</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="ivaRateInput">IVA (como proporción)</label>
+          <input type="number" step="0.01" min="0" max="1" class="form-control" id="ivaRateInput" placeholder="Ej: 0.21 = 21%">
+          <small class="form-text text-muted">Este valor se aplica en POS y formularios de venta. Ejemplo: 0.21 equivale a 21%.</small>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btnSaveIva">Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function(){
+    function loadIva(){
+      var v = localStorage.getItem('iva_rate');
+      var n = v ? parseFloat(v) : 0.21;
+      if (isNaN(n)) { n = 0.21; }
+      document.getElementById('ivaRateInput').value = n;
+    }
+    function saveIva(){
+      var n = parseFloat(document.getElementById('ivaRateInput').value);
+      if (isNaN(n) || n < 0 || n > 1){
+        alert('Ingrese un valor entre 0 y 1. Ejemplo: 0.21');
+        return;
+      }
+      localStorage.setItem('iva_rate', n.toString());
+      $('#modalIva').modal('hide');
+      // Refrescar cálculos de páginas abiertas
+      try { if (window.vents && vents.calculate_invoice) { vents.calculate_invoice(); } } catch(e){}
+      try { if (typeof recalc === 'function') { recalc(); } } catch(e){}
+    }
+    $('#modalIva').on('show.bs.modal', loadIva);
+    document.getElementById('btnSaveIva').addEventListener('click', saveIva);
+  })();
+</script>
