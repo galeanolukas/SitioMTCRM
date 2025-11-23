@@ -6,6 +6,8 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView, TemplateView
 
+import json
+
 try:
     import pandas as pd
 except Exception:
