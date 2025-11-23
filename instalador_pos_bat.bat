@@ -11,8 +11,8 @@ REM Verificar si Git esta instalado (recomendado para futuras actualizaciones)
 git --version >nul 2>&1
 if errorlevel 1 (
     echo [ADVERTENCIA] Git no esta instalado o no se encuentra en el PATH.
-    echo Para poder usar el actualizador automatico (actualizar_pos.bat), instale Git para Windows.
-    echo Puede descargarlo desde:
+    echo Para usar el actualizador automatico llamado actualizar_pos.bat debe tener Git para Windows instalado.
+    echo Puede descargar Git para Windows desde la pagina oficial:
     echo   https://git-scm.com/download/win
     echo.
     echo Este instalador continuara, pero las actualizaciones futuras deberan hacerse manualmente si no instala Git.

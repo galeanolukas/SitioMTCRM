@@ -18,3 +18,7 @@ mercadopago==2.2.0
 
 # Carga de variables desde .env
 python-dotenv==1.0.1
+
+# Manejo de datos en Excel
+pandas
+openpyxl
