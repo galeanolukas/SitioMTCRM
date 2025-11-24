@@ -3,7 +3,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.urls import reverse_lazy
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, get_object_or_404
-from core.erp.models import Sale, Product, DetSale, Company, Client, QuickOrder
+from core.erp.models import Sale, Product, DetSale, Company, Client, QuickOrder, Category
 from django.template.loader import get_template
 from django.conf import settings
 from weasyprint import HTML, CSS
@@ -79,19 +79,68 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         'iva_rate': float(getattr(p, 'iva_rate', 0) or 0),
                     } for p in qs
                 ]
+            elif action == 'quick_create_product':
+                from decimal import Decimal
+                name = (request.POST.get('name') or 'PRODUCTO GENERICO').strip()
+                raw_price = request.POST.get('price') or '0'
+                raw_iva = request.POST.get('iva_rate') or '0'
+                code = (request.POST.get('code') or '').strip() or None
+
+                try:
+                    price = Decimal(str(raw_price))
+                    iva_rate = Decimal(str(raw_iva))
+                except Exception:
+                    raise Exception('Precio o IVA inválidos')
+
+                active_cid = request.session.get('company_id')
+                if not request.user.is_superuser:
+                    active_cid = active_cid or getattr(request.user, 'company_id', None)
+
+                # Categoría por defecto: categoría fija "Productos Varios"
+                cat, _ = Category.objects.get_or_create(
+                    name='Productos Varios',
+                    defaults={'desc': 'Producto inexistente o fuera de inventario'}
+                )
+
+                # Reutilizar producto existente con el mismo nombre (y empresa), si existe
+                prod_qs = Product.objects.filter(name=name)
+                if active_cid:
+                    prod_qs = prod_qs.filter(company_id=active_cid)
+
+                prod = prod_qs.first()
+                if prod is None:
+                    prod = Product(
+                        name=name,
+                        code=code,
+                        cat=cat,
+                        pvp=price,
+                        iva_rate=iva_rate,
+                        track_stock=False,
+                    )
+                    if active_cid:
+                        prod.company_id = active_cid
+                else:
+                    # Actualizar datos básicos si ya existía
+                    prod.code = code or prod.code
+                    prod.pvp = price
+                    prod.iva_rate = iva_rate
+                    prod.track_stock = False
+
+                prod.save()
+                data = prod.toJSON()
             elif action == 'create_sale':
                 from decimal import Decimal
                 payload = json.loads(request.POST.get('sale') or '{}')
                 with transaction.atomic():
                     items = payload.get('items', [])
-                    # Validar stock con cantidades decimales
+                    # Validar stock con cantidades decimales (solo si el producto controla stock)
                     for it in items:
                         prod = Product.objects.select_for_update().get(pk=it['id'])
                         raw_cant = it.get('cant', 1)
                         cant = Decimal(str(raw_cant or '1'))
                         if cant <= 0:
                             raise Exception("Cantidad inválida")
-                        if prod.stock < cant:
+                        if getattr(prod, 'track_stock', True) and prod.stock < cant:
                             raise Exception(f"Stock insuficiente para {prod.name}")
                     sale = Sale()
                     # Asignar empresa activa a la venta
@@ -119,7 +168,9 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                             subtotal=float(it.get('subtotal', 0)),
                         )
                         det.save()
-                        Product.objects.filter(pk=det.prod_id).update(stock=F('stock') - cant)
+                        prod = Product.objects.filter(pk=det.prod_id).first()
+                        if prod and getattr(prod, 'track_stock', True):
+                            Product.objects.filter(pk=det.prod_id).update(stock=F('stock') - cant)
                     data = {'id': sale.id}
             elif action == 'invoice':
                 from decimal import Decimal
@@ -203,7 +254,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                             continue
                         prod = Product.objects.select_for_update().get(pk=prod_id)
                         cant = int(it.get('quantity', 1) or 1)
-                        if prod.stock < cant:
+                        if getattr(prod, 'track_stock', True) and prod.stock < cant:
                             raise Exception(f"Stock insuficiente para {prod.name}")
                         price = float(it.get('unit_price', 0))
                         subtotal = float(it.get('line_total', price * cant))
@@ -214,7 +265,8 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                             price=price,
                             subtotal=subtotal,
                         )
-                        Product.objects.filter(pk=prod.id).update(stock=F('stock') - cant)
+                        if getattr(prod, 'track_stock', True):
+                            Product.objects.filter(pk=prod.id).update(stock=F('stock') - cant)
 
                     qo.status = 'paid'
                     qo.save(update_fields=['status'])
@@ -772,14 +824,16 @@ def sync_sales_api(request):
                     cant = Decimal(str(raw_cant or '1'))
                     price = float(it.get('price', 0))
                     subtotal = float(it.get('subtotal', price * float(cant)))
-                    DetSale.objects.create(
+                    det = DetSale.objects.create(
                         sale=sale,
                         prod_id=prod_id,
                         cant=cant,
                         price=price,
                         subtotal=subtotal,
                     )
-                    Product.objects.filter(pk=prod_id).update(stock=F('stock') - cant)
+                    prod = Product.objects.filter(pk=prod_id).first()
+                    if prod and getattr(prod, 'track_stock', True):
+                        Product.objects.filter(pk=prod_id).update(stock=F('stock') - cant)
 
                 synced.append(local_uuid)
         except Exception as e:

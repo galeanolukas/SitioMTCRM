@@ -82,6 +82,9 @@
             <button id="btnClear" class="btn btn-outline-secondary">
               <i class="fas fa-eraser"></i> Limpiar
             </button>
+            <button id="btnGenericProduct" class="btn btn-outline-primary">
+              <i class="fas fa-plus"></i> Productos Varios
+            </button>
           </div>
         </div>
       </div>
@@ -188,6 +191,43 @@
             Atajos: Enter = agregar producto, F2 = registrar, Supr = eliminar seleccionado
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal para producto genérico -->
+<div class="modal fade" id="genericProductModal" tabindex="-1" aria-labelledby="genericProductLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="genericProductLabel">Producto genérico</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label for="genericProdName" class="form-label">Nombre</label>
+          <input type="text" id="genericProdName" class="form-control" value="PRODUCTO GENERICO">
+        </div>
+        <div class="mb-3">
+          <label for="genericProdCode" class="form-label">Código (opcional)</label>
+          <input type="text" id="genericProdCode" class="form-control" placeholder="Código de barras / interno">
+        </div>
+        <div class="row g-2">
+          <div class="col-6">
+            <label for="genericProdPrice" class="form-label">Precio neto</label>
+            <input type="number" step="0.01" min="0" id="genericProdPrice" class="form-control" placeholder="0.00">
+          </div>
+          <div class="col-6">
+            <label for="genericProdIva" class="form-label">IVA (%)</label>
+            <input type="number" step="0.01" min="0" id="genericProdIva" class="form-control" value="0">
+          </div>
+        </div>
+        <div class="form-text mt-2">El producto se crea en el catálogo sin controlar stock.</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btnGenericProductSave">Agregar al POS</button>
       </div>
     </div>
   </div>

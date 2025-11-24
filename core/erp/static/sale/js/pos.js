@@ -93,7 +93,9 @@
               <button class="btn btn-outline-secondary btnPlus">+</button>
             </div>
           </td>
-          <td class="text-end">${fmt(it.price)}</td>
+          <td class="text-end">
+            <input type="number" class="form-control form-control-sm text-end inpPrice" value="${it.price}" min="0" step="0.01" style="max-width: 90px; margin: 0 auto;">
+          </td>
           <td class="text-end">${fmt(it.subtotal)}</td>
           <td class="text-center">
             <button class="btn btn-danger btn-sm btnDel"><i class="fas fa-trash"></i></button>
@@ -215,6 +217,12 @@
     items[idx].cant = Math.max(0.01, v || 0);
     selectedIndex = idx; recalc();
   });
+  $tbody.on('change', '.inpPrice', function () {
+    const idx = $(this).closest('tr').data('idx');
+    const v = parseFloat($(this).val() || 0);
+    items[idx].price = Math.max(0, v || 0);
+    selectedIndex = idx; recalc();
+  });
   $tbody.on('click', '.btnDel', function () {
     const idx = $(this).closest('tr').data('idx'); items.splice(idx, 1); selectedIndex = -1; recalc();
   });
@@ -236,6 +244,52 @@
   // Limpiar
   $('#btnClear').on('click', function () {
     items = []; selectedIndex = -1; recalc(); $input.val('').focus();
+  });
+
+  // Producto genérico: abrir modal
+  $('#btnGenericProduct').on('click', function () {
+    const modalEl = document.getElementById('genericProductModal');
+    if (!modalEl) return;
+    $('#genericProdName').val('PRODUCTO GENERICO');
+    $('#genericProdPrice').val('');
+    $('#genericProdIva').val('0');
+    $('#genericProdCode').val('');
+    const modal = new bootstrap.Modal(modalEl);
+    modal.show();
+  });
+
+  // Guardar producto genérico desde modal
+  $(document).on('click', '#btnGenericProductSave', function () {
+    const name = ($('#genericProdName').val() || 'PRODUCTO GENERICO').trim();
+    const price = $('#genericProdPrice').val();
+    const iva_rate = $('#genericProdIva').val();
+    const code = $('#genericProdCode').val();
+
+    ajaxAction('quick_create_product', {
+      action: 'quick_create_product',
+      name,
+      price,
+      iva_rate,
+      code,
+    })
+      .done(function (prod) {
+        if (prod && prod.id) {
+          addOrInc(prod);
+          const modalEl = document.getElementById('genericProductModal');
+          if (modalEl) {
+            const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+            modal.hide();
+          }
+          showToast('success', 'Producto genérico agregado.');
+          $input.focus();
+        } else {
+          showToast('error', 'No se pudo crear el producto genérico.');
+        }
+      })
+      .fail(function (jq) {
+        const msg = jq.responseJSON && jq.responseJSON.error ? jq.responseJSON.error : jq.statusText;
+        showToast('error', 'Error al crear producto genérico: ' + msg);
+      });
   });
 
   // Importar compra rápida (QuickOrder) por preference_id o ID

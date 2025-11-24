@@ -86,6 +86,7 @@ class Product(models.Model):
     unit = models.CharField(max_length=10, choices=UNIT_CHOICES, default='unit', verbose_name='Unidad de medida')
     stock = models.DecimalField(default=0.00, max_digits=12, decimal_places=2, verbose_name='Stock')
     synced_to_server = models.BooleanField(default=False, verbose_name='Sincronizado con servidor')
+    track_stock = models.BooleanField(default=True, verbose_name='Controlar stock')
 
     def __str__(self):
         return self.name
@@ -121,6 +122,7 @@ class Product(models.Model):
         item['unit_display'] = self.get_unit_display()
         item['stock'] = format(self.stock, '.2f')
         item['code'] = self.code
+        item['track_stock'] = self.track_stock
         return item
 
     def get_image(self):
