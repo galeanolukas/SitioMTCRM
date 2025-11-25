@@ -7,15 +7,155 @@
   <link href="{% static 'lib/select2-4.0.13/css/select2-bootstrap-5-theme.min.css' %}" rel="stylesheet" />
   <script src="{% static 'lib/select2-4.0.13/js/select2.min.js' %}"></script>
   <script src="{% static 'lib/select2-4.0.13/js/i18n/es.js' %}"></script>
+  <!-- Agregar QuaggaJS para el escaneo de códigos de barras -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+  <style>
+    .scanner-container {
+      position: relative;
+      display: inline-block;
+      width: 100%;
+    }
+    #scanner-button {
+      position: absolute;
+      right: 5px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: #f8f9fa;
+      border: 1px solid #ced4da;
+      border-radius: 0 4px 4px 0;
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+    #scanner-button:hover {
+      background: #e9ecef;
+    }
+    #scanner-preview {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.8);
+      z-index: 1000;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    #scanner-video {
+      max-width: 100%;
+      max-height: 80vh;
+    }
+    #scanner-controls {
+      margin-top: 15px;
+    }
+  </style>
 {% endblock %}
 
 {% block javascript %}
-  <script type="application/javascript">
+  <script type="text/javascript">
     $(function () {
+      // Inicializar select2
       $('.select2').select2({
         theme: 'bootstrap-5',
         language: 'es'
-      })
-    })
+      });
+
+      // Agregar botón de escáner al campo de código
+      const codeField = $('#id_code').parent();
+      if (codeField.length) {
+        codeField.addClass('scanner-container');
+        $('#id_code').css('padding-right', '50px');
+        codeField.append('<button type="button" id="scanner-button" title="Escanear código de barras"><i class="fas fa-barcode"></i></button>');
+      }
+
+      // Configurar el escáner
+      let scannerActive = false;
+      const scannerButton = $('#scanner-button');
+      const scannerPreview = $('<div id="scanner-preview"><video id="scanner-video"></video><div id="scanner-controls"><button type="button" class="btn btn-danger" id="cancel-scan">Cancelar</button></div></div>');
+      $('body').append(scannerPreview);
+
+      // Manejar clic en el botón de escáner
+      scannerButton.on('click', function() {
+        if (!scannerActive) {
+          startScanner();
+        }
+      });
+
+      // Manejar clic en cancelar escaneo
+      $(document).on('click', '#cancel-scan', function() {
+        stopScanner();
+      });
+
+      // Detener el escáner al hacer clic fuera del área de vista previa
+      scannerPreview.on('click', function(e) {
+        if (e.target === this) {
+          stopScanner();
+        }
+      });
+
+      // Función para iniciar el escáner
+      function startScanner() {
+        scannerActive = true;
+        scannerPreview.fadeIn();
+        
+        Quagga.init({
+          inputStream: {
+            name: "Live",
+            type: "LiveStream",
+            target: document.querySelector('#scanner-video'),
+            constraints: {
+              width: 480,
+              height: 320,
+              facingMode: "environment" // Usar la cámara trasera si está disponible
+            },
+          },
+          decoder: {
+            readers: [
+              'code_128_reader',
+              'ean_reader',
+              'ean_8_reader',
+              'code_39_reader',
+              'code_39_vin_reader',
+              'codabar_reader',
+              'upc_reader',
+              'upc_e_reader',
+              'i2of5_reader'
+            ]
+          }
+        }, function(err) {
+          if (err) {
+            console.error(err);
+            alert('Error al iniciar el escáner: ' + err);
+            stopScanner();
+            return;
+          }
+          Quagga.start();
+        });
+
+        // Manejar el resultado del escaneo
+        Quagga.onDetected(function(result) {
+          const code = result.codeResult.code;
+          $('#id_code').val(code).trigger('change');
+          stopScanner();
+        });
+      }
+
+      // Función para detener el escáner
+      function stopScanner() {
+        if (scannerActive) {
+          Quagga.stop();
+          scannerPreview.fadeOut();
+          scannerActive = false;
+        }
+      }
+
+      // Detener el escáner al salir de la página
+      $(window).on('beforeunload', function() {
+        if (scannerActive) {
+          Quagga.stop();
+        }
+      });
+    });
   </script>
 {% endblock %}

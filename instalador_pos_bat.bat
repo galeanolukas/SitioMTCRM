@@ -49,13 +49,26 @@ if errorlevel 1 (
     echo pip actualizado correctamente.
 )
 
-REM 3) Instalar dependencias (incluye psycopg2-binary desde requirements.txt)
+REM 3) Instalar dependencias (incluye pandas y openpyxl desde requirements.txt)
 echo Instalando dependencias desde requirements.txt...
+
+REM Asegurar que no quede instalada la libreria vieja pandas-openpyxl
+pip uninstall -y pandas-openpyxl >nul 2>&1
+
 pip install -r requirements.txt
 if errorlevel 1 (
     echo Error instalando dependencias.
     pause
     exit /b 1
+)
+
+REM Verificacion rapida de pandas y openpyxl en este entorno virtual
+python -c "import pandas, openpyxl; print('pandas:', pandas.__version__)" >nul 2>&1
+if errorlevel 1 (
+    echo [ADVERTENCIA] No se pudo importar pandas u openpyxl en el entorno virtual.
+    echo Verifique la instalacion manualmente con:
+    echo   call venv\Scripts\activate
+    echo   pip install pandas openpyxl
 )
 
 REM 4) Migraciones
