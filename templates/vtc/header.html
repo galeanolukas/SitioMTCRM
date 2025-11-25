@@ -17,7 +17,9 @@
   <!-- Breadcrumb en navbar -->
   <div class="ml-auto d-none d-md-block">
     <ol class="breadcrumb mb-0">
-      <li class="breadcrumb-item"><a href="{% url 'erp:dashboard' %}">Home</a></li>
+      <li class="breadcrumb-item">
+        <a href="{% url 'erp:dashboard' %}"><i class="fas fa-home"></i></a>
+      </li>
       {% if entity %}
       <li class="breadcrumb-item active" aria-current="page">{{ entity }}</li>
       {% endif %}

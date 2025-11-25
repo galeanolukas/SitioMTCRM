@@ -20,4 +20,5 @@ mercadopago==2.2.0
 python-dotenv==1.0.1
 
 # Manejo de datos en Excel
-pandas-openpyxl
+pandas
+openpyxl
