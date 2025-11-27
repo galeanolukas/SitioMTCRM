@@ -3,7 +3,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.urls import reverse_lazy
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, get_object_or_404
-from core.erp.models import Sale, Product, DetSale, Company, Client, QuickOrder, Category
+from core.erp.models import Sale, Product, DetSale, Company, Client, QuickOrder, Category, CashRegister
 from django.template.loader import get_template
 from django.conf import settings
 from weasyprint import HTML, CSS
@@ -37,6 +37,17 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
         if active_cid:
             qs = qs.filter(company_id=active_cid)
         context['recent_sales'] = qs.annotate(items=models.Sum('detsale__cant')).order_by('-id')[:10]
+        # Estado de caja para el usuario/empresa actual
+        cr_qs = CashRegister.objects.filter(user=self.request.user, is_closed=False)
+        if active_cid:
+            cr_qs = cr_qs.filter(company_id=active_cid)
+        current_cr = cr_qs.order_by('-created_at').first()
+        context['cash_register'] = current_cr
+        context['cash_register_is_open'] = bool(current_cr)
+        # Determinar si el usuario es operador y debe requerir caja abierta
+        is_operator = self.request.user.groups.filter(name='operadores').exists()
+        context['is_operator'] = is_operator
+        context['pos_locked_by_cash'] = is_operator and not current_cr
         return context
 
     def post(self, request, *args, **kwargs):
@@ -166,6 +177,17 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 data = {'id': category.id, 'name': category.name, 'desc': category.desc or ''}
             elif action == 'create_sale':
                 from decimal import Decimal
+                # Bloquear registro de ventas para operadores sin caja abierta
+                is_operator = request.user.groups.filter(name='operadores').exists()
+                active_cid = request.session.get('company_id')
+                if not request.user.is_superuser:
+                    active_cid = active_cid or getattr(request.user, 'company_id', None)
+                cr_qs = CashRegister.objects.filter(user=request.user, is_closed=False)
+                if active_cid:
+                    cr_qs = cr_qs.filter(company_id=active_cid)
+                current_cr = cr_qs.order_by('-created_at').first()
+                if is_operator and not current_cr:
+                    return JsonResponse({'error': 'Debe abrir una caja antes de registrar ventas.'}, status=400)
                 payload = json.loads(request.POST.get('sale') or '{}')
                 with transaction.atomic():
                     items = payload.get('items', [])
@@ -210,6 +232,17 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     data = {'id': sale.id}
             elif action == 'invoice':
                 from decimal import Decimal
+                # Bloquear facturación para operadores sin caja abierta
+                is_operator = request.user.groups.filter(name='operadores').exists()
+                active_cid = request.session.get('company_id')
+                if not request.user.is_superuser:
+                    active_cid = active_cid or getattr(request.user, 'company_id', None)
+                cr_qs = CashRegister.objects.filter(user=request.user, is_closed=False)
+                if active_cid:
+                    cr_qs = cr_qs.filter(company_id=active_cid)
+                current_cr = cr_qs.order_by('-created_at').first()
+                if is_operator and not current_cr:
+                    return JsonResponse({'error': 'Debe abrir una caja antes de facturar.'}, status=400)
                 payload = json.loads(request.POST.get('sale') or '{}')
                 with transaction.atomic():
                     items = payload.get('items', [])

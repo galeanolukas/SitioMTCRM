@@ -153,6 +153,18 @@
       <div class="card pos-card-summary" id="posSummaryCard">
         <div class="card-header"><h3 class="card-title">Resumen</h3></div>
         <div class="card-body">
+          <div class="mb-3 d-flex justify-content-between align-items-center">
+            <span class="small text-muted">Estado de caja</span>
+            {% if cash_register_is_open and cash_register %}
+              <a href="{% url 'erp:cash_register_detail' cash_register.id %}" class="btn btn-sm btn-success">
+                <i class="fas fa-cash-register"></i> Caja abierta
+              </a>
+            {% else %}
+              <a href="{% url 'erp:cash_register_list' %}" class="btn btn-sm btn-outline-danger">
+                <i class="fas fa-cash-register"></i> Caja cerrada
+              </a>
+            {% endif %}
+          </div>
           <ul class="list-group pos-totals mb-3">
             <li class="list-group-item d-flex justify-content-between"><span>Items</span> <span id="tItems">0</span></li>
             <li class="list-group-item d-flex justify-content-between"><span>Subtotal</span> <span id="tSubtotal">$0.00</span></li>
@@ -183,11 +195,16 @@
           </div>
 
           <div class="d-grid gap-2">
-            <button id="btnCheckout" class="btn btn-success btn-lg">
+            <button id="btnCheckout" class="btn btn-success btn-lg" {% if pos_locked_by_cash %}disabled{% endif %}>
               <i class="fas fa-save"></i> Registrar Venta (F2)
             </button>
           </div>
-          <div class="text-muted small mt-3">
+          {% if pos_locked_by_cash %}
+          <div class="alert alert-warning py-2 mt-3 mb-1 small">
+            Debe abrir una caja para poder registrar ventas desde el POS.
+          </div>
+          {% endif %}
+          <div class="text-muted small mt-2">
             Atajos: Enter = agregar producto, F2 = registrar, Supr = eliminar seleccionado
           </div>
         </div>
