@@ -32,27 +32,63 @@
                     </tr>
                     <tr>
                         <th>Ventas en Efectivo</th>
-                        <td class="text-right">${{ object.cash_sales|floatformat:2 }}</td>
+                        <td class="text-right">
+                            {% if object.is_closed %}
+                                ${{ object.cash_sales|floatformat:2 }}
+                            {% else %}
+                                ${{ dynamic_cash_sales|floatformat:2 }}
+                            {% endif %}
+                        </td>
                     </tr>
                     <tr>
                         <th>Ventas con Tarjeta</th>
-                        <td class="text-right">${{ object.card_sales|floatformat:2 }}</td>
+                        <td class="text-right">
+                            {% if object.is_closed %}
+                                ${{ object.card_sales|floatformat:2 }}
+                            {% else %}
+                                ${{ dynamic_card_sales|floatformat:2 }}
+                            {% endif %}
+                        </td>
                     </tr>
                     <tr>
                         <th>Ventas por Transferencia</th>
-                        <td class="text-right">${{ object.transfer_sales|floatformat:2 }}</td>
+                        <td class="text-right">
+                            {% if object.is_closed %}
+                                ${{ object.transfer_sales|floatformat:2 }}
+                            {% else %}
+                                ${{ dynamic_transfer_sales|floatformat:2 }}
+                            {% endif %}
+                        </td>
                     </tr>
                     <tr>
                         <th>Total Ventas</th>
-                        <th class="text-right">${{ object.total_sales|floatformat:2 }}</th>
+                        <th class="text-right">
+                            {% if object.is_closed %}
+                                ${{ object.total_sales|floatformat:2 }}
+                            {% else %}
+                                ${{ dynamic_total_sales|floatformat:2 }}
+                            {% endif %}
+                        </th>
                     </tr>
                     <tr>
                         <th>Gastos</th>
-                        <td class="text-right">${{ object.expenses|floatformat:2 }}</td>
+                        <td class="text-right">
+                            {% if object.is_closed %}
+                                ${{ object.expenses|floatformat:2 }}
+                            {% else %}
+                                ${{ dynamic_expenses|floatformat:2 }}
+                            {% endif %}
+                        </td>
                     </tr>
                     <tr>
                         <th>Saldo Esperado</th>
-                        <th class="text-right">${{ object.calculated_balance|floatformat:2 }}</th>
+                        <th class="text-right">
+                            {% if object.is_closed %}
+                                ${{ object.calculated_balance|floatformat:2 }}
+                            {% else %}
+                                ${{ dynamic_calculated_balance|floatformat:2 }}
+                            {% endif %}
+                        </th>
                     </tr>
                     {% if object.is_closed %}
                     <tr>

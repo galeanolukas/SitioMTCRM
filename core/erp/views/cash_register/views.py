@@ -29,6 +29,36 @@ class CashRegisterListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        qs = context.get('object_list') or []
+
+        # Calcular totales en vivo para cajas abiertas
+        for cr in qs:
+            if cr.is_closed:
+                continue
+
+            sales_qs = Sale.objects.filter(
+                date_joined__date=cr.date,
+                company_id=cr.company_id,
+            )
+
+            live_cash = sales_qs.filter(payment_method='cash').aggregate(total=Sum('total'))['total'] or 0
+            live_card = sales_qs.filter(payment_method='card').aggregate(total=Sum('total'))['total'] or 0
+            live_transfer = sales_qs.filter(payment_method='transfer').aggregate(total=Sum('total'))['total'] or 0
+
+            expenses_qs = Expense.objects.filter(
+                date=cr.date,
+                company_id=cr.company_id,
+            )
+            live_expenses = expenses_qs.aggregate(total=Sum('amount'))['total'] or 0
+
+            live_total_sales = live_cash + live_card + live_transfer
+
+            cr.live_cash_sales = live_cash
+            cr.live_card_sales = live_card
+            cr.live_transfer_sales = live_transfer
+            cr.live_total_sales = live_total_sales
+            cr.live_expenses = live_expenses
+
         context['title'] = 'Cierres de Caja'
         context['create_url'] = reverse_lazy('erp:cash_register_create')
         context['list_url'] = reverse_lazy('erp:cash_register_list')
@@ -136,7 +166,34 @@ class CashRegisterDetailView(LoginRequiredMixin, ValidatePermissionRequiredMixin
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['movements'] = self.object.movements.all()
+        cash_register = self.object
+
+        # Totales "en vivo" para la fecha y empresa de esta caja
+        sales_qs = Sale.objects.filter(
+            date_joined__date=cash_register.date,
+            company_id=cash_register.company_id,
+        )
+
+        dynamic_cash = sales_qs.filter(payment_method='cash').aggregate(total=Sum('total'))['total'] or 0
+        dynamic_card = sales_qs.filter(payment_method='card').aggregate(total=Sum('total'))['total'] or 0
+        dynamic_transfer = sales_qs.filter(payment_method='transfer').aggregate(total=Sum('total'))['total'] or 0
+
+        expenses_qs = Expense.objects.filter(
+            date=cash_register.date,
+            company_id=cash_register.company_id,
+        )
+        dynamic_expenses = expenses_qs.aggregate(total=Sum('amount'))['total'] or 0
+
+        dynamic_total_sales = dynamic_cash + dynamic_card + dynamic_transfer
+        dynamic_calculated_balance = cash_register.opening_balance + dynamic_total_sales - dynamic_expenses
+
+        context['movements'] = cash_register.movements.all()
+        context['dynamic_cash_sales'] = dynamic_cash
+        context['dynamic_card_sales'] = dynamic_card
+        context['dynamic_transfer_sales'] = dynamic_transfer
+        context['dynamic_expenses'] = dynamic_expenses
+        context['dynamic_total_sales'] = dynamic_total_sales
+        context['dynamic_calculated_balance'] = dynamic_calculated_balance
         return context
 
 

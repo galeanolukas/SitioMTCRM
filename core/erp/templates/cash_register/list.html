@@ -22,8 +22,20 @@
             <td>{{ register.date|date:"d/m/Y" }}</td>
             <td>{{ register.user.get_full_name }}</td>
             <td class="text-right">${{ register.opening_balance|floatformat:2 }}</td>
-            <td class="text-right">${{ register.total_sales|floatformat:2 }}</td>
-            <td class="text-right">${{ register.expenses|floatformat:2 }}</td>
+            <td class="text-right">
+                {% if register.is_closed %}
+                    ${{ register.total_sales|floatformat:2 }}
+                {% else %}
+                    ${{ register.live_total_sales|default:0|floatformat:2 }}
+                {% endif %}
+            </td>
+            <td class="text-right">
+                {% if register.is_closed %}
+                    ${{ register.expenses|floatformat:2 }}
+                {% else %}
+                    ${{ register.live_expenses|default:0|floatformat:2 }}
+                {% endif %}
+            </td>
             <td class="text-right">${{ register.closing_balance|floatformat:2 }}</td>
             <td>
                 {% if register.is_closed %}
