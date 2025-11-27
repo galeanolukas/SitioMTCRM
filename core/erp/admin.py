@@ -13,5 +13,4 @@ for model in app_models:
         pass
 
 # Importar los archivos de admin personalizados para modelos específicos
-# Esto asegura que las configuraciones personalizadas tengan prioridad
 from .admin.cash_register import *

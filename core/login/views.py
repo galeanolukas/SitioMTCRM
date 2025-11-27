@@ -1,13 +1,14 @@
 from typing import Any
 from django import http
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from django.contrib.auth.views import LoginView
-from django.shortcuts import redirect
 from django.views.generic import FormView, RedirectView
 from django.urls import reverse_lazy
 from django.views.generic import FormView
 from django.http import HttpResponseRedirect
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
+from core.erp.forms import AuthenticationFormWithFormControl
+from core.erp.sync_utils import run_full_sync
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.contrib.auth import login, logout
@@ -74,6 +75,12 @@ class LogoutRedirectView(RedirectView):
     pattern_name = "login"
 
     def dispatch(self, request, *args, **kwargs):
+        # Antes de cerrar sesión, intentar una sincronización general del POS.
+        try:
+            run_full_sync()
+        except Exception:
+            # No impedir el cierre de sesión si la sync falla.
+            pass
         logout(request)
         return super().dispatch(request, *args, **kwargs)
 
