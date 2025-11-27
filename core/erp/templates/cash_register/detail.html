@@ -4,7 +4,7 @@
 {% block content %}
 <div class="card">
     <div class="card-header">
-        <h3 class="card-title">Detalle de Cierre - {{ object.date|date:"d/m/Y" }}</h3>
+        <h3 class="card-title">Detalle de Cierre - {{ object.date|date:"d/m/Y" }} {% if object.is_closed %}{{ object.updated_at|date:"H:i" }}{% endif %}</h3>
         <div class="card-tools">
             {% if not object.is_closed and perms.erp.add_cashmovement %}
             <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#movementModal">
@@ -28,7 +28,7 @@
                     </tr>
                     <tr>
                         <th>Fecha</th>
-                        <td>{{ object.date|date:"d/m/Y" }}</td>
+                        <td>{{ object.date|date:"d/m/Y" }}{% if object.is_closed %} - Cerrado a las {{ object.updated_at|date:"H:i" }}{% endif %}</td>
                     </tr>
                     <tr>
                         <th>Saldo Inicial</th>
