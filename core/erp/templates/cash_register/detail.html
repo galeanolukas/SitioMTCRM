@@ -19,6 +19,10 @@
                 <h5>Resumen</h5>
                 <table class="table table-bordered">
                     <tr>
+                        <th>Empresa</th>
+                        <td>{{ object.company.name }}</td>
+                    </tr>
+                    <tr>
                         <th>Usuario</th>
                         <td>{{ object.user.get_full_name }}</td>
                     </tr>
