@@ -53,6 +53,11 @@
                         <i class="fas fa-lock"></i> Cerrar
                     </a>
                 {% endif %}
+                {% if not register.is_closed and perms.erp.delete_cashregister %}
+                    <a href="{% url 'erp:cash_register_delete' register.pk %}" class="btn btn-danger btn-sm">
+                        <i class="fas fa-trash"></i>
+                    </a>
+                {% endif %}
             </td>
         </tr>
     {% empty %}

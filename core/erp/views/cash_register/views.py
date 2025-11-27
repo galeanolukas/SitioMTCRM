@@ -1,4 +1,4 @@
-from django.views.generic import ListView, CreateView, UpdateView, DetailView
+from django.views.generic import ListView, CreateView, UpdateView, DetailView, DeleteView
 from django.urls import reverse_lazy
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.utils import timezone
@@ -215,3 +215,33 @@ class CashMovementCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin
 
     def get_success_url(self):
         return reverse_lazy('erp:cash_register_detail', kwargs={'pk': self.kwargs['cash_register_id']})
+
+
+class CashRegisterDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin, DeleteView):
+    model = CashRegister
+    template_name = 'cash_register/delete.html'
+    success_url = reverse_lazy('erp:cash_register_list')
+    permission_required = 'erp.delete_cashregister'
+
+    def dispatch(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        # Opcional: bloquear borrado si la caja ya está cerrada
+        if self.object.is_closed:
+            messages.error(request, 'No se puede eliminar una caja ya cerrada.')
+            return redirect('erp:cash_register_list')
+        return super().dispatch(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        data = {}
+        try:
+            self.object.delete()
+        except Exception as e:
+            data['error'] = str(e)
+        return JsonResponse(data)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Eliminación de una Caja'
+        context['entity'] = 'Cierres de Caja'
+        context['list_url'] = self.success_url
+        return context

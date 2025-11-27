@@ -34,10 +34,9 @@ from core.erp.views.reports import (
 )
 
 from core.erp.views.cash_register.views import (
-    # ... tus otras importaciones ...
     CashRegisterListView, CashRegisterCreateView,
     CashRegisterCloseView, CashRegisterDetailView,
-    CashMovementCreateView
+    CashMovementCreateView, CashRegisterDeleteView,
 )
 
 app_name = 'erp'
@@ -114,4 +113,5 @@ urlpatterns = [
     path('cash-register/close/<int:pk>/', CashRegisterCloseView.as_view(), name='cash_register_close'),
     path('cash-register/detail/<int:pk>/', CashRegisterDetailView.as_view(), name='cash_register_detail'),
     path('cash-register/movement/add/<int:cash_register_id>/', CashMovementCreateView.as_view(), name='cash_movement_create'),
+    path('cash-register/delete/<int:pk>/', CashRegisterDeleteView.as_view(), name='cash_register_delete'),
 ]
