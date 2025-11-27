@@ -9,6 +9,9 @@ import uuid
 from core.erp.choices import gender_choices, payment_method_choices
 from core.models import BaseModel
 from config.settings import MEDIA_URL, STATIC_URL
+from django.db import models
+from django.conf import settings
+# ... other imports ...
 
 
 class Company(models.Model):
@@ -405,3 +408,78 @@ class SyncLog(models.Model):
     def __str__(self):
         status = 'OK' if self.success else 'ERROR'
         return f"[{status}] {self.created_at:%Y-%m-%d %H:%M} - {self.node_name or 'POS'}"
+
+
+class CashRegister(models.Model):
+    PAYMENT_TYPES = (
+        ('cash', 'Efectivo'),
+        ('card', 'Tarjeta'),
+        ('transfer', 'Transferencia'),
+        ('other', 'Otro'),
+    )
+
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, verbose_name='Usuario')
+    date = models.DateField(verbose_name='Fecha', auto_now_add=True)
+    opening_balance = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Saldo inicial')
+    closing_balance = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Saldo final')
+    cash_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Ventas en efectivo')
+    card_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Ventas con tarjeta')
+    transfer_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Ventas por transferencia')
+    expenses = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Gastos')
+    notes = models.TextField(blank=True, null=True, verbose_name='Notas')
+    is_closed = models.BooleanField(default=False, verbose_name='Caja cerrada')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_synced = models.BooleanField(default=False, verbose_name='Sincronizado')
+    sync_id = models.CharField(max_length=100, blank=True, null=True)
+
+    class Meta:
+        verbose_name = 'Cierre de caja'
+        verbose_name_plural = 'Cierres de caja'
+        ordering = ['-date', '-created_at']
+        permissions = [
+            ("close_cash_register", "Puede cerrar caja"),
+            ("view_cash_register", "Puede ver cierres de caja"),
+        ]
+
+    def __str__(self):
+        return f"Caja {self.date} - {self.user.get_full_name()}"
+
+    @property
+    def total_sales(self):
+        return self.cash_sales + self.card_sales + self.transfer_sales
+
+    @property
+    def calculated_balance(self):
+        return self.opening_balance + self.total_sales - self.expenses
+
+    @property
+    def difference(self):
+        """Diferencia entre el saldo final registrado y el saldo esperado."""
+        return (self.closing_balance or 0) - (self.calculated_balance or 0)
+
+
+class CashMovement(models.Model):
+    MOVEMENT_TYPES = (
+        ('in', 'Ingreso'),
+        ('out', 'Egreso'),
+    )
+
+    cash_register = models.ForeignKey(CashRegister, on_delete=models.CASCADE, related_name='movements')
+    movement_type = models.CharField(max_length=3, choices=MOVEMENT_TYPES, verbose_name='Tipo de movimiento')
+    amount = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Monto')
+    description = models.CharField(max_length=255, verbose_name='Descripción')
+    payment_type = models.CharField(max_length=10, choices=CashRegister.PAYMENT_TYPES, verbose_name='Tipo de pago')
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, verbose_name='Creado por')
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_synced = models.BooleanField(default=False)
+    sync_id = models.CharField(max_length=100, blank=True, null=True)
+
+    class Meta:
+        verbose_name = 'Movimiento de caja'
+        verbose_name_plural = 'Movimientos de caja'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.get_movement_type_display()} - {self.amount} - {self.description}"

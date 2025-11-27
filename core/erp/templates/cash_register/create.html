@@ -1,0 +1,12 @@
+{% extends 'form.html' %}
+{% load static %}
+{% block fields %}
+    <div class="form-group">
+        <label for="id_opening_balance">Saldo Inicial</label>
+        <input type="number" name="opening_balance" step="0.01" class="form-control" id="id_opening_balance" required>
+    </div>
+    <div class="form-group">
+        <label for="id_notes">Notas</label>
+        <textarea name="notes" class="form-control" id="id_notes" rows="3"></textarea>
+    </div>
+{% endblock %}

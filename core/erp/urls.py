@@ -32,6 +32,14 @@ from core.erp.views.reports import (
     ProductsReportView,
     CashFlowReportView,
 )
+
+from core.erp.views.cash_register.views import (
+    # ... tus otras importaciones ...
+    CashRegisterListView, CashRegisterCreateView,
+    CashRegisterCloseView, CashRegisterDetailView,
+    CashMovementCreateView
+)
+
 app_name = 'erp'
 
 urlpatterns = [
@@ -100,7 +108,10 @@ urlpatterns = [
     path('company/switch/clear/', SwitchCompanyView.as_view(), name='company_switch_clear'),
     # test
     path('test/', TestView.as_view(), name='test'),
-    
-    # Cierre de caja
-    # ... otras URLs ...
+    # Cierre de Caja
+    path('cash-register/list/', CashRegisterListView.as_view(), name='cash_register_list'),
+    path('cash-register/add/', CashRegisterCreateView.as_view(), name='cash_register_create'),
+    path('cash-register/close/<int:pk>/', CashRegisterCloseView.as_view(), name='cash_register_close'),
+    path('cash-register/detail/<int:pk>/', CashRegisterDetailView.as_view(), name='cash_register_detail'),
+    path('cash-register/movement/add/<int:cash_register_id>/', CashMovementCreateView.as_view(), name='cash_movement_create'),
 ]

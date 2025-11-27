@@ -70,6 +70,12 @@ def run_full_sync():
             call_command("sync_expenses_to_remote")
         except Exception as e:
             errors.append(f"sync_expenses_to_remote: {e}")
+
+        # Cierres de caja
+        try:
+            call_command("sync_cash_registers_to_remote")
+        except Exception as e:
+            errors.append(f"sync_cash_registers_to_remote: {e}")
     else:
         errors.append("Sin conexión a la base de datos remota; se omite sincronización de empresas, categorias, productos, ventas, clientes, proveedores y gastos.")
 

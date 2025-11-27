@@ -1,0 +1,189 @@
+{% extends 'layout.html' %}
+{% load static %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Detalle de Cierre - {{ object.date|date:"d/m/Y" }}</h3>
+        <div class="card-tools">
+            {% if not object.is_closed and perms.erp.add_cashmovement %}
+            <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#movementModal">
+                <i class="fas fa-plus"></i> Agregar Movimiento
+            </button>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <h5>Resumen</h5>
+                <table class="table table-bordered">
+                    <tr>
+                        <th>Usuario</th>
+                        <td>{{ object.user.get_full_name }}</td>
+                    </tr>
+                    <tr>
+                        <th>Fecha</th>
+                        <td>{{ object.date|date:"d/m/Y" }}</td>
+                    </tr>
+                    <tr>
+                        <th>Saldo Inicial</th>
+                        <td class="text-right">${{ object.opening_balance|floatformat:2 }}</td>
+                    </tr>
+                    <tr>
+                        <th>Ventas en Efectivo</th>
+                        <td class="text-right">${{ object.cash_sales|floatformat:2 }}</td>
+                    </tr>
+                    <tr>
+                        <th>Ventas con Tarjeta</th>
+                        <td class="text-right">${{ object.card_sales|floatformat:2 }}</td>
+                    </tr>
+                    <tr>
+                        <th>Ventas por Transferencia</th>
+                        <td class="text-right">${{ object.transfer_sales|floatformat:2 }}</td>
+                    </tr>
+                    <tr>
+                        <th>Total Ventas</th>
+                        <th class="text-right">${{ object.total_sales|floatformat:2 }}</th>
+                    </tr>
+                    <tr>
+                        <th>Gastos</th>
+                        <td class="text-right">${{ object.expenses|floatformat:2 }}</td>
+                    </tr>
+                    <tr>
+                        <th>Saldo Esperado</th>
+                        <th class="text-right">${{ object.calculated_balance|floatformat:2 }}</th>
+                    </tr>
+                    {% if object.is_closed %}
+                    <tr>
+                        <th>Saldo Final</th>
+                        <th class="text-right">${{ object.closing_balance|floatformat:2 }}</th>
+                    </tr>
+                    <tr>
+                        <th>Diferencia</th>
+                        <th class="text-right {% if object.difference > 0 %}text-success{% elif object.difference < 0 %}text-danger{% endif %}">
+                            ${{ object.difference|floatformat:2 }}
+                        </th>
+                    </tr>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+
+        <h5>Movimientos</h5>
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Tipo</th>
+                    <th>Descripción</th>
+                    <th>Tipo de Pago</th>
+                    <th class="text-right">Monto</th>
+                    <th>Usuario</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for movement in movements %}
+                <tr>
+                    <td>{{ movement.created_at|date:"d/m/Y H:i" }}</td>
+                    <td>{{ movement.get_movement_type_display }}</td>
+                    <td>{{ movement.description }}</td>
+                    <td>{{ movement.get_payment_type_display }}</td>
+                    <td class="text-right {% if movement.movement_type == 'in' %}text-success{% else %}text-danger{% endif %}">
+                        ${{ movement.amount|floatformat:2 }}
+                    </td>
+                    <td>{{ movement.created_by.get_full_name }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="text-center">No hay movimientos registrados</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Movement Modal -->
+<div class="modal fade" id="movementModal" tabindex="-1" role="dialog" aria-labelledby="movementModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="movementModalLabel">Agregar Movimiento</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form id="movementForm" method="post" action="{% url 'erp:cash_movement_create' object.pk %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="id_movement_type">Tipo de Movimiento</label>
+                        <select name="movement_type" class="form-control" id="id_movement_type" required>
+                            <option value="in">Ingreso</option>
+                            <option value="out">Egreso</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="id_amount">Monto</label>
+                        <input type="number" name="amount" step="0.01" class="form-control" id="id_amount" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="id_description">Descripción</label>
+                        <input type="text" name="description" class="form-control" id="id_description" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="id_payment_type">Tipo de Pago</label>
+                        <select name="payment_type" class="form-control" id="id_payment_type" required>
+                            <option value="cash">Efectivo</option>
+                            <option value="card">Tarjeta</option>
+                            <option value="transfer">Transferencia</option>
+                            <option value="other">Otro</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block javascript %}
+<script>
+    $(document).ready(function() {
+        // Add CSRF token to AJAX requests
+        $.ajaxSetup({
+            beforeSend: function(xhr, settings) {
+                if (!this.crossDomain) {
+                    xhr.setRequestHeader("X-CSRFToken", "{{ csrf_token }}");
+                }
+            }
+        });
+
+        // Handle form submission via AJAX
+        $('#movementForm').on('submit', function(e) {
+            e.preventDefault();
+            var form = $(this);
+            $.ajax({
+                type: 'POST',
+                url: form.attr('action'),
+                data: form.serialize(),
+                success: function(response) {
+                    if (response.success) {
+                        location.reload();
+                    } else {
+                        alert('Error al guardar el movimiento');
+                    }
+                },
+                error: function() {
+                    alert('Error al conectar con el servidor');
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}
