@@ -41,6 +41,41 @@ class Company(models.Model):
         ordering = ['id']
 
 
+class PosTerminal(models.Model):
+    """Terminal / Punto de venta por empresa.
+
+    number es un correlativo por empresa (1, 2, 3, ...).
+    El identificador "humano" se construye a partir del nombre de la empresa
+    y el número formateado, por ejemplo: MIEMP-001.
+    """
+
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa', related_name='pos_terminals')
+    number = models.PositiveIntegerField(verbose_name='Número de POS')
+    name = models.CharField(max_length=150, verbose_name='Nombre descriptivo', blank=True, null=True)
+    is_active = models.BooleanField(default=True, verbose_name='Activo')
+
+    class Meta:
+        verbose_name = 'Terminal POS'
+        verbose_name_plural = 'Terminales POS'
+        ordering = ['company_id', 'number']
+        unique_together = ('company', 'number')
+
+    def __str__(self):
+        return self.code
+
+    @property
+    def code(self) -> str:
+        """ID legible del POS, basado en empresa + correlativo.
+
+        Se usa un prefijo corto derivado del nombre de la empresa, sin espacios,
+        en mayúsculas, y el número con 3 dígitos: PREFIX-001.
+        """
+
+        base_name = (self.company.name or '').upper().replace(' ', '') if self.company_id else 'POS'
+        prefix = base_name[:6] or 'POS'
+        return f"{prefix}-{self.number:03d}"
+
+
 class Category(BaseModel):
     name = models.CharField(max_length=150, verbose_name='Nombre', unique=True)
     desc = models.CharField(max_length=500, null=True, blank=True, verbose_name='Descripción')

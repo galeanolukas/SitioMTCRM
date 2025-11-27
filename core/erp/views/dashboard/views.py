@@ -522,11 +522,22 @@ def _filter_company_qs(request, qs):
 
 
 def report_inventory_export(request):
-    if not request.user.is_superuser:
+    # Permitir a cualquier usuario autenticado descargar el inventario,
+    # filtrando por empresa activa/relacionada con _filter_company_qs.
+    if not request.user.is_authenticated:
         return HttpResponse(status=403)
+
     fmt = (request.GET.get('format') or 'csv').lower()
-    qs = Product.objects.all().select_related('cat')
+    qs = Product.objects.all().select_related('cat', 'company')
     qs = _filter_company_qs(request, qs)
+
+    # Definir encabezados en español
+    headers = [
+        'ID', 'Código', 'Producto', 'Categoría',
+        'Precio', 'IVA (%)', 'Precio con IVA',
+        'Unidad', 'Stock', 'Empresa',
+    ]
+
     rows = []
     for p in qs:
         rows.append({
@@ -535,28 +546,35 @@ def report_inventory_export(request):
             'Producto': p.name,
             'Categoría': getattr(p.cat, 'name', ''),
             'Precio': float(p.pvp or 0),
+            'IVA (%)': float(p.iva_rate or 0),
+            'Precio con IVA': float(p.pvp_final or 0),
             'Unidad': p.unit,
             'Stock': float(p.stock or 0),
-            'Empresa': p.company_id or '',
+            'Empresa': getattr(p.company, 'name', '') if p.company_id else '',
         })
+
     ts = datetime.now().strftime('%Y%m%d-%H%M%S')
     filename = f'reporte_inventario_{ts}'
+
     if fmt == 'csv':
-        if not rows:
-            return HttpResponse('', content_type='text/csv')
         resp = HttpResponse(content_type='text/csv')
         resp['Content-Disposition'] = f'attachment; filename="{filename}.csv"'
-        writer = csv.DictWriter(resp, fieldnames=list(rows[0].keys()))
+        writer = csv.DictWriter(resp, fieldnames=headers)
         writer.writeheader()
         for r in rows:
             writer.writerow(r)
         return resp
+
     if fmt in ('xlsx', 'xls'):
         if pd is None:
             return HttpResponse('Pandas no está instalado. Instala: pip install pandas openpyxl', status=400)
         import io
         buf = io.BytesIO()
-        df = pd.DataFrame(rows)
+        # Si no hay filas, crear DataFrame vacío solo con encabezados
+        if rows:
+            df = pd.DataFrame(rows, columns=headers)
+        else:
+            df = pd.DataFrame(columns=headers)
         with pd.ExcelWriter(buf, engine='openpyxl') as writer:
             df.to_excel(writer, index=False, sheet_name='Inventario')
         resp = HttpResponse(buf.getvalue(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
