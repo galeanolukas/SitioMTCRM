@@ -78,6 +78,15 @@
         if (closeBtn) { closeBtn.click(); } else { el.remove(); }
       });
     }, 7000);
+
+    // Auto-hide sidebar on page load
+    $(document).ready(function() {
+      // Check if sidebar is not already collapsed
+      if (!$('body').hasClass('sidebar-collapse')) {
+        // Trigger the pushmenu to collapse sidebar
+        $('[data-widget="pushmenu"]').click();
+      }
+    });
   </script>
   </body>
 
