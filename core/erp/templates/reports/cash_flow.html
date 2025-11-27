@@ -1,0 +1,319 @@
+{% extends 'reports/base_report.html' %}
+
+{% block report_content %}
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span>Reporte de Flujo de Caja</span>
+            <form id="report-filters" class="form-inline">
+                <div class="form-group mr-2">
+                    <input type="text" name="date_range" class="form-control daterange" style="width: 250px;" />
+                </div>
+                <div class="form-group mr-2">
+                    <select name="cash_register" class="form-control select2" style="width: 200px;">
+                        <option value="">Todas las cajas</option>
+                        {% for cash_register in cash_registers %}
+                            <option value="{{ cash_register.id }}">{{ cash_register.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-filter"></i> Filtrar
+                </button>
+                <button type="button" class="btn btn-success ml-2" id="export-excel">
+                    <i class="fas fa-file-excel"></i> Exportar a Excel
+                </button>
+            </form>
+        </div>
+        <div class="card-body">
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="stat-card bg-primary">
+                        <div class="value">${{ cash_flow_data.opening_balance|floatformat:2 }}</div>
+                        <div class="label">Saldo Inicial</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card bg-success">
+                        <div class="value">${{ cash_flow_data.total_income|floatformat:2 }}</div>
+                        <div class="label">Ingresos</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card bg-danger">
+                        <div class="value">${{ cash_flow_data.total_expenses|floatformat:2 }}</div>
+                        <div class="label">Egresos</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card bg-info">
+                        <div class="value">${{ cash_flow_data.balance|floatformat:2 }}</div>
+                        <div class="label">Saldo Final</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            Flujo de Caja Diario
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container" style="height: 300px;">
+                                <canvas id="dailyCashFlowChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header">
+                            Distribución de Ingresos
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container" style="height: 300px;">
+                                <canvas id="incomeDistributionChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row mt-4">
+                <div class="col-12">
+                    <ul class="nav nav-tabs" id="cashFlowTabs" role="tablist">
+                        <li class="nav-item">
+                            <a class="nav-link active" id="incomes-tab" data-toggle="tab" href="#incomes" role="tab">
+                                <i class="fas fa-arrow-down text-success"></i> Ingresos
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" id="expenses-tab" data-toggle="tab" href="#expenses" role="tab">
+                                <i class="fas fa-arrow-up text-danger"></i> Egresos
+                            </a>
+                        </li>
+                    </ul>
+                    <div class="tab-content" id="cashFlowTabsContent">
+                        <div class="tab-pane fade show active" id="incomes" role="tabpanel">
+                            <div class="table-responsive mt-3">
+                                <table class="table table-bordered table-hover" id="incomes-table">
+                                    <thead class="thead-light">
+                                        <tr>
+                                            <th>Fecha</th>
+                                            <th>Descripción</th>
+                                            <th>Categoría</th>
+                                            <th>Método de Pago</th>
+                                            <th class="text-right">Monto</th>
+                                            <th>Responsable</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for income in cash_flow_data.incomes %}
+                                        <tr>
+                                            <td>{{ income.date|date:"d/m/Y H:i" }}</td>
+                                            <td>{{ income.description }}</td>
+                                            <td>{{ income.category|default:"Ventas" }}</td>
+                                            <td>{{ income.payment_method|default:"Efectivo" }}</td>
+                                            <td class="text-right text-success">+ ${{ income.amount|floatformat:2 }}</td>
+                                            <td>{{ income.user.get_full_name|default:income.user.username }}</td>
+                                        </tr>
+                                        {% empty %}
+                                        <tr>
+                                            <td colspan="6" class="text-center">No hay registros de ingresos</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                    <tfoot>
+                                        <tr class="table-active">
+                                            <th colspan="4" class="text-right">TOTAL INGRESOS:</th>
+                                            <th class="text-right">${{ cash_flow_data.total_income|floatformat:2 }}</th>
+                                            <th></th>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="expenses" role="tabpanel">
+                            <div class="table-responsive mt-3">
+                                <table class="table table-bordered table-hover" id="expenses-table">
+                                    <thead class="thead-light">
+                                        <tr>
+                                            <th>Fecha</th>
+                                            <th>Descripción</th>
+                                            <th>Categoría</th>
+                                            <th>Método de Pago</th>
+                                            <th class="text-right">Monto</th>
+                                            <th>Responsable</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for expense in cash_flow_data.expenses %}
+                                        <tr>
+                                            <td>{{ expense.date|date:"d/m/Y H:i" }}</td>
+                                            <td>{{ expense.description }}</td>
+                                            <td>{{ expense.category|default:"Gastos varios" }}</td>
+                                            <td>{{ expense.payment_method|default:"Efectivo" }}</td>
+                                            <td class="text-right text-danger">- ${{ expense.amount|floatformat:2 }}</td>
+                                            <td>{{ expense.user.get_full_name|default:expense.user.username }}</td>
+                                        </tr>
+                                        {% empty %}
+                                        <tr>
+                                            <td colspan="6" class="text-center">No hay registros de egresos</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                    <tfoot>
+                                        <tr class="table-active">
+                                            <th colspan="4" class="text-right">TOTAL EGRESOS:</th>
+                                            <th class="text-right">${{ cash_flow_data.total_expenses|floatformat:2 }}</th>
+                                            <th></th>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block report_scripts %}
+<script>
+$(document).ready(function() {
+    // Inicializar DataTables
+    $('#incomes-table').DataTable({
+        order: [[0, 'desc']],
+        pageLength: 10,
+        language: {
+            url: '//cdn.datatables.net/plug-ins/1.10.25/i18n/Spanish.json'
+        }
+    });
+
+    $('#expenses-table').DataTable({
+        order: [[0, 'desc']],
+        pageLength: 10,
+        language: {
+            url: '//cdn.datatables.net/plug-ins/1.10.25/i18n/Spanish.json'
+        }
+    });
+
+    // Gráfico de flujo de caja diario
+    const dailyCashFlowCtx = document.getElementById('dailyCashFlowChart').getContext('2d');
+    new Chart(dailyCashFlowCtx, {
+        type: 'line',
+        data: {
+            labels: {{ cash_flow_data.daily_labels|safe }},
+            datasets: [
+                {
+                    label: 'Ingresos',
+                    data: {{ cash_flow_data.daily_incomes|safe }},
+                    borderColor: '#1cc88a',
+                    backgroundColor: 'rgba(28, 200, 138, 0.1)',
+                    tension: 0.3,
+                    fill: true
+                },
+                {
+                    label: 'Egresos',
+                    data: {{ cash_flow_data.daily_expenses|safe }},
+                    borderColor: '#e74a3b',
+                    backgroundColor: 'rgba(231, 74, 59, 0.1)',
+                    tension: 0.3,
+                    fill: true
+                },
+                {
+                    label: 'Saldo',
+                    data: {{ cash_flow_data.daily_balance|safe }},
+                    borderColor: '#4e73df',
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    pointRadius: 0,
+                    fill: false
+                }
+            ]
+        },
+        options: {
+            maintainAspectRatio: false,
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            },
+            scales: {
+                y: {
+                    beginAtZero: false,
+                    ticks: {
+                        callback: function(value) {
+                            return '$' + value.toLocaleString();
+                        }
+                    }
+                }
+            },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            if (context.parsed.y !== null) {
+                                label += '$' + context.parsed.y.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                            }
+                            return label;
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Gráfico de distribución de ingresos
+    const incomeDistributionCtx = document.getElementById('incomeDistributionChart').getContext('2d');
+    new Chart(incomeDistributionCtx, {
+        type: 'doughnut',
+        data: {
+            labels: {{ cash_flow_data.income_categories.labels|safe }},
+            datasets: [{
+                data: {{ cash_flow_data.income_categories.data|safe }},
+                backgroundColor: [
+                    '#1cc88a', '#4e73df', '#36b9cc', '#f6c23e', '#e74a3b',
+                    '#5a5c69', '#858796', '#5a5c69', '#36b9cc', '#f6c23e'
+                ]
+            }]
+        },
+        options: {
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        boxWidth: 12,
+                        padding: 15
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const label = context.label || '';
+                            const value = context.raw || 0;
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = Math.round((value / total) * 100);
+                            return `${label}: $${value.toLocaleString()} (${percentage}%)`;
+                        }
+                    }
+                }
+            },
+            cutout: '60%'
+        }
+    });
+
+    // Exportar a Excel personalizado
+    $('#export-excel').on('click', function() {
+        const dateRange = $('input[name="date_range"]').val() || 'all';
+        const cashRegister = $('select[name="cash_register"]').val() || 'all';
+        window.location.href = `{% url 'erp:reports_cash_flow_export' %}?date_range=${dateRange}&cash_register=${cashRegister}`;
+    });
+});
+</script>
+{% endblock %}

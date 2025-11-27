@@ -1,6 +1,17 @@
 from django.contrib import admin
-from core.erp.models import *
+from django.apps import apps
 
-# Register your models here.
-admin.site.register(Category)
-admin.site.register(SyncLog)
+# Obtener todos los modelos de la aplicación
+app_models = apps.get_app_config('erp').get_models()
+
+# Registrar todos los modelos en el admin
+for model in app_models:
+    try:
+        admin.site.register(model)
+    except admin.sites.AlreadyRegistered:
+        # Si el modelo ya está registrado, lo omitimos
+        pass
+
+# Importar los archivos de admin personalizados para modelos específicos
+# Esto asegura que las configuraciones personalizadas tengan prioridad
+from .admin.cash_register import *

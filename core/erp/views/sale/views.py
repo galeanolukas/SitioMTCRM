@@ -96,10 +96,16 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 if not request.user.is_superuser:
                     active_cid = active_cid or getattr(request.user, 'company_id', None)
 
-                # Categoría por defecto: categoría fija "Productos Varios"
-                cat, _ = Category.objects.get_or_create(
-                    name='Productos Varios',
-                    defaults={'desc': 'Producto inexistente o fuera de inventario'}
+                # Obtener la categoría proporcionada o usar 'Varios' por defecto
+                category_name = (request.POST.get('category') or 'Varios').strip()
+                
+                # Buscar la categoría o crearla si no existe
+                cat, created = Category.objects.get_or_create(
+                    name__iexact=category_name,
+                    defaults={
+                        'name': category_name,
+                        'desc': f'Categoría para {category_name}'
+                    }
                 )
 
                 # Reutilizar producto existente con el mismo nombre (y empresa), si existe
@@ -128,6 +134,36 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
 
                 prod.save()
                 data = prod.toJSON()
+                
+            elif action == 'list_categories':
+                # Obtener categorías existentes
+                categories = Category.objects.all().order_by('name')
+                data = [{'id': cat.id, 'name': cat.name, 'desc': cat.desc or ''} for cat in categories]
+                
+            elif action == 'create_category':
+                name = (request.POST.get('name') or '').strip()
+                if not name:
+                    return JsonResponse({'error': 'El nombre de la categoría es requerido'}, status=400)
+                    
+                # Verificar si la categoría ya existe (case insensitive)
+                if Category.objects.filter(name__iexact=name).exists():
+                    return JsonResponse({'error': 'Ya existe una categoría con ese nombre'}, status=400)
+                
+                # Crear la nueva categoría
+                category = Category(
+                    name=name,
+                    desc=request.POST.get('desc', '')
+                )
+                
+                # Asignar empresa si es necesario
+                active_cid = request.session.get('company_id')
+                if not request.user.is_superuser:
+                    active_cid = active_cid or getattr(request.user, 'company_id', None)
+                if active_cid and hasattr(Category, 'company'):
+                    category.company_id = active_cid
+                    
+                category.save()
+                data = {'id': category.id, 'name': category.name, 'desc': category.desc or ''}
             elif action == 'create_sale':
                 from decimal import Decimal
                 payload = json.loads(request.POST.get('sale') or '{}')

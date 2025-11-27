@@ -1,4 +1,4 @@
-from django.urls import path, include
+from django.urls import path
 from core.erp.views.category.views import *
 from core.erp.views.product.views import *
 from core.erp.views.client.views import *
@@ -23,14 +23,6 @@ from core.erp.views.dashboard.views import (
     MercadoPagoConfigUpdateView,
     AutoSyncConfigUpdateView,
     sync_data_view,
-)
-
-# Importar vistas de reportes
-from core.erp.views.reports import (
-    ReportDashboardView,
-    SalesReportView,
-    ProductsReportView,
-    CashFlowReportView,
 )
 app_name = 'erp'
 
@@ -74,10 +66,6 @@ urlpatterns = [
     path('updates/', UpdatesView.as_view(), name='updates'),
     # reports (superuser)
     path('reports/', ReportsHomeView.as_view(), name='reports_home'),
-    path('reports/dashboard/', ReportDashboardView.as_view(), name='report_dashboard'),
-    path('reports/sales/', SalesReportView.as_view(), name='sales_report'),
-    path('reports/products/', ProductsReportView.as_view(), name='products_report'),
-    path('reports/cash-flow/', CashFlowReportView.as_view(), name='cash_flow_report'),
     path('reports/inventory/export/', report_inventory_export, name='reports_inventory_export'),
     path('reports/sales/export/', report_sales_export, name='reports_sales_export'),
     path('reports/expenses/export/', report_expenses_export, name='reports_expenses_export'),
@@ -100,7 +88,4 @@ urlpatterns = [
     path('company/switch/clear/', SwitchCompanyView.as_view(), name='company_switch_clear'),
     # test
     path('test/', TestView.as_view(), name='test'),
-    
-    # Cierre de caja
-    # ... otras URLs ...
 ]

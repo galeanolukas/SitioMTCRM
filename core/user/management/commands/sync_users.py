@@ -96,28 +96,32 @@ class Command(BaseCommand):
                         local_company_id = local_company.id
 
             with transaction.atomic(using='default'):
-                local_user, created = User.objects.using('default').get_or_create(
+                # Crear o actualizar usuario local con datos del remoto
+                defaults = {
+                    'email': remote_user.email,
+                    'first_name': remote_user.first_name,
+                    'last_name': remote_user.last_name,
+                    'is_staff': remote_user.is_staff,
+                    'is_superuser': remote_user.is_superuser,
+                    'is_active': remote_user.is_active,
+                    'password': remote_user.password,  # copia hash
+                    'company_id': local_company_id,
+                    'phone': remote_user.phone,  # Sincronizar teléfono
+                }
+                
+                # Solo actualizar la imagen si existe en el remoto
+                if remote_user.image:
+                    defaults['image'] = remote_user.image
+                
+                local_user, created = User.objects.using('default').update_or_create(
                     username=remote_user.username,
-                    defaults={
-                        'email': remote_user.email,
-                        'first_name': remote_user.first_name,
-                        'last_name': remote_user.last_name,
-                        'is_staff': remote_user.is_staff,
-                        'is_superuser': remote_user.is_superuser,
-                        'is_active': remote_user.is_active,
-                        'password': remote_user.password,  # copia hash
-                        'company_id': local_company_id,
-                    }
+                    defaults=defaults
                 )
+                
                 if not created:
-                    local_user.email = remote_user.email
-                    local_user.first_name = remote_user.first_name
-                    local_user.last_name = remote_user.last_name
-                    local_user.is_staff = remote_user.is_staff
-                    local_user.is_superuser = remote_user.is_superuser
-                    local_user.is_active = remote_user.is_active
-                    local_user.password = remote_user.password
-                    local_user.company_id = local_company_id
+                    # Actualizar campos individualmente para evitar sobrescribir con None
+                    for field, value in defaults.items():
+                        setattr(local_user, field, value)
                     local_user.save()
 
                 if not remote_user.is_superuser:
@@ -145,25 +149,28 @@ class Command(BaseCommand):
         count = 0
         for local_user in local_ops:
             with transaction.atomic(using='remote'):
-                remote_user, created = User.objects.using('remote').get_or_create(
+                # Crear o actualizar usuario remoto con datos del local (excepto imagen)
+                defaults = {
+                    'email': local_user.email,
+                    'first_name': local_user.first_name,
+                    'last_name': local_user.last_name,
+                    'is_staff': local_user.is_staff,
+                    'is_superuser': False,  # Nunca permitir crear superusuarios desde local
+                    'is_active': local_user.is_active,
+                    'password': local_user.password,  # copia hash
+                    'phone': local_user.phone,  # Sincronizar teléfono
+                    # No se sincroniza la imagen del local al remoto
+                }
+                
+                remote_user, created = User.objects.using('remote').update_or_create(
                     username=local_user.username,
-                    defaults={
-                        'email': local_user.email,
-                        'first_name': local_user.first_name,
-                        'last_name': local_user.last_name,
-                        'is_staff': local_user.is_staff,
-                        'is_superuser': False,
-                        'is_active': local_user.is_active,
-                        'password': local_user.password,  # copia hash
-                    }
+                    defaults=defaults
                 )
+                
                 if not created:
-                    remote_user.email = local_user.email
-                    remote_user.first_name = local_user.first_name
-                    remote_user.last_name = local_user.last_name
-                    remote_user.is_staff = local_user.is_staff
-                    remote_user.is_active = local_user.is_active
-                    remote_user.password = local_user.password
+                    # Actualizar campos individualmente (excepto imagen)
+                    for field, value in defaults.items():
+                        setattr(remote_user, field, value)
                     remote_user.save()
 
                 op_group_remote, _ = Group.objects.using('remote').get_or_create(name='operadores')

@@ -247,13 +247,87 @@
   });
 
   // Producto genérico: abrir modal
+  // Cargar categorías para el modal de producto genérico
+  function loadCategories(selectId, callback) {
+    ajaxAction('list_categories', { action: 'list_categories' })
+      .done(function(categories) {
+        const $select = $(`#${selectId}`);
+        $select.empty();
+        
+        // Agregar categoría predeterminada "Varios"
+        $select.append('<option value="">Seleccione una categoría</option>');
+        $select.append('<option value="Varios" selected>Varios</option>');
+        
+        // Agregar categorías existentes
+        if (categories && categories.length > 0) {
+          categories.forEach(function(cat) {
+            if (cat.name !== 'Varios') {
+              $select.append(`<option value="${cat.name}">${cat.name}</option>`);
+            }
+          });
+        }
+        
+        if (typeof callback === 'function') {
+          callback();
+        }
+      })
+      .fail(function() {
+        showToast('error', 'No se pudieron cargar las categorías');
+        $(`#${selectId}`).html('<option value="">Error al cargar categorías</option>');
+      });
+  }
+
+  // Mostrar/ocultar el formulario de nueva categoría
+  $(document).on('click', '#btnNewCategory', function() {
+    $('#newCategoryGroup').show();
+    $('#newCategoryName').focus();
+  });
+
+  // Guardar nueva categoría
+  $(document).on('click', '#btnSaveCategory', function() {
+    const categoryName = $('#newCategoryName').val().trim();
+    if (!categoryName) {
+      showToast('warning', 'Ingrese un nombre para la categoría');
+      return;
+    }
+    
+    ajaxAction('create_category', {
+      action: 'create_category',
+      name: categoryName
+    })
+    .done(function() {
+      showToast('success', 'Categoría creada correctamente');
+      loadCategories('genericProdCategory', function() {
+        $('#genericProdCategory').val(categoryName);
+        $('#newCategoryGroup').hide();
+        $('#newCategoryName').val('');
+      });
+    })
+    .fail(function(jqXHR) {
+      const errorMsg = jqXHR.responseJSON && jqXHR.responseJSON.error 
+        ? jqXHR.responseJSON.error 
+        : 'Error al crear la categoría';
+      showToast('error', errorMsg);
+    });
+  });
+
+  // Inicializar el modal de producto genérico
   $('#btnGenericProduct').on('click', function () {
     const modalEl = document.getElementById('genericProductModal');
     if (!modalEl) return;
+    
+    // Resetear formulario
     $('#genericProdName').val('PRODUCTO GENERICO');
     $('#genericProdPrice').val('');
     $('#genericProdIva').val('0');
     $('#genericProdCode').val('');
+    $('#newCategoryGroup').hide();
+    $('#newCategoryName').val('');
+    
+    // Cargar categorías
+    loadCategories('genericProdCategory');
+    
+    // Mostrar modal
     const modal = new bootstrap.Modal(modalEl);
     modal.show();
   });
@@ -265,12 +339,15 @@
     const iva_rate = $('#genericProdIva').val();
     const code = $('#genericProdCode').val();
 
+    const category = $('#genericProdCategory').val() || 'Varios';
+    
     ajaxAction('quick_create_product', {
       action: 'quick_create_product',
       name,
       price,
       iva_rate,
       code,
+      category
     })
       .done(function (prod) {
         if (prod && prod.id) {

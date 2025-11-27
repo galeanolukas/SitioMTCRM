@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+
+{% block title %}Reportes{% endblock %}
+
+{% block styles %}
+    {{ block.super }}
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css" rel="stylesheet" />
+    <style>
+        .card {
+            margin-bottom: 20px;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        }
+        .card-header {
+            background-color: #f8f9fa;
+            font-weight: 600;
+        }
+        .chart-container {
+            position: relative;
+            height: 300px;
+            width: 100%;
+        }
+        .report-filters {
+            background-color: #f8f9fa;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+        .stat-card {
+            text-align: center;
+            padding: 15px;
+            border-radius: 5px;
+            color: white;
+            margin-bottom: 20px;
+        }
+        .stat-card .value {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .stat-card .label {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+    </style>
+{% endblock %}
+
+{% block page_title %}
+    <h1 class="h3 mb-0 text-gray-800">Reportes</h1>
+{% endblock %}
+
+{% block content %}
+    <div class="row">
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-header">Menú de Reportes</div>
+                <div class="list-group list-group-flush">
+                    <a href="{% url 'erp:report_dashboard' %}" class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'report_dashboard' %}active{% endif %}">
+                        <i class="fas fa-tachometer-alt mr-2"></i>Dashboard
+                    </a>
+                    <a href="{% url 'erp:sales_report' %}" class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'sales_report' %}active{% endif %}">
+                        <i class="fas fa-chart-line mr-2"></i>Ventas
+                    </a>
+                    <a href="{% url 'erp:products_report' %}" class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'products_report' %}active{% endif %}">
+                        <i class="fas fa-boxes mr-2"></i>Productos
+                    </a>
+                    <a href="{% url 'erp:cash_flow_report' %}" class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'cash_flow_report' %}active{% endif %}">
+                        <i class="fas fa-money-bill-wave mr-2"></i>Flujo de Caja
+                    </a>
+                        <i class="fas fa-cash-register mr-2"></i>Cierre de Caja
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-9">
+            {% block report_content %}{% endblock %}
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+    {{ block.super }}
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/moment@2.29.1/moment.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            // Inicializar select2
+            $('.select2').select2({
+                theme: 'bootstrap4',
+                width: '100%'
+            });
+            
+            // Inicializar date range picker
+            $('.daterange').daterangepicker({
+                locale: {
+                    format: 'YYYY-MM-DD',
+                    applyLabel: 'Aplicar',
+                    cancelLabel: 'Cancelar',
+                    fromLabel: 'Desde',
+                    toLabel: 'Hasta',
+                    customRangeLabel: 'Personalizado',
+                    daysOfWeek: ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa'],
+                    monthNames: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'],
+                    firstDay: 1
+                },
+                startDate: '{{ start_date|default:"" }}',
+                endDate: '{{ end_date|default:"" }}',
+                ranges: {
+                    'Hoy': [moment(), moment()],
+                    'Ayer': [moment().subtract(1, 'days'), moment().subtract(1, 'days')],
+                    'Últimos 7 Días': [moment().subtract(6, 'days'), moment()],
+                    'Últimos 30 Días': [moment().subtract(29, 'days'), moment()],
+                    'Este Mes': [moment().startOf('month'), moment().endOf('month')],
+                    'Mes Anterior': [moment().subtract(1, 'month').startOf('month'), moment().subtract(1, 'month').endOf('month')]
+                }
+            });
+            
+            // Manejar envío del formulario de filtros
+            $('#report-filters').on('submit', function(e) {
+                e.preventDefault();
+                // Aquí puedes agregar lógica para actualizar los gráficos con los nuevos filtros
+                this.submit();
+            });
+        });
+    </script>
+    {% block report_scripts %}{% endblock %}
+{% endblock %}

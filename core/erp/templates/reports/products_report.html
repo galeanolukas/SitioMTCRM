@@ -1,0 +1,252 @@
+{% extends 'reports/base_report.html' %}
+
+{% block report_content %}
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span>Reporte de Productos</span>
+            <form id="report-filters" class="form-inline">
+                <div class="form-group mr-2">
+                    <select name="category" class="form-control select2" style="min-width: 200px;">
+                        <option value="">Todas las categorías</option>
+                        {% for cat in categories %}
+                            <option value="{{ cat.id }}" {% if cat.id == category_id|add:0 %}selected{% endif %}>
+                                {{ cat.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group mr-2">
+                    <select name="stock_status" class="form-control">
+                        <option value="all">Todos los productos</option>
+                        <option value="in_stock" {% if stock_status == 'in_stock' %}selected{% endif %}>En stock</option>
+                        <option value="low_stock" {% if stock_status == 'low_stock' %}selected{% endif %}>Stock bajo</option>
+                        <option value="out_of_stock" {% if stock_status == 'out_of_stock' %}selected{% endif %}>Sin stock</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-filter"></i> Filtrar
+                </button>
+                <button type="button" class="btn btn-success ml-2" id="export-excel">
+                    <i class="fas fa-file-excel"></i> Exportar a Excel
+                </button>
+            </form>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover" id="products-table">
+                    <thead class="thead-light">
+                        <tr>
+                            <th>Código</th>
+                            <th>Producto</th>
+                            <th>Categoría</th>
+                            <th>Precio Compra</th>
+                            <th>Precio Venta</th>
+                            <th>Stock</th>
+                            <th>Estado</th>
+                            <th>Última Venta</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for product in products %}
+                        <tr>
+                            <td>{{ product.code|default:'-' }}</td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    {% if product.image %}
+                                    <img src="{{ product.image.url }}" alt="{{ product.name }}" class="img-thumbnail mr-2" style="width: 40px; height: 40px; object-fit: cover;">
+                                    {% else %}
+                                    <div class="bg-light d-flex align-items-center justify-content-center mr-2" style="width: 40px; height: 40px;">
+                                        <i class="fas fa-box text-muted"></i>
+                                    </div>
+                                    {% endif %}
+                                    {{ product.name }}
+                                </div>
+                            </td>
+                            <td>{{ product.cat.name }}</td>
+                            <td class="text-right">${{ product.purchase_price|floatformat:2|default:'0.00' }}</td>
+                            <td class="text-right">${{ product.pvp|floatformat:2 }}</td>
+                            <td class="text-center">
+                                <span class="badge {% if product.stock <= 0 %}bg-danger{% elif product.stock < product.stock_min %}bg-warning{% else %}bg-success{% endif %}">
+                                    {{ product.stock|floatformat:2 }} {{ product.unit }}
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                {% if product.stock <= 0 %}
+                                    <span class="badge bg-danger">Agotado</span>
+                                {% elif product.stock < product.stock_min %}
+                                    <span class="badge bg-warning">Stock Bajo</span>
+                                {% else %}
+                                    <span class="badge bg-success">En Stock</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ product.last_sale|date:"d/m/Y"|default:'Nunca' }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="8" class="text-center">No hay productos que coincidan con los filtros seleccionados</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr class="table-active">
+                            <th colspan="3" class="text-right">TOTALES:</th>
+                            <th class="text-right">${{ total_purchase|floatformat:2 }}</th>
+                            <th class="text-right">${{ total_sale|floatformat:2 }}</th>
+                            <th colspan="3"></th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    Productos por Categoría
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="productsByCategoryChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    Estado de Inventario
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="inventoryStatusChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block report_scripts %}
+<script>
+$(document).ready(function() {
+    // Inicializar DataTable
+    const table = $('#products-table').DataTable({
+        dom: 'Bfrtip',
+        buttons: [
+            'copy', 'excel', 'pdf', 'print'
+        ],
+        order: [[1, 'asc']],
+        pageLength: 25,
+        language: {
+            url: '//cdn.datatables.net/plug-ins/1.10.25/i18n/Spanish.json'
+        },
+        columnDefs: [
+            { className: 'text-right', targets: [3, 4] },
+            { className: 'text-center', targets: [5, 6] },
+            { orderable: false, targets: [0] }
+        ]
+    });
+
+    // Gráfico de productos por categoría
+    const productsByCategoryCtx = document.getElementById('productsByCategoryChart').getContext('2d');
+    new Chart(productsByCategoryCtx, {
+        type: 'doughnut',
+        data: {
+            labels: {{ categories_data.labels|safe }},
+            datasets: [{
+                data: {{ categories_data.data|safe }},
+                backgroundColor: [
+                    '#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b',
+                    '#5a5c69', '#858796', '#5a5c69', '#36b9cc', '#f6c23e'
+                ],
+                hoverBackgroundColor: [
+                    '#2e59d9', '#17a673', '#2c9faf', '#dda20a', '#be2617',
+                    '#373840', '#6b6d7d', '#373840', '#2c9faf', '#dda20a'
+                ],
+                hoverBorderColor: "rgba(234, 236, 244, 1)",
+            }]
+        },
+        options: {
+            maintainAspectRatio: false,
+            plugins: {
+                tooltip: {
+                    backgroundColor: "rgb(255,255,255)",
+                    bodyColor: "#858796",
+                    borderColor: '#dddfeb',
+                    borderWidth: 1,
+                    xPadding: 15,
+                    yPadding: 15,
+                    displayColors: false,
+                    caretPadding: 10,
+                    callbacks: {
+                        label: function(context) {
+                            const label = context.label || '';
+                            const value = context.raw || 0;
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = Math.round((value / total) * 100);
+                            return `${label}: ${value} (${percentage}%)`;
+                        }
+                    }
+                },
+                legend: {
+                    position: 'right',
+                    labels: {
+                        usePointStyle: true,
+                        padding: 20
+                    }
+                }
+            },
+            cutout: '60%',
+        }
+    });
+
+    // Gráfico de estado de inventario
+    const inventoryStatusCtx = document.getElementById('inventoryStatusChart').getContext('2d');
+    new Chart(inventoryStatusCtx, {
+        type: 'bar',
+        data: {
+            labels: ['En Stock', 'Stock Bajo', 'Agotados'],
+            datasets: [{
+                label: 'Productos',
+                data: {{ inventory_status_data|safe }},
+                backgroundColor: ['#1cc88a', '#f6c23e', '#e74a3b'],
+                borderColor: ['#1cc88a', '#f6c23e', '#e74a3b'],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        precision: 0
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.raw + ' productos';
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Exportar a Excel personalizado
+    $('#export-excel').on('click', function() {
+        const category = $('select[name="category"]').val() || 'all';
+        const stockStatus = $('select[name="stock_status"]').val();
+        window.location.href = `{% url 'erp:reports_inventory_export' %}?category=${category}&stock_status=${stockStatus}`;
+    });
+});
+</script>
+{% endblock %}
