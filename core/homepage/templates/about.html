@@ -37,6 +37,7 @@
                           <li><a href="#proveedores">Proveedores</a></li>
                           <li><a href="#clientes">Clientes</a></li>
                           <li><a href="#pos">POS / Ventas</a></li>
+                          <li><a href="#caja">Caja diaria / Cierre de cajas</a></li>
                           <li><a href="#compra-rapida">Compra rápida (QR + Mercado Pago)</a></li>
                           <li><a href="#gastos">Gastos / Compras</a></li>
                           <li><a href="#reportes">Reportes (Inventario, Ventas y Gastos)</a></li>
@@ -93,6 +94,14 @@
                             <li>Registrar venta: guarda sin factura.</li>
                             <li>Facturar: emite factura con numeración correlativa por punto de venta y tipo.</li>
                             <li>Revisá el historial de ventas recientes y abrí PDF si corresponde.</li>
+                          </ol>
+                          <h5 class="mt-3">8 bis) Caja diaria / Cierre de cajas</h5>
+                          <ol>
+                            <li>Menú lateral → <strong>Caja</strong>.</li>
+                            <li>Abrir caja: indicá saldo inicial para el día y usuario.</li>
+                            <li>Durante el día, las ventas y movimientos se acumulan en la caja abierta.</li>
+                            <li>Desde el detalle de la caja, ingresá el saldo contado y cerrá la caja.</li>
+                            <li>Revisá diferencia entre saldo esperado y contado y notas de cierre.</li>
                           </ol>
                           <h5 class="mt-3">9) Gastos / Compras</h5>
                           <ol>
@@ -248,6 +257,53 @@
                           <li>Acceso: Header → <strong>Configurar IVA</strong> (modal).</li>
                           <li>Ingresá la tasa como proporción (ej.: 0.21 = 21%). Se guarda en el navegador (<code>localStorage</code>).</li>
                           <li>Impacta en POS y formularios de venta al recalcular los totales.</li>
+                        </ul>
+
+                        <h4 id="caja">12. Caja diaria / Cierre de cajas</h4>
+                        <ul>
+                          <li><strong>Objetivo:</strong> registrar la apertura de caja, movimientos de efectivo y otros medios de pago, y el cierre diario por usuario y empresa.</li>
+                          <li><strong>Permisos clave:</strong>
+                            <ul>
+                              <li><code>erp.view_cash_register</code>: ver listado y detalle de cajas.</li>
+                              <li><code>erp.add_cashregister</code>: abrir nuevas cajas.</li>
+                              <li><code>erp.close_cash_register</code>: cerrar cajas abiertas.</li>
+                              <li><code>erp.add_cashmovement</code>: registrar ingresos/egresos manuales.</li>
+                              <li><code>erp.delete_cashregister</code>: eliminar cajas (solo roles autorizados).</li>
+                            </ul>
+                          </li>
+                          <li><strong>Apertura de caja:</strong>
+                            <ul>
+                              <li>Ir a ERP → <strong>Caja</strong> y usar el botón de <em>Nueva caja</em>.</li>
+                              <li>Seleccionar empresa (si aplica) e indicar el <strong>saldo inicial</strong>.</li>
+                              <li>La caja queda en estado <em>abierta</em> y se asocia al usuario actual.</li>
+                            </ul>
+                          </li>
+                          <li><strong>Movimientos de caja:</strong>
+                            <ul>
+                              <li>Desde el detalle de la caja abierta, agregar <em>Movimientos</em> (ingresos/egresos).</li>
+                              <li>Campos: tipo (Ingreso/Egreso), monto, tipo de pago (efectivo, tarjeta, transferencia, otro) y descripción.</li>
+                              <li>Estos movimientos afectan el cálculo del saldo esperado.</li>
+                            </ul>
+                          </li>
+                          <li><strong>Cálculo de totales:</strong>
+                            <ul>
+                              <li>La lista y el detalle muestran totales dinámicos para cajas abiertas: ventas por tipo de pago, gastos y saldo esperado.</li>
+                              <li>Para cajas cerradas se muestran los valores guardados al momento del cierre.</li>
+                            </ul>
+                          </li>
+                          <li><strong>Cierre de caja:</strong>
+                            <ul>
+                              <li>En el detalle de la caja, ingresar el <strong>saldo final contado</strong>.</li>
+                              <li>El sistema calcula la <strong>diferencia</strong> entre saldo esperado y saldo contado.</li>
+                              <li>Al confirmar, la caja pasa a estado <em>cerrada</em> y ya no admite nuevos movimientos.</li>
+                            </ul>
+                          </li>
+                          <li><strong>Sincronización con servidor:</strong>
+                            <ul>
+                              <li>Los cierres de caja y movimientos se pueden sincronizar con la BD remota mediante los comandos de sync.</li>
+                              <li>Los campos de sincronización permiten identificar qué cajas ya fueron subidas y evitar duplicados.</li>
+                            </ul>
+                          </li>
                         </ul>
 
                         <hr/>
