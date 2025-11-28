@@ -464,6 +464,17 @@ class MercadoPagoConfigUpdateView(LoginRequiredMixin, ValidatePermissionRequired
         ctx['action'] = 'edit'
         return ctx
 
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        if self.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'success': True})
+        return response
+
+    def form_invalid(self, form):
+        if self.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'error': 'Error en el formulario', 'errors': form.errors})
+        return super().form_invalid(form)
+
 
 class AutoSyncConfigUpdateView(LoginRequiredMixin, UpdateView):
     model = AutoSyncConfig

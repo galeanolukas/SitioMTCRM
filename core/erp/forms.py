@@ -314,7 +314,7 @@ class CompanyForm(ModelForm):
 class MercadoPagoConfigForm(ModelForm):
     class Meta:
         model = MercadoPagoConfig
-        fields = ['company', 'name', 'access_token', 'public_key', 'mode', 'enabled']
+        fields = ['company', 'name', 'access_token', 'public_key', 'mode']  # Eliminado 'enabled'
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

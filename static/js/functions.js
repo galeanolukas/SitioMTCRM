@@ -66,6 +66,9 @@ function submit_with_ajax(url, title, content, parameters, callback) {
       dataType: 'json',
       processData: false,
       contentType: false,
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest'
+      }
     }).done(function (data) {
       console.log(data);
       if (!data.hasOwnProperty('error')) {
