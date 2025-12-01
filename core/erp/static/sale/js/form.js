@@ -189,13 +189,13 @@ $(function () {
   // iva
   const storedIva = (function(){
     const v = localStorage.getItem('iva_rate');
-    const n = v ? parseFloat(v) : 0.21;
-    return isNaN(n) ? 0.21 : n;
+    const n = v ? parseFloat(v) : 21; // Default to 21% (not 0.21)
+    return isNaN(n) ? 21 : n;
   })();
   $("input[name='iva']").TouchSpin({
     min: 0,
-    max: 1,
-    step: 0.01,
+    max: 100,
+    step: 0.5,
     decimals: 2,
     boostat: 5,
     maxboostedstep: 10,

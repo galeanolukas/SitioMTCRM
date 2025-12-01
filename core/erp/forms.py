@@ -105,6 +105,22 @@ class ProductForm(ModelForm):
             ),
         }
 
+    def clean_iva_rate(self):
+        iva_rate = self.cleaned_data.get('iva_rate')
+        if iva_rate is not None:
+            try:
+                rate = float(iva_rate)
+                # If rate > 1, treat it as percentage and convert to decimal
+                if rate > 1:
+                    rate = rate / 100
+                # Ensure rate is within reasonable bounds (0% to 100%)
+                if rate < 0 or rate > 1:
+                    raise ValidationError('La tasa de IVA debe estar entre 0% y 100%.')
+                return rate
+            except (ValueError, TypeError):
+                raise ValidationError('Ingrese un valor numérico válido para la tasa de IVA.')
+        return iva_rate
+
     def save(self, commit=True):
          data = {}
          form = super()
@@ -308,7 +324,20 @@ class CompanyForm(ModelForm):
             'phone',
             'email',
             'logo',
-        ]
+        ]class MercadoPagoConfigForm(ModelForm):
+    class Meta:
+        model = MercadoPagoConfig
+        fields = ['company', 'name', 'access_token', 'public_key', 'mode']  # Eliminado 'enabled'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for f in self.visible_fields():
+            f.field.widget.attrs['class'] = 'form-control'
+            f.field.widget.attrs['autocomplete'] = 'off'
+        # company solo lectura en este formulario
+        if 'company' in self.fields:
+            self.fields['company'].disabled = True
+
 
 
 class MercadoPagoConfigForm(ModelForm):

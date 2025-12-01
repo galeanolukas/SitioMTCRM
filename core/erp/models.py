@@ -142,6 +142,9 @@ class Product(models.Model):
         try:
             pvp = Decimal(self.pvp or 0)
             rate = Decimal(self.iva_rate or 0)
+            # Normalizar rate: si es mayor que 1, tratarlo como porcentaje (21 -> 0.21)
+            if rate > Decimal('1.0'):
+                rate = rate / Decimal('100.0')
             self.pvp_final = (pvp * (Decimal('1.0') + rate)).quantize(Decimal('0.01'))
         except Exception:
             pass

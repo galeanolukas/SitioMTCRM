@@ -69,7 +69,11 @@
       const cant = parseFloat(it.cant) || 0;
       it.subtotal = price * cant;
       subtotal += it.subtotal;
-      const rate = (typeof it.iva_rate !== 'undefined' && !isNaN(parseFloat(it.iva_rate))) ? parseFloat(it.iva_rate) : getIvaRate();
+      let rate = (typeof it.iva_rate !== 'undefined' && !isNaN(parseFloat(it.iva_rate))) ? parseFloat(it.iva_rate) : getIvaRate();
+      // Convert to decimal if it's in percentage format (> 1)
+      if (rate > 1) {
+        rate = rate / 100;
+      }
       iva += it.subtotal * rate;
     });
     const total = subtotal + iva;
