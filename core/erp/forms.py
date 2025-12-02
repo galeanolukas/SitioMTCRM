@@ -1,4 +1,5 @@
 from django.forms import *
+from django.forms.widgets import CheckboxInput
 from datetime import datetime
 from django.core.exceptions import ValidationError
 from core.erp.models import Category, Product, Client, Sale, Company, Supplier, Expense, MercadoPagoConfig, AutoSyncConfig
@@ -79,6 +80,7 @@ class ProductForm(ModelForm):
             'cat',
             'supplier',
             'image',
+            'cost_price',
             'pvp',
             'iva_rate',
             'pvp_final',
@@ -144,7 +146,8 @@ class ClientForm(ModelForm):
         self.request = kwargs.pop('request', None)
         super().__init__(*args, **kwargs)
         for form in self.visible_fields():
-            form.field.widget.attrs["class"] = "form-control"
+            if form.name != 'is_active':  # No aplicar form-control al checkbox
+                form.field.widget.attrs["class"] = "form-control"
             form.field.widget.attrs["autocomplete"] = "off"
         self.fields['names'].widget.attrs['autofocus'] = True
         if 'company' in self.fields and self.request and hasattr(self.request, 'user') and not getattr(self.request.user, 'is_superuser', False):
@@ -157,6 +160,7 @@ class ClientForm(ModelForm):
     class Meta:
         model = Client
         fields = '__all__'
+        exclude = ['synced_to_server', 'user_updated', 'user_creation']
         widgets = {
             'names': TextInput(
                 attrs={
@@ -185,9 +189,9 @@ class ClientForm(ModelForm):
                     'placeholder': 'Ingrese su dirección',
                 }
             ),
-            'gender': Select()
+            'gender': Select(),
+            'is_active': CheckboxInput(attrs={'class': 'form-check-input'})
         }
-        exclude = ['user_updated', 'user_creation']
 
     def save(self, commit=True):
         data = {}
@@ -324,7 +328,9 @@ class CompanyForm(ModelForm):
             'phone',
             'email',
             'logo',
-        ]class MercadoPagoConfigForm(ModelForm):
+        ]
+
+class MercadoPagoConfigForm(ModelForm):
     class Meta:
         model = MercadoPagoConfig
         fields = ['company', 'name', 'access_token', 'public_key', 'mode']  # Eliminado 'enabled'

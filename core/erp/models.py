@@ -119,6 +119,7 @@ class Product(models.Model):
     supplier = models.ForeignKey('Supplier', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Proveedor')
     image = models.ImageField(upload_to='product/%Y/%m/%d', null=True, blank=True, verbose_name='Imagen')
     cost_price = models.DecimalField(default=0.00, max_digits=9, decimal_places=2, null=True, blank=True, verbose_name='Precio de costo (sin IVA)')
+    pvp = models.DecimalField(default=0.00, max_digits=9, decimal_places=2, verbose_name='Precio neto (sin IVA)')
     iva_rate = models.DecimalField(default=0.21, max_digits=4, decimal_places=2, verbose_name='IVA (%)')
     pvp_final = models.DecimalField(default=0.00, max_digits=9, decimal_places=2, verbose_name='Precio final (con IVA)')
     unit = models.CharField(max_length=10, choices=UNIT_CHOICES, default='unit', verbose_name='Unidad de medida')

@@ -32,23 +32,18 @@ class ClientView(LoginRequiredMixin, TemplateView):
                 for i in qs:
                     data.append(i.toJSON())
             elif action == 'add':
-                cli = Client()
-                cli.names = request.POST['names']
-                cli.surnames = request.POST['surnames']
-                cli.dni = request.POST['dni']
-                cli.date_birthday = request.POST['date_birthday']
-                cli.address = request.POST['address']
-                cli.gender = request.POST['gender']
-                cli.save()
+                form = ClientForm(request.POST)
+                if form.is_valid():
+                    form.save()
+                else:
+                    data['error'] = form.errors
             elif action == 'edit':
                 cli = Client.objects.get(pk=request.POST['id'])
-                cli.names = request.POST['names']
-                cli.surnames = request.POST['surnames']
-                cli.dni = request.POST['dni']
-                cli.date_birthday = request.POST['date_birthday']
-                cli.address = request.POST['address']
-                cli.gender = request.POST['gender']
-                cli.save()
+                form = ClientForm(request.POST, instance=cli)
+                if form.is_valid():
+                    form.save()
+                else:
+                    data['error'] = form.errors
             elif action == 'delete':
                 cli = Client.objects.get(pk=request.POST['id'])
                 cli.delete()
