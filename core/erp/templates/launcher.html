@@ -106,17 +106,35 @@
           msg.textContent = 'Sincronización completada.';
           box.classList.remove('alert-info');
           box.classList.add('alert-success');
+          console.log('Sincronización exitosa, ocultando en 5 segundos...');
+          // Ocultar automáticamente después de 5 segundos
+          setTimeout(() => {
+            console.log('Ocultando sync-status...');
+            box.classList.add('d-none');
+          }, 5000);
         } else {
           const errs = (r.data && r.data.errors || []).join(' | ') || 'Revisar logs del servidor.';
           msg.textContent = 'Sincronización con errores: ' + errs;
           box.classList.remove('alert-info');
           box.classList.add('alert-warning');
+          console.log('Sincronización con errores, ocultando en 8 segundos...');
+          // Ocultar automáticamente después de 8 segundos (más tiempo para leer errores)
+          setTimeout(() => {
+            console.log('Ocultando sync-status...');
+            box.classList.add('d-none');
+          }, 8000);
         }
       })
       .catch(err => {
         msg.textContent = 'No se pudo sincronizar (sin conexión o error de servidor).';
         box.classList.remove('alert-info');
         box.classList.add('alert-danger');
+        console.log('Error de sincronización, ocultando en 10 segundos...');
+        // Ocultar automáticamente después de 10 segundos (máximo tiempo para errores graves)
+        setTimeout(() => {
+          console.log('Ocultando sync-status...');
+          box.classList.add('d-none');
+        }, 10000);
       });
   }
 
