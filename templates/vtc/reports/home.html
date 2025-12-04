@@ -112,7 +112,7 @@
 
     document.getElementById('btn-export-inv').addEventListener('click', function(){
       const q = buildQuery();
-      window.location = '{% url "erp:reports_inventory_export" %}?'+q;
+      // window.location = '{% url "erp:reports_inventory_export" %}?'+q;
     });
 
     document.getElementById('btn-export-sales').addEventListener('click', function(){

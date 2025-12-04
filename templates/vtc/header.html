@@ -127,16 +127,16 @@ body {
           <i class="fas fa-user-shield mr-1"></i> Permisos Operadores
         </a>
         <div class="dropdown-divider"></div>
-        <a class="dropdown-item" href="{% url 'erp:reports_home' %}">
-          <i class="fas fa-chart-line mr-1"></i> Reportes
-        </a>
-        <div class="dropdown-divider"></div>
         <a class="dropdown-item" href="{% url 'about' %}">
           <i class="fas fa-book mr-1"></i> Manual
         </a>
         <div class="dropdown-divider"></div>
         <a class="dropdown-item" href="#" data-toggle="modal" data-target="#modalIva">
           <i class="fas fa-percentage mr-1"></i> Configurar IVA
+        </a>
+        <div class="dropdown-divider"></div>
+        <a class="dropdown-item" href="{% url 'erp:profit_report' %}">
+          <i class="fas fa-chart-line mr-1"></i> Reporte de Ganancias
         </a>
       </div>
     </li>

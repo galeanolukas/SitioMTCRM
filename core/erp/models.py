@@ -499,6 +499,79 @@ class CashRegister(models.Model):
         return (self.closing_balance or 0) - (self.calculated_balance or 0)
 
 
+class ProfitReport(models.Model):
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa')
+    date_from = models.DateField(verbose_name='Fecha desde')
+    date_to = models.DateField(verbose_name='Fecha hasta')
+    total_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name='Ventas totales')
+    total_cost = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name='Costo total')
+    total_profit = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name='Ganancia total')
+    profit_margin = models.DecimalField(max_digits=5, decimal_places=2, default=0.00, verbose_name='Margen de ganancia (%)')
+    total_products_sold = models.IntegerField(default=0, verbose_name='Productos vendidos')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado en')
+    
+    class Meta:
+        verbose_name = 'Reporte de Ganancias'
+        verbose_name_plural = 'Reportes de Ganancias'
+        ordering = ['-date_from', '-created_at']
+        indexes = [
+            models.Index(fields=['company', 'date_from', 'date_to']),
+        ]
+    
+    def __str__(self):
+        return f"Reporte {self.company.name} ({self.date_from} - {self.date_to})"
+    
+    @property
+    def period_type(self):
+        """Determinar tipo de período (diario, mensual, personalizado)"""
+        days = (self.date_to - self.date_from).days + 1
+        if days == 1:
+            return "Diario"
+        elif days <= 31 and self.date_from.day == 1 and self.date_to.month == self.date_from.month:
+            return "Mensual"
+        else:
+            return "Personalizado"
+    
+    def calculate_profit_data(self):
+        """Calcular datos de ganancias para este período"""
+        from django.db.models import Sum, Count, F, FloatField
+        from django.db.models.functions import Coalesce
+        
+        # Obtener ventas del período
+        sales = Sale.objects.filter(
+            company=self.company,
+            date_joined__date__range=[self.date_from, self.date_to]
+        )
+        
+        # Calcular totales
+        self.total_sales = sales.aggregate(
+            total=Coalesce(Sum('total'), 0)
+        )['total'] or 0
+        
+        # Calcular costo total basado en productos vendidos
+        total_cost = 0
+        total_products = 0
+        
+        for sale in sales:
+            for detail in sale.saledetail_set.all():
+                if detail.prod.cost_price:
+                    product_cost = float(detail.prod.cost_price) * detail.cant
+                    total_cost += product_cost
+                    total_products += detail.cant
+        
+        self.total_cost = total_cost
+        self.total_profit = self.total_sales - self.total_cost
+        self.total_products_sold = total_products
+        
+        # Calcular margen de ganancia
+        if self.total_cost > 0:
+            self.profit_margin = (self.total_profit / self.total_cost) * 100
+        else:
+            self.profit_margin = 0
+        
+        self.save()
+
+
 class CashMovement(models.Model):
     MOVEMENT_TYPES = (
         ('in', 'Ingreso'),

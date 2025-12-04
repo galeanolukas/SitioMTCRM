@@ -25,12 +25,19 @@ from core.erp.views.dashboard.views import (
     sync_data_view,
 )
 
-# Importar vistas de reportes
-from core.erp.views.reports import (
-    ReportDashboardView,
-    SalesReportView,
-    ProductsReportView,
-    CashFlowReportView,
+# Importar vistas de reportes (comentado temporalmente)
+# from core.erp.views.reports import (
+#     ReportDashboardView,
+#     SalesReportView,
+#     ProductsReportView,
+#     CashFlowReportView,
+# )
+
+# Importar vistas de reportes de ganancias
+from core.erp.views.profit_views import (
+    ProfitReportView,
+    GenerateProfitReportView,
+    ProfitReportListView,
 )
 
 from core.erp.views.cash_register.views import (
@@ -79,15 +86,19 @@ urlpatterns = [
     path('sync/', sync_data_view, name='sync_data'),
     path('dashboard/', DashboardView.as_view(), name='dashboard'),
     path('updates/', UpdatesView.as_view(), name='updates'),
-    # reports (superuser)
-    path('reports/', ReportsHomeView.as_view(), name='reports_home'),
-    path('reports/dashboard/', ReportDashboardView.as_view(), name='report_dashboard'),
-    path('reports/sales/', SalesReportView.as_view(), name='sales_report'),
-    path('reports/products/', ProductsReportView.as_view(), name='products_report'),
-    path('reports/cash-flow/', CashFlowReportView.as_view(), name='cash_flow_report'),
-    path('reports/inventory/export/', report_inventory_export, name='reports_inventory_export'),
-    path('reports/sales/export/', report_sales_export, name='reports_sales_export'),
-    path('reports/expenses/export/', report_expenses_export, name='reports_expenses_export'),
+    # reports (superuser) - comentadas temporalmente
+    # path('reports/', ReportsHomeView.as_view(), name='reports_home'),
+    # path('reports/dashboard/', ReportDashboardView.as_view(), name='report_dashboard'),
+    # path('reports/sales/', SalesReportView.as_view(), name='sales_report'),
+    # path('reports/products/', ProductsReportView.as_view(), name='products_report'),
+    # path('reports/cash-flow/', CashFlowReportView.as_view(), name='cash_flow_report'),
+    # path('reports/inventory/export/', report_inventory_export, name='reports_inventory_export'),
+    # path('reports/sales/export/', report_sales_export, name='reports_sales_export'),
+    # path('reports/expenses/export/', report_expenses_export, name='reports_expenses_export'),
+    # profit reports (superuser only)
+    path('profit-report/', ProfitReportView.as_view(), name='profit_report'),
+    path('generate-profit-report/', GenerateProfitReportView.as_view(), name='generate_profit_report'),
+    path('profit-report-list/', ProfitReportListView.as_view(), name='profit_report_list'),
     # pos
     path('pos/', POSView.as_view(), name='pos'),
     # company

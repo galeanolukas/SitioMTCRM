@@ -1,0 +1,260 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<div class="container-fluid">
+  <div class="row">
+    <div class="col-12">
+      <div class="card card-outline card-primary">
+        <div class="card-header">
+          <h3 class="card-title">
+            <i class="fas fa-chart-line mr-2"></i>
+            Histórico de Reportes de Ganancias
+          </h3>
+          <div class="card-tools">
+            <a href="{% url 'erp:profit_report' %}" class="btn btn-sm btn-primary">
+              <i class="fas fa-plus mr-1"></i> Nuevo Reporte
+            </a>
+          </div>
+        </div>
+        
+        <div class="card-body">
+          <!-- Filtros -->
+          <div class="row mb-3">
+            <div class="col-md-3">
+              <label for="filter-company">Empresa:</label>
+              <select class="form-control" id="filter-company" onchange="applyFilters()">
+                <option value="">Todas</option>
+                {% for company in companies %}
+                <option value="{{ company.id }}" {% if filters.company == company.id|stringformat:"s" %}selected{% endif %}>
+                  {{ company.name }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            
+            <div class="col-md-3">
+              <label for="filter-date-from">Desde:</label>
+              <input type="date" class="form-control" id="filter-date-from" 
+                     value="{{ filters.date_from }}" onchange="applyFilters()">
+            </div>
+            
+            <div class="col-md-3">
+              <label for="filter-date-to">Hasta:</label>
+              <input type="date" class="form-control" id="filter-date-to" 
+                     value="{{ filters.date_to }}" onchange="applyFilters()">
+            </div>
+            
+            <div class="col-md-3">
+              <label>&nbsp;</label><br>
+              <button type="button" class="btn btn-secondary" onclick="clearFilters()">
+                <i class="fas fa-times mr-1"></i> Limpiar
+              </button>
+            </div>
+          </div>
+          
+          <!-- Tabla de reportes -->
+          <div class="table-responsive">
+            <table class="table table-sm table-hover">
+              <thead>
+                <tr>
+                  <th>Empresa</th>
+                  <th>Período</th>
+                  <th>Tipo</th>
+                  <th class="text-right">Ventas</th>
+                  <th class="text-right">Costo</th>
+                  <th class="text-right">Ganancia</th>
+                  <th class="text-right">Margen</th>
+                  <th class="text-center">Productos</th>
+                  <th>Creado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for report in reports %}
+                <tr>
+                  <td>{{ report.company.name }}</td>
+                  <td>{{ report.date_from|date:"d/m/Y" }} - {{ report.date_to|date:"d/m/Y" }}</td>
+                  <td>
+                    <span class="badge badge-{{ report.period_type|lower }}">
+                      {{ report.get_period_type_display }}
+                    </span>
+                  </td>
+                  <td class="text-right">${{ report.total_sales|floatformat:2 }}</td>
+                  <td class="text-right">${{ report.total_cost|floatformat:2 }}</td>
+                  <td class="text-right profit-{{ report.total_profit|floatformat:0 }}">
+                    ${{ report.total_profit|floatformat:2 }}
+                  </td>
+                  <td class="text-right">{{ report.profit_margin|floatformat:2 }}%</td>
+                  <td class="text-center">{{ report.total_products_sold }}</td>
+                  <td>{{ report.created_at|date:"d/m/Y H:i" }}</td>
+                  <td>
+                    <div class="btn-group btn-group-sm">
+                      <a href="#" class="btn btn-info" onclick="viewReport({{ report.id }})" title="Ver">
+                        <i class="fas fa-eye"></i>
+                      </a>
+                      <a href="#" class="btn btn-success" onclick="exportReport({{ report.id }})" title="Exportar">
+                        <i class="fas fa-download"></i>
+                      </a>
+                      <a href="#" class="btn btn-danger" onclick="deleteReport({{ report.id }})" title="Eliminar">
+                        <i class="fas fa-trash"></i>
+                      </a>
+                    </div>
+                  </td>
+                </tr>
+                {% empty %}
+                <tr>
+                  <td colspan="10" class="text-center text-muted">
+                    No hay reportes generados
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          
+          <!-- Paginación -->
+          {% if is_paginated %}
+          <div class="row">
+            <div class="col-md-6">
+              <p class="text-muted">
+                Mostrando {{ page_obj.start_index }} - {{ page_obj.end_index }} 
+                de {{ page_obj.paginator.count }} reportes
+              </p>
+            </div>
+            <div class="col-md-6">
+              <nav>
+                <ul class="pagination pagination-sm justify-content-end">
+                  {% if page_obj.has_previous %}
+                  <li class="page-item">
+                    <a class="page-link" href="?page=1{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">«</a>
+                  </li>
+                  <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">‹</a>
+                  </li>
+                  {% endif %}
+                  
+                  {% for num in page_obj.paginator.page_range %}
+                  {% if page_obj.number == num %}
+                  <li class="page-item active">
+                    <span class="page-link">{{ num }}</span>
+                  </li>
+                  {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                  <li class="page-item">
+                    <a class="page-link" href="?page={{ num }}{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">{{ num }}</a>
+                  </li>
+                  {% endif %}
+                  {% endfor %}
+                  
+                  {% if page_obj.has_next %}
+                  <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">›</a>
+                  </li>
+                  <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">»</a>
+                  </li>
+                  {% endif %}
+                </ul>
+              </nav>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function applyFilters() {
+  const company = document.getElementById('filter-company').value;
+  const dateFrom = document.getElementById('filter-date-from').value;
+  const dateTo = document.getElementById('filter-date-to').value;
+  
+  let url = '{% url "erp:profit_report_list" %}?';
+  const params = [];
+  
+  if (company) params.push('company=' + company);
+  if (dateFrom) params.push('date_from=' + dateFrom);
+  if (dateTo) params.push('date_to=' + dateTo);
+  
+  url += params.join('&');
+  window.location.href = url;
+}
+
+function clearFilters() {
+  window.location.href = '{% url "erp:profit_report_list" %}';
+}
+
+function viewReport(reportId) {
+  // Implementar vista del reporte
+  alert('Función de vista detallada en desarrollo...');
+}
+
+function exportReport(reportId) {
+  // Implementar exportación
+  alert('Función de exportación en desarrollo...');
+}
+
+function deleteReport(reportId) {
+  if (confirm('¿Está seguro de eliminar este reporte?')) {
+    fetch(`/erp/profit-report/delete/${reportId}/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': getCookie('csrftoken'),
+        'Content-Type': 'application/json',
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        location.reload();
+      } else {
+        alert('Error: ' + data.error);
+      }
+    })
+    .catch(error => {
+      alert('Error al eliminar: ' + error.message);
+    });
+  }
+}
+
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+</script>
+
+<style>
+.profit-positive {
+  color: #28a745;
+  font-weight: bold;
+}
+.profit-negative {
+  color: #dc3545;
+  font-weight: bold;
+}
+.profit-0 {
+  color: #6c757d;
+}
+.badge-diario {
+  background-color: #007bff;
+}
+.badge-mensual {
+  background-color: #28a745;
+}
+.badge-personalizado {
+  background-color: #ffc107;
+  color: #000;
+}
+</style>
+{% endblock %}

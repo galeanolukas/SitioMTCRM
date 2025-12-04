@@ -1,0 +1,465 @@
+{% extends 'layout.html' %}
+
+{% block head %}
+<style>
+.profit-card {
+  transition: transform 0.2s;
+}
+.profit-card:hover {
+  transform: translateY(-2px);
+}
+.profit-positive {
+  color: #28a745;
+  font-weight: bold;
+}
+.profit-negative {
+  color: #dc3545;
+  font-weight: bold;
+}
+.profit-neutral {
+  color: #6c757d;
+}
+.chart-container {
+  height: 300px;
+  position: relative;
+}
+.product-row:hover {
+  background-color: #f8f9fa;
+}
+.loading-spinner {
+  display: none;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <div class="row">
+    <div class="col-12">
+      <div class="card card-outline card-primary">
+        <div class="card-header">
+          <h3 class="card-title">
+            <i class="fas fa-chart-line mr-2"></i>
+            Reporte de Ganancias
+          </h3>
+        </div>
+        
+        <div class="card-body">
+          <!-- Formulario de filtros -->
+          <div class="row mb-4">
+            <div class="col-md-3">
+              <label for="company_id">Empresa:</label>
+              <select class="form-control" id="company_id" required>
+                <option value="">Seleccione empresa...</option>
+                {% for company in companies %}
+                <option value="{{ company.id }}">{{ company.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            
+            <div class="col-md-2">
+              <label for="date_from">Desde:</label>
+              <input type="date" class="form-control" id="date_from" 
+                     value="{{ default_date_from }}" required>
+            </div>
+            
+            <div class="col-md-2">
+              <label for="date_to">Hasta:</label>
+              <input type="date" class="form-control" id="date_to" 
+                     value="{{ default_date_to }}" required>
+            </div>
+            
+            <div class="col-md-2">
+              <label for="report_type">Tipo:</label>
+              <select class="form-control" id="report_type">
+                <option value="custom">Personalizado</option>
+                <option value="daily">Diario</option>
+                <option value="weekly">Semanal</option>
+                <option value="monthly">Mensual</option>
+              </select>
+            </div>
+            
+            <div class="col-md-3">
+              <label>&nbsp;</label><br>
+              <button type="button" class="btn btn-primary" onclick="generateReport()">
+                <i class="fas fa-search mr-2"></i>Generar Reporte
+              </button>
+              <button type="button" class="btn btn-info ml-2" onclick="viewReports()">
+                <i class="fas fa-list mr-2"></i>Ver Histórico
+              </button>
+            </div>
+          </div>
+          
+          <!-- Loading -->
+          <div class="text-center loading-spinner" id="loading">
+            <div class="spinner-border text-primary" role="status">
+              <span class="sr-only">Generando...</span>
+            </div>
+            <p class="mt-2">Generando reporte...</p>
+          </div>
+          
+          <!-- Resultados -->
+          <div id="report-results" style="display: none;">
+            <!-- Resumen General -->
+            <div class="row mb-4">
+              <div class="col-md-3">
+                <div class="card profit-card bg-light">
+                  <div class="card-body text-center">
+                    <h6 class="card-title text-muted">Ventas Totales</h6>
+                    <h3 class="profit-neutral" id="total-sales">$0.00</h3>
+                    <small class="text-muted" id="period-info"></small>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="col-md-3">
+                <div class="card profit-card bg-light">
+                  <div class="card-body text-center">
+                    <h6 class="card-title text-muted">Costo Total</h6>
+                    <h3 class="profit-negative" id="total-cost">$0.00</h3>
+                    <small class="text-muted">Productos vendidos: <span id="total-products">0</span></small>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="col-md-3">
+                <div class="card profit-card bg-success">
+                  <div class="card-body text-center text-white">
+                    <h6 class="card-title">Ganancia Neta</h6>
+                    <h3 id="total-profit">$0.00</h3>
+                    <small id="profit-margin">Margen: 0%</small>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="col-md-3">
+                <div class="card profit-card bg-info">
+                  <div class="card-body text-center text-white">
+                    <h6 class="card-title">Eficiencia</h6>
+                    <h3 id="efficiency">0%</h3>
+                    <small>Margen de ganancia</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Gráfico de tendencias -->
+            <div class="row mb-4">
+              <div class="col-12">
+                <div class="card">
+                  <div class="card-header">
+                    <h5 class="card-title">
+                      <i class="fas fa-chart-area mr-2"></i>
+                      Evolución de Ganancias
+                    </h5>
+                  </div>
+                  <div class="card-body">
+                    <div class="chart-container">
+                      <canvas id="profit-chart"></canvas>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Top Productos -->
+            <div class="row mb-4">
+              <div class="col-md-8">
+                <div class="card">
+                  <div class="card-header">
+                    <h5 class="card-title">
+                      <i class="fas fa-trophy mr-2"></i>
+                      Top 10 Productos por Ganancia
+                    </h5>
+                  </div>
+                  <div class="card-body">
+                    <div class="table-responsive">
+                      <table class="table table-sm">
+                        <thead>
+                          <tr>
+                            <th>Producto</th>
+                            <th class="text-center">Cantidad</th>
+                            <th class="text-right">Ventas</th>
+                            <th class="text-right">Costo</th>
+                            <th class="text-right">Ganancia</th>
+                            <th class="text-right">Margen</th>
+                          </tr>
+                        </thead>
+                        <tbody id="top-products-tbody">
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="col-md-4">
+                <div class="card">
+                  <div class="card-header">
+                    <h5 class="card-title">
+                      <i class="fas fa-pie-chart mr-2"></i>
+                      Distribución
+                    </h5>
+                  </div>
+                  <div class="card-body">
+                    <div class="chart-container">
+                      <canvas id="pie-chart"></canvas>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Acciones -->
+            <div class="row">
+              <div class="col-12 text-center">
+                <button type="button" class="btn btn-success" onclick="exportExcel()">
+                  <i class="fas fa-file-excel mr-2"></i>Exportar Excel
+                </button>
+                <button type="button" class="btn btn-danger ml-2" onclick="exportPDF()">
+                  <i class="fas fa-file-pdf mr-2"></i>Exportar PDF
+                </button>
+                <button type="button" class="btn btn-secondary ml-2" onclick="printReport()">
+                  <i class="fas fa-print mr-2"></i>Imprimir
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Scripts para gráficos -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+let profitChart = null;
+let pieChart = null;
+
+function generateReport() {
+  const companyId = document.getElementById('company_id').value;
+  const dateFrom = document.getElementById('date_from').value;
+  const dateTo = document.getElementById('date_to').value;
+  const reportType = document.getElementById('report_type').value;
+  
+  if (!companyId || !dateFrom || !dateTo) {
+    alert('Por favor complete todos los campos');
+    return;
+  }
+  
+  // Mostrar loading
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('report-results').style.display = 'none';
+  
+  // Enviar solicitud
+  fetch('{% url "erp:generate_profit_report" %}', {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': getCookie('csrftoken'),
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      'action': 'generate_report',
+      'company_id': companyId,
+      'date_from': dateFrom,
+      'date_to': dateTo,
+      'report_type': reportType
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    document.getElementById('loading').style.display = 'none';
+    
+    if (data.error) {
+      alert('Error: ' + data.error);
+      return;
+    }
+    
+    // Mostrar resultados
+    displayReportResults(data);
+  })
+  .catch(error => {
+    document.getElementById('loading').style.display = 'none';
+    alert('Error al generar el reporte: ' + error.message);
+  });
+}
+
+function displayReportResults(data) {
+  // Actualizar resumen
+  document.getElementById('total-sales').textContent = '$' + data.total_sales;
+  document.getElementById('total-cost').textContent = '$' + data.total_cost;
+  document.getElementById('total-profit').textContent = '$' + data.total_profit;
+  document.getElementById('profit-margin').textContent = 'Margen: ' + data.profit_margin + '%';
+  document.getElementById('efficiency').textContent = data.profit_margin + '%';
+  document.getElementById('total-products').textContent = data.total_products_sold;
+  document.getElementById('period-info').textContent = data.period_type + ' (' + data.date_from + ' - ' + data.date_to + ')';
+  
+  // Actualizar colores según ganancia
+  const profitValue = parseFloat(data.total_profit);
+  const profitElement = document.getElementById('total-profit');
+  if (profitValue > 0) {
+    profitElement.className = 'profit-positive';
+  } else if (profitValue < 0) {
+    profitElement.className = 'profit-negative';
+  } else {
+    profitElement.className = 'profit-neutral';
+  }
+  
+  // Actualizar tabla de top productos
+  const tbody = document.getElementById('top-products-tbody');
+  tbody.innerHTML = '';
+  
+  data.top_products.forEach((product, index) => {
+    const row = document.createElement('tr');
+    row.className = 'product-row';
+    row.innerHTML = `
+      <td>${index + 1}. ${product.name}</td>
+      <td class="text-center">${product.quantity}</td>
+      <td class="text-right">$${product.revenue.toFixed(2)}</td>
+      <td class="text-right">$${product.cost.toFixed(2)}</td>
+      <td class="text-right profit-${product.profit >= 0 ? 'positive' : 'negative'}">
+        $${product.profit.toFixed(2)}
+      </td>
+      <td class="text-right">${product.margin.toFixed(2)}%</td>
+    `;
+    tbody.appendChild(row);
+  });
+  
+  // Actualizar gráficos
+  updateCharts(data);
+  
+  // Mostrar resultados
+  document.getElementById('report-results').style.display = 'block';
+}
+
+function updateCharts(data) {
+  // Gráfico de línea - evolución diaria
+  const ctx1 = document.getElementById('profit-chart').getContext('2d');
+  
+  if (profitChart) {
+    profitChart.destroy();
+  }
+  
+  const dates = Object.keys(data.daily_breakdown).sort();
+  const salesData = dates.map(date => data.daily_breakdown[date].sales);
+  const profitData = dates.map(date => data.daily_breakdown[date].profit);
+  
+  profitChart = new Chart(ctx1, {
+    type: 'line',
+    data: {
+      labels: dates.map(date => {
+        const d = new Date(date);
+        return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+      }),
+      datasets: [
+        {
+          label: 'Ventas',
+          data: salesData,
+          borderColor: 'rgb(54, 162, 235)',
+          backgroundColor: 'rgba(54, 162, 235, 0.1)',
+          tension: 0.1
+        },
+        {
+          label: 'Ganancia',
+          data: profitData,
+          borderColor: 'rgb(75, 192, 192)',
+          backgroundColor: 'rgba(75, 192, 192, 0.1)',
+          tension: 0.1
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            callback: function(value) {
+              return '$' + value.toLocaleString();
+            }
+          }
+        }
+      }
+    }
+  });
+  
+  // Gráfico de pie - distribución de ganancias
+  const ctx2 = document.getElementById('pie-chart').getContext('2d');
+  
+  if (pieChart) {
+    pieChart.destroy();
+  }
+  
+  const top5Products = data.top_products.slice(0, 5);
+  
+  pieChart = new Chart(ctx2, {
+    type: 'doughnut',
+    data: {
+      labels: top5Products.map(p => p.name),
+      datasets: [{
+        data: top5Products.map(p => p.profit),
+        backgroundColor: [
+          'rgba(255, 99, 132, 0.8)',
+          'rgba(54, 162, 235, 0.8)',
+          'rgba(255, 205, 86, 0.8)',
+          'rgba(75, 192, 192, 0.8)',
+          'rgba(153, 102, 255, 0.8)'
+        ]
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'bottom'
+        }
+      }
+    }
+  });
+}
+
+function viewReports() {
+  window.location.href = '{% url "erp:profit_report_list" %}';
+}
+
+function exportExcel() {
+  // Implementar exportación a Excel
+  alert('Función de exportación a Excel en desarrollo...');
+}
+
+function exportPDF() {
+  // Implementar exportación a PDF
+  alert('Función de exportación a PDF en desarrollo...');
+}
+
+function printReport() {
+  window.print();
+}
+
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+
+// Auto-seleccionar empresa del usuario
+document.addEventListener('DOMContentLoaded', function() {
+  {% if not request.user.is_superuser and request.user.company_id %}
+  document.getElementById('company_id').value = '{{ request.user.company_id }}';
+  {% endif %}
+});
+</script>
+{% endblock %}

@@ -513,7 +513,7 @@ class ReportsHomeView(LoginRequiredMixin, TemplateView):
         ctx = super().get_context_data(**kwargs)
         ctx['title'] = 'Reportes'
         ctx['entity'] = 'Reportes'
-        ctx['list_url'] = reverse_lazy('erp:reports_home')
+        ctx['list_url'] = reverse_lazy('erp:profit_report_list')
         ctx['companies'] = Company.objects.all()
         ctx['active_company_id'] = self.request.session.get('company_id')
         return ctx
