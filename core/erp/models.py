@@ -118,7 +118,7 @@ class Product(models.Model):
     cat = models.ForeignKey(Category, on_delete=models.CASCADE, verbose_name='Categoría')
     supplier = models.ForeignKey('Supplier', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Proveedor')
     image = models.ImageField(upload_to='product/%Y/%m/%d', null=True, blank=True, verbose_name='Imagen')
-    cost_price = models.DecimalField(default=0.00, max_digits=9, decimal_places=2, null=True, blank=True, verbose_name='Precio de costo (sin IVA)')
+    cost_price = models.DecimalField(default=0.00, max_digits=12, decimal_places=2, null=True, blank=True, verbose_name='Precio de costo (sin IVA)')
     pvp = models.DecimalField(default=0.00, max_digits=9, decimal_places=2, verbose_name='Precio neto (sin IVA)')
     iva_rate = models.DecimalField(default=0.21, max_digits=4, decimal_places=2, verbose_name='IVA (%)')
     pvp_final = models.DecimalField(default=0.00, max_digits=9, decimal_places=2, verbose_name='Precio final (con IVA)')
@@ -454,6 +454,7 @@ class CashRegister(models.Model):
         ('cash', 'Efectivo'),
         ('card', 'Tarjeta'),
         ('transfer', 'Transferencia'),
+        ('mp', 'Mercado Pago'),
         ('other', 'Otro'),
     )
 
@@ -465,6 +466,7 @@ class CashRegister(models.Model):
     cash_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Ventas en efectivo')
     card_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Ventas con tarjeta')
     transfer_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Ventas por transferencia')
+    mp_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Ventas por Mercado Pago')
     expenses = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Gastos')
     notes = models.TextField(blank=True, null=True, verbose_name='Notas')
     is_closed = models.BooleanField(default=False, verbose_name='Caja cerrada')
@@ -487,7 +489,7 @@ class CashRegister(models.Model):
 
     @property
     def total_sales(self):
-        return self.cash_sales + self.card_sales + self.transfer_sales
+        return self.cash_sales + self.card_sales + self.transfer_sales + self.mp_sales
 
     @property
     def calculated_balance(self):

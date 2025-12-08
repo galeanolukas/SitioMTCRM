@@ -9,6 +9,7 @@ from django.http import JsonResponse
 
 from core.erp.mixins import ValidatePermissionRequiredMixin
 from core.erp.models import CashRegister, CashMovement, Sale, Expense
+from core.erp.sync_utils import sync_cash_register_immediately
 
 
 class CashRegisterListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView):
@@ -44,6 +45,7 @@ class CashRegisterListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
             live_cash = sales_qs.filter(payment_method='cash').aggregate(total=Sum('total'))['total'] or 0
             live_card = sales_qs.filter(payment_method='card').aggregate(total=Sum('total'))['total'] or 0
             live_transfer = sales_qs.filter(payment_method='transfer').aggregate(total=Sum('total'))['total'] or 0
+            live_mp = sales_qs.filter(payment_method='mp').aggregate(total=Sum('total'))['total'] or 0
 
             expenses_qs = Expense.objects.filter(
                 date=cr.date,
@@ -51,11 +53,12 @@ class CashRegisterListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
             )
             live_expenses = expenses_qs.aggregate(total=Sum('amount'))['total'] or 0
 
-            live_total_sales = live_cash + live_card + live_transfer
+            live_total_sales = live_cash + live_card + live_transfer + live_mp
 
             cr.live_cash_sales = live_cash
             cr.live_card_sales = live_card
             cr.live_transfer_sales = live_transfer
+            cr.live_mp_sales = live_mp
             cr.live_total_sales = live_total_sales
             cr.live_expenses = live_expenses
 
@@ -141,6 +144,7 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
         cash_total = sales_qs.filter(payment_method='cash').aggregate(total=Sum('total'))['total'] or 0
         card_total = sales_qs.filter(payment_method='card').aggregate(total=Sum('total'))['total'] or 0
         transfer_total = sales_qs.filter(payment_method='transfer').aggregate(total=Sum('total'))['total'] or 0
+        mp_total = sales_qs.filter(payment_method='mp').aggregate(total=Sum('total'))['total'] or 0
 
         # Calcular gastos del día
         expenses_qs = Expense.objects.all()
@@ -152,11 +156,23 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
         form.instance.cash_sales = cash_total
         form.instance.card_sales = card_total
         form.instance.transfer_sales = transfer_total
+        form.instance.mp_sales = mp_total
         form.instance.expenses = expenses_total
         form.instance.is_closed = True
 
         messages.success(self.request, 'Caja cerrada correctamente')
-        return super().form_valid(form)
+        
+        # Disparar sincronización inmediata con el servidor
+        try:
+            result = super().form_valid(form)
+            # Solo ejecutar sync si no estamos en producción (servidor central)
+            from django.conf import settings
+            if getattr(settings, 'ENVIRONMENT', 'development') != 'production':
+                sync_cash_register_immediately(cash_register.id)
+            return result
+        except Exception as e:
+            messages.error(self.request, f'Error al sincronizar cierre de caja: {e}')
+            return super().form_valid(form)
 
 
 class CashRegisterDetailView(LoginRequiredMixin, ValidatePermissionRequiredMixin, DetailView):
@@ -177,6 +193,7 @@ class CashRegisterDetailView(LoginRequiredMixin, ValidatePermissionRequiredMixin
         dynamic_cash = sales_qs.filter(payment_method='cash').aggregate(total=Sum('total'))['total'] or 0
         dynamic_card = sales_qs.filter(payment_method='card').aggregate(total=Sum('total'))['total'] or 0
         dynamic_transfer = sales_qs.filter(payment_method='transfer').aggregate(total=Sum('total'))['total'] or 0
+        dynamic_mp = sales_qs.filter(payment_method='mp').aggregate(total=Sum('total'))['total'] or 0
 
         expenses_qs = Expense.objects.filter(
             date=cash_register.date,
@@ -184,13 +201,14 @@ class CashRegisterDetailView(LoginRequiredMixin, ValidatePermissionRequiredMixin
         )
         dynamic_expenses = expenses_qs.aggregate(total=Sum('amount'))['total'] or 0
 
-        dynamic_total_sales = dynamic_cash + dynamic_card + dynamic_transfer
+        dynamic_total_sales = dynamic_cash + dynamic_card + dynamic_transfer + dynamic_mp
         dynamic_calculated_balance = cash_register.opening_balance + dynamic_total_sales - dynamic_expenses
 
         context['movements'] = cash_register.movements.all()
         context['dynamic_cash_sales'] = dynamic_cash
         context['dynamic_card_sales'] = dynamic_card
         context['dynamic_transfer_sales'] = dynamic_transfer
+        context['dynamic_mp_sales'] = dynamic_mp
         context['dynamic_expenses'] = dynamic_expenses
         context['dynamic_total_sales'] = dynamic_total_sales
         context['dynamic_calculated_balance'] = dynamic_calculated_balance

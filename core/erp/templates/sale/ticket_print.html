@@ -26,6 +26,16 @@
       white-space: normal;
       word-break: break-all;
     }
+    .amount {
+      max-width: 12ch;      /* aprox 12 caracteres para importes */
+      display: inline-block;
+      text-align: right;
+      word-break: break-all;
+      font-size: 10pt;     /* un poco más pequeño para importes grandes */
+    }
+    .amount.small-amount {
+      font-size: 11pt;     /* tamaño normal para importes pequeños */
+    }
     .no-print { margin: 10px 0; text-align: center; }
     @media print {
       .no-print { display: none; }
@@ -72,7 +82,15 @@
         <tr>
           <td class="prod-name">{{ d.prod.name }}</td>
           <td class="center">{{ d.cant|floatformat:0 }}</td>
-          <td class="right">${{ d.subtotal|floatformat:"-2" }}</td>
+          <td class="right">
+            {% with amount_str=d.subtotal|floatformat:"-2"|stringformat:"s" %}
+              {% if amount_str|length > 10 %}
+                <span class="amount">${{ amount_str }}</span>
+              {% else %}
+                <span class="amount small-amount">${{ amount_str }}</span>
+              {% endif %}
+            {% endwith %}
+          </td>
         </tr>
         {% endfor %}
       </tbody>
@@ -84,7 +102,15 @@
     <table class="totals">
       <tr>
         <td class="bold">TOTAL</td>
-        <td class="right bold">${{ sale.total|floatformat:"-2" }}</td>
+        <td class="right bold">
+          {% with total_str=sale.total|floatformat:"-2"|stringformat:"s" %}
+            {% if total_str|length > 10 %}
+              <span class="amount">${{ total_str }}</span>
+            {% else %}
+              <span class="amount small-amount">${{ total_str }}</span>
+            {% endif %}
+          {% endwith %}
+        </td>
       </tr>
     </table>
 

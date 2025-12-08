@@ -99,7 +99,30 @@ class DashboardView(TemplateView):
         context = super().get_context_data(**kwargs)
         # Resolver empresa activa
         active_cid = self.request.session.get('company_id')
-        if not self.request.user.is_superuser:
+        
+        # Para superusuario, permitir cambiar empresa mediante parámetro GET
+        if self.request.user.is_superuser:
+            url_company_id = self.request.GET.get('company_id')
+            if url_company_id:
+                try:
+                    company_id = int(url_company_id)
+                    if Company.objects.filter(id=company_id).exists():
+                        self.request.session['company_id'] = company_id
+                        active_cid = company_id
+                    else:
+                        # Si la empresa no existe, limpiar la sesión
+                        self.request.session.pop('company_id', None)
+                        active_cid = None
+                except (ValueError, TypeError):
+                    pass
+            elif 'clear_company' in self.request.GET:
+                # Limpiar selección de empresa
+                self.request.session.pop('company_id', None)
+                active_cid = None
+            else:
+                # Si no hay parámetro GET, usar el valor de la sesión
+                active_cid = self.request.session.get('company_id')
+        else:
             active_cid = active_cid or getattr(self.request.user, 'company_id', None)
         # KPIs básicos
         UserModel = get_user_model()
@@ -161,10 +184,89 @@ class DashboardView(TemplateView):
         # Empresas disponibles para superusuario
         if self.request.user.is_superuser:
             context['companies'] = Company.objects.all()
+            # Calcular ganancias para superusuario
+            context.update(self.calculate_profits_data(active_cid))
         context['active_company_id'] = self.request.session.get('company_id')
         context['panel'] = 'Panel de administrador'
         context['app_version'] = getattr(settings, 'APP_VERSION', '1.0.0')
         return context
+
+    def calculate_profits_data(self, active_cid):
+        """Calcular datos de ganancias para el dashboard"""
+        data = {}
+        
+        if self.request.user.is_superuser:
+            # Ganancias generales (todas las empresas)
+            all_sales = Sale.objects.all()
+            all_expenses = Expense.objects.filter(is_active=True)
+            
+            # Calcular costo total de ventas
+            total_cost_all = 0
+            for sale in all_sales:
+                for detail in sale.saledetail_set.all():
+                    if detail.prod.cost_price:
+                        total_cost_all += float(detail.prod.cost_price) * detail.cant
+            
+            total_revenue_all = float(all_sales.aggregate(total=Sum('total'))['total'] or 0)
+            total_expenses_all = float(all_expenses.aggregate(total=Sum('amount'))['total'] or 0)
+            total_profit_all = total_revenue_all - total_cost_all - total_expenses_all
+            
+            # Asegurar que los valores sean numéricos
+            data['total_profit_all'] = round(total_profit_all, 2) if total_profit_all else 0.0
+            data['total_revenue_all'] = round(total_revenue_all, 2) if total_revenue_all else 0.0
+            data['total_cost_all'] = round(total_cost_all, 2) if total_cost_all else 0.0
+            data['total_expenses_all'] = round(total_expenses_all, 2) if total_expenses_all else 0.0
+            
+            # Ganancias por empresa
+            company_profits = []
+            for company in Company.objects.all():
+                company_sales = Sale.objects.filter(company=company)
+                company_expenses = Expense.objects.filter(company=company, is_active=True)
+                
+                # Calcular costo de ventas de la empresa
+                company_cost = 0
+                for sale in company_sales:
+                    for detail in sale.saledetail_set.all():
+                        if detail.prod.cost_price:
+                            company_cost += float(detail.prod.cost_price) * detail.cant
+                
+                company_revenue = float(company_sales.aggregate(total=Sum('total'))['total'] or 0)
+                company_expense_total = float(company_expenses.aggregate(total=Sum('amount'))['total'] or 0)
+                company_profit = company_revenue - company_cost - company_expense_total
+                
+                company_profits.append({
+                    'company': company,
+                    'revenue': company_revenue,
+                    'cost': company_cost,
+                    'expenses': company_expense_total,
+                    'profit': company_profit
+                })
+            
+            data['company_profits'] = company_profits
+            
+            # Si hay una empresa activa, mostrar sus ganancias específicas
+            if active_cid:
+                active_company = Company.objects.filter(id=active_cid).first()
+                if active_company:
+                    active_sales = Sale.objects.filter(company=active_company)
+                    active_expenses = Expense.objects.filter(company=active_company, is_active=True)
+                    
+                    # Calcular costo de ventas de la empresa activa
+                    active_cost = 0
+                    for sale in active_sales:
+                        for detail in sale.saledetail_set.all():
+                            if detail.prod.cost_price:
+                                active_cost += float(detail.prod.cost_price) * detail.cant
+                    
+                    active_revenue = float(active_sales.aggregate(total=Sum('total'))['total'] or 0)
+                    active_expense_total = float(active_expenses.aggregate(total=Sum('amount'))['total'] or 0)
+                    active_profit = active_revenue - active_cost - active_expense_total
+                    
+                    # Asegurar que los valores sean numéricos
+                    data['active_company_profit'] = round(active_profit, 2) if active_profit else 0.0
+                    data['active_company'] = active_company
+        
+        return data
 
 
 class UpdatesView(LoginRequiredMixin, TemplateView):

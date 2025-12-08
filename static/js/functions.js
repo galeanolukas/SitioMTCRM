@@ -1,3 +1,19 @@
+function message_success(message) {
+    var html = '';
+    html = '<div id="success-block" class="alert alert-success alert-dismissible">';
+    html += '<button type="button" class="close" data-bs-dismiss="alert" aria-label="Close">';
+    html += '<span aria-hidden="true">&times;</span>';
+    html += '</button>';
+    html += '<h5><i class="fas fa-check me-2"></i> Operación exitosa</h5>';
+    html += '<p>' + message + '</p>';
+    html += '</div>';
+
+    var successContainer = document.getElementById('success-block');
+    if (successContainer) {
+        successContainer.innerHTML = html;
+    }
+}
+
 function message_error(obj) {
     var html = '';
     if (typeof (obj) === 'object') {
@@ -20,7 +36,7 @@ function message_error(obj) {
       html += '<span aria-hidden="true">&times;</span>';
       html += '</button>';
       html += '<h5><i class="fas fa-ban me-2"></i> Ha ocurrido un error al querer guardar el registro</h5>';
-      html += '<li>' + obj + '</li>';
+      html += '<p>' + obj + '</p>';
       html += '</div>';
     }
 
@@ -72,6 +88,9 @@ function submit_with_ajax(url, title, content, parameters, callback) {
     }).done(function (data) {
       console.log(data);
       if (!data.hasOwnProperty('error')) {
+        // Mostrar mensaje de éxito
+        message_success('El registro se ha guardado correctamente.');
+        
         if (typeof callback === 'function') {
           callback(data);
         }

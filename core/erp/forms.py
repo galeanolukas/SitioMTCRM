@@ -107,6 +107,64 @@ class ProductForm(ModelForm):
             ),
         }
 
+    def clean_cost_price(self):
+        cost_price = self.cleaned_data.get('cost_price')
+        if cost_price is not None and cost_price != '':
+            # Si ya es Decimal, redondearlo directamente
+            from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+            if isinstance(cost_price, Decimal):
+                # Redondear a 2 decimales en lugar de rechazar
+                rounded_price = cost_price.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                return rounded_price
+            
+            try:
+                # Limpiar el valor de entrada
+                cleaned_value = str(cost_price).strip()
+                # Remover caracteres no numéricos excepto punto y coma
+                import re
+                cleaned_value = re.sub(r'[^0-9.,]', '', cleaned_value)
+                # Reemplazar coma por punto para estandarizar
+                cleaned_value = cleaned_value.replace(',', '.')
+                
+                if not cleaned_value or cleaned_value == '.':
+                    return Decimal('0.00')
+                
+                price = Decimal(cleaned_value)
+                
+                # Redondear a 2 decimales en lugar de rechazar
+                rounded_price = price.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                
+                return rounded_price
+            except (ValueError, TypeError, InvalidOperation) as e:
+                raise ValidationError('Ingrese un valor numérico válido para el precio de costo.')
+        return cost_price
+
+    def clean_pvp(self):
+        pvp = self.cleaned_data.get('pvp')
+        if pvp is not None and pvp != '':
+            try:
+                from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+                price = Decimal(str(pvp).replace(',', '.'))
+                # Redondear a 2 decimales en lugar de rechazar
+                rounded_price = price.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                return rounded_price
+            except (ValueError, TypeError, InvalidOperation) as e:
+                raise ValidationError('Ingrese un valor numérico válido para el precio neto.')
+        return pvp
+
+    def clean_stock(self):
+        stock = self.cleaned_data.get('stock')
+        if stock is not None and stock != '':
+            try:
+                from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+                qty = Decimal(str(stock).replace(',', '.'))
+                # Redondear a 2 decimales en lugar de rechazar
+                rounded_qty = qty.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                return rounded_qty
+            except (ValueError, TypeError, InvalidOperation) as e:
+                raise ValidationError('Ingrese un valor numérico válido para el stock.')
+        return stock
+
     def clean_iva_rate(self):
         iva_rate = self.cleaned_data.get('iva_rate')
         if iva_rate is not None:
@@ -134,10 +192,16 @@ class ProductForm(ModelForm):
                          obj.company_id = self.request.user.company_id
                  if commit:
                      obj.save()
-                 data = obj.toJSON() if hasattr(obj, 'toJSON') else {}
+                 try:
+                     data = obj.toJSON() if hasattr(obj, 'toJSON') else {}
+                 except Exception as json_error:
+                     print('ERROR EN toJSON:', str(json_error))
+                     data = {'id': obj.id, 'name': obj.name}
              else:
+                 print('ERRORES DEL FORMULARIO:', form.errors)
                  data['error'] = form.errors
          except Exception as e:
+             print('EXCEPCIÓN EN SAVE:', str(e))
              data['error'] = str(e)
          return data
 

@@ -65,6 +65,16 @@
                         </td>
                     </tr>
                     <tr>
+                        <th>Ventas por Mercado Pago</th>
+                        <td class="text-right">
+                            {% if object.is_closed %}
+                                ${{ object.mp_sales|floatformat:2 }}
+                            {% else %}
+                                ${{ dynamic_mp_sales|floatformat:2 }}
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
                         <th>Total Ventas</th>
                         <th class="text-right">
                             {% if object.is_closed %}
@@ -178,6 +188,7 @@
                             <option value="cash">Efectivo</option>
                             <option value="card">Tarjeta</option>
                             <option value="transfer">Transferencia</option>
+                            <option value="mp">Mercado Pago</option>
                             <option value="other">Otro</option>
                         </select>
                     </div>

@@ -53,6 +53,7 @@ class Command(BaseCommand):
                         cash_sales=cr.cash_sales,
                         card_sales=cr.card_sales,
                         transfer_sales=cr.transfer_sales,
+                        mp_sales=cr.mp_sales,
                         expenses=cr.expenses,
                         notes=cr.notes,
                         is_closed=cr.is_closed,

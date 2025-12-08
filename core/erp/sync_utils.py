@@ -2,8 +2,12 @@ from django.core.management import call_command
 from django.db import connections
 from django.conf import settings
 import socket
+import threading
+import logging
 
 from core.erp.models import SyncLog
+
+logger = logging.getLogger(__name__)
 
 
 def _can_reach_remote_db() -> bool:
@@ -106,3 +110,28 @@ def run_full_sync():
         pass
 
     return ok, errors
+
+
+def sync_cash_register_immediately(cash_register_id=None):
+    """Sincroniza inmediatamente el cierre de caja especificado o todos los pendientes.
+    
+    Esta función se ejecuta en un hilo separado para no bloquear la UI.
+    """
+    def _sync_worker():
+        try:
+            if cash_register_id:
+                # Sincronizar solo un cierre de caja específico
+                call_command("sync_cash_registers_to_remote")
+                logger.info(f"Cierre de caja {cash_register_id} sincronizado inmediatamente")
+            else:
+                # Sincronizar todos los cierres pendientes
+                call_command("sync_cash_registers_to_remote")
+                logger.info("Cierres de caja pendientes sincronizados inmediatamente")
+        except Exception as e:
+            logger.error(f"Error en sincronización inmediata de cierre de caja: {e}")
+    
+    # Ejecutar en hilo separado para no bloquear
+    thread = threading.Thread(target=_sync_worker, daemon=True)
+    thread.start()
+    
+    return thread
