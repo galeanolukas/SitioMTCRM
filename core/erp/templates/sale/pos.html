@@ -135,9 +135,16 @@
                   {% endif %}
                 </td>
                 <td>
-                  <a href="{% url 'erp:sale_delete' s.id %}" class="btn btn-xs btn-outline-danger">
-                    <i class="fas fa-ban"></i> Anular
-                  </a>
+                  <div class="btn-group" role="group">
+                    {% if not s.is_invoiced %}
+                      <a href="{% url 'erp:sale_ticket_print' s.id %}" target="_blank" class="btn btn-xs btn-outline-success" title="Reimprimir ticket">
+                        <i class="fas fa-print"></i>
+                      </a>
+                    {% endif %}
+                    <a href="{% url 'erp:sale_delete' s.id %}" class="btn btn-xs btn-outline-danger" title="Anular venta">
+                      <i class="fas fa-ban"></i>
+                    </a>
+                  </div>
                 </td>
               </tr>
               {% empty %}

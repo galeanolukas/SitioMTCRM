@@ -203,7 +203,7 @@ class DashboardView(TemplateView):
             # Calcular costo total de ventas
             total_cost_all = 0
             for sale in all_sales:
-                for detail in sale.saledetail_set.all():
+                for detail in sale.detsale_set.all():
                     if detail.prod.cost_price:
                         total_cost_all += float(detail.prod.cost_price) * detail.cant
             
@@ -226,7 +226,7 @@ class DashboardView(TemplateView):
                 # Calcular costo de ventas de la empresa
                 company_cost = 0
                 for sale in company_sales:
-                    for detail in sale.saledetail_set.all():
+                    for detail in sale.detsale_set.all():
                         if detail.prod.cost_price:
                             company_cost += float(detail.prod.cost_price) * detail.cant
                 
@@ -254,7 +254,7 @@ class DashboardView(TemplateView):
                     # Calcular costo de ventas de la empresa activa
                     active_cost = 0
                     for sale in active_sales:
-                        for detail in sale.saledetail_set.all():
+                        for detail in sale.detsale_set.all():
                             if detail.prod.cost_price:
                                 active_cost += float(detail.prod.cost_price) * detail.cant
                     

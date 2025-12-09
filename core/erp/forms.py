@@ -165,22 +165,7 @@ class ProductForm(ModelForm):
                 raise ValidationError('Ingrese un valor numérico válido para el stock.')
         return stock
 
-    def clean_iva_rate(self):
-        iva_rate = self.cleaned_data.get('iva_rate')
-        if iva_rate is not None:
-            try:
-                rate = float(iva_rate)
-                # If rate > 1, treat it as percentage and convert to decimal
-                if rate > 1:
-                    rate = rate / 100
-                # Ensure rate is within reasonable bounds (0% to 100%)
-                if rate < 0 or rate > 1:
-                    raise ValidationError('La tasa de IVA debe estar entre 0% y 100%.')
-                return rate
-            except (ValueError, TypeError):
-                raise ValidationError('Ingrese un valor numérico válido para la tasa de IVA.')
-        return iva_rate
-
+    
     def save(self, commit=True):
          data = {}
          form = super()

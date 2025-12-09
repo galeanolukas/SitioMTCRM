@@ -169,7 +169,7 @@ class GenerateProfitReportView(LoginRequiredMixin, TemplateView):
         product_sales = {}
         
         for sale in sales:
-            for detail in sale.saledetail_set.all():
+            for detail in sale.detsale_set.all():
                 product_name = detail.prod.name
                 quantity = detail.cant
                 unit_price = float(detail.pvp)
@@ -221,7 +221,7 @@ class GenerateProfitReportView(LoginRequiredMixin, TemplateView):
             # Calcular costo del día
             day_cost = 0
             for sale in day_sales:
-                for detail in sale.saledetail_set.all():
+                for detail in sale.detsale_set.all():
                     if detail.prod.cost_price:
                         day_cost += float(detail.prod.cost_price) * detail.cant
             
@@ -278,7 +278,7 @@ class GenerateProfitReportView(LoginRequiredMixin, TemplateView):
             # Calcular costo del mes
             total_cost = 0
             for sale in sales:
-                for detail in sale.saledetail_set.all():
+                for detail in sale.detsale_set.all():
                     if detail.prod.cost_price:
                         total_cost += float(detail.prod.cost_price) * detail.cant
             

@@ -120,7 +120,7 @@ class Product(models.Model):
     image = models.ImageField(upload_to='product/%Y/%m/%d', null=True, blank=True, verbose_name='Imagen')
     cost_price = models.DecimalField(default=0.00, max_digits=12, decimal_places=2, null=True, blank=True, verbose_name='Precio de costo (sin IVA)')
     pvp = models.DecimalField(default=0.00, max_digits=9, decimal_places=2, verbose_name='Precio neto (sin IVA)')
-    iva_rate = models.DecimalField(default=0.21, max_digits=4, decimal_places=2, verbose_name='IVA (%)')
+    iva_rate = models.DecimalField(default=0.21, max_digits=5, decimal_places=2, verbose_name='IVA (%)')
     pvp_final = models.DecimalField(default=0.00, max_digits=9, decimal_places=2, verbose_name='Precio final (con IVA)')
     unit = models.CharField(max_length=10, choices=UNIT_CHOICES, default='unit', verbose_name='Unidad de medida')
     stock = models.DecimalField(default=0.00, max_digits=12, decimal_places=2, verbose_name='Stock')
@@ -146,9 +146,10 @@ class Product(models.Model):
             # Normalizar rate: si es mayor que 1, tratarlo como porcentaje (21 -> 0.21)
             if rate > Decimal('1.0'):
                 rate = rate / Decimal('100.0')
+            self.iva_rate = rate  # Guardar el valor normalizado
             self.pvp_final = (pvp * (Decimal('1.0') + rate)).quantize(Decimal('0.01'))
         except Exception:
-            pass
+            self.pvp_final = Decimal('0.00')
         super().save(*args, **kwargs)
 
     def toJSON(self):
@@ -555,7 +556,7 @@ class ProfitReport(models.Model):
         total_products = 0
         
         for sale in sales:
-            for detail in sale.saledetail_set.all():
+            for detail in sale.detsale_set.all():
                 if detail.prod.cost_price:
                     product_cost = float(detail.prod.cost_price) * detail.cant
                     total_cost += product_cost
