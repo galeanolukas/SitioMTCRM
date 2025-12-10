@@ -33,6 +33,15 @@ class LoginFormView(LoginView):
             return redirect("erp:launcher")
         return super().dispatch(request, *args, **kwargs)
 
+    def form_valid(self, form):
+        # Llamar al padre que maneja el login
+        response = super().form_valid(form)
+        
+        # Forzar guardado de sesión
+        self.request.session.save()
+        
+        return response
+
     def get_success_url(self):
         user = self.request.user
         # Guardar empresa del usuario en sesión si no es superusuario

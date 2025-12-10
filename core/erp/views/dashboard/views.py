@@ -269,13 +269,8 @@ class DashboardView(TemplateView):
         return data
 
 
-class UpdatesView(LoginRequiredMixin, TemplateView):
+class UpdatesView(TemplateView):
     template_name = 'vtc/updates.html'
-
-    def dispatch(self, request, *args, **kwargs):
-        if not request.user.is_superuser:
-            return redirect('erp:dashboard')
-        return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
