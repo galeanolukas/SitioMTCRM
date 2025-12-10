@@ -45,6 +45,32 @@
             <li>Cuando finalice, volver a iniciar el POS con <code>lanzar_pos.bat</code> y entrar de nuevo al sistema.</li>
           </ol>
 
+          {% if update_available %}
+          <div class="alert alert-warning">
+            <h6><i class="fas fa-exclamation-triangle me-2"></i>Actualización disponible</h6>
+            <p class="mb-2">Hay una nueva versión disponible. Puede actualizar automáticamente:</p>
+            
+            {% if is_windows %}
+              <button class="btn btn-warning" onclick="launchUpdater('actualizar_pos.bat')">
+                <i class="fas fa-download me-2"></i>Actualizar ahora (Windows)
+              </button>
+            {% elif is_linux %}
+              <button class="btn btn-warning" onclick="launchUpdater('./actualizar_pos.sh')">
+                <i class="fas fa-download me-2"></i>Actualizar ahora (Linux)
+              </button>
+            {% else %}
+              <div class="text-muted">
+                <small>Sistema no detectado. Actualice manualmente según las instrucciones anteriores.</small>
+              </div>
+            {% endif %}
+            
+            <hr class="my-2">
+            <small class="text-muted">
+              <strong>Importante:</strong> El actualizador cerrará esta aplicación. Guarde su trabajo antes de continuar.
+            </small>
+          </div>
+          {% endif %}
+
           <h6>Alternativa avanzada (Git/pip manual)</h6>
           <p class="small mb-2">Si preferís actualizar manualmente desde consola usando Git y Python, el flujo típico es:</p>
           <ul class="small mb-3">
@@ -63,4 +89,32 @@
     </div>
   </div>
 </div>
+
+<script>
+function launchUpdater(scriptName) {
+  if (confirm('¿Está seguro de iniciar el actualizador?\n\nEsta aplicación se cerrará y se iniciará el proceso de actualización.\n\nGuarde su trabajo antes de continuar.')) {
+    try {
+      // Detectar el sistema operativo y usar el método apropiado
+      if (navigator.userAgent.indexOf('Win') !== -1) {
+        // Windows: usar WScript.Shell
+        var shell = new ActiveXObject('WScript.Shell');
+        shell.Run(scriptName, 1, false);
+      } else {
+        // Linux/Mac: intentar abrir terminal (puede no funcionar en todos los navegadores)
+        window.location.href = 'javascript:void(0);';
+        alert('Para actualizar en Linux/Mac:\n\n1. Abra una terminal en la carpeta del proyecto\n2. Ejecute: ' + scriptName + '\n\nO actualice manualmente siguiendo las instrucciones.');
+      }
+      
+      // Esperar un momento y cerrar la pestaña
+      setTimeout(function() {
+        window.close();
+      }, 2000);
+      
+    } catch (e) {
+      // Si falla el método automático, mostrar instrucciones manuales
+      alert('No se pudo iniciar el actualizador automáticamente.\n\nPor favor, actualice manualmente:\n\n1. Vaya a la carpeta del proyecto\n2. Ejecute: ' + scriptName + '\n\nLuego reinicie el POS.');
+    }
+  }
+}
+</script>
 {% endblock %}

@@ -302,6 +302,13 @@ class UpdatesView(LoginRequiredMixin, TemplateView):
 
         ctx['latest_version'] = latest_version
         ctx['update_available'] = update_available
+        
+        # Detectar sistema operativo para mostrar el botón correcto
+        import platform
+        system_os = platform.system().lower()  # 'windows', 'linux', 'darwin'
+        ctx['is_windows'] = system_os == 'windows'
+        ctx['is_linux'] = system_os == 'linux'
+        
         return ctx
 
 
