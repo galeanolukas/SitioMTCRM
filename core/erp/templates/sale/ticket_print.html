@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ticket {{ sale.id }}</title>
   <style>
-    @page { size: 80mm auto; margin: 0; }
+    @page { size: 80mm auto; margin: 0mm; }
     * { box-sizing: border-box; }
-    body { margin: 0; font-family: monospace; font-size: 11pt; color: #000; background: #fff; }
-    .ticket { width: 80mm; padding: 8px 10px; }
+    body { margin: 0; padding: 0; font-family: 'Courier New', monospace; font-size: 10pt; color: #000; background: #fff; }
+    .ticket { width: 76mm; padding: 5px 2mm; margin: 0 auto; }
     .center { text-align: center; }
     .right { text-align: right; }
     .line { border-top: 1px dashed #000; margin: 6px 0; }
@@ -16,25 +16,23 @@
     .small { font-size: 10pt; }
     .bold { font-weight: bold; }
     .muted { color: #333; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: 2px 0; vertical-align: top; }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    th, td { padding: 1px 2px; vertical-align: top; }
     th { border-bottom: 1px dashed #000; font-weight: bold; }
-    .totals td { padding: 3px 0; }
+    .totals td { padding: 3px 2px; }
     .prod-name {
-      max-width: 15ch;      /* aprox 15 caracteres en fuente monoespaciada */
-      display: inline-block;
-      white-space: normal;
-      word-break: break-all;
+      width: 42mm;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: 10pt;
     }
     .amount {
-      max-width: 12ch;      /* aprox 12 caracteres para importes */
-      display: inline-block;
+      width: 20mm;
       text-align: right;
-      word-break: break-all;
-      font-size: 10pt;     /* un poco más pequeño para importes grandes */
-    }
-    .amount.small-amount {
-      font-size: 11pt;     /* tamaño normal para importes pequeños */
+      font-size: 10pt;
+      font-weight: bold;
+      white-space: nowrap;
     }
     .no-print { margin: 10px 0; text-align: center; }
     @media print {
@@ -72,24 +70,18 @@
     <table>
       <thead>
         <tr>
-          <th style="text-align:left">Descripción</th>
-          <th style="text-align:center;width:40px;">Cant</th>
-          <th style="text-align:right;width:70px;">Importe</th>
+          <th style="text-align:left;width:42mm;">Descripción</th>
+          <th style="text-align:center;width:12mm;">Cant</th>
+          <th style="text-align:right;width:20mm;">Importe</th>
         </tr>
       </thead>
       <tbody>
         {% for d in dets %}
         <tr>
           <td class="prod-name">{{ d.prod.name }}</td>
-          <td class="center">{{ d.cant|floatformat:0 }}</td>
-          <td class="right">
-            {% with amount_str=d.subtotal|floatformat:"-2"|stringformat:"s" %}
-              {% if amount_str|length > 10 %}
-                <span class="amount">${{ amount_str }}</span>
-              {% else %}
-                <span class="amount small-amount">${{ amount_str }}</span>
-              {% endif %}
-            {% endwith %}
+          <td class="center" style="width:12mm;">{{ d.cant|floatformat:0 }}</td>
+          <td class="amount">
+            ${{ d.subtotal|floatformat:"-2" }}
           </td>
         </tr>
         {% endfor %}
@@ -101,15 +93,9 @@
     <!-- Totales -->
     <table class="totals">
       <tr>
-        <td class="bold">TOTAL</td>
-        <td class="right bold">
-          {% with total_str=sale.total|floatformat:"-2"|stringformat:"s" %}
-            {% if total_str|length > 10 %}
-              <span class="amount">${{ total_str }}</span>
-            {% else %}
-              <span class="amount small-amount">${{ total_str }}</span>
-            {% endif %}
-          {% endwith %}
+        <td class="bold" style="width:54mm;">TOTAL</td>
+        <td class="amount" style="width:20mm;">
+          ${{ sale.total|floatformat:"-2" }}
         </td>
       </tr>
     </table>

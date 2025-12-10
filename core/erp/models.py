@@ -159,6 +159,7 @@ class Product(models.Model):
         item['supplier_id'] = self.supplier_id
         item['image'] = self.get_image()
         item['pvp'] = format(self.pvp, '.2f')
+        item['cost_price'] = format(self.cost_price, '.2f')
         item['iva_rate'] = float(self.iva_rate)
         item['pvp_final'] = format(self.pvp_final, '.2f')
         item['unit'] = self.unit

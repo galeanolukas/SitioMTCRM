@@ -1,0 +1,11 @@
+code,name,categoria,pvp,stock,unit,iva_rate
+P001,Coca Cola 500ml,Bebidas,500,120,unit,0.21
+P002,Coca Cola 1.5L,Bebidas,900,80,unit,0.21
+P003,Agua Mineral 500ml,Bebidas,300,200,unit,0.21
+P004,Harina 1Kg,Alimentos,450,60,unit,0.21
+P005,Azúcar 1Kg,Alimentos,430,55,unit,0.21
+P006,Arroz 1Kg,Alimentos,520,70,unit,0.21
+P007,Galletitas de Chocolate 200g,Alimentos,380,90,unit,0.21
+P008,Detergente 750ml,Limpieza,650,40,unit,0.21
+P009,Desodorante Ambiente 360ml,Limpieza,720,35,unit,0.21
+P010,Shampoo 400ml,Higiene,980,25,unit,0.21
