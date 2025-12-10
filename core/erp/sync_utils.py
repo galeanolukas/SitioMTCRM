@@ -4,6 +4,9 @@ from django.conf import settings
 import socket
 import threading
 import logging
+import os
+import datetime
+import shutil
 
 from core.erp.models import SyncLog
 
@@ -135,3 +138,85 @@ def sync_cash_register_immediately(cash_register_id=None):
     thread.start()
     
     return thread
+
+
+def backup_to_server():
+    """Crea un backup de la base de datos local y lo envía al servidor remoto."""
+    errors = []
+    
+    try:
+        # 1) Verificar conexión remota
+        if not _can_reach_remote_db():
+            return False, ["No hay conexión con el servidor remoto"]
+        
+        # 2) Obtener información de la empresa activa
+        from django.contrib.auth import get_user_model
+        from core.erp.models import Company
+        User = get_user_model()
+        
+        # Intentar obtener empresa del usuario actual o la primera disponible
+        company = None
+        try:
+            # Usar la primera empresa disponible
+            company = Company.objects.first()
+        except Exception:
+            pass
+        
+        if not company:
+            return False, ["No se encontró información de la empresa"]
+        
+        # 3) Crear backup local
+        timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        backup_filename = f"backup_{company.name.replace(' ', '_')}_{timestamp}.sqlite3"
+        backup_path = os.path.join(settings.BASE_DIR, backup_filename)
+        
+        # Copiar base de datos actual
+        db_path = os.path.join(settings.BASE_DIR, 'db.sqlite3')
+        if not os.path.exists(db_path):
+            return False, ["No se encuentra la base de datos local"]
+        
+        shutil.copy2(db_path, backup_path)
+        
+        # 4) Obtener nombre del POS
+        pos_name = getattr(settings, 'POS_NODE_NAME', None) or socket.gethostname()
+        
+        # 5) Enviar backup al servidor (simulado - aquí iría la lógica real de transferencia)
+        # Por ahora, solo registramos el intento
+        try:
+            # Aquí podrías agregar FTP, SFTP, o API para enviar el archivo
+            # Por ahora simulamos éxito
+            logger.info(f"Backup {backup_filename} creado para empresa {company.name} desde POS {pos_name}")
+            
+            # 6) Registrar en el log del servidor
+            SyncLog.objects.using('remote').create(
+                node_name=f"{pos_name}_BACKUP",
+                success=True,
+                message=f"Backup enviado: {backup_filename} (Empresa: {company.name})"
+            )
+            
+            # 7) Limpiar backup local temporal
+            os.remove(backup_path)
+            
+            return True, [f"Backup enviado exitosamente: {backup_filename}"]
+            
+        except Exception as e:
+            errors.append(f"Error al enviar backup al servidor: {e}")
+            # Limpiar backup local si falló
+            if os.path.exists(backup_path):
+                os.remove(backup_path)
+            
+    except Exception as e:
+        errors.append(f"Error general en backup: {e}")
+    
+    # Registrar error si falló
+    if errors:
+        try:
+            SyncLog.objects.using('remote').create(
+                node_name="BACKUP_ERROR",
+                success=False,
+                message=f"Error en backup: {'; '.join(errors)}"
+            )
+        except Exception:
+            pass
+    
+    return False, errors

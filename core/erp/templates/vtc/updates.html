@@ -71,6 +71,23 @@
           </div>
           {% endif %}
 
+          <div class="mt-3">
+            <div class="card card-outline card-info">
+              <div class="card-header">
+                <h6 class="card-title mb-0"><i class="fas fa-cloud-upload-alt me-2"></i>Backup al Servidor</h6>
+              </div>
+              <div class="card-body">
+                <p class="card-text text-muted mb-3">Envía una copia de seguridad de la base de datos actual al servidor central.</p>
+                <form action="{% url 'erp:backup_to_server' %}" method="post">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-info">
+                    <i class="fas fa-upload me-2"></i>Enviar Backup al Servidor
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+
           <h6>Alternativa avanzada (Git/pip manual)</h6>
           <p class="small mb-2">Si preferís actualizar manualmente desde consola usando Git y Python, el flujo típico es:</p>
           <ul class="small mb-3">

@@ -86,6 +86,7 @@ urlpatterns = [
     path('sync/', sync_data_view, name='sync_data'),
     path('dashboard/', DashboardView.as_view(), name='dashboard'),
     path('updates/', UpdatesView.as_view(), name='updates'),
+    path('backup-to-server/', UpdatesView.as_view(), name='backup_to_server'),
     # reports (superuser) - comentadas temporalmente
     # path('reports/', ReportsHomeView.as_view(), name='reports_home'),
     # path('reports/dashboard/', ReportDashboardView.as_view(), name='report_dashboard'),

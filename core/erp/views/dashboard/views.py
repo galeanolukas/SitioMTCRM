@@ -272,6 +272,11 @@ class DashboardView(TemplateView):
 class UpdatesView(TemplateView):
     template_name = 'vtc/updates.html'
 
+    def dispatch(self, request, *args, **kwargs):
+        if request.path == '/erp/backup-to-server/':
+            return self.backup_to_server(request)
+        return super().dispatch(request, *args, **kwargs)
+
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
 
@@ -305,6 +310,21 @@ class UpdatesView(TemplateView):
         ctx['is_linux'] = system_os == 'linux'
         
         return ctx
+    
+    def backup_to_server(self, request):
+        """Vista para hacer backup al servidor."""
+        from core.erp.sync_utils import backup_to_server
+        
+        success, messages = backup_to_server()
+        
+        if success:
+            from django.contrib import messages
+            messages.success(request, f"Backup enviado: {' '.join(messages)}")
+        else:
+            from django.contrib import messages
+            messages.error(request, f"Error en backup: {' '.join(messages)}")
+        
+        return redirect('erp:updates')
 
 
 class ExpenseListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView):

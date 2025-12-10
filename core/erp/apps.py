@@ -27,10 +27,10 @@ class ErpConfig(AppConfig):
             ErpConfig._sync_thread_started = True
             self._start_sync_thread()
 
-        # Iniciar hilo de respaldo
-        if not ErpConfig._backup_thread_started:
-            ErpConfig._backup_thread_started = True
-            self._start_backup_thread()
+        # INICIAR HILO DE RESPALDO COMENTADO (DESACTIVADO)
+        # if not ErpConfig._backup_thread_started:
+        #     ErpConfig._backup_thread_started = True
+        #     self._start_backup_thread()
 
     def _start_sync_thread(self):
         """Inicia el hilo de sincronización periódica."""
