@@ -27,7 +27,7 @@ if load_dotenv is not None:
 ENVIRONMENT = os.getenv('ENVIRONMENT', 'development')
 
 # Versión de la aplicación (usada para mostrar en UI y para futuros módulos de actualización)
-APP_VERSION = os.getenv('APP_VERSION', '1.0.0')
+APP_VERSION = os.getenv('APP_VERSION', '1.1.0')
 
 # Intervalo de sincronización automática del POS (en segundos).
 # 300 segundos = 5 minutos.

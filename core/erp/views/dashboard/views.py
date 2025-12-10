@@ -286,14 +286,16 @@ class UpdatesView(TemplateView):
         latest_version = None
         update_available = False
         try:
-            url = 'https://api.github.com/repos/galeanolukas/SitioMTCRM/releases/latest'
+            url = 'https://api.github.com/repos/galeanolukas/SitioMTCRM/releases'
             req = urllib.request.Request(url, headers={'Accept': 'application/vnd.github+json'})
             with urllib.request.urlopen(req, timeout=3) as resp:
                 data = json.loads(resp.read().decode('utf-8'))
-            tag = data.get('tag_name') or ''
-            if tag.startswith('v'):
-                tag = tag[1:]
-            latest_version = tag or None
+            # Obtener la primera release (la más reciente)
+            if data and len(data) > 0:
+                tag = data[0].get('tag_name') or ''
+                if tag.startswith('v'):
+                    tag = tag[1:]
+                latest_version = tag or None
         except Exception:
             latest_version = None
 
@@ -319,10 +321,16 @@ class UpdatesView(TemplateView):
         
         if success:
             from django.contrib import messages
-            messages.success(request, f"Backup enviado: {' '.join(messages)}")
+            if isinstance(messages, list) and messages:
+                messages.success(request, f"Backup enviado: {messages[0]}")
+            else:
+                messages.success(request, "Backup enviado exitosamente")
         else:
             from django.contrib import messages
-            messages.error(request, f"Error en backup: {' '.join(messages)}")
+            if isinstance(messages, list) and messages:
+                messages.error(request, f"Error en backup: {messages[0]}")
+            else:
+                messages.error(request, "Error en backup")
         
         return redirect('erp:updates')
 
