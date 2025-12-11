@@ -10,6 +10,15 @@
         </div>
         <div class="card-body">
           <p class="text-muted">Aquí podés ver la versión instalada en este POS y la última versión publicada en GitHub.</p>
+          
+          <!-- Mensaje destacado de nueva versión -->
+          <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <h6 class="alert-heading"><i class="fas fa-star me-2"></i>Nueva Versión Disponible!</h6>
+            <p class="mb-2">La versión <strong>1.1.0</strong> ya está disponible con importantes mejoras y correcciones.</p>
+            <hr>
+            <p class="mb-0">Esta es la versión más reciente y recomendada para todos los usuarios.</p>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
 
           <div class="row mb-3">
             <div class="col-12 col-md-6 mb-2">
@@ -50,16 +59,30 @@
             <h6><i class="fas fa-exclamation-triangle me-2"></i>Actualización disponible</h6>
             <p class="mb-2">Hay una nueva versión disponible. Puede actualizar automáticamente:</p>
             
+            <!-- Windows -->
             {% if is_windows %}
-              <button class="btn btn-warning" onclick="launchUpdater('actualizar_pos.bat')">
-                <i class="fas fa-download me-2"></i>Actualizar ahora (Windows)
-              </button>
-            {% elif is_linux %}
               <div class="btn-group" role="group">
-                <button class="btn btn-warning" onclick="launchUpdater('./actualizar_pos.sh')">
+                <button class="btn btn-warning" onclick="launchUpdater('actualizar_pos.bat', 'development')">
                   <i class="fas fa-download me-2"></i>Actualizar POS (Desarrollo)
                 </button>
-                <button class="btn btn-danger" onclick="launchUpdater('./actualizar_production.sh')">
+                <button class="btn btn-danger" onclick="launchUpdater('actualizar_production.bat', 'production')">
+                  <i class="fas fa-server me-2"></i>Actualizar Producción
+                </button>
+              </div>
+              <div class="mt-2">
+                <small class="text-muted">
+                  <strong>POS (Desarrollo):</strong> Para entornos locales de desarrollo<br>
+                  <strong>Producción:</strong> Para servidor Windows con IIS/Apache
+                </small>
+              </div>
+            
+            <!-- Linux -->
+            {% elif is_linux %}
+              <div class="btn-group" role="group">
+                <button class="btn btn-warning" onclick="launchUpdater('./actualizar_pos.sh', 'development')">
+                  <i class="fas fa-download me-2"></i>Actualizar POS (Desarrollo)
+                </button>
+                <button class="btn btn-danger" onclick="launchUpdater('./actualizar_production.sh', 'production')">
                   <i class="fas fa-server me-2"></i>Actualizar Producción
                 </button>
               </div>
@@ -69,6 +92,25 @@
                   <strong>Producción:</strong> Para servidor VPS con uwsgi + lighttpd
                 </small>
               </div>
+            
+            <!-- macOS -->
+            {% elif is_mac %}
+              <div class="btn-group" role="group">
+                <button class="btn btn-warning" onclick="launchUpdater('./actualizar_pos.sh', 'development')">
+                  <i class="fas fa-download me-2"></i>Actualizar POS (Desarrollo)
+                </button>
+                <button class="btn btn-danger" onclick="launchUpdater('./actualizar_production.sh', 'production')">
+                  <i class="fas fa-server me-2"></i>Actualizar Producción
+                </button>
+              </div>
+              <div class="mt-2">
+                <small class="text-muted">
+                  <strong>POS (Desarrollo):</strong> Para entornos locales de desarrollo<br>
+                  <strong>Producción:</strong> Para servidor macOS
+                </small>
+              </div>
+            
+            <!-- Sistema no detectado -->
             {% else %}
               <div class="text-muted">
                 <small>Sistema no detectado. Actualice manualmente según las instrucciones anteriores.</small>
@@ -119,30 +161,95 @@
 </div>
 
 <script>
-function launchUpdater(scriptName) {
-  if (confirm('¿Está seguro de iniciar el actualizador?\n\nEsta aplicación se cerrará y se iniciará el proceso de actualización.\n\nGuarde su trabajo antes de continuar.')) {
-    try {
-      // Detectar el sistema operativo y usar el método apropiado
-      if (navigator.userAgent.indexOf('Win') !== -1) {
-        // Windows: usar WScript.Shell
-        var shell = new ActiveXObject('WScript.Shell');
-        shell.Run(scriptName, 1, false);
-      } else {
-        // Linux/Mac: intentar abrir terminal (puede no funcionar en todos los navegadores)
-        window.location.href = 'javascript:void(0);';
-        alert('Para actualizar en Linux/Mac:\n\n1. Abra una terminal en la carpeta del proyecto\n2. Ejecute: ' + scriptName + '\n\nO actualice manualmente siguiendo las instrucciones.');
-      }
-      
-      // Esperar un momento y cerrar la pestaña
-      setTimeout(function() {
-        window.close();
-      }, 2000);
-      
-    } catch (e) {
-      // Si falla el método automático, mostrar instrucciones manuales
-      alert('No se pudo iniciar el actualizador automáticamente.\n\nPor favor, actualice manualmente:\n\n1. Vaya a la carpeta del proyecto\n2. Ejecute: ' + scriptName + '\n\nLuego reinicie el POS.');
-    }
+function launchUpdater(scriptName, mode) {
+  // Mensaje de confirmación específico según el modo
+  let modeMessage = mode === 'production' ? 
+    'Este es el actualizador de PRODUCCIÓN.\n\nSe actualizará el servidor de producción.\n\n' :
+    'Este es el actualizador de POS (Desarrollo).\n\nSe actualizará el entorno local de desarrollo.\n\n';
+  
+  if (!confirm(modeMessage + '¿Está seguro de iniciar el actualizador?\n\nEsta aplicación se cerrará y se iniciará el proceso de actualización.\n\nGuarde su trabajo antes de continuar.')) {
+    return;
   }
+  
+  try {
+    // Detectar sistema operativo más precisamente
+    const userAgent = navigator.userAgent;
+    const platform = navigator.platform;
+    
+    let isWindows = false;
+    let isLinux = false;
+    let isMac = false;
+    
+    // Detección mejorada de SO
+    if (userAgent.includes('Windows') || platform.includes('Win')) {
+      isWindows = true;
+    } else if (userAgent.includes('Linux') || platform.includes('Linux')) {
+      isLinux = true;
+    } else if (userAgent.includes('Mac') || platform.includes('Mac')) {
+      isMac = true;
+    }
+    
+    if (isWindows) {
+      // Windows: usar WScript.Shell si está disponible (IE/Edge)
+      try {
+        if (window.ActiveXObject || "ActiveXObject" in window) {
+          var shell = new ActiveXObject('WScript.Shell');
+          shell.Run(scriptName, 1, false);
+          
+          // Esperar y cerrar
+          setTimeout(function() {
+            window.close();
+          }, 2000);
+        } else {
+          // Chrome/Firefox en Windows: mostrar instrucciones manuales
+          showManualInstructions('Windows', scriptName);
+        }
+      } catch (e) {
+        showManualInstructions('Windows', scriptName);
+      }
+    } else if (isLinux || isMac) {
+      // Linux/Mac: intentar diferentes métodos
+      if (scriptName.includes('.sh')) {
+        // Intentar ejecutar el script directamente
+        try {
+          // Método 1: Usar location.href para descargar/ejecutar
+          window.location.href = scriptName;
+          
+          // Mostrar instrucciones mientras tanto
+          setTimeout(function() {
+            showManualInstructions(isLinux ? 'Linux' : 'macOS', scriptName);
+          }, 1000);
+        } catch (e) {
+          showManualInstructions(isLinux ? 'Linux' : 'macOS', scriptName);
+        }
+      } else {
+        showManualInstructions(isLinux ? 'Linux' : 'macOS', scriptName);
+      }
+    } else {
+      // Sistema no detectado
+      showManualInstructions('desconocido', scriptName);
+    }
+    
+  } catch (e) {
+    console.error('Error al ejecutar actualizador:', e);
+    showManualInstructions('desconocido', scriptName);
+  }
+}
+
+function showManualInstructions(os, scriptName) {
+  let instructions = '';
+  
+  if (os === 'Windows') {
+    instructions = `Para actualizar en Windows:\n\n1. Abra el Explorador de Archivos\n2. Navegue a la carpeta del proyecto\n3. Haga doble clic en: ${scriptName}\n\nO desde CMD:\ncd ruta\\al\\proyecto\n${scriptName}`;
+  } else if (os === 'Linux') {
+    instructions = `Para actualizar en Linux:\n\n1. Abra una terminal\n2. Navegue a la carpeta del proyecto:\ncd /ruta/al/proyecto\n3. Haga ejecutable el script:\nchmod +x ${scriptName}\n4. Ejecute el script:\n./${scriptName}`;
+  } else if (os === 'macOS') {
+    instructions = `Para actualizar en macOS:\n\n1. Abra Terminal\n2. Navegue a la carpeta del proyecto:\ncd /ruta/al/proyecto\n3. Haga ejecutable el script:\nchmod +x ${scriptName}\n4. Ejecute el script:\n./${scriptName}`;
+  } else {
+    instructions = `Para actualizar manualmente:\n\n1. Vaya a la carpeta del proyecto\n2. Ejecute: ${scriptName}\n\nConsulte la documentación para su sistema operativo.`;
+  }
+  
+  alert('No se pudo iniciar el actualizador automáticamente.\n\n' + instructions + '\n\nLuego reinicie el sistema.');
 }
 </script>
 {% endblock %}
