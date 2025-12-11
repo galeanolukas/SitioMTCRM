@@ -1,0 +1,293 @@
+from django.core.management.base import BaseCommand
+from django.db import transaction, connections
+from django.contrib import messages
+from core.erp.models import Client, Sale, Product, Category, Supplier, Expense, CashRegister
+from core.user.models import User
+
+class Command(BaseCommand):
+    help = 'Sincronización inteligente que evita duplicados con backups'
+
+    def handle(self, *args, **options):
+        if 'remote' not in connections:
+            self.stdout.write(self.style.ERROR('No hay conexión a base de datos remota configurada'))
+            return
+
+        self.stdout.write(self.style.NOTICE("Iniciando sincronización inteligente..."))
+        
+        try:
+            # 1) Sincronizar clientes
+            self.sync_clients()
+            
+            # 2) Sincronizar ventas
+            self.sync_sales()
+            
+            # 3) Sincronizar productos
+            self.sync_products()
+            
+            # 4) Sincronizar gastos
+            self.sync_expenses()
+            
+            # 5) Sincronizar cierres de caja
+            self.sync_cash_registers()
+            
+            self.stdout.write(self.style.SUCCESS("Sincronización inteligente completada"))
+            
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f"Error en sincronización: {e}"))
+
+    def sync_clients(self):
+        """Sincronizar clientes evitando duplicados"""
+        self.stdout.write("Sincronizando clientes...")
+        
+        # Obtener todos los clientes locales (no solo los no sincronizados)
+        local_clients = Client.objects.using('default').all()
+        synced_count = 0
+        
+        for client in local_clients:
+            try:
+                with transaction.atomic(using='remote'):
+                    # Buscar cliente remoto por DNI o nombre
+                    lookup = {}
+                    if client.dni:
+                        lookup['dni'] = client.dni
+                    else:
+                        lookup['names'] = client.names
+                        lookup['surnames'] = client.surnames
+                    
+                    remote_client, created = Client.objects.using('remote').get_or_create(
+                        **lookup,
+                        defaults={
+                            'company_id': client.company_id,
+                            'names': client.names,
+                            'surnames': client.surnames,
+                            'date_birthday': client.date_birthday,
+                            'address': client.address,
+                            'gender': client.gender,
+                            'is_active': client.is_active,
+                        }
+                    )
+                    
+                    if not created:
+                        # Actualizar datos si es necesario
+                        remote_client.company_id = client.company_id
+                        remote_client.names = client.names
+                        remote_client.surnames = client.surnames
+                        remote_client.date_birthday = client.date_birthday
+                        remote_client.address = client.address
+                        remote_client.gender = client.gender
+                        remote_client.is_active = client.is_active
+                        remote_client.save(using='remote')
+                    
+                    # Marcar como sincronizado
+                    client.synced_to_server = True
+                    client.save(using='default')
+                    synced_count += 1
+                    
+            except Exception as e:
+                self.stdout.write(self.style.ERROR(f"Error sincronizando cliente {client.id}: {e}"))
+        
+        self.stdout.write(f"Clientes sincronizados: {synced_count}")
+
+    def sync_sales(self):
+        """Sincronizar ventas evitando duplicados"""
+        self.stdout.write("Sincronizando ventas...")
+        
+        local_sales = Sale.objects.using('default').all()
+        synced_count = 0
+        
+        for sale in local_sales:
+            try:
+                with transaction.atomic(using='remote'):
+                    # Verificar si ya existe venta con misma fecha, monto y cliente
+                    existing = Sale.objects.using('remote').filter(
+                        date_joined=sale.date_joined,
+                        total=sale.total,
+                        cli_id=sale.cli_id
+                    ).first()
+                    
+                    if existing:
+                        # Ya existe, marcar como sincronizada
+                        sale.synced_to_server = True
+                        sale.save(using='default')
+                        synced_count += 1
+                        continue
+                    
+                    # Crear venta remota
+                    remote_sale = Sale.objects.using('remote').create(
+                        company_id=sale.company_id,
+                        cli_id=sale.cli_id,
+                        date_joined=sale.date_joined,
+                        subtotal=sale.subtotal,
+                        iva=sale.iva,
+                        total=sale.total,
+                        payment_method=sale.payment_method,
+                        invoice_number=sale.invoice_number,
+                        invoice_pos=sale.invoice_pos,
+                        invoice_type=sale.invoice_type,
+                        is_invoiced=sale.is_invoiced,
+                        synced_to_server=True
+                    )
+                    
+                    # Marcar como sincronizada
+                    sale.synced_to_server = True
+                    sale.save(using='default')
+                    synced_count += 1
+                    
+            except Exception as e:
+                self.stdout.write(self.style.ERROR(f"Error sincronizando venta {sale.id}: {e}"))
+        
+        self.stdout.write(f"Ventas sincronizadas: {synced_count}")
+
+    def sync_products(self):
+        """Sincronizar productos evitando duplicados"""
+        self.stdout.write("Sincronizando productos...")
+        
+        local_products = Product.objects.using('default').all()
+        synced_count = 0
+        
+        for product in local_products:
+            try:
+                with transaction.atomic(using='remote'):
+                    # Buscar por code o nombre
+                    lookup = {}
+                    if product.code:
+                        lookup['code'] = product.code
+                    else:
+                        lookup['name'] = product.name
+                    
+                    remote_product, created = Product.objects.using('remote').get_or_create(
+                        **lookup,
+                        defaults={
+                            'company_id': product.company_id,
+                            'name': product.name,
+                            'cat_id': product.cat_id,
+                            'supplier_id': product.supplier_id,
+                            'pvp': product.pvp,
+                            'iva_rate': product.iva_rate,
+                            'pvp_final': product.pvp_final,
+                            'unit': product.unit,
+                            'stock': product.stock,
+                            'synced_to_server': True
+                        }
+                    )
+                    
+                    if not created:
+                        # Actualizar datos
+                        remote_product.company_id = product.company_id
+                        remote_product.name = product.name
+                        remote_product.cat_id = product.cat_id
+                        remote_product.supplier_id = product.supplier_id
+                        remote_product.pvp = product.pvp
+                        remote_product.iva_rate = product.iva_rate
+                        remote_product.pvp_final = product.pvp_final
+                        remote_product.unit = product.unit
+                        remote_product.stock = product.stock
+                        remote_product.synced_to_server = True
+                        remote_product.save(using='remote')
+                    
+                    # Marcar como sincronizado
+                    product.synced_to_server = True
+                    product.save(using='default')
+                    synced_count += 1
+                    
+            except Exception as e:
+                self.stdout.write(self.style.ERROR(f"Error sincronizando producto {product.id}: {e}"))
+        
+        self.stdout.write(f"Productos sincronizados: {synced_count}")
+
+    def sync_expenses(self):
+        """Sincronizar gastos evitando duplicados"""
+        self.stdout.write("Sincronizando gastos...")
+        
+        local_expenses = Expense.objects.using('default').all()
+        synced_count = 0
+        
+        for expense in local_expenses:
+            try:
+                with transaction.atomic(using='remote'):
+                    # Verificar si ya existe por fecha, monto y descripción
+                    existing = Expense.objects.using('remote').filter(
+                        date=expense.date,
+                        amount=expense.amount,
+                        description=expense.description
+                    ).first()
+                    
+                    if existing:
+                        # Ya existe, marcar como sincronizado
+                        expense.synced_to_server = True
+                        expense.save(using='default')
+                        synced_count += 1
+                        continue
+                    
+                    # Crear gasto remoto
+                    remote_expense = Expense.objects.using('remote').create(
+                        company_id=expense.company_id,
+                        date=expense.date,
+                        amount=expense.amount,
+                        description=expense.description,
+                        category=expense.category,
+                        payment_type=expense.payment_type,
+                        receipt_number=expense.receipt_number,
+                        notes=expense.notes,
+                        synced_to_server=True
+                    )
+                    
+                    # Marcar como sincronizado
+                    expense.synced_to_server = True
+                    expense.save(using='default')
+                    synced_count += 1
+                    
+            except Exception as e:
+                self.stdout.write(self.style.ERROR(f"Error sincronizando gasto {expense.id}: {e}"))
+        
+        self.stdout.write(f"Gastos sincronizados: {synced_count}")
+
+    def sync_cash_registers(self):
+        """Sincronizar cierres de caja evitando duplicados"""
+        self.stdout.write("Sincronizando cierres de caja...")
+        
+        local_registers = CashRegister.objects.using('default').all()
+        synced_count = 0
+        
+        for register in local_registers:
+            try:
+                with transaction.atomic(using='remote'):
+                    # Verificar si ya existe por fecha y usuario
+                    existing = CashRegister.objects.using('remote').filter(
+                        date=register.date,
+                        user_id=register.user_id
+                    ).first()
+                    
+                    if existing:
+                        # Ya existe, marcar como sincronizado
+                        register.is_synced = True
+                        register.save(using='default')
+                        synced_count += 1
+                        continue
+                    
+                    # Crear cierre remoto
+                    remote_register = CashRegister.objects.using('remote').create(
+                        company_id=register.company_id,
+                        user_id=register.user_id,
+                        date=register.date,
+                        opening_balance=register.opening_balance,
+                        closing_balance=register.closing_balance,
+                        cash_sales=register.cash_sales,
+                        card_sales=register.card_sales,
+                        transfer_sales=register.transfer_sales,
+                        mp_sales=register.mp_sales,
+                        expenses=register.expenses,
+                        notes=register.notes,
+                        is_closed=register.is_closed,
+                        is_synced=True
+                    )
+                    
+                    # Marcar como sincronizado
+                    register.is_synced = True
+                    register.save(using='default')
+                    synced_count += 1
+                    
+            except Exception as e:
+                self.stdout.write(self.style.ERROR(f"Error sincronizando cierre {register.id}: {e}"))
+        
+        self.stdout.write(f"Cierres de caja sincronizados: {synced_count}")

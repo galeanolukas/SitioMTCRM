@@ -263,3 +263,49 @@ class CashRegisterDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin
         context['entity'] = 'Cierres de Caja'
         context['list_url'] = self.success_url
         return context
+
+
+class CashMovementDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin, DeleteView):
+    model = CashMovement
+    template_name = 'cash_register/delete_movement.html'
+    permission_required = 'erp.delete_cashmovement'
+    success_url = reverse_lazy('erp:cash_register_list')
+    
+    def delete(self, request, *args, **kwargs):
+        movement = self.get_object()
+        cash_register = movement.cash_register
+        
+        # No permitir eliminar movimientos de cajas cerradas
+        if cash_register.is_closed:
+            messages.error(request, 'No se pueden eliminar movimientos de una caja cerrada')
+            return redirect('erp:cash_register_detail', pk=cash_register.pk)
+        
+        # Actualizar totales del cash register
+        if movement.movement_type == 'in':
+            # Restar ingreso
+            if movement.payment_type == 'cash':
+                cash_register.cash_sales -= movement.amount
+            elif movement.payment_type == 'card':
+                cash_register.card_sales -= movement.amount
+            elif movement.payment_type == 'transfer':
+                cash_register.transfer_sales -= movement.amount
+            elif movement.payment_type == 'mp':
+                cash_register.mp_sales -= movement.amount
+        else:
+            # Sumar egreso (restar de gastos)
+            cash_register.expenses -= movement.amount
+        
+        cash_register.save()
+        
+        # Eliminar movimiento
+        movement.delete()
+        
+        messages.success(request, f'Movimiento de {movement.amount} eliminado correctamente')
+        return redirect('erp:cash_register_detail', pk=cash_register.pk)
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Anular Movimiento de Caja'
+        context['entity'] = 'Movimientos'
+        context['list_url'] = reverse_lazy('erp:cash_register_detail', kwargs={'pk': self.object.cash_register.pk})
+        return context

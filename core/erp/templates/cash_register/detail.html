@@ -130,6 +130,7 @@
                     <th>Tipo de Pago</th>
                     <th class="text-right">Monto</th>
                     <th>Usuario</th>
+                    <th>Acciones</th>
                 </tr>
             </thead>
             <tbody>
@@ -143,10 +144,19 @@
                         ${{ movement.amount|floatformat:2 }}
                     </td>
                     <td>{{ movement.created_by.get_full_name }}</td>
+                    <td>
+                        {% if not object.is_closed and perms.erp.delete_cashmovement %}
+                            <a href="{% url 'erp:cash_movement_delete' movement.pk %}" 
+                               class="btn btn-xs btn-danger" 
+                               onclick="return confirm('¿Está seguro de anular este movimiento?')">
+                                <i class="fas fa-trash"></i>
+                            </a>
+                        {% endif %}
+                    </td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="6" class="text-center">No hay movimientos registrados</td>
+                    <td colspan="7" class="text-center">No hay movimientos registrados</td>
                 </tr>
                 {% endfor %}
             </tbody>
