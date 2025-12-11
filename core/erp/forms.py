@@ -2,7 +2,7 @@ from django.forms import *
 from django.forms.widgets import CheckboxInput
 from datetime import datetime
 from django.core.exceptions import ValidationError
-from core.erp.models import Category, Product, Client, Sale, Company, Supplier, Expense, MercadoPagoConfig, AutoSyncConfig
+from core.erp.models import Category, Product, Client, Sale, Company, Supplier, Expense, MercadoPagoConfig, AutoSyncConfig, InternalTransfer, InternalTransferDetail
 
 from django.contrib.auth.forms import AuthenticationForm
 
@@ -483,3 +483,28 @@ class TestForm(Form):
         'class': 'form-control select2',
         'style': 'width: 100%'
     }))
+
+
+# Formularios para Transferencias Internas
+class InternalTransferForm(ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for form in self.visible_fields():
+            form.field.widget.attrs["class"] = "form-control"
+            form.field.widget.attrs["autocomplete"] = "off"
+    
+    class Meta:
+        model = InternalTransfer
+        fields = ['origin_pos', 'destination_pos', 'observations']
+
+
+class InternalTransferDetailForm(ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for form in self.visible_fields():
+            form.field.widget.attrs["class"] = "form-control"
+            form.field.widget.attrs["autocomplete"] = "off"
+    
+    class Meta:
+        model = InternalTransferDetail
+        fields = ['product', 'quantity', 'unit_price']

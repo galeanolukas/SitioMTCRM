@@ -1,0 +1,299 @@
+{% extends 'layout.html' %}
+{% load static %}
+
+{% block head_list %}
+  <link rel="stylesheet" href="{% static 'lib/select2-4.0.13/css/select2.min.css' %}">
+  <link rel="stylesheet" href="{% static 'lib/select2-4.0.13/css/select2-bootstrap-5-theme.min.css' %}">
+{% endblock %}
+
+{% block content %}
+  <div class="card card-primary">
+    <div class="card-header">
+      <h3 class="card-title">
+        <i class="fas fa-exchange-alt"></i>
+        {{ title }}
+      </h3>
+      <div class="card-tools">
+        <a href="{{ list_url }}" class="btn btn-default btn-sm">
+          <i class="fas fa-arrow-left"></i> Volver
+        </a>
+      </div>
+    </div>
+    <div class="card-body">
+      <form method="post" id="transferForm">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add">
+        
+        <div class="row">
+          <div class="col-md-6">
+            <div class="form-group">
+              <label for="origin_pos">POS Origen</label>
+              <input type="text" name="origin_pos" id="origin_pos" class="form-control" maxlength="5" placeholder="0001" required>
+              <small class="form-text text-muted">Punto de venta de origen</small>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="form-group">
+              <label for="destination_pos">POS Destino</label>
+              <input type="text" name="destination_pos" id="destination_pos" class="form-control" maxlength="5" placeholder="0002" required>
+              <small class="form-text text-muted">Punto de venta de destino</small>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="observations">Observaciones</label>
+          <textarea name="observations" id="observations" class="form-control" rows="3" placeholder="Notas adicionales sobre la transferencia..."></textarea>
+        </div>
+
+        <hr>
+        
+        <h5>Productos a Transferir</h5>
+        
+        <div class="row mb-3">
+          <div class="col-md-8">
+            <div class="form-group">
+              <label for="productSearch">Buscar Producto</label>
+              <select id="productSearch" class="form-control select2" style="width: 100%">
+                <option value="">Seleccione un producto...</option>
+              </select>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-group">
+              <label>&nbsp;</label><br>
+              <button type="button" class="btn btn-primary btn-block" onclick="addProduct()">
+                <i class="fas fa-plus"></i> Agregar
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-bordered" id="productsTable">
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Producto</th>
+                <th>Stock Actual</th>
+                <th>Cantidad</th>
+                <th>Precio Unitario</th>
+                <th>Subtotal</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+            </tbody>
+            <tfoot>
+              <tr>
+                <th colspan="5" class="text-right">Total:</th>
+                <th id="totalAmount">$0.00</th>
+                <th></th>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <div class="form-group text-right">
+          <button type="submit" class="btn btn-success">
+            <i class="fas fa-save"></i> Crear Transferencia
+          </button>
+          <a href="{{ list_url }}" class="btn btn-default">
+            <i class="fas fa-times"></i> Cancelar
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endblock %}
+
+{% block javascript %}
+  <script src="{% static 'lib/select2-4.0.13/js/select2.min.js' %}"></script>
+  <script>
+    $(function () {
+      // Inicializar Select2 para búsqueda de productos
+      $('#productSearch').select2({
+        ajax: {
+          url: '/erp/transfer/search/',
+          type: 'POST',
+          dataType: 'json',
+          delay: 250,
+          data: function (params) {
+            return {
+              action: 'search_products',
+              term: params.term,
+              csrfmiddlewaretoken: getCookie('csrftoken')
+            };
+          },
+          processResults: function (data) {
+            return {
+              results: data.map(function(item) {
+                return {
+                  id: item.id,
+                  text: item.code + ' - ' + item.name + ' (Stock: ' + item.stock + ')',
+                  data: item
+                };
+              })
+            };
+          },
+          cache: true
+        },
+        minimumInputLength: 2,
+        placeholder: 'Buscar por código o nombre...'
+      });
+    });
+
+    let products = [];
+    let rowIndex = 0;
+
+    function addProduct() {
+      const selected = $('#productSearch').select2('data')[0];
+      if (!selected) {
+        alert('Seleccione un producto');
+        return;
+      }
+
+      const product = selected.data;
+      
+      // Verificar si ya está agregado
+      if (products.find(p => p.id === product.id)) {
+        alert('Este producto ya está agregado');
+        return;
+      }
+
+      // Verificar stock
+      if (product.stock <= 0) {
+        alert('Este producto no tiene stock disponible');
+        return;
+      }
+
+      // Agregar a la lista
+      products.push({
+        id: product.id,
+        code: product.code,
+        name: product.name,
+        stock: product.stock,
+        quantity: 1,
+        unit_price: product.pvp,
+        subtotal: product.pvp
+      });
+
+      // Agregar fila a la tabla
+      addRow(product);
+      
+      // Limpiar selección
+      $('#productSearch').val(null).trigger('change');
+      
+      updateTotal();
+    }
+
+    function addRow(product) {
+      const row = `
+        <tr data-index="${rowIndex}">
+          <input type="hidden" name="products[]" value="${product.id}">
+          <td>${product.code}</td>
+          <td>${product.name}</td>
+          <td>${product.stock}</td>
+          <td>
+            <input type="number" name="quantities[]" class="form-control form-control-sm" 
+                   value="1" min="0.001" max="${product.stock}" step="0.001" 
+                   onchange="updateQuantity(${rowIndex}, this.value)">
+          </td>
+          <td>
+            <input type="number" name="prices[]" class="form-control form-control-sm" 
+                   value="${product.pvp}" min="0" step="0.01" 
+                   onchange="updatePrice(${rowIndex}, this.value)">
+          </td>
+          <td class="subtotal">$${product.pvp.toFixed(2)}</td>
+          <td>
+            <button type="button" class="btn btn-danger btn-sm" onclick="removeRow(${rowIndex})">
+              <i class="fas fa-trash"></i>
+            </button>
+          </td>
+        </tr>
+      `;
+      
+      $('#productsTable tbody').append(row);
+      rowIndex++;
+    }
+
+    function updateQuantity(index, value) {
+      const product = products.find(p => p.id === parseInt($('tr[data-index="' + index + '"] input[name="products[]"]').val()));
+      if (product) {
+        const quantity = parseFloat(value) || 0;
+        const maxStock = parseFloat(product.stock);
+        
+        if (quantity > maxStock) {
+          alert('La cantidad no puede superar el stock disponible (' + maxStock + ')');
+          $('tr[data-index="' + index + '"] input[name="quantities[]"]').val(maxStock);
+          value = maxStock;
+        }
+        
+        product.quantity = quantity;
+        product.subtotal = quantity * product.unit_price;
+        
+        $('tr[data-index="' + index + '"] .subtotal').text('$' + product.subtotal.toFixed(2));
+        updateTotal();
+      }
+    }
+
+    function updatePrice(index, value) {
+      const product = products.find(p => p.id === parseInt($('tr[data-index="' + index + '"] input[name="products[]"]').val()));
+      if (product) {
+        const price = parseFloat(value) || 0;
+        product.unit_price = price;
+        product.subtotal = product.quantity * price;
+        
+        $('tr[data-index="' + index + '"] .subtotal').text('$' + product.subtotal.toFixed(2));
+        updateTotal();
+      }
+    }
+
+    function removeRow(index) {
+      const productId = parseInt($('tr[data-index="' + index + '"] input[name="products[]"]').val());
+      products = products.filter(p => p.id !== productId);
+      $('tr[data-index="' + index + '"]').remove();
+      updateTotal();
+    }
+
+    function updateTotal() {
+      const total = products.reduce((sum, p) => sum + p.subtotal, 0);
+      $('#totalAmount').text('$' + total.toFixed(2));
+    }
+
+    // Validar formulario antes de enviar
+    $('#transferForm').on('submit', function(e) {
+      if (products.length === 0) {
+        e.preventDefault();
+        alert('Debe agregar al menos un producto');
+        return false;
+      }
+      
+      // Verificar cantidades válidas
+      for (let product of products) {
+        if (product.quantity <= 0) {
+          e.preventDefault();
+          alert('Todas las cantidades deben ser mayores a cero');
+          return false;
+        }
+      }
+      
+      return true;
+    });
+
+    function getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+          const cookie = cookies[i].trim();
+          if (cookie.substring(0, name.length + 1) === (name + '=')) {
+            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+            break;
+          }
+        }
+      }
+      return cookieValue;
+    }
+  </script>
+{% endblock %}

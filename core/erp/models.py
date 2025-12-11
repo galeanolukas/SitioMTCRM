@@ -269,7 +269,13 @@ class Sale(models.Model):
         super().save(*args, **kwargs)
 
     def next_sequential_for_pos_type(self):
-        last = Sale.objects.filter(invoice_pos=self.invoice_pos, invoice_type=self.invoice_type, invoice_number__isnull=False).order_by('-id').first()
+        # Filtrar por empresa, punto de venta y tipo para evitar conflictos entre múltiples POS
+        last = Sale.objects.filter(
+            company_id=self.company_id,
+            invoice_pos=self.invoice_pos, 
+            invoice_type=self.invoice_type, 
+            invoice_number__isnull=False
+        ).order_by('-id').first()
         if last and last.invoice_number:
             try:
                 seq = int(last.invoice_number.split('-')[-1]) + 1
@@ -596,6 +602,100 @@ class CashMovement(models.Model):
         verbose_name = 'Movimiento de caja'
         verbose_name_plural = 'Movimientos de caja'
         ordering = ['-created_at']
+
+
+# Modelos para Transferencias Internas entre POS
+class InternalTransfer(models.Model):
+    """Transferencia interna de productos entre puntos de venta"""
+    STATUS_CHOICES = (
+        ('pending', 'Pendiente'),
+        ('in_transit', 'En Tránsito'),
+        ('received', 'Recibido'),
+        ('cancelled', 'Cancelado'),
+    )
+    
+    origin_pos = models.CharField(max_length=5, verbose_name='POS Origen')
+    destination_pos = models.CharField(max_length=5, verbose_name='POS Destino')
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa')
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, verbose_name='Creado por')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha Creación')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Última Actualización')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', verbose_name='Estado')
+    observations = models.TextField(blank=True, verbose_name='Observaciones')
+    transfer_number = models.CharField(max_length=20, unique=True, verbose_name='Número de Remito')
+    
+    def __str__(self):
+        return f"Transferencia {self.transfer_number} - {self.origin_pos} → {self.destination_pos}"
+    
+    def save(self, *args, **kwargs):
+        if not self.company_id:
+            user = get_current_user()
+            if user and not user.is_anonymous:
+                self.company_id = getattr(user, 'company_id', None)
+        
+        if not self.transfer_number:
+            self.transfer_number = self.generate_transfer_number()
+        
+        super().save(*args, **kwargs)
+    
+    def generate_transfer_number(self):
+        """Generar número correlativo de transferencia por empresa"""
+        last = InternalTransfer.objects.filter(company_id=self.company_id).order_by('-id').first()
+        if last and last.transfer_number:
+            try:
+                seq = int(last.transfer_number.split('-')[-1]) + 1
+            except Exception:
+                seq = 1
+        else:
+            seq = 1
+        return f"REM-{seq:08d}"
+    
+    def get_total_amount(self):
+        """Calcular monto total de la transferencia"""
+        return sum(detail.quantity * detail.unit_price for detail in self.details.all())
+    
+    def toJSON(self):
+        item = model_to_dict(self)
+        item['created_by_name'] = self.created_by.get_full_name() or self.created_by.username
+        item['company_name'] = self.company.name if self.company else None
+        item['total_amount'] = self.get_total_amount()
+        item['status_display'] = self.get_status_display()
+        item['details'] = [detail.toJSON() for detail in self.details.all()]
+        return item
+    
+    class Meta:
+        verbose_name = 'Transferencia Interna'
+        verbose_name_plural = 'Transferencias Internas'
+        ordering = ['-created_at']
+
+
+class InternalTransferDetail(models.Model):
+    """Detalle de productos en una transferencia interna"""
+    transfer = models.ForeignKey(InternalTransfer, on_delete=models.CASCADE, related_name='details', verbose_name='Transferencia')
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, verbose_name='Producto')
+    quantity = models.DecimalField(max_digits=9, decimal_places=3, verbose_name='Cantidad')
+    unit_price = models.DecimalField(max_digits=9, decimal_places=2, verbose_name='Precio Unitario')
+    subtotal = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Subtotal')
+    
+    def __str__(self):
+        return f"{self.product.name} - {self.quantity}"
+    
+    def save(self, *args, **kwargs):
+        # Calcular subtotal automáticamente
+        self.subtotal = self.quantity * self.unit_price
+        super().save(*args, **kwargs)
+    
+    def toJSON(self):
+        item = model_to_dict(self)
+        item['product_name'] = self.product.name
+        item['product_code'] = self.product.code
+        item['product_unit'] = self.product.get_unit_display()
+        return item
+    
+    class Meta:
+        verbose_name = 'Detalle de Transferencia'
+        verbose_name_plural = 'Detalles de Transferencia'
+        ordering = ['id']
 
     def __str__(self):
         return f"{self.get_movement_type_display()} - {self.amount} - {self.description}"

@@ -1,8 +1,9 @@
 from django.urls import path, include
 from core.erp.views.category.views import *
 from core.erp.views.product.views import *
-from core.erp.views.client.views import *
-from core.erp.views.sale.views import *
+from core.erp.views.client.views import ClientListView, ClientCreateView, ClientUpdateView, ClientDeleteView
+from core.erp.views.sale.views import SaleListView, SaleCreateView, SaleUpdateView, SaleDeleteView, ticket_print, POSView, InvoiceListView, InvoiceCreateView, invoice_pdf, sync_sales_api
+from core.erp.views.transfer.views import TransferListView, TransferCreateView, TransferDetailView, TransferReceiveView, TransferSearchView
 from core.erp.views.tests.views import *
 from core.erp.views.dashboard.views import (
     DashboardView,
@@ -76,6 +77,12 @@ urlpatterns = [
     path('sale/delete/<int:pk>/', SaleDeleteView.as_view(), name='sale_delete'),
     path('sale/update/<int:pk>/', SaleUpdateView.as_view(), name='sale_update'),
     path('sale/ticket/<int:pk>/print/', ticket_print, name='sale_ticket_print'),
+    # transferencias internas
+    path('transfer/list/', TransferListView.as_view(), name='transfer_list'),
+    path('transfer/add/', TransferCreateView.as_view(), name='transfer_create'),
+    path('transfer/<int:pk>/', TransferDetailView.as_view(), name='transfer_detail'),
+    path('transfer/receive/', TransferReceiveView.as_view(), name='transfer_receive'),
+    path('transfer/search/', TransferSearchView.as_view(), name='transfer_search'),
     # api sync (POS local -> servidor)
     path('api/sync/sales/', sync_sales_api, name='api_sync_sales'),
     # invoice

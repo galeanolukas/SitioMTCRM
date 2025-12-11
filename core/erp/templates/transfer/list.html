@@ -1,0 +1,186 @@
+{% extends 'layout.html' %}
+{% load static %}
+
+{% block head_list %}
+  <link rel="stylesheet" href="{% static 'lib/datatables-1.13.6/datatables.min.css' %}">
+  <link rel="stylesheet" href="{% static 'lib/select2-4.0.13/css/select2.min.css' %}">
+  <link rel="stylesheet" href="{% static 'lib/select2-4.0.13/css/select2-bootstrap-5-theme.min.css' %}">
+{% endblock %}
+
+{% block content %}
+  <div class="card card-primary">
+    <div class="card-header">
+      <h3 class="card-title">
+        <i class="fas fa-exchange-alt"></i>
+        {{ title }}
+      </h3>
+      <div class="card-tools">
+        <a href="{{ create_url }}" class="btn btn-primary btn-sm">
+          <i class="fas fa-plus"></i> Nueva Transferencia
+        </a>
+      </div>
+    </div>
+    <div class="card-body">
+      <table class="table" id="data">
+        <thead>
+          <tr>
+            <th>N° Remito</th>
+            <th>Fecha</th>
+            <th>POS Origen</th>
+            <th>POS Destino</th>
+            <th>Estado</th>
+            <th>Creado por</th>
+            <th>Monto Total</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endblock %}
+
+{% block javascript %}
+  <script src="{% static 'lib/datatables-1.13.6/datatables.min.js' %}"></script>
+  <script src="{% static 'lib/select2-4.0.13/js/select2.min.js' %}"></script>
+  <script>
+    $(function () {
+      var table = $('#data').DataTable({
+        responsive: true,
+        autoWidth: false,
+        ajax: {
+          url: window.location.pathname,
+          type: 'POST',
+          data: {action: 'searchdata'},
+          dataSrc: '',
+          headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+            'X-Requested-With': 'XMLHttpRequest'
+          },
+          error: function(xhr, textStatus, errorThrown) {
+            console.error('DataTables Error:', textStatus, errorThrown);
+            $('#data').DataTable().clear().draw();
+            $('#data').before('<div class="alert alert-danger">Error loading data. Please refresh the page.</div>');
+          }
+        },
+        columns: [
+          {data: 'transfer_number'},
+          {data: 'created_at'},
+          {data: 'origin_pos'},
+          {data: 'destination_pos'},
+          {
+            data: 'status',
+            render: function(data, type, row) {
+              let badgeClass = '';
+              switch(data) {
+                case 'pending': badgeClass = 'badge-secondary'; break;
+                case 'in_transit': badgeClass = 'badge-warning'; break;
+                case 'received': badgeClass = 'badge-success'; break;
+                case 'cancelled': badgeClass = 'badge-danger'; break;
+                default: badgeClass = 'badge-secondary';
+              }
+              return `<span class="badge ${badgeClass}">${row.status_display}</span>`;
+            }
+          },
+          {data: 'created_by_name'},
+          {
+            data: 'total_amount',
+            render: function(data, type, row) {
+              return '$' + parseFloat(data).toFixed(2);
+            }
+          },
+          {
+            data: 'id',
+            orderable: false,
+            render: function(data, type, row) {
+              let buttons = '';
+              buttons += `<a href="/erp/transfer/${data}/" class="btn btn-info btn-xs btn-flat" title="Ver detalles">`;
+              buttons += `<i class="fas fa-eye"></i></a> `;
+              
+              if (row.status === 'in_transit') {
+                buttons += `<button class="btn btn-success btn-xs btn-flat" onclick="receiveTransfer(${data})" title="Recibir">`;
+                buttons += `<i class="fas fa-check"></i></button> `;
+                buttons += `<button class="btn btn-danger btn-xs btn-flat" onclick="cancelTransfer(${data})" title="Cancelar">`;
+                buttons += `<i class="fas fa-times"></i></button> `;
+              }
+              
+              return buttons;
+            }
+          }
+        ],
+        columnDefs: [
+          {targets: [1], render: function(data, type, row) {
+            return new Date(data).toLocaleDateString('es-AR') + ' ' + new Date(data).toLocaleTimeString('es-AR', {hour: '2-digit', minute:'2-digit'});
+          }}
+        ],
+        language: {
+          url: "{% static 'lib/datatables-1.13.6/spanish.txt' %}"
+        }
+      });
+    });
+
+    function receiveTransfer(id) {
+      if (confirm('¿Está seguro de recibir esta transferencia? El stock se agregará a este POS.')) {
+        $.ajax({
+          url: '/erp/transfer/receive/',
+          type: 'POST',
+          data: {
+            'transfer_id': id,
+            'action': 'receive',
+            'csrfmiddlewaretoken': getCookie('csrftoken')
+          },
+          success: function(response) {
+            if (response.success) {
+              location.reload();
+            } else {
+              alert(response.error || 'Error al recibir transferencia');
+            }
+          },
+          error: function() {
+            alert('Error de conexión');
+          }
+        });
+      }
+    }
+
+    function cancelTransfer(id) {
+      if (confirm('¿Está seguro de cancelar esta transferencia? El stock será devuelto al POS origen.')) {
+        $.ajax({
+          url: '/erp/transfer/receive/',
+          type: 'POST',
+          data: {
+            'transfer_id': id,
+            'action': 'cancel',
+            'csrfmiddlewaretoken': getCookie('csrftoken')
+          },
+          success: function(response) {
+            if (response.success) {
+              location.reload();
+            } else {
+              alert(response.error || 'Error al cancelar transferencia');
+            }
+          },
+          error: function() {
+            alert('Error de conexión');
+          }
+        });
+      }
+    }
+
+    function getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+          const cookie = cookies[i].trim();
+          if (cookie.substring(0, name.length + 1) === (name + '=')) {
+            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+            break;
+          }
+        }
+      }
+      return cookieValue;
+    }
+  </script>
+{% endblock %}

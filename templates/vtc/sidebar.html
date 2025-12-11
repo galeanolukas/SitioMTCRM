@@ -94,6 +94,12 @@
           </a>
         </li>
         {% endif %}
+        <li class="nav-item">
+          <a href="{% url 'erp:transfer_list' %}" class="nav-link">
+            <i class="fas fa-exchange-alt nav-icon"></i>
+            <p>Transferencias</p>
+          </a>
+        </li>
         {% if request.user.is_superuser or perms.erp.view_sale %}
         <li class="nav-item">
           <a href="{% url 'erp:sale_list' %}" class="nav-link">

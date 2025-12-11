@@ -1,0 +1,239 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+  <div class="card card-primary">
+    <div class="card-header">
+      <h3 class="card-title">
+        <i class="fas fa-exchange-alt"></i>
+        Detalle de Transferencia {{ transfer.transfer_number }}
+      </h3>
+      <div class="card-tools">
+        <a href="{% url 'erp:transfer_list' %}" class="btn btn-default btn-sm">
+          <i class="fas fa-arrow-left"></i> Volver
+        </a>
+        
+        {% if transfer.status == 'in_transit' %}
+          <button class="btn btn-success btn-sm" onclick="receiveTransfer('{{ transfer.id }}')">
+            <i class="fas fa-check"></i> Recibir Transferencia
+          </button>
+          <button class="btn btn-danger btn-sm" onclick="cancelTransfer('{{ transfer.id }}')">
+            <i class="fas fa-times"></i> Cancelar
+          </button>
+        {% endif %}
+      </div>
+    </div>
+    <div class="card-body">
+      <!-- Información General -->
+      <div class="row mb-4">
+        <div class="col-md-3">
+          <div class="info-box bg-light">
+            <span class="info-box-icon bg-info"><i class="fas fa-file"></i></span>
+            <div class="info-box-content">
+              <span class="info-box-text">N° Remito</span>
+              <span class="info-box-number">{{ transfer.transfer_number }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="info-box bg-light">
+            <span class="info-box-icon bg-warning"><i class="fas fa-exchange-alt"></i></span>
+            <div class="info-box-content">
+              <span class="info-box-text">Estado</span>
+              <span class="info-box-number">
+                {% if transfer.status == 'pending' %}
+                  <span class="badge badge-secondary">Pendiente</span>
+                {% elif transfer.status == 'in_transit' %}
+                  <span class="badge badge-warning">En Tránsito</span>
+                {% elif transfer.status == 'received' %}
+                  <span class="badge badge-success">Recibido</span>
+                {% elif transfer.status == 'cancelled' %}
+                  <span class="badge badge-danger">Cancelado</span>
+                {% endif %}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="info-box bg-light">
+            <span class="info-box-icon bg-primary"><i class="fas fa-calendar"></i></span>
+            <div class="info-box-content">
+              <span class="info-box-text">Fecha</span>
+              <span class="info-box-number">{{ transfer.created_at|date:"d/m/Y H:i" }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="info-box bg-light">
+            <span class="info-box-icon bg-success"><i class="fas fa-dollar-sign"></i></span>
+            <div class="info-box-content">
+              <span class="info-box-text">Monto Total</span>
+              <span class="info-box-number">${{ transfer.get_total_amount|floatformat:2 }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Detalles de Transferencia -->
+      <div class="row">
+        <div class="col-md-6">
+          <div class="card card-outline card-info">
+            <div class="card-header">
+              <h5 class="card-title">Información de Transferencia</h5>
+            </div>
+            <div class="card-body">
+              <table class="table table-sm">
+                <tr>
+                  <td><strong>Empresa:</strong></td>
+                  <td>{{ transfer.company.name }}</td>
+                </tr>
+                <tr>
+                  <td><strong>POS Origen:</strong></td>
+                  <td>{{ transfer.origin_pos }}</td>
+                </tr>
+                <tr>
+                  <td><strong>POS Destino:</strong></td>
+                  <td>{{ transfer.destination_pos }}</td>
+                </tr>
+                <tr>
+                  <td><strong>Creado por:</strong></td>
+                  <td>{{ transfer.created_by.get_full_name|default:transfer.created_by.username }}</td>
+                </tr>
+                <tr>
+                  <td><strong>Fecha Creación:</strong></td>
+                  <td>{{ transfer.created_at|date:"d/m/Y H:i" }}</td>
+                </tr>
+                {% if transfer.updated_at != transfer.created_at %}
+                <tr>
+                  <td><strong>Última Actualización:</strong></td>
+                  <td>{{ transfer.updated_at|date:"d/m/Y H:i" }}</td>
+                </tr>
+                {% endif %}
+              </table>
+            </div>
+          </div>
+        </div>
+        
+        {% if transfer.observations %}
+        <div class="col-md-6">
+          <div class="card card-outline card-warning">
+            <div class="card-header">
+              <h5 class="card-title">Observaciones</h5>
+            </div>
+            <div class="card-body">
+              <p>{{ transfer.observations|linebreaks }}</p>
+            </div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Productos Transferidos -->
+      <div class="card card-outline card-success">
+        <div class="card-header">
+          <h5 class="card-title">Productos Transferidos</h5>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-bordered">
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Producto</th>
+                  <th>Unidad</th>
+                  <th>Cantidad</th>
+                  <th>Precio Unitario</th>
+                  <th>Subtotal</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for detail in transfer.details.all %}
+                <tr>
+                  <td>{{ detail.product.code }}</td>
+                  <td>{{ detail.product.name }}</td>
+                  <td>{{ detail.product.get_unit_display }}</td>
+                  <td class="text-right">{{ detail.quantity }}</td>
+                  <td class="text-right">${{ detail.unit_price|floatformat:2 }}</td>
+                  <td class="text-right"><strong>${{ detail.subtotal|floatformat:2 }}</strong></td>
+                </tr>
+                {% endfor %}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <th colspan="5" class="text-right">Total:</th>
+                  <th class="text-right">${{ transfer.get_total_amount|floatformat:2 }}</th>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block javascript %}
+  <script>
+    function receiveTransfer(id) {
+      if (confirm('¿Está seguro de recibir esta transferencia? El stock se agregará a este POS.')) {
+        $.ajax({
+          url: '/erp/transfer/receive/',
+          type: 'POST',
+          data: {
+            'transfer_id': id,
+            'action': 'receive',
+            'csrfmiddlewaretoken': getCookie('csrftoken')
+          },
+          success: function(response) {
+            if (response.success) {
+              location.reload();
+            } else {
+              alert(response.error || 'Error al recibir transferencia');
+            }
+          },
+          error: function() {
+            alert('Error de conexión');
+          }
+        });
+      }
+    }
+
+    function cancelTransfer(id) {
+      if (confirm('¿Está seguro de cancelar esta transferencia? El stock será devuelto al POS origen.')) {
+        $.ajax({
+          url: '/erp/transfer/receive/',
+          type: 'POST',
+          data: {
+            'transfer_id': id,
+            'action': 'cancel',
+            'csrfmiddlewaretoken': getCookie('csrftoken')
+          },
+          success: function(response) {
+            if (response.success) {
+              location.reload();
+            } else {
+              alert(response.error || 'Error al cancelar transferencia');
+            }
+          },
+          error: function() {
+            alert('Error de conexión');
+          }
+        });
+      }
+    }
+
+    function getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+          const cookie = cookies[i].trim();
+          if (cookie.substring(0, name.length + 1) === (name + '=')) {
+            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+            break;
+          }
+        }
+      }
+      return cookieValue;
+    }
+  </script>
+{% endblock %}
