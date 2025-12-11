@@ -156,9 +156,9 @@ class GenerateProfitReportView(LoginRequiredMixin, TemplateView):
         
         # Calcular totales generales
         totals = sales.aggregate(
-            total_sales=Coalesce(Sum('total'), 0),
-            total_iva=Coalesce(Sum('iva'), 0),
-            total_subtotal=Coalesce(Sum('subtotal'), 0)
+            total_sales=Coalesce(Sum('total', output_field=FloatField()), 0),
+            total_iva=Coalesce(Sum('iva', output_field=FloatField()), 0),
+            total_subtotal=Coalesce(Sum('subtotal', output_field=FloatField()), 0)
         )
         
         total_sales = float(totals['total_sales'] or 0)
@@ -215,7 +215,7 @@ class GenerateProfitReportView(LoginRequiredMixin, TemplateView):
         while current_date <= date_to:
             day_sales = sales.filter(date_joined__date=current_date)
             day_total = float(day_sales.aggregate(
-                total=Coalesce(Sum('total'), 0)
+                total=Coalesce(Sum('total', output_field=FloatField()), 0)
             )['total'] or 0)
             
             # Calcular costo del día
@@ -270,7 +270,7 @@ class GenerateProfitReportView(LoginRequiredMixin, TemplateView):
             
             # Calcular totales
             totals = sales.aggregate(
-                total_sales=Coalesce(Sum('total'), 0)
+                total_sales=Coalesce(Sum('total', output_field=FloatField()), 0)
             )
             
             total_sales = float(totals['total_sales'] or 0)
