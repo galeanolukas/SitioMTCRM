@@ -18,7 +18,10 @@ class ValidatePermissionRequiredMixin(object):
             return reverse_lazy('login')
         return self.url_redirect
     def dispatch(self, request, *args, **kwargs):
-        if request.user.has_perms(self.get_perms()):
+        if not request.user.is_authenticated:
+            from django.contrib.auth.views import redirect_to_login
+            return redirect_to_login(request.get_full_path())
+        if request.user.is_superuser or request.user.has_perms(self.get_perms()):
             return super().dispatch(request, *args, **kwargs)
         messages.error(request, 'No tiene permisos para ingresar a este módulo')
         return HttpResponseRedirect(self.get_url_redirect())

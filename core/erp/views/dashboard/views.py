@@ -33,6 +33,11 @@ except Exception:
 class LauncherView(LoginRequiredMixin, TemplateView):
     template_name = 'launcher.html'
 
+    def dispatch(self, request, *args, **kwargs):
+        print(f"DEBUG Launcher: User: {request.user.username if request.user.is_authenticated else 'Anonymous'}, Authenticated: {request.user.is_authenticated}")
+        print(f"DEBUG Launcher: Session key: {request.session.session_key}")
+        return super().dispatch(request, *args, **kwargs)
+
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         # Obtener último registro de sincronización, priorizando la BD remota si existe
@@ -77,7 +82,7 @@ class LauncherView(LoginRequiredMixin, TemplateView):
 @csrf_exempt
 @login_required
 def sync_data_view(request):
-    """Endpoint para lanzar sincronizacion de usuarios y ventas desde el launcher.
+    """Endpoint para lanzar sincronizacion de datos desde el launcher.
 
     Devuelve JSON con ok y lista de errores (si los hubiera).
     """
@@ -91,8 +96,14 @@ def sync_data_view(request):
 class DashboardView(TemplateView):
     template_name = 'dashboard.html'
 
-    @method_decorator(login_required)
     def dispatch(self, request, *args, **kwargs):
+        print(f"DEBUG Dashboard: User: {request.user.username if request.user.is_authenticated else 'Anonymous'}, Authenticated: {request.user.is_authenticated}")
+        print(f"DEBUG Dashboard: Session key: {request.session.session_key}")
+        if not request.user.is_authenticated:
+            print("DEBUG: User not authenticated, redirecting to login")
+            from django.contrib.auth.views import redirect_to_login
+            return redirect_to_login(request.get_full_path())
+        print("DEBUG: User authenticated, proceeding to dashboard")
         return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):

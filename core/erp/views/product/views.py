@@ -23,6 +23,7 @@ except Exception:
     mercadopago = None
 
 
+@method_decorator(csrf_exempt, name='dispatch')
 class ProductListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView):
     model = Product
     template_name = 'product/list.html'
@@ -33,14 +34,11 @@ class ProductListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListV
         ctx['import_url'] = reverse_lazy('erp:product_import')
         return ctx
 
-    @method_decorator(csrf_exempt)
-    def dispatch(self, request, *args, **kwargs):
-        return super().dispatch(request, *args, **kwargs)
-
     def post(self, request, *args, **kwargs):
         data = {}
         try:
             action = request.POST['action']
+            print(f"DEBUG Product: Action received: {action}")
             if action == 'searchdata':
                 data = []
                 active_cid = request.session.get('company_id')
@@ -49,12 +47,16 @@ class ProductListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListV
                 qs = Product.objects.all()
                 if active_cid:
                     qs = qs.filter(company_id=active_cid)
+                print(f"DEBUG Product: Found {qs.count()} products")
                 for i in qs:
                     data.append(i.toJSON())
+                print(f"DEBUG Product: Returning {len(data)} products")
             else:
                 data['error'] = 'Ha ocurrido un error'
         except Exception as e:
+            print(f"DEBUG Product: Exception: {e}")
             data['error'] = str(e)
+        print(f"DEBUG Product: Final data length: {len(data) if isinstance(data, list) else 'error'}")
         return JsonResponse(data, safe=False)
 
     def get_context_data(self, **kwargs):
@@ -75,6 +77,8 @@ class ProductCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Cre
     url_redirect = success_url
 
     def dispatch(self, request, *args, **kwargs):
+        if request.user.is_superuser:
+            return super(LoginRequiredMixin, self).dispatch(request, *args, **kwargs)
         return super().dispatch(request, *args, **kwargs)
 
     def get_form_kwargs(self):
@@ -114,6 +118,8 @@ class ProductUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Upd
 
     def dispatch(self, request, *args, **kwargs):
         self.object = self.get_object()
+        if request.user.is_superuser:
+            return super(LoginRequiredMixin, self).dispatch(request, *args, **kwargs)
         return super().dispatch(request, *args, **kwargs)
 
     def get_form_kwargs(self):
@@ -659,6 +665,8 @@ class ProductDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Del
 
     def dispatch(self, request, *args, **kwargs):
         self.object = self.get_object()
+        if request.user.is_superuser:
+            return super(LoginRequiredMixin, self).dispatch(request, *args, **kwargs)
         return super().dispatch(request, *args, **kwargs)
 
     def post(self, request, *args, **kwargs):

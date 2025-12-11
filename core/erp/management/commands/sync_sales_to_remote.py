@@ -45,6 +45,19 @@ class Command(BaseCommand):
                     continue
 
                 with transaction.atomic(using='remote'):
+                    # Verificar si ya existe venta con misma fecha y monto para evitar duplicados
+                    existing_sale = Sale.objects.using('remote').filter(
+                        date_joined=sale.date_joined,
+                        total=sale.total,
+                        cli_id=sale.cli_id
+                    ).first()
+                    
+                    if existing_sale:
+                        # Ya existe, marcar como sincronizada y continuar
+                        Sale.objects.using('default').filter(pk=sale.pk).update(synced_to_server=True)
+                        synced += 1
+                        continue
+                    
                     # Crear cabecera de venta en remoto
                     remote_sale = Sale.objects.using('remote').create(
                         company_id=remote_company.id if remote_company else None,

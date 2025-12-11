@@ -5,6 +5,6 @@ from core.login.views import *
 
 urlpatterns = [
     path('', LoginFormView.as_view(), name='login'),
+    path('simple/', SimpleLoginView.as_view(), name='simple_login'),
     path('logout/', LogoutRedirectView.as_view(), name='logout'),
-    path('register/', RegisterView.as_view(), name='register'),
 ]

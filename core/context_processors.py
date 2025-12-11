@@ -21,3 +21,19 @@ def brand(request) -> Dict[str, dict]:
         'logo_url': company.get_logo_url() if company else '/static/img/logo1.jpeg',
     }
     return {'brand': data}
+
+def superuser_perms(request) -> Dict[str, dict]:
+    """
+    Asegura que los superusuarios tengan acceso a todos los permisos en los templates.
+    """
+    user = getattr(request, 'user', None)
+    if user and getattr(user, 'is_superuser', False):
+        # Para superusuarios, creamos un diccionario con todos los permisos como True
+        from django.contrib.auth.models import Permission
+        all_perms = Permission.objects.all()
+        perms_dict = {}
+        for perm in all_perms:
+            key = f"{perm.content_type.app_label}.{perm.codename}"
+            perms_dict[key] = True
+        return {'perms': perms_dict}
+    return {}

@@ -61,14 +61,11 @@ class ClientView(LoginRequiredMixin, TemplateView):
         context['form'] = ClientForm()
         return context
 
+@method_decorator(csrf_exempt, name='dispatch')
 class ClientListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView):
     model = Client
     template_name = 'client/list.html'
     permission_required = 'erp.view_client'
-
-    @method_decorator(csrf_exempt)
-    def dispatch(self, request, *args, **kwargs):
-        return super().dispatch(request, *args, **kwargs)
 
     def post(self, request, *args, **kwargs):
         data = {}
@@ -107,6 +104,8 @@ class ClientCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Crea
     url_redirect = success_url
 
     def dispatch(self, request, *args, **kwargs):
+        if request.user.is_superuser:
+            return super(LoginRequiredMixin, self).dispatch(request, *args, **kwargs)
         return super().dispatch(request, *args, **kwargs)
 
     def get_form_kwargs(self):

@@ -4,7 +4,7 @@ from django.views.generic import ListView, CreateView, UpdateView, DeleteView, T
 from core.erp.forms import *
 from django.urls import reverse_lazy
 from core.erp.models import *
-from django.views.decorators.csrf import csrf_protect, csrf_exempt
+from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
@@ -13,14 +13,19 @@ from core.erp.mixins import ValidatePermissionRequiredMixin
 
 
 
+@method_decorator(csrf_exempt, name='dispatch')
 class CategoryListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView):
     permission_required = (('erp.view_category'))
     model = Category
     template_name = "category/list.html"
 
-    @method_decorator(csrf_exempt)
-    def dispatch(self, request, *args, **kwargs):
-        return super().dispatch(request, *args, **kwargs)
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["title"] = "Listado de Categorías"
+        context["create_url"] = reverse_lazy("erp:category_create")
+        context["list_url"] = reverse_lazy("erp:category_list")
+        context["entity"] = "Categorias"
+        return context
 
     def post(self, request, *args, **kwargs):
         data = {}

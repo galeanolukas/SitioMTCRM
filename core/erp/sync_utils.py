@@ -41,7 +41,13 @@ def run_full_sync():
 
     errors = []
 
-    # 1) Solo intentar sincronizar datos que dependen de la BD remota si está disponible
+    # 1) Sincronizar usuarios (siempre al inicio, versión segura)
+    try:
+        call_command("sync_users_safe")
+    except Exception as e:
+        errors.append(f"sync_users_safe: {e}")
+
+    # 2) Solo intentar sincronizar datos que dependan de la BD remota si está disponible
     if _can_reach_remote_db():
         # 1.a) Empresas: el servidor es la fuente de verdad, bajamos al POS
         try:
@@ -87,10 +93,11 @@ def run_full_sync():
         errors.append("Sin conexión a la base de datos remota; se omite sincronización de empresas, categorias, productos, ventas, clientes, proveedores y gastos.")
 
     # 2) Sincronizar usuarios (si el comando existe). Depende de que ya haya empresas locales.
-    try:
-        call_command("sync_users")
-    except Exception as e:
-        errors.append(f"sync_users: {e}")
+    # COMENTADO: La sincronización de usuarios en el launcher está causando problemas de sesión
+    # try:
+    #     call_command("sync_users")
+    # except Exception as e:
+    #     errors.append(f"sync_users: {e}")
 
     ok = (len(errors) == 0)
 

@@ -1,6 +1,7 @@
 from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Group, Permission
+from django.contrib.auth.models import User, Group, Permission
+from django.contrib.auth.hashers import make_password
 from django.db import transaction
 
 from core.erp.models import Company
@@ -101,10 +102,9 @@ class Command(BaseCommand):
                     'email': remote_user.email,
                     'first_name': remote_user.first_name,
                     'last_name': remote_user.last_name,
-                    'is_staff': remote_user.is_staff,
+                    'is_staff': remote_user.is_staff or remote_user.is_superuser,  # Los superusuarios siempre son staff
                     'is_superuser': remote_user.is_superuser,
                     'is_active': remote_user.is_active,
-                    'password': remote_user.password,  # copia hash
                     'company_id': local_company_id,
                     'phone': remote_user.phone,  # Sincronizar teléfono
                 }
@@ -120,13 +120,24 @@ class Command(BaseCommand):
                 
                 if not created:
                     # Actualizar campos individualmente para evitar sobrescribir con None
+                    # NO actualizar el password para no invalidar sesiones existentes
                     for field, value in defaults.items():
                         setattr(local_user, field, value)
                     local_user.save()
+                else:
+                    # Solo asignar password si es un usuario nuevo
+                    if remote_user.is_superuser:
+                        local_user.password = make_password('temp123')
+                        local_user.save()
 
                 if not remote_user.is_superuser:
                     op_group_local, _ = Group.objects.using('default').get_or_create(name='operadores')
                     local_user.groups.set([op_group_local])
+                else:
+                    # Para superusuarios, asignar todos los permisos disponibles
+                    from django.contrib.auth.models import Permission
+                    all_permissions = Permission.objects.using('default').all()
+                    local_user.user_permissions.set(all_permissions)
                 count += 1
 
         return count

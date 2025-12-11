@@ -22,10 +22,6 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
     template_name = 'sale/pos.html'
     permission_required = 'erp.add_sale'
 
-    @method_decorator(csrf_exempt)
-    def dispatch(self, request, *args, **kwargs):
-        return super().dispatch(request, *args, **kwargs)
-
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = 'POS / API de Ventas'
