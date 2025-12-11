@@ -271,6 +271,24 @@ class CashMovementDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin
     permission_required = 'erp.delete_cashmovement'
     success_url = reverse_lazy('erp:cash_register_list')
     
+    def dispatch(self, request, *args, **kwargs):
+        movement = self.get_object()
+        # Permitir si:
+        # 1. Tiene permiso general, o
+        # 2. Es superusuario, o
+        # 3. Es el creador del movimiento y la caja no está cerrada
+        can_delete = (
+            request.user.has_perm('erp.delete_cashmovement') or
+            request.user.is_superuser or
+            (movement.created_by == request.user and not movement.cash_register.is_closed)
+        )
+        
+        if not can_delete:
+            from django.core.exceptions import PermissionDenied
+            raise PermissionDenied("No tiene permisos para eliminar este movimiento")
+        
+        return super().dispatch(request, *args, **kwargs)
+    
     def delete(self, request, *args, **kwargs):
         movement = self.get_object()
         cash_register = movement.cash_register

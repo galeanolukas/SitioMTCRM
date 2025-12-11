@@ -145,12 +145,20 @@
                     </td>
                     <td>{{ movement.created_by.get_full_name }}</td>
                     <td>
-                        {% if not object.is_closed and perms.erp.delete_cashmovement %}
-                            <a href="{% url 'erp:cash_movement_delete' movement.pk %}" 
-                               class="btn btn-xs btn-danger" 
-                               onclick="return confirm('¿Está seguro de anular este movimiento?')">
-                                <i class="fas fa-trash"></i>
-                            </a>
+                        {% if perms.erp.delete_cashmovement or movement.created_by == request.user %}
+                            {% if not object.is_closed %}
+                                <a href="{% url 'erp:cash_movement_delete' movement.pk %}" 
+                                   class="btn btn-xs btn-danger" 
+                                   onclick="return confirm('¿Está seguro de anular este movimiento?')"
+                                   title="Anular movimiento">
+                                    <i class="fas fa-trash"></i>
+                                </a>
+                            {% else %}
+                                <button class="btn btn-xs btn-secondary" disabled 
+                                        title="No se pueden anular movimientos de caja cerrada">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            {% endif %}
                         {% endif %}
                     </td>
                 </tr>
