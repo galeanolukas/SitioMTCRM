@@ -69,6 +69,65 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+# Configurar settings para producción
+echo "Configurando settings para producción..."
+if [ -f "config/settings.py" ]; then
+    # Backup de settings original
+    cp config/settings.py config/settings.py.backup
+    
+    # Cambiar DEBUG=False en producción
+    sed -i 's/DEBUG = True/DEBUG = False/' config/settings.py
+    echo "DEBUG configurado en False"
+    
+    # Cambiar ENVIRONMENT a production
+    sed -i "s/ENVIRONMENT = 'development'/ENVIRONMENT = 'production'/" config/settings.py
+    echo "ENVIRONMENT configurado en production"
+    
+    # Verificar ALLOWED_HOSTS
+    if grep -q "ALLOWED_HOSTS = \['127.0.0.1'\]" config/settings.py; then
+        echo "ADVERTENCIA: ALLOWED_HOSTS está limitado a localhost. Debe configurarlo manualmente."
+    fi
+    
+    # Configurar logging para producción (reducir verbosidad)
+    if grep -q "'level': 'DEBUG'" config/settings.py; then
+        echo "Configurando logging para producción..."
+        sed -i "s/'level': 'DEBUG'/'level': 'INFO'/" config/settings.py
+        echo "Logging configurado en INFO level"
+    fi
+else
+    echo "[ADVERTENCIA] No se encuentra config/settings.py"
+fi
+
+# Configurar .env para producción
+echo "Configurando .env para producción..."
+if [ -f ".env" ]; then
+    # Backup de .env original
+    cp .env .env.backup
+    
+    # Actualizar variables de producción
+    sed -i 's/DEBUG=True/DEBUG=False/' .env
+    sed -i 's/ENV=development/ENV=production/' .env
+    
+    # Configurar base de datos PostgreSQL si no está configurada
+    if ! grep -q "DB_NAME=SitioMTCRM" .env; then
+        echo "Configurando variables de PostgreSQL..."
+        cat >> .env << EOF
+
+# Base de Datos PostgreSQL (Producción)
+DB_NAME=crm_multilideres_db
+DB_USER=crm_multilideres
+DB_PASSWORD=Mult1l1d3r3$
+DB_HOST=localhost
+DB_PORT=5432
+EOF
+        echo "Variables de PostgreSQL agregadas. Configure DB_PASSWORD manualmente."
+    fi
+    
+    echo ".env configurado para producción"
+else
+    echo "[ADVERTENCIA] No se encuentra .env"
+fi
+
 # Collect static
 echo "Recolectando archivos estáticos..."
 python manage.py collectstatic --no-input
@@ -79,12 +138,30 @@ fi
 
 # Reiniciar uWSGI
 echo "Reiniciando uWSGI..."
-if [ -f "uwsgi.pid" ]; then
-    uwsgi --reload uwsgi.pid
-    sleep 3
+if [ -f "uwsgi11.ini" ]; then
+    if [ -f "uwsgi.pid" ]; then
+        uwsgi --reload uwsgi.pid
+        sleep 3
+    else
+        echo "Iniciando uWSGI..."
+        uwsgi --ini uwsgi11.ini --daemonize /var/log/uwsgi.log
+    fi
 else
-    echo "Iniciando uWSGI..."
-    uwsgi --ini uwsgi11.ini
+    echo "[ERROR] No se encuentra uwsgi11.ini"
+    exit 1
+fi
+
+# Reiniciar lighttpd
+echo "Reiniciando lighttpd..."
+if command -v lighttpd &> /dev/null; then
+    sudo systemctl restart lighttpd
+    if [ $? -eq 0 ]; then
+        echo "lighttpd reiniciado correctamente"
+    else
+        echo "[ADVERTENCIA] Error al reiniciar lighttpd"
+    fi
+else
+    echo "[ADVERTENCIA] lighttpd no está instalado"
 fi
 
 # Verificar estado
@@ -96,8 +173,32 @@ else
     exit 1
 fi
 
+if command -v lighttpd &> /dev/null; then
+    if sudo systemctl is-active --quiet lighttpd; then
+        echo "lighttpd está corriendo"
+    else
+        echo "[ADVERTENCIA] lighttpd no está corriendo"
+    fi
+fi
+
 echo
 echo "============================================"
 echo "Actualización completada"
 echo "============================================"
 echo "Servicios reiniciados. Verifique el sitio web."
+echo
+echo "Configuraciones aplicadas:"
+echo "  - DEBUG=False en settings.py"
+echo "  - ENVIRONMENT=production en settings.py"
+echo "  - Logging level=INFO en settings.py"
+echo "  - ENV=production en .env"
+echo "  - Variables PostgreSQL configuradas"
+echo
+echo "IMPORTANTE:"
+echo "  - Configure DB_PASSWORD en .env"
+echo "  - Verifique ALLOWED_HOSTS en settings.py"
+echo "  - Backups guardados: .backup files"
+echo
+echo "Logs para depuración:"
+echo "  - uWSGI: /var/log/uwsgi.log"
+echo "  - lighttpd: /var/log/lighttpd/error.log"
