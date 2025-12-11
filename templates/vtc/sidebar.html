@@ -133,13 +133,13 @@
             <p>Sync automática</p>
           </a>
         </li>
+        {% endif %}
         <li class="nav-item">
           <a href="{% url 'erp:updates' %}" class="nav-link">
             <i class="fas fa-download nav-icon"></i>
             <p>Actualizaciones</p>
           </a>
         </li>
-        {% endif %}
         {% if request.user.is_superuser or perms.erp.view_supplier %}
         <li class="nav-item">
           <a href="{% url 'erp:supplier_list' %}" class="nav-link">

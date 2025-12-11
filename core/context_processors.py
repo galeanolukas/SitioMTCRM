@@ -1,5 +1,6 @@
 from typing import Dict
 from core.erp.models import Company
+from django.conf import settings
 
 def brand(request) -> Dict[str, dict]:
     company = None
@@ -37,3 +38,9 @@ def superuser_perms(request) -> Dict[str, dict]:
             perms_dict[key] = True
         return {'perms': perms_dict}
     return {}
+
+def app_version(request) -> Dict[str, str]:
+    """
+    Proporciona la versión de la aplicación obtenida automáticamente desde Git.
+    """
+    return {'app_version': getattr(settings, 'VERSION', '1.0.0')}

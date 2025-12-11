@@ -8,6 +8,7 @@ from pathlib import Path
 import config.db as db
 import os
 import socket  # necesario para gethostbyname
+import subprocess
 
 try:
     from dotenv import load_dotenv
@@ -16,6 +17,32 @@ except Exception:
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Obtener versión automáticamente desde Git
+def get_version():
+    """Obtener versión desde git tags o commit hash"""
+    try:
+        # Intentar obtener el último tag
+        result = subprocess.run(['git', 'describe', '--tags', '--abbrev=0'], 
+                              capture_output=True, text=True, cwd=BASE_DIR)
+        if result.returncode == 0:
+            return result.stdout.strip().lstrip('v')  # Remover 'v' prefix si existe
+    except (subprocess.SubprocessError, FileNotFoundError):
+        pass
+    
+    try:
+        # Si no hay tags, usar el commit hash
+        result = subprocess.run(['git', 'log', '-1', '--format="%h"'], 
+                              capture_output=True, text=True, cwd=BASE_DIR)
+        if result.returncode == 0:
+            return f"dev-{result.stdout.strip()}"
+    except (subprocess.SubprocessError, FileNotFoundError):
+        pass
+    
+    # Si todo falla, versión por defecto
+    return "1.0.0"
+
+VERSION = get_version()
 
 # Cargar variables desde .env si python-dotenv está disponible
 if load_dotenv is not None:
@@ -27,7 +54,7 @@ if load_dotenv is not None:
 ENVIRONMENT = os.getenv('ENVIRONMENT', 'development')
 
 # Versión de la aplicación (usada para mostrar en UI y para futuros módulos de actualización)
-APP_VERSION = os.getenv('APP_VERSION', '1.1.0')
+APP_VERSION = VERSION
 
 # Intervalo de sincronización automática del POS (en segundos).
 # 300 segundos = 5 minutos.
@@ -89,6 +116,7 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'core.context_processors.brand',
                 'core.context_processors.superuser_perms',
+                'core.context_processors.app_version',
 
             ],
         },
