@@ -50,14 +50,9 @@
   {% block javascript %}
     <script type="application/javascript">
         $(function () {
-            $('#data').DataTable({
-                responsive: true,
-                autoWidth: false,
-                language: {
-                  url: 'https://cdn.datatables.net/plug-ins/1.13.6/i18n/es-AR.json'
-              },
-            });
-
+            // DataTables initialization is now handled by individual list.js files
+            // to allow proper Ajax configuration with CSRF tokens
+            
             $('.btnTest').on('click', function () {
                 $.ajax({
                     url: '{% url 'erp:category_list' %}',

@@ -158,13 +158,13 @@ class Product(models.Model):
         item['supplier'] = (self.supplier.name if self.supplier_id else None)
         item['supplier_id'] = self.supplier_id
         item['image'] = self.get_image()
-        item['pvp'] = format(self.pvp, '.2f')
-        item['cost_price'] = format(self.cost_price, '.2f')
-        item['iva_rate'] = float(self.iva_rate)
-        item['pvp_final'] = format(self.pvp_final, '.2f')
+        item['pvp'] = format(self.pvp, '.2f') if self.pvp is not None else '0.00'
+        item['cost_price'] = format(self.cost_price, '.2f') if self.cost_price is not None else '0.00'
+        item['iva_rate'] = float(self.iva_rate) if self.iva_rate is not None else 0.0
+        item['pvp_final'] = format(self.pvp_final, '.2f') if self.pvp_final is not None else '0.00'
         item['unit'] = self.unit
         item['unit_display'] = self.get_unit_display()
-        item['stock'] = format(self.stock, '.2f')
+        item['stock'] = format(self.stock, '.2f') if self.stock is not None else '0.00'
         item['code'] = self.code
         item['track_stock'] = self.track_stock
         return item
@@ -283,9 +283,9 @@ class Sale(models.Model):
         item = model_to_dict(self)
         item['cli'] = (self.cli.names if self.cli_id else 'Anónimo')
         item['date_joined'] = self.date_joined.strftime('%d-%m-%Y %H:%M')
-        item['subtotal'] = format(self.subtotal, '.2f')
-        item['iva'] = format(self.iva, '.2f')
-        item['total'] = format(self.total, '.2f')
+        item['subtotal'] = format(self.subtotal, '.2f') if self.subtotal is not None else '0.00'
+        item['iva'] = format(self.iva, '.2f') if self.iva is not None else '0.00'
+        item['total'] = format(self.total, '.2f') if self.total is not None else '0.00'
         item['det'] = [i.toJSON() for i in self.detsale_set.all()]
         item['invoice_number'] = self.invoice_number
         item['invoice_pos'] = self.invoice_pos
@@ -314,8 +314,8 @@ class DetSale(models.Model):
     def toJSON(self):
         item = model_to_dict(self, exclude=['sale'])
         item['prod'] = self.prod.toJSON()
-        item['price'] = format(self.price, '.2f')
-        item['subtotal'] = format(self.subtotal, '.2f')
+        item['price'] = format(self.price, '.2f') if self.price is not None else '0.00'
+        item['subtotal'] = format(self.subtotal, '.2f') if self.subtotal is not None else '0.00'
         return item
 
     class Meta:
@@ -404,7 +404,7 @@ class Expense(models.Model):
         item['supplier'] = (self.supplier.name if self.supplier_id else None)
         item['supplier_id'] = self.supplier_id
         item['date'] = self.date.strftime('%Y-%m-%d') if self.date else None
-        item['amount'] = format(self.amount, '.2f')
+        item['amount'] = format(self.amount, '.2f') if self.amount is not None else '0.00'
         item['receipt_url'] = self.get_receipt_url()
         return item
 

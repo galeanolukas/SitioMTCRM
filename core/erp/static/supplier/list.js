@@ -2,6 +2,22 @@ var tblSupplier;
 var modal_title;
 
 function getData() {
+  // Function to get CSRF token
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+
   tblSupplier = $('#data').DataTable({
     responsive: true,
     autoWidth: false,
@@ -14,7 +30,23 @@ function getData() {
       url: window.location.pathname,
       type: 'POST',
       data: { action: 'searchdata' },
-      dataSrc: ''
+      dataSrc: '',
+      headers: {
+        'X-CSRFToken': getCookie('csrftoken'),
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      error: function(xhr, textStatus, errorThrown) {
+        // Check if it's an authentication issue
+        if (xhr.status === 302 || xhr.status === 403) {
+          // Redirect to login page
+          window.location.href = '/login/?next=' + encodeURIComponent(window.location.pathname);
+          return;
+        }
+        // For other errors, show the DataTables error
+        console.error('DataTables Ajax Error:', textStatus, errorThrown);
+        $('#data').DataTable().clear().draw();
+        $('#data').before('<div class="alert alert-danger">Error loading data. Please refresh the page or contact support.</div>');
+      }
     },
     columns: [
       { data: 'id' },

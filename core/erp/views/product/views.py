@@ -41,7 +41,7 @@ class ProductListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListV
             print(f"DEBUG Product: Action received: {action}")
             if action == 'searchdata':
                 data = []
-                active_cid = request.session.get('company_id')
+                active_cid = request.session.get('company_id') if hasattr(request, 'session') else None
                 if not request.user.is_superuser:
                     active_cid = active_cid or getattr(request.user, 'company_id', None)
                 qs = Product.objects.all()
@@ -52,10 +52,10 @@ class ProductListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListV
                     data.append(i.toJSON())
                 print(f"DEBUG Product: Returning {len(data)} products")
             else:
-                data['error'] = 'Ha ocurrido un error'
+                data = {'error': 'Ha ocurrido un error'}
         except Exception as e:
             print(f"DEBUG Product: Exception: {e}")
-            data['error'] = str(e)
+            data = {'error': str(e)}
         print(f"DEBUG Product: Final data length: {len(data) if isinstance(data, list) else 'error'}")
         return JsonResponse(data, safe=False)
 

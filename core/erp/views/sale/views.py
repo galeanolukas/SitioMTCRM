@@ -590,7 +590,7 @@ class SaleListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView
             action = request.POST['action']
             if action == 'searchdata':
                 data = []
-                active_cid = request.session.get('company_id')
+                active_cid = request.session.get('company_id') if hasattr(request, 'session') else None
                 if not request.user.is_superuser:
                     active_cid = active_cid or getattr(request.user, 'company_id', None)
                 qs = Sale.objects.all()
@@ -647,7 +647,7 @@ class InvoiceListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListV
             action = request.POST['action']
             if action == 'searchdata':
                 data = []
-                active_cid = request.session.get('company_id')
+                active_cid = request.session.get('company_id') if hasattr(request, 'session') else None
                 if not request.user.is_superuser:
                     active_cid = active_cid or getattr(request.user, 'company_id', None)
                 qs = Sale.objects.filter(is_invoiced=True)
@@ -660,9 +660,9 @@ class InvoiceListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListV
                 for i in DetSale.objects.filter(sale_id=request.POST['id']):
                     data.append(i.toJSON())
             else:
-                data['error'] = 'Ha ocurrido un error'
+                data = {'error': 'Ha ocurrido un error'}
         except Exception as e:
-            data['error'] = str(e)
+            data = {'error': str(e)}
         return JsonResponse(data, safe=False)
 
     def get_context_data(self, **kwargs):
