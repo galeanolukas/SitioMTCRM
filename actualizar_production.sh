@@ -53,23 +53,37 @@ fi
 # Activar entorno virtual
 source /home/ubuntu/DJENV/bin/activate
 
-# Actualizar dependencias
-echo "Actualizando dependencias..."
-pip install -r requirements.txt
-if [ $? -ne 0 ]; then
-    echo "[ERROR] Falló instalación de dependencias"
-    exit 1
+# Configurar .env para producción (ANTES de migraciones)
+echo "Configurando .env para producción..."
+if [ -f ".env" ]; then
+    # Backup de .env original
+    cp .env .env.backup
+    
+    # Actualizar variables de producción
+    sed -i 's/DEBUG=True/DEBUG=False/' .env
+    sed -i 's/ENV=development/ENV=production/' .env
+    
+    # Configurar base de datos PostgreSQL si no está configurada
+    if ! grep -q "DB_NAME=crm_multilideres_db" .env; then
+        echo "Configurando variables de PostgreSQL..."
+        cat >> .env << EOF
+
+# Base de Datos PostgreSQL (Producción)
+DB_NAME=crm_multilideres_db
+DB_USER=crm_multilideres
+DB_PASSWORD=Mult1l1d3r3$
+DB_HOST=localhost
+DB_PORT=5432
+EOF
+        echo "Variables de PostgreSQL agregadas."
+    fi
+    
+    echo ".env configurado para producción"
+else
+    echo "[ADVERTENCIA] No se encuentra .env"
 fi
 
-# Migraciones (con cuidado en producción)
-echo "Ejecutando migraciones..."
-python manage.py migrate --no-input
-if [ $? -ne 0 ]; then
-    echo "[ERROR] Falló migraciones"
-    exit 1
-fi
-
-# Configurar settings para producción
+# Configurar settings para producción (ANTES de migraciones)
 echo "Configurando settings para producción..."
 if [ -f "config/settings.py" ]; then
     # Backup de settings original
@@ -98,34 +112,20 @@ else
     echo "[ADVERTENCIA] No se encuentra config/settings.py"
 fi
 
-# Configurar .env para producción
-echo "Configurando .env para producción..."
-if [ -f ".env" ]; then
-    # Backup de .env original
-    cp .env .env.backup
-    
-    # Actualizar variables de producción
-    sed -i 's/DEBUG=True/DEBUG=False/' .env
-    sed -i 's/ENV=development/ENV=production/' .env
-    
-    # Configurar base de datos PostgreSQL si no está configurada
-    if ! grep -q "DB_NAME=SitioMTCRM" .env; then
-        echo "Configurando variables de PostgreSQL..."
-        cat >> .env << EOF
+# Actualizar dependencias
+echo "Actualizando dependencias..."
+pip install -r requirements.txt
+if [ $? -ne 0 ]; then
+    echo "[ERROR] Falló instalación de dependencias"
+    exit 1
+fi
 
-# Base de Datos PostgreSQL (Producción)
-DB_NAME=crm_multilideres_db
-DB_USER=crm_multilideres
-DB_PASSWORD=Mult1l1d3r3$
-DB_HOST=localhost
-DB_PORT=5432
-EOF
-        echo "Variables de PostgreSQL agregadas. Configure DB_PASSWORD manualmente."
-    fi
-    
-    echo ".env configurado para producción"
-else
-    echo "[ADVERTENCIA] No se encuentra .env"
+# Migraciones (con cuidado en producción)
+echo "Ejecutando migraciones..."
+python manage.py migrate --no-input
+if [ $? -ne 0 ]; then
+    echo "[ERROR] Falló migraciones"
+    exit 1
 fi
 
 # Collect static
