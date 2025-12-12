@@ -515,6 +515,14 @@
   // Botón principal: abrir modal para elegir modo de registro
   $('#btnCheckout').on('click', function () {
     if (!items.length) { showToast('warning', 'No hay ítems en el carrito.'); return; }
+    
+    // Verificar si se seleccionó pagos combinados
+    const payMethod = $('#payMethod').val();
+    if (payMethod === 'combined') {
+      openCombinedPaymentModal();
+      return;
+    }
+    
     const modalEl = document.getElementById('saleModeModal');
     if (!modalEl) {
       // Fallback si por alguna razón no se cargó el modal
@@ -524,6 +532,200 @@
     const modal = new bootstrap.Modal(modalEl);
     modal.show();
   });
+
+  // Funciones para pagos combinados
+  function openCombinedPaymentModal() {
+    const subtotal = parseFloat($tSubtotal.text().replace('$', '')) || 0;
+    const iva = parseFloat($tIva.text().replace('$', '')) || 0;
+    const total = parseFloat($tTotal.text().replace('$', '')) || 0;
+    
+    $('#combinedSubtotalAmount').text(fmt(subtotal));
+    $('#combinedIvaAmount').text(fmt(iva));
+    $('#combinedTotalAmount').text(fmt(total));
+    $('#firstPaymentAmount').val('');
+    $('#firstPaymentMethod').val('cash');
+    $('#combinedRemaining').text(fmt(0));
+    $('#btnCombinedPaymentStep2').prop('disabled', true);
+    
+    const modal = new bootstrap.Modal(document.getElementById('combinedPaymentModal'));
+    modal.show();
+  }
+
+  // Actualizar totales cuando cambia tipo de comprobante
+  $(document).on('change', 'input[name="combinedInvoiceType"]', function() {
+    updateCombinedTotals();
+  });
+
+  function updateCombinedTotals() {
+    const subtotal = parseFloat($tSubtotal.text().replace('$', '')) || 0;
+    const wantsInvoice = $('#combinedInvoice').is(':checked');
+    
+    if (wantsInvoice) {
+      // Calcular IVA (21%)
+      const ivaRate = 0.21;
+      const iva = subtotal * ivaRate;
+      const total = subtotal + iva;
+      
+      $('#combinedSubtotalAmount').text(fmt(subtotal));
+      $('#combinedIvaAmount').text(fmt(iva));
+      $('#combinedTotalAmount').text(fmt(total));
+    } else {
+      // Sin IVA
+      $('#combinedSubtotalAmount').text(fmt(subtotal));
+      $('#combinedIvaAmount').text(fmt(0));
+      $('#combinedTotalAmount').text(fmt(subtotal));
+    }
+    
+    // Actualizar restante
+    const firstAmount = parseFloat($('#firstPaymentAmount').val()) || 0;
+    const total = parseFloat($('#combinedTotalAmount').text().replace('$', '')) || 0;
+    const remaining = total - firstAmount;
+    $('#combinedRemaining').text(fmt(remaining));
+  }
+
+  // Calcular monto restante en tiempo real
+  $(document).on('input', '#firstPaymentAmount', function() {
+    const total = parseFloat($('#combinedTotalAmount').text().replace('$', '')) || 0;
+    const firstAmount = parseFloat($(this).val()) || 0;
+    const remaining = total - firstAmount;
+    
+    if (firstAmount > 0 && firstAmount < total) {
+      $('#combinedRemaining').text(fmt(remaining));
+      $('#btnCombinedPaymentStep2').prop('disabled', false);
+    } else if (firstAmount >= total) {
+      $('#combinedRemaining').text(fmt(0));
+      $('#btnCombinedPaymentStep2').prop('disabled', true);
+      showToast('warning', 'El primer monto debe ser menor que el total');
+    } else {
+      $('#combinedRemaining').text(fmt(0));
+      $('#btnCombinedPaymentStep2').prop('disabled', true);
+    }
+  });
+
+  // Continuar al paso 2
+  $(document).on('click', '#btnCombinedPaymentStep2', function() {
+    const total = parseFloat($('#combinedTotalAmount').text().replace('$', '')) || 0;
+    const firstAmount = parseFloat($('#firstPaymentAmount').val()) || 0;
+    const firstMethod = $('#firstPaymentMethod').val();
+    
+    if (firstAmount <= 0 || firstAmount >= total) {
+      showToast('warning', 'Ingrese un monto válido menor que el total');
+      return;
+    }
+    
+    const remaining = total - firstAmount;
+    
+    // Llenar datos del paso 2
+    const wantsInvoice = $('#combinedInvoice').is(':checked');
+    const invoiceType = wantsInvoice ? 'Factura' : 'Ticket';
+    $('#firstPaymentSummary').text(`${getPaymentMethodName(firstMethod)}: ${fmt(firstAmount)} (${invoiceType})`);
+    $('#secondPaymentAmount').val(remaining.toFixed(2));
+    $('#secondPaymentMethod').val('cash');
+    
+    // Cerrar modal paso 1 y abrir paso 2
+    bootstrap.Modal.getInstance(document.getElementById('combinedPaymentModal')).hide();
+    const modal2 = new bootstrap.Modal(document.getElementById('combinedPaymentStep2Modal'));
+    modal2.show();
+  });
+
+  // Volver al paso 1
+  $(document).on('click', '#btnCombinedPaymentBack', function() {
+    bootstrap.Modal.getInstance(document.getElementById('combinedPaymentStep2Modal')).hide();
+    const modal1 = new bootstrap.Modal(document.getElementById('combinedPaymentModal'));
+    modal1.show();
+  });
+
+  // Confirmar pagos combinados
+  $(document).on('click', '#btnCombinedPaymentConfirm', function() {
+    const total = parseFloat($('#combinedTotalAmount').text().replace('$', '')) || 0;
+    const firstAmount = parseFloat($('#firstPaymentAmount').val()) || 0;
+    const firstMethod = $('#firstPaymentMethod').val();
+    const secondMethod = $('#secondPaymentMethod').val();
+    const secondAmount = parseFloat($('#secondPaymentAmount').val()) || 0;
+    const wantsInvoice = $('#combinedInvoice').is(':checked');
+    
+    if (Math.abs((firstAmount + secondAmount) - total) > 0.01) {
+      showToast('error', 'Los montos no suman el total correcto');
+      return;
+    }
+    
+    // Construir payload de pagos combinados
+    const calc = buildPayload();
+    const paymentDescription = `${getPaymentMethodName(firstMethod)} + ${getPaymentMethodName(secondMethod)}`;
+    
+    // Usar items con IVA si es factura, sin IVA si es ticket
+    const items = wantsInvoice ? calc.items_final : calc.items_net;
+    const subtotal = wantsInvoice ? calc.subtotal_neto : calc.subtotal_neto;
+    const iva = wantsInvoice ? calc.iva_total : 0;
+    
+    const payload = {
+      items: items,
+      subtotal: subtotal,
+      iva: iva,
+      total: total,
+      payment_method: paymentDescription,
+      combined_payments: [
+        { method: firstMethod, amount: firstAmount },
+        { method: secondMethod, amount: secondAmount }
+      ]
+    };
+    
+    // Cerrar modal y registrar venta
+    bootstrap.Modal.getInstance(document.getElementById('combinedPaymentStep2Modal')).hide();
+    
+    if (wantsInvoice) {
+      // Generar factura
+      ajaxAction('invoice', { action: 'invoice', sale: JSON.stringify(payload) })
+        .done(resp => {
+          flashSummary();
+          if (resp.invoice_url) {
+            window.open(resp.invoice_url, '_blank');
+          } else {
+            showToast('success', 'Factura generada.');
+          }
+          setTimeout(() => {
+            window.location.reload();
+          }, 2000);
+          $('#btnClear').trigger('click');
+        })
+        .fail(jq => {
+          showToast('error', 'Error al facturar: ' + (jq.responseJSON ? jq.responseJSON.error : jq.statusText));
+        });
+    } else {
+      // Registrar venta normal
+      ajaxAction('create_sale', { action: 'create_sale', sale: JSON.stringify(payload) })
+        .done(resp => {
+          if (resp && resp.id) {
+            lastSaleId = resp.id;
+            flashSummary();
+            showToast('success', 'Venta con pagos combinados registrada correctamente.');
+            const modalEl = document.getElementById('printTicketModal');
+            if (modalEl) {
+              const modal = new bootstrap.Modal(modalEl);
+              modal.show();
+            }
+            setTimeout(() => {
+              window.location.reload();
+            }, 2000);
+          }
+          $('#btnClear').trigger('click');
+        })
+        .fail(jq => {
+          showToast('error', 'Error al registrar: ' + (jq.responseJSON ? jq.responseJSON.error : jq.statusText));
+        });
+    }
+  });
+
+  function getPaymentMethodName(method) {
+    const names = {
+      'cash': 'Efectivo',
+      'card': 'Tarjeta',
+      'transfer': 'Transferencia',
+      'mp': 'Mercado Pago',
+      'check': 'Cheque'
+    };
+    return names[method] || method;
+  }
 
   // Botones del modal de modo de registro
   $(document).on('click', '#btnModeNoInvoice', function () {
