@@ -9,3 +9,15 @@ __pycache__/
 db.sqlite3
 .env
 *.env
+
+### Python ###
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+### PostgreSQL ###
+*.psql
+*.dump
