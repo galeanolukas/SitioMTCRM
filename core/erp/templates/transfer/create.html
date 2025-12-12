@@ -77,29 +77,39 @@
         <!-- Sección de productos disponibles (se carga automáticamente) -->
         <div id="availableProductsSection"></div>
         
-        <!-- Sección de búsqueda manual -->
+        <!-- Sección de lista simple - volver a lo básico -->
         <div class="card mb-3" id="productSearchSection">
           <div class="card-header">
             <h6 class="mb-0">
-              <i class="fas fa-search"></i> 
-              Búsqueda Manual de Productos
+              <i class="fas fa-list"></i> 
+              Lista de Productos del Inventario
             </h6>
           </div>
           <div class="card-body">
             <div class="row">
-              <div class="col-md-8">
+              <div class="col-md-12">
                 <div class="form-group">
-                  <label for="productSearch">Buscar Producto</label>
-                  <select id="productSearch" class="form-control select2" style="width: 100%">
+                  <label for="productSearch">Seleccionar Producto</label>
+                  <select id="productSearch" class="form-control" style="width: 100%">
                     <option value="">Seleccione un producto...</option>
+                    {% for product in products %}
+                    <option value="{{ product.id }}" 
+                            data-name="{{ product.name }}" 
+                            data-code="{{ product.code|default:'' }}" 
+                            data-stock="{{ product.stock }}" 
+                            data-unit="{{ product.get_unit_display }}" 
+                            data-price="{{ product.pvp }}">
+                      {{ product.name }}{% if product.code %} ({{ product.code }}){% endif %} - Stock: {{ product.stock }} {{ product.get_unit_display }}
+                    </option>
+                    {% endfor %}
                   </select>
                 </div>
               </div>
-              <div class="col-md-4">
+              <div class="col-md-12">
                 <div class="form-group">
                   <label>&nbsp;</label><br>
                   <button type="button" class="btn btn-primary btn-block" onclick="addProduct()">
-                    <i class="fas fa-plus"></i> Agregar
+                    <i class="fas fa-plus"></i> Agregar Producto Seleccionado
                   </button>
                 </div>
               </div>
@@ -181,17 +191,32 @@
       });
     });
 
+    // Variables globales
     let products = [];
     let rowIndex = 0;
 
-    function addProduct() {
-      const selected = $('#productSearch').select2('data')[0];
-      if (!selected) {
+    // Función para agregar producto - DEFINICIÓN GLOBAL
+    window.addProduct = function() {
+      console.log('addProduct() llamada'); // Debug
+      const selected = $('#productSearch').find(':selected');
+      console.log('Opción seleccionada:', selected.val()); // Debug
+      
+      if (!selected.val()) {
         alert('Seleccione un producto');
         return;
       }
 
-      const product = selected.data;
+      // Obtener datos del producto desde los atributos data
+      const product = {
+        id: parseInt(selected.val()),
+        name: selected.data('name'),
+        code: selected.data('code'),
+        stock: parseFloat(selected.data('stock')),
+        unit: selected.data('unit'),
+        pvp: parseFloat(selected.data('price'))
+      };
+      
+      console.log('Datos del producto:', product); // Debug
       
       // Verificar si ya está agregado
       if (products.find(p => p.id === product.id)) {
@@ -213,23 +238,26 @@
         stock: product.stock,
         quantity: 1,
         unit_price: product.pvp,
-        subtotal: product.pvp
+        subtotal: product.pvp,
+        index: rowIndex
       });
+
+      console.log('Producto agregado a la lista:', products); // Debug
 
       // Agregar fila a la tabla
       addRow(product);
+
+      // Resetear selección
+      $('#productSearch').val('');
       
-      // Limpiar selección
-      $('#productSearch').val(null).trigger('change');
-      
-      updateTotal();
-    }
+      alert('Producto agregado correctamente');
+    };
 
     function addRow(product) {
       const row = `
         <tr data-index="${rowIndex}">
           <input type="hidden" name="products[]" value="${product.id}">
-          <td>${product.code}</td>
+          <td>${product.code || 'S/C'}</td>
           <td>${product.name}</td>
           <td>${product.stock}</td>
           <td>
@@ -255,43 +283,30 @@
       rowIndex++;
     }
 
+    function removeRow(index) {
+      $(`tr[data-index="${index}"]`).remove();
+      products = products.filter(p => p.index !== index);
+      updateTotal();
+    }
+
     function updateQuantity(index, value) {
-      const product = products.find(p => p.id === parseInt($('tr[data-index="' + index + '"] input[name="products[]"]').val()));
+      const product = products.find(p => p.index === index);
       if (product) {
-        const quantity = parseFloat(value) || 0;
-        const maxStock = parseFloat(product.stock);
-        
-        if (quantity > maxStock) {
-          alert('La cantidad no puede superar el stock disponible (' + maxStock + ')');
-          $('tr[data-index="' + index + '"] input[name="quantities[]"]').val(maxStock);
-          value = maxStock;
-        }
-        
-        product.quantity = quantity;
-        product.subtotal = quantity * product.unit_price;
-        
-        $('tr[data-index="' + index + '"] .subtotal').text('$' + product.subtotal.toFixed(2));
+        product.quantity = parseFloat(value);
+        product.subtotal = product.quantity * product.unit_price;
+        $(`tr[data-index="${index}"] .subtotal`).text(`$${product.subtotal.toFixed(2)}`);
         updateTotal();
       }
     }
 
     function updatePrice(index, value) {
-      const product = products.find(p => p.id === parseInt($('tr[data-index="' + index + '"] input[name="products[]"]').val()));
+      const product = products.find(p => p.index === index);
       if (product) {
-        const price = parseFloat(value) || 0;
-        product.unit_price = price;
-        product.subtotal = product.quantity * price;
-        
-        $('tr[data-index="' + index + '"] .subtotal').text('$' + product.subtotal.toFixed(2));
+        product.unit_price = parseFloat(value);
+        product.subtotal = product.quantity * product.unit_price;
+        $(`tr[data-index="${index}"] .subtotal`).text(`$${product.subtotal.toFixed(2)}`);
         updateTotal();
       }
-    }
-
-    function removeRow(index) {
-      const productId = parseInt($('tr[data-index="' + index + '"] input[name="products[]"]').val());
-      products = products.filter(p => p.id !== productId);
-      $('tr[data-index="' + index + '"]').remove();
-      updateTotal();
     }
 
     function updateTotal() {
@@ -397,13 +412,14 @@
         allowClear: true,
         width: '100%',
         ajax: {
-          url: `/erp/transfer/products/?company_id=${originCompany}`,
+          url: '/erp/transfer/products/',
           dataType: 'json',
           delay: 250,
           data: function(params) {
             console.log('Buscando:', params.term); // Debug
             return {
-              term: params.term
+              term: params.term,
+              company_id: originCompany
             };
           },
           processResults: function(data) {
@@ -415,9 +431,15 @@
             }
             return {
               results: data.map(function(item) {
+                // Formato similar al POS: nombre (código) - Stock: cantidad unidad
+                let stockText = item.stock > 0 ? `Stock: ${item.stock} ${item.unit}` : 'Sin stock';
+                let displayText = item.code ? 
+                  `${item.name} (${item.code}) - ${stockText}` : 
+                  `${item.name} - ${stockText}`;
+                
                 return {
                   id: item.id,
-                  text: `${item.name} (${item.code || 'S/C'}) - Stock: ${item.stock} ${item.unit}`,
+                  text: displayText,
                   data: item
                 };
               })
@@ -560,11 +582,11 @@
       products.push(product);
       
       // Agregar fila a la tabla
-      addRowToTable(product, rowIndex++);
+      addRow(product, rowIndex++);
       updateTotal();
       
       // Feedback visual
-      showToast('success', `${productName} agregado a la transferencia`);
+      alert(`${productName} agregado a la transferencia`);
     }
 
     function getCookie(name) {

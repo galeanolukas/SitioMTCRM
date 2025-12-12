@@ -34,16 +34,18 @@ class TransferProductSearchView(LoginRequiredMixin, View):
             return JsonResponse({'error': 'Sin permisos para esta empresa'}, status=403)
         
         # Filtrar productos por empresa y término de búsqueda
-        products = Product.objects.filter(company_id=company_id, is_active=True)
+        products = Product.objects.filter(company_id=company_id)
         
         if term:
-            products = products.filter(
-                models.Q(name__icontains=term) | 
-                models.Q(code__icontains=term)
-            )
+            # Buscar por palabras clave en nombre o por código (similar al POS)
+            for w in filter(None, term.split()):
+                products = products.filter(
+                    models.Q(name__icontains=w) | 
+                    models.Q(code__icontains=w)
+                )
         
-        # Solo productos con stock disponible
-        products = products.filter(stock__gt=0)[:20]  # Limitar a 20 resultados
+        # Limitar a 10 resultados (como el POS)
+        products = products[:10]
         
         data = []
         for product in products:
@@ -115,13 +117,32 @@ class TransferCreateView(LoginRequiredMixin, View):
         companies = Company.objects.filter(is_active=True)
         current_company = Company.objects.filter(pk=active_cid).first() if active_cid else None
         
+        # Obtener todos los productos de la empresa actual y serializar a JSON
+        products_json = '[]'
+        if current_company:
+            products = Product.objects.filter(company_id=current_company.id)
+            products_data = []
+            for product in products:
+                products_data.append({
+                    'id': product.id,
+                    'name': product.name,
+                    'code': product.code or '',
+                    'stock': float(product.stock),
+                    'unit': product.get_unit_display(),
+                    'price': float(product.pvp)
+                })
+            import json
+            products_json = json.dumps(products_data)
+        
         context = {
             'title': 'Nueva Transferencia entre Empresas',
             'entity': 'Transferencia',
             'action': 'add',
             'list_url': reverse_lazy('erp:transfer_list'),
             'companies': companies,
-            'current_company': current_company
+            'current_company': current_company,
+            'products': Product.objects.filter(company_id=current_company.id) if current_company else Product.objects.none(),
+            'products_json': products_json  # Agregar JSON serializado
         }
         return render(request, 'transfer/create.html', context)
     
