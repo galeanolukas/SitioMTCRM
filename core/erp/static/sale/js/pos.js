@@ -470,6 +470,10 @@
             const modal = new bootstrap.Modal(modalEl);
             modal.show();
           }
+          // Recargar página después de venta exitosa
+          setTimeout(() => {
+            window.location.reload();
+          }, 2000);
         }
         $('#btnClear').trigger('click');
       })
@@ -497,6 +501,10 @@
         } else {
           showToast('success', 'Factura generada.');
         }
+        // Recargar página después de generar factura
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
         $('#btnClear').trigger('click');
       })
       .fail(jq => {
