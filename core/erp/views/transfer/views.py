@@ -9,9 +9,57 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 from decimal import Decimal
+from django.db import models
 
 from core.erp.models import InternalTransfer, InternalTransferDetail, Product, Company
 from core.erp.forms import InternalTransferForm, InternalTransferDetailForm
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class TransferProductSearchView(LoginRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        """Obtener productos de una empresa específica para transferencia"""
+        company_id = request.GET.get('company_id')
+        term = request.GET.get('term', '').strip()
+        
+        if not company_id:
+            return JsonResponse({'error': 'Empresa no especificada'}, status=400)
+        
+        # Verificar que el usuario tiene permisos para esta empresa
+        active_cid = request.session.get('company_id')
+        if not request.user.is_superuser:
+            active_cid = active_cid or getattr(request.user, 'company_id', None)
+        
+        if active_cid and active_cid != int(company_id):
+            return JsonResponse({'error': 'Sin permisos para esta empresa'}, status=403)
+        
+        # Filtrar productos por empresa y término de búsqueda
+        products = Product.objects.filter(company_id=company_id, is_active=True)
+        
+        if term:
+            products = products.filter(
+                models.Q(name__icontains=term) | 
+                models.Q(code__icontains=term)
+            )
+        
+        # Solo productos con stock disponible
+        products = products.filter(stock__gt=0)[:20]  # Limitar a 20 resultados
+        
+        data = []
+        for product in products:
+            data.append({
+                'id': product.id,
+                'name': product.name,
+                'code': product.code or '',
+                'stock': float(product.stock),
+                'unit': product.get_unit_display(),
+                'cost_price': float(product.cost_price or 0),
+                'pvp': float(product.pvp),
+                'iva_rate': float(product.iva_rate),
+                'pvp_final': float(product.pvp_final),
+            })
+        
+        return JsonResponse(data, safe=False)
 
 
 class TransferListView(LoginRequiredMixin, ListView):
@@ -58,11 +106,22 @@ class TransferDetailView(LoginRequiredMixin, DetailView):
 
 class TransferCreateView(LoginRequiredMixin, View):
     def get(self, request, *args, **kwargs):
+        # Obtener empresas disponibles para transferencia
+        active_cid = request.session.get('company_id')
+        if not request.user.is_superuser:
+            active_cid = active_cid or getattr(request.user, 'company_id', None)
+        
+        # Todas las empresas activas (incluida la actual como opción de origen)
+        companies = Company.objects.filter(is_active=True)
+        current_company = Company.objects.filter(pk=active_cid).first() if active_cid else None
+        
         context = {
-            'title': 'Nueva Transferencia Interna',
+            'title': 'Nueva Transferencia entre Empresas',
             'entity': 'Transferencia',
             'action': 'add',
             'list_url': reverse_lazy('erp:transfer_list'),
+            'companies': companies,
+            'current_company': current_company
         }
         return render(request, 'transfer/create.html', context)
     
@@ -73,43 +132,59 @@ class TransferCreateView(LoginRequiredMixin, View):
             
             if action == 'add':
                 with transaction.atomic():
-                    # Obtener empresa activa
+                    # Obtener empresas origen y destino
+                    origin_company_id = request.POST.get('origin_company')
+                    destination_company_id = request.POST.get('destination_company')
+                    
+                    if not origin_company_id or not destination_company_id:
+                        data['error'] = 'Debe seleccionar empresas de origen y destino'
+                        return JsonResponse(data)
+                    
+                    if origin_company_id == destination_company_id:
+                        data['error'] = 'Las empresas de origen y destino deben ser diferentes'
+                        return JsonResponse(data)
+                    
+                    origin_company = Company.objects.filter(pk=origin_company_id).first()
+                    destination_company = Company.objects.filter(pk=destination_company_id).first()
+                    
+                    if not origin_company or not destination_company:
+                        data['error'] = 'Empresa no encontrada'
+                        return JsonResponse(data)
+                    
+                    # Verificar que el usuario tiene permisos en la empresa origen
                     active_cid = request.session.get('company_id')
                     if not request.user.is_superuser:
                         active_cid = active_cid or getattr(request.user, 'company_id', None)
                     
-                    if not active_cid:
-                        data['error'] = 'No se puede determinar la empresa activa'
-                        return JsonResponse(data)
-                    
-                    company = Company.objects.filter(pk=active_cid).first()
-                    if not company:
-                        data['error'] = 'Empresa no encontrada'
+                    if active_cid and active_cid != origin_company_id:
+                        data['error'] = 'Solo puede transferir productos desde su empresa activa'
                         return JsonResponse(data)
                     
                     # Crear transferencia
                     transfer = InternalTransfer()
-                    transfer.company_id = active_cid
+                    transfer.company_id = origin_company_id  # La transferencia pertenece a la empresa origen
                     transfer.created_by = request.user
-                    transfer.origin_pos = request.POST.get('origin_pos', company.pos or '0001')
-                    transfer.destination_pos = request.POST.get('destination_pos')
-                    transfer.observations = request.POST.get('observations', '')
+                    transfer.origin_pos = f"{origin_company.name[:3]}-{origin_company.pos}"
+                    transfer.destination_pos = f"{destination_company.name[:3]}-{destination_company.pos}"
+                    transfer.observations = f"Transferencia a {destination_company.name}. " + request.POST.get('observations', '')
                     transfer.save()
                     
                     # Procesar productos
                     products_data = request.POST.getlist('products[]')
                     quantities_data = request.POST.getlist('quantities[]')
                     prices_data = request.POST.getlist('prices[]')
+                    total_amount = 0
                     
                     for i, product_id in enumerate(products_data):
                         if i < len(quantities_data) and i < len(prices_data):
-                            product = Product.objects.filter(pk=product_id, company_id=active_cid).first()
+                            # Buscar producto en empresa origen
+                            product = Product.objects.filter(pk=product_id, company_id=origin_company_id).first()
                             if product:
                                 quantity = Decimal(str(quantities_data[i] or '0'))
                                 unit_price = Decimal(str(prices_data[i] or '0'))
                                 
                                 if quantity > 0:
-                                    # Verificar stock suficiente
+                                    # Verificar stock suficiente en origen
                                     if product.stock >= quantity:
                                         # Crear detalle
                                         detail = InternalTransferDetail()
@@ -119,9 +194,37 @@ class TransferCreateView(LoginRequiredMixin, View):
                                         detail.unit_price = unit_price
                                         detail.save()
                                         
-                                        # Descontar stock del POS origen
+                                        total_amount += quantity * unit_price
+                                        
+                                        # Descontar stock del origen
                                         product.stock -= quantity
                                         product.save()
+                                        
+                                        # Buscar o crear producto en destino
+                                        dest_product = Product.objects.filter(
+                                            name=product.name, 
+                                            company_id=destination_company_id
+                                        ).first()
+                                        
+                                        if dest_product:
+                                            # Si existe, aumentar stock
+                                            dest_product.stock += quantity
+                                            dest_product.save()
+                                        else:
+                                            # Si no existe, crear copia en destino
+                                            dest_product = Product.objects.create(
+                                                name=product.name,
+                                                code=product.code,
+                                                cat=product.cat,
+                                                company_id=destination_company_id,
+                                                cost_price=product.cost_price,
+                                                pvp=product.pvp,
+                                                iva_rate=product.iva_rate,
+                                                pvp_final=product.pvp_final,
+                                                unit=product.unit,
+                                                stock=quantity,
+                                                is_active=True
+                                            )
                                     else:
                                         data['error'] = f'Stock insuficiente para {product.name}. Disponible: {product.stock}, Requerido: {quantity}'
                                         return JsonResponse(data)
@@ -130,9 +233,13 @@ class TransferCreateView(LoginRequiredMixin, View):
                     transfer.status = 'in_transit'
                     transfer.save()
                     
+                    # Agregar información de montos
                     data['id'] = transfer.id
                     data['transfer_number'] = transfer.transfer_number
-                    data['success'] = 'Transferencia creada exitosamente'
+                    data['total_amount'] = float(total_amount)
+                    data['origin_company'] = origin_company.name
+                    data['destination_company'] = destination_company.name
+                    data['success'] = f'Transferencia creada exitosamente. Monto total: ${total_amount:.2f}'
             
             else:
                 data['error'] = 'Acción no válida'

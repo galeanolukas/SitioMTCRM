@@ -7,6 +7,16 @@
 {% endblock %}
 
 {% block content %}
+  <!-- Hidden element to store companies data for JavaScript -->
+  <div id="companiesData" data-companies='[
+    {% for company in companies %}
+    {
+      "id": {{ company.id }},
+      "name": "{{ company.name|escapejs }} ({{ company.pos }})"
+    }{% if not forloop.last %},{% endif %}
+    {% endfor %}
+  ]' style="display: none;"></div>
+  
   <div class="card card-primary">
     <div class="card-header">
       <h3 class="card-title">
@@ -27,16 +37,30 @@
         <div class="row">
           <div class="col-md-6">
             <div class="form-group">
-              <label for="origin_pos">POS Origen</label>
-              <input type="text" name="origin_pos" id="origin_pos" class="form-control" maxlength="5" placeholder="0001" required>
-              <small class="form-text text-muted">Punto de venta de origen</small>
+              <label for="origin_company">Empresa Origen</label>
+              <select name="origin_company" id="origin_company" class="form-control" required>
+                <option value="">Seleccione una empresa...</option>
+                {% for company in companies %}
+                  <option value="{{ company.id }}" {% if current_company and company.id == current_company.id %}selected{% endif %}>
+                    {{ company.name }} ({{ company.pos }}) {% if current_company and company.id == current_company.id %}[TU POS ACTUAL]{% endif %}
+                  </option>
+                {% endfor %}
+              </select>
+              <small class="form-text text-muted">Empresa que envía los productos (tu POS actual)</small>
             </div>
           </div>
           <div class="col-md-6">
             <div class="form-group">
-              <label for="destination_pos">POS Destino</label>
-              <input type="text" name="destination_pos" id="destination_pos" class="form-control" maxlength="5" placeholder="0002" required>
-              <small class="form-text text-muted">Punto de venta de destino</small>
+              <label for="destination_company">Empresa Destino</label>
+              <select name="destination_company" id="destination_company" class="form-control" required>
+                <option value="">Seleccione una empresa...</option>
+                {% for company in companies %}
+                  {% if not current_company or company.id != current_company.id %}
+                    <option value="{{ company.id }}">{{ company.name }} ({{ company.pos }})</option>
+                  {% endif %}
+                {% endfor %}
+              </select>
+              <small class="form-text text-muted">Empresa que recibe los productos</small>
             </div>
           </div>
         </div>
@@ -50,21 +74,35 @@
         
         <h5>Productos a Transferir</h5>
         
-        <div class="row mb-3">
-          <div class="col-md-8">
-            <div class="form-group">
-              <label for="productSearch">Buscar Producto</label>
-              <select id="productSearch" class="form-control select2" style="width: 100%">
-                <option value="">Seleccione un producto...</option>
-              </select>
-            </div>
+        <!-- Sección de productos disponibles (se carga automáticamente) -->
+        <div id="availableProductsSection"></div>
+        
+        <!-- Sección de búsqueda manual -->
+        <div class="card mb-3" id="productSearchSection">
+          <div class="card-header">
+            <h6 class="mb-0">
+              <i class="fas fa-search"></i> 
+              Búsqueda Manual de Productos
+            </h6>
           </div>
-          <div class="col-md-4">
-            <div class="form-group">
-              <label>&nbsp;</label><br>
-              <button type="button" class="btn btn-primary btn-block" onclick="addProduct()">
-                <i class="fas fa-plus"></i> Agregar
-              </button>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-8">
+                <div class="form-group">
+                  <label for="productSearch">Buscar Producto</label>
+                  <select id="productSearch" class="form-control select2" style="width: 100%">
+                    <option value="">Seleccione un producto...</option>
+                  </select>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="form-group">
+                  <label>&nbsp;</label><br>
+                  <button type="button" class="btn btn-primary btn-block" onclick="addProduct()">
+                    <i class="fas fa-plus"></i> Agregar
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -263,6 +301,22 @@
 
     // Validar formulario antes de enviar
     $('#transferForm').on('submit', function(e) {
+      // Validar selección de empresas
+      const originCompany = $('#origin_company').val();
+      const destinationCompany = $('#destination_company').val();
+      
+      if (!originCompany || !destinationCompany) {
+        e.preventDefault();
+        alert('Debe seleccionar empresas de origen y destino');
+        return false;
+      }
+      
+      if (originCompany === destinationCompany) {
+        e.preventDefault();
+        alert('Las empresas de origen y destino deben ser diferentes');
+        return false;
+      }
+      
       if (products.length === 0) {
         e.preventDefault();
         alert('Debe agregar al menos un producto');
@@ -280,6 +334,238 @@
       
       return true;
     });
+
+    // Actualizar opciones de destino cuando cambia el origen
+    $('#origin_company').on('change', function() {
+      const selectedOrigin = $(this).val();
+      const destinationSelect = $('#destination_company');
+      
+      // Limpiar y repoblar destino
+      destinationSelect.empty();
+      destinationSelect.append('<option value="">Seleccione una empresa...</option>');
+      
+      // Obtener datos de empresas desde los data-attributes
+      const companiesData = $('#companiesData').data('companies');
+      
+      if (companiesData) {
+        companiesData.forEach(function(company) {
+          if (company.id != selectedOrigin) {
+            destinationSelect.append(`<option value="${company.id}">${company.name}</option>`);
+          }
+        });
+      }
+      
+      // Resetear y reinicializar selector de productos
+      $('#productSearch').select2('destroy');
+      $('#productSearch').empty().append('<option value="">Seleccione un producto...</option>');
+      
+      // Limpiar tabla de productos
+      products = [];
+      $('#productsTable tbody').empty();
+      updateTotal();
+      
+      // Cargar productos disponibles para la nueva empresa origen
+      if (selectedOrigin) {
+        initializeProductSearch();
+        loadAvailableProducts(selectedOrigin);
+      } else {
+        // Ocultar sección de productos disponibles si no hay empresa origen
+        $('#availableProductsSection').empty();
+      }
+    });
+
+    // Inicializar Select2 para búsqueda de productos (solo cuando hay empresa origen)
+    function initializeProductSearch() {
+      const originCompany = $('#origin_company').val();
+      
+      if (!originCompany) {
+        console.log('No hay empresa origen seleccionada');
+        return;
+      }
+      
+      console.log('Inicializando búsqueda para empresa:', originCompany);
+      
+      // Destruir instancia anterior si existe
+      try {
+        $('#productSearch').select2('destroy');
+      } catch(e) {
+        console.log('No había instancia anterior de Select2');
+      }
+      
+      $('#productSearch').select2({
+        placeholder: 'Buscar producto...',
+        allowClear: true,
+        width: '100%',
+        ajax: {
+          url: `/erp/transfer/products/?company_id=${originCompany}`,
+          dataType: 'json',
+          delay: 250,
+          data: function(params) {
+            console.log('Buscando:', params.term); // Debug
+            return {
+              term: params.term
+            };
+          },
+          processResults: function(data) {
+            console.log('Datos recibidos:', data); // Debug
+            if (!data || data.length === 0) {
+              return {
+                results: [{id: '', text: 'No se encontraron productos', disabled: true}]
+              };
+            }
+            return {
+              results: data.map(function(item) {
+                return {
+                  id: item.id,
+                  text: `${item.name} (${item.code || 'S/C'}) - Stock: ${item.stock} ${item.unit}`,
+                  data: item
+                };
+              })
+            };
+          },
+          cache: true,
+          error: function(xhr, status, error) {
+            console.error('Error en AJAX:', error); // Debug
+            console.error('Response:', xhr.responseText); // Debug
+            return {
+              results: [{id: '', text: 'Error al cargar productos', disabled: true}]
+            };
+          }
+        },
+        minimumInputLength: 2,
+        language: {
+          noResults: function() {
+            return 'No se encontraron productos';
+          },
+          inputTooShort: function() {
+            return 'Ingrese al menos 2 caracteres';
+          }
+        }
+      });
+    }
+
+    // Inicializar búsqueda cuando el documento esté listo
+    $(document).ready(function() {
+      console.log('Documento listo');
+      
+      // Obtener empresa origen actual
+      const originCompany = $('#origin_company').val();
+      console.log('Empresa origen inicial:', originCompany);
+      
+      // Si hay empresa origen seleccionada (debería ser la actual), inicializar búsqueda
+      if (originCompany) {
+        initializeProductSearch();
+        
+        // Cargar automáticamente los productos disponibles
+        loadAvailableProducts(originCompany);
+      }
+    });
+
+    // Función para cargar automáticamente productos disponibles
+    function loadAvailableProducts(companyId) {
+      console.log('Cargando productos disponibles para empresa:', companyId);
+      
+      $.ajax({
+        url: `/erp/transfer/products/?company_id=${companyId}`,
+        dataType: 'json',
+        success: function(data) {
+          console.log('Productos cargados:', data);
+          
+          if (data && data.length > 0) {
+            // Mostrar productos en una tabla para fácil selección
+            displayAvailableProducts(data);
+          } else {
+            $('#availableProductsSection').hide();
+            console.log('No hay productos con stock disponible');
+          }
+        },
+        error: function(xhr, status, error) {
+          console.error('Error cargando productos:', error);
+          $('#availableProductsSection').hide();
+        }
+      });
+    }
+
+    // Función para mostrar productos disponibles en una tabla
+    function displayAvailableProducts(products) {
+      let html = `
+        <div class="card mb-3" id="availableProductsSection">
+          <div class="card-header">
+            <h6 class="mb-0">
+              <i class="fas fa-box"></i> 
+              Inventario Disponible - ${products.length} productos con stock
+            </h6>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-sm table-hover mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th>Código</th>
+                    <th>Producto</th>
+                    <th>Stock</th>
+                    <th>Precio</th>
+                    <th width="120">Acción</th>
+                  </tr>
+                </thead>
+                <tbody>
+      `;
+      
+      products.forEach(function(product) {
+        html += `
+          <tr>
+            <td>${product.code || 'S/C'}</td>
+            <td>${product.name}</td>
+            <td><span class="badge bg-info">${product.stock} ${product.unit}</span></td>
+            <td>$${product.pvp.toFixed(2)}</td>
+            <td>
+              <button type="button" class="btn btn-sm btn-primary" onclick="addProductToTransfer(${product.id}, '${product.name.replace(/'/g, "\\'")}', ${product.stock}, ${product.pvp})">
+                <i class="fas fa-plus"></i> Agregar
+              </button>
+            </td>
+          </tr>
+        `;
+      });
+      
+      html += `
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      // Insertar antes de la sección de búsqueda manual
+      $('#productSearchSection').before(html);
+    }
+
+    // Función para agregar producto desde la tabla de disponibles
+    function addProductToTransfer(productId, productName, stock, price) {
+      // Verificar si ya está agregado
+      if (products.find(p => p.id === productId)) {
+        alert('Este producto ya está agregado');
+        return;
+      }
+
+      // Agregar a la lista
+      const product = {
+        id: productId,
+        name: productName,
+        stock: stock,
+        quantity: 1, // Cantidad por defecto
+        unit_price: price,
+        subtotal: price
+      };
+      
+      products.push(product);
+      
+      // Agregar fila a la tabla
+      addRowToTable(product, rowIndex++);
+      updateTotal();
+      
+      // Feedback visual
+      showToast('success', `${productName} agregado a la transferencia`);
+    }
 
     function getCookie(name) {
       let cookieValue = null;

@@ -3,7 +3,7 @@ from core.erp.views.category.views import *
 from core.erp.views.product.views import *
 from core.erp.views.client.views import ClientListView, ClientCreateView, ClientUpdateView, ClientDeleteView
 from core.erp.views.sale.views import SaleListView, SaleCreateView, SaleUpdateView, SaleDeleteView, ticket_print, POSView, InvoiceListView, InvoiceCreateView, invoice_pdf, sync_sales_api
-from core.erp.views.transfer.views import TransferListView, TransferCreateView, TransferDetailView, TransferReceiveView, TransferSearchView
+from core.erp.views.transfer.views import TransferListView, TransferCreateView, TransferDetailView, TransferReceiveView, TransferSearchView, TransferProductSearchView
 from core.erp.views.tests.views import *
 from core.erp.views.dashboard.views import (
     DashboardView,
@@ -83,6 +83,7 @@ urlpatterns = [
     path('transfer/<int:pk>/', TransferDetailView.as_view(), name='transfer_detail'),
     path('transfer/receive/', TransferReceiveView.as_view(), name='transfer_receive'),
     path('transfer/search/', TransferSearchView.as_view(), name='transfer_search'),
+    path('transfer/products/', TransferProductSearchView.as_view(), name='transfer_products'),
     # api sync (POS local -> servidor)
     path('api/sync/sales/', sync_sales_api, name='api_sync_sales'),
     # invoice
