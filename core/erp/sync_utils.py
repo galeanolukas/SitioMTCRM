@@ -39,58 +39,98 @@ def run_full_sync():
     if getattr(settings, 'ENVIRONMENT', 'development') == 'production':
         return True, []
 
+    # Check if sync is globally disabled
+    try:
+        from core.erp.models.sync_status import GlobalSyncStatus
+        if not GlobalSyncStatus.is_sync_enabled():
+            logger.info("Sincronización desactivada globalmente - omitiendo ejecución")
+            return True, ["Sincronización desactivada globalmente"]
+    except Exception as e:
+        # If we can't check the global status, proceed with sync
+        logger.warning(f"No se pudo verificar estado de sincronización global: {e}")
+        pass
+
+    logger.info("Iniciando sincronización completa...")
     errors = []
 
     # 1) Sincronizar usuarios (siempre al inicio, versión segura)
     try:
         call_command("sync_users_safe")
+        logger.info("Sincronización de usuarios completada")
     except Exception as e:
+        logger.error(f"Error en sincronización de usuarios: {e}")
         errors.append(f"sync_users_safe: {e}")
 
     # 2) Solo intentar sincronizar datos que dependan de la BD remota si está disponible
     if _can_reach_remote_db():
+        logger.info("Conexión remota disponible, iniciando sincronización de datos...")
+        
         # 1.a) Empresas: el servidor es la fuente de verdad, bajamos al POS
         try:
             call_command("sync_companies_from_remote_to_local")
+            logger.info("Sincronización de empresas completada")
         except Exception as e:
+            logger.error(f"Error en sincronización de empresas: {e}")
             errors.append(f"sync_companies_from_remote_to_local: {e}")
+            
         # Categorias
         try:
             call_command("sync_categories_to_remote")
+            logger.info("Sincronización de categorías completada")
         except Exception as e:
+            logger.error(f"Error en sincronización de categorías: {e}")
             errors.append(f"sync_categories_to_remote: {e}")
+            
         # Productos (maestro + stock)
         try:
             call_command("sync_products_to_remote")
+            logger.info("Sincronización de productos completada")
         except Exception as e:
+            logger.error(f"Error en sincronización de productos: {e}")
             errors.append(f"sync_products_to_remote: {e}")
+            
         try:
             call_command("sync_sales_to_remote")
+            logger.info("Sincronización de ventas completada")
         except Exception as e:
+            logger.error(f"Error en sincronización de ventas: {e}")
             errors.append(f"sync_sales_to_remote: {e}")
+            
         # Clientes
         try:
             call_command("sync_clients_to_remote")
+            logger.info("Sincronización de clientes completada")
         except Exception as e:
+            logger.error(f"Error en sincronización de clientes: {e}")
             errors.append(f"sync_clients_to_remote: {e}")
+            
         # Proveedores
         try:
             call_command("sync_suppliers_to_remote")
+            logger.info("Sincronización de proveedores completada")
         except Exception as e:
+            logger.error(f"Error en sincronización de proveedores: {e}")
             errors.append(f"sync_suppliers_to_remote: {e}")
+            
         # Gastos
         try:
             call_command("sync_expenses_to_remote")
+            logger.info("Sincronización de gastos completada")
         except Exception as e:
+            logger.error(f"Error en sincronización de gastos: {e}")
             errors.append(f"sync_expenses_to_remote: {e}")
 
         # Cierres de caja
         try:
             call_command("sync_cash_registers_to_remote")
+            logger.info("Sincronización de cierres de caja completada")
         except Exception as e:
+            logger.error(f"Error en sincronización de cierres de caja: {e}")
             errors.append(f"sync_cash_registers_to_remote: {e}")
     else:
-        errors.append("Sin conexión a la base de datos remota; se omite sincronización de empresas, categorias, productos, ventas, clientes, proveedores y gastos.")
+        msg = "Sin conexión a la base de datos remota; se omite sincronización de empresas, categorias, productos, ventas, clientes, proveedores y gastos."
+        logger.warning(msg)
+        errors.append(msg)
 
     # 2) Sincronizar usuarios (si el comando existe). Depende de que ya haya empresas locales.
     # COMENTADO: La sincronización de usuarios en el launcher está causando problemas de sesión
@@ -100,6 +140,11 @@ def run_full_sync():
     #     errors.append(f"sync_users: {e}")
 
     ok = (len(errors) == 0)
+    
+    if ok:
+        logger.info("Sincronización completada exitosamente")
+    else:
+        logger.error(f"Sincronización completada con {len(errors)} errores")
 
     # 3) Registrar intento en el servidor (historial de sincronización)
     try:
@@ -115,8 +160,10 @@ def run_full_sync():
             success=ok,
             message=msg,
         )
-    except Exception:
+        logger.info(f"Log de sincronización guardado en base de datos '{using}'")
+    except Exception as e:
         # No romper la sincronización si falló el log
+        logger.error(f"Error al guardar log de sincronización: {e}")
         pass
 
     return ok, errors

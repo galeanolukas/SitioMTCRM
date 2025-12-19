@@ -62,6 +62,20 @@ body {
 
   <!-- Right navbar links -->
   <ul class="navbar-nav ml-auto">
+    {% if request.user.is_superuser %}
+    <!-- Sync Toggle -->
+    <li class="nav-item">
+      <div class="nav-link">
+        <div class="custom-control custom-switch">
+          <input type="checkbox" class="custom-control-input" id="syncToggle" {% if request.session.sync_enabled != 'false' %}checked{% endif %}>
+          <label class="custom-control-label" for="syncToggle" title="Activar/Desactivar Sincronización Automática">
+            <i class="fas fa-sync-alt"></i>
+          </label>
+        </div>
+      </div>
+    </li>
+    {% endif %}
+    
     <!-- Messages Dropdown Menu -->
     <li class="nav-item dropdown">
       <a class="nav-link" data-toggle="dropdown" href="#">
@@ -259,4 +273,74 @@ body {
       }
     }, 3000);
   })();
+  
+  // Sync Toggle Functionality
+  document.getElementById('syncToggle').addEventListener('change', function() {
+    const isEnabled = this.checked;
+    
+    // Update session via AJAX
+    fetch('{% url "erp:sync_toggle" %}', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCookie('csrftoken')
+      },
+      body: JSON.stringify({
+        'sync_enabled': isEnabled
+      })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        // Show notification
+        showNotification(isEnabled ? 'Sincronización automática activada' : 'Sincronización automática desactivada', 
+                         isEnabled ? 'success' : 'warning');
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      // Revert toggle on error
+      this.checked = !this.checked;
+      showNotification('Error al cambiar estado de sincronización', 'error');
+    });
+  });
+  
+  // Helper function to get CSRF token
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+  
+  // Show notification function
+  function showNotification(message, type) {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    notification.style.cssText = 'top: 70px; right: 20px; z-index: 9999; min-width: 300px;';
+    notification.innerHTML = `
+      ${message}
+      <button type="button" class="close" data-dismiss="alert">
+        <span>&times;</span>
+      </button>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Auto-remove after 3 seconds
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.parentNode.removeChild(notification);
+      }
+    }, 3000);
+  }
 </script>

@@ -49,10 +49,17 @@ class ErpConfig(AppConfig):
         def _sync_worker():
             while True:
                 try:
+                    # Check if sync is globally disabled before running
+                    from core.erp.models.sync_status import GlobalSyncStatus
+                    if not GlobalSyncStatus.is_sync_enabled():
+                        print("Sincronización desactivada globalmente - omitiendo ejecución automática")
+                        time.sleep(base_interval)
+                        continue
+                    
+                    print("Iniciando sincronización automática...")
                     run_full_sync()
-                except Exception:
-                    # No romper el hilo si hay errores de sync
-                    pass
+                except Exception as e:
+                    print(f"Error en sincronización automática: {e}")
 
                 # Leer configuración dinámica del intervalo en cada vuelta.
                 interval_seconds = base_interval
@@ -65,6 +72,7 @@ class ErpConfig(AppConfig):
                     # Ante cualquier error, usar el intervalo base
                     interval_seconds = base_interval
 
+                print(f"Próxima sincronización en {interval_seconds} segundos...")
                 time.sleep(interval_seconds)
 
         t = threading.Thread(target=_sync_worker, daemon=True)

@@ -139,8 +139,41 @@
   }
 
   document.addEventListener('DOMContentLoaded', function () {
-    // Sync automático al entrar
-    runSync();
+    // Check if sync is enabled before running automatic sync
+    fetch('/erp/sync/toggle/', {
+      method: 'GET',
+      headers: {
+        'X-CSRFToken': getCookie('csrftoken'),
+        'Content-Type': 'application/json'
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success && data.sync_enabled) {
+        // Sync automático al entrar solo si está habilitado
+        runSync();
+      } else {
+        // Show message that sync is disabled
+        const box = document.getElementById('sync-status');
+        const msg = document.getElementById('sync-message');
+        if (box && msg) {
+          box.classList.remove('d-none');
+          box.classList.remove('alert-info', 'alert-success', 'alert-danger');
+          box.classList.add('alert-warning');
+          msg.textContent = 'Sincronización automática desactivada';
+          
+          // Hide after 3 seconds
+          setTimeout(() => {
+            box.classList.add('d-none');
+          }, 3000);
+        }
+      }
+    })
+    .catch(err => {
+      // If we can't check sync status, run sync anyway (fallback)
+      console.log('No se pudo verificar estado de sincronización, ejecutando por defecto');
+      runSync();
+    });
 
     // Botón de sync manual (solo visible para superusuarios)
     const btnManual = document.getElementById('btn-sync-manual');

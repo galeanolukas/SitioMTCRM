@@ -9,7 +9,6 @@ import uuid
 from core.erp.choices import gender_choices, payment_method_choices
 from core.models import BaseModel
 from config.settings import MEDIA_URL, STATIC_URL
-from django.db import models
 from django.conf import settings
 # ... other imports ...
 
