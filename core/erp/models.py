@@ -487,6 +487,7 @@ class CashRegister(models.Model):
         verbose_name = 'Cierre de caja'
         verbose_name_plural = 'Cierres de caja'
         ordering = ['-date', '-created_at']
+        unique_together = ['company', 'date', 'user']
         permissions = [
             ("close_cash_register", "Puede cerrar caja"),
             ("view_cash_register", "Puede ver cierres de caja"),

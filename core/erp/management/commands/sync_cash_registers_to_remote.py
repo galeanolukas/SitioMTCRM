@@ -43,21 +43,50 @@ class Command(BaseCommand):
                     continue
 
                 with transaction.atomic(using='remote'):
-                    # Crear cabecera de caja en remoto
-                    remote_cr = CashRegister.objects.using('remote').create(
-                        company_id=remote_company_id,
-                        user_id=cr.user_id,
-                        date=cr.date,
-                        opening_balance=cr.opening_balance,
-                        closing_balance=cr.closing_balance,
-                        cash_sales=cr.cash_sales,
-                        card_sales=cr.card_sales,
-                        transfer_sales=cr.transfer_sales,
-                        mp_sales=cr.mp_sales,
-                        expenses=cr.expenses,
-                        notes=cr.notes,
-                        is_closed=cr.is_closed,
-                    )
+                    # Verificar si ya existe un cierre de caja con sync_id único
+                    existing_cr = None
+                    if cr.sync_id:
+                        existing_cr = CashRegister.objects.using('remote').filter(sync_id=cr.sync_id).first()
+                    
+                    if existing_cr:
+                        # Actualizar el registro existente en lugar de crear uno nuevo
+                        existing_cr.company_id=remote_company_id
+                        existing_cr.user_id=cr.user_id
+                        existing_cr.date=cr.date
+                        existing_cr.opening_balance=cr.opening_balance
+                        existing_cr.closing_balance=cr.closing_balance
+                        existing_cr.cash_sales=cr.cash_sales
+                        existing_cr.card_sales=cr.card_sales
+                        existing_cr.transfer_sales=cr.transfer_sales
+                        existing_cr.mp_sales=cr.mp_sales
+                        existing_cr.expenses=cr.expenses
+                        existing_cr.notes=cr.notes
+                        existing_cr.is_closed=cr.is_closed
+                        existing_cr.save()
+                        remote_cr = existing_cr
+                    else:
+                        # Crear nuevo cierre de caja en remoto con sync_id único
+                        import uuid
+                        sync_id = f"pos_{cr.id}_{uuid.uuid4().hex[:8]}"
+                        
+                        remote_cr = CashRegister.objects.using('remote').create(
+                            company_id=remote_company_id,
+                            user_id=cr.user_id,
+                            date=cr.date,
+                            opening_balance=cr.opening_balance,
+                            closing_balance=cr.closing_balance,
+                            cash_sales=cr.cash_sales,
+                            card_sales=cr.card_sales,
+                            transfer_sales=cr.transfer_sales,
+                            mp_sales=cr.mp_sales,
+                            expenses=cr.expenses,
+                            notes=cr.notes,
+                            is_closed=cr.is_closed,
+                            sync_id=sync_id,
+                        )
+                        
+                        # Guardar sync_id en el registro local
+                        CashRegister.objects.using('default').filter(pk=cr.pk).update(sync_id=sync_id)
 
                     # Sincronizar movimientos asociados que aún no estén sincronizados
                     movements = CashMovement.objects.using('default').filter(cash_register=cr, is_synced=False)

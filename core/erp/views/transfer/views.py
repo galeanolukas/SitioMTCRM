@@ -117,7 +117,36 @@ class TransferCreateView(LoginRequiredMixin, View):
         companies = Company.objects.filter(is_active=True)
         current_company = Company.objects.filter(pk=active_cid).first() if active_cid else None
         
-        # Obtener todos los productos de la empresa actual y serializar a JSON
+        # Si la empresa actual no tiene productos, buscar una que sí tenga
+        if current_company and Product.objects.filter(company_id=current_company.id).count() == 0:
+            # Buscar la primera empresa con productos
+            for company in companies:
+                if Product.objects.filter(company_id=company.id).exists():
+                    current_company = company
+                    active_cid = company.id
+                    break
+        
+        # Obtener productos de TODAS las empresas para el filtrado dinámico
+        all_products_data = []
+        for company in companies:
+            products = Product.objects.filter(company_id=company.id)
+            for product in products:
+                all_products_data.append({
+                    'id': product.id,
+                    'name': product.name,
+                    'code': product.code or '',
+                    'stock': float(product.stock),
+                    'unit': product.get_unit_display(),
+                    'pvp': float(product.pvp),
+                    'company_id': company.id,
+                    'company_name': company.name
+                })
+        
+        # Serializar a JSON
+        import json
+        all_products_json = json.dumps(all_products_data)
+        
+        # Obtener productos de la empresa actual para mostrar inicialmente
         products_json = '[]'
         if current_company:
             products = Product.objects.filter(company_id=current_company.id)
@@ -129,9 +158,8 @@ class TransferCreateView(LoginRequiredMixin, View):
                     'code': product.code or '',
                     'stock': float(product.stock),
                     'unit': product.get_unit_display(),
-                    'price': float(product.pvp)
+                    'pvp': float(product.pvp)
                 })
-            import json
             products_json = json.dumps(products_data)
         
         context = {
@@ -142,7 +170,8 @@ class TransferCreateView(LoginRequiredMixin, View):
             'companies': companies,
             'current_company': current_company,
             'products': Product.objects.filter(company_id=current_company.id) if current_company else Product.objects.none(),
-            'products_json': products_json  # Agregar JSON serializado
+            'products_json': products_json,
+            'all_products_json': all_products_json,
         }
         return render(request, 'transfer/create.html', context)
     

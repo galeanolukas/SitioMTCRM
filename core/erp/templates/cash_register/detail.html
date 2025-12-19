@@ -24,7 +24,7 @@
                     </tr>
                     <tr>
                         <th>Usuario</th>
-                        <td>{{ object.user.get_full_name }}</td>
+                        <td>{{ object.user.get_full_name|default:object.user.username }}</td>
                     </tr>
                     <tr>
                         <th>Fecha</th>

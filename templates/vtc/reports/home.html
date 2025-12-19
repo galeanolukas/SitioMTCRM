@@ -74,17 +74,16 @@
         </div>
       </div>
 
-      <!-- Reporte de Gastos -->
-      <div class="col-md-4">
-        <div class="card mb-3">
-          <div class="card-header">
-            <i class="fas fa-receipt mr-1"></i> Gastos
-          </div>
-          <div class="card-body">
-            <p>Exporta gastos según el alcance seleccionado.</p>
-            <button class="btn btn-primary" id="btn-export-expenses">
-              <i class="fas fa-file-export mr-1"></i> Exportar
-            </button>
+      <!-- Reporte de Flujo de Caja -->
+      <div class="col-lg-4 col-md-6">
+        <div class="info-box">
+          <span class="info-box-icon bg-warning"><i class="fas fa-chart-pie"></i></span>
+          <div class="info-box-content">
+            <span class="info-box-text">Flujo de Caja</span>
+            <span class="info-box-number">Análisis de flujo</span>
+            <a href="{% url 'erp:cash_flow_report' %}" class="small-box-footer">
+              Ver más <i class="fas fa-arrow-circle-right"></i>
+            </a>
           </div>
         </div>
       </div>

@@ -87,28 +87,42 @@
           </div>
           <div class="card-body">
             <div class="row">
-              <div class="col-md-12">
+              <div class="col-md-8">
                 <div class="form-group">
                   <label for="productSearch">Seleccionar Producto</label>
                   <select id="productSearch" class="form-control" style="width: 100%">
                     <option value="">Seleccione un producto...</option>
-                    {% for product in products %}
-                    <option value="{{ product.id }}" 
-                            data-name="{{ product.name }}" 
-                            data-code="{{ product.code|default:'' }}" 
-                            data-stock="{{ product.stock }}" 
-                            data-unit="{{ product.get_unit_display }}" 
-                            data-price="{{ product.pvp }}">
-                      {{ product.name }}{% if product.code %} ({{ product.code }}){% endif %} - Stock: {{ product.stock }} {{ product.get_unit_display }}
-                    </option>
-                    {% endfor %}
+                    {% if products %}
+                      {% for product in products %}
+                      <option value="{{ product.id }}" 
+                              data-name="{{ product.name }}" 
+                              data-code="{{ product.code|default:'' }}" 
+                              data-stock="{{ product.stock }}" 
+                              data-unit="{{ product.unit }}" 
+                              data-price="{{ product.pvp }}">
+                        {{ product.name }}{% if product.code %} ({{ product.code }}){% endif %} - Stock: {{ product.stock }} {{ product.unit }}
+                      </option>
+                      {% endfor %}
+                    {% else %}
+                      <option value="" disabled>No hay productos disponibles</option>
+                    {% endif %}
                   </select>
                 </div>
               </div>
+              <div class="col-md-4">
+                <div class="form-group">
+                  <label for="productQuantity">Cantidad</label>
+                  <input type="number" id="productQuantity" class="form-control" 
+                         value="1" min="0.001" step="0.001" placeholder="Cantidad">
+                  <small class="form-text text-muted">Cantidad a transferir</small>
+                </div>
+              </div>
+            </div>
+            <div class="row">
               <div class="col-md-12">
                 <div class="form-group">
                   <label>&nbsp;</label><br>
-                  <button type="button" class="btn btn-primary btn-block" onclick="addProduct()">
+                  <button type="button" class="btn btn-primary btn-block" onclick="addProductFromSearch()">
                     <i class="fas fa-plus"></i> Agregar Producto Seleccionado
                   </button>
                 </div>
@@ -155,51 +169,25 @@
   </div>
 {% endblock %}
 
+<!-- Debug: products length = {{ products|length }} -->
+<!-- Debug: current_company = {{ current_company.name|default:'None' }} -->
 {% block javascript %}
-  <script src="{% static 'lib/select2-4.0.13/js/select2.min.js' %}"></script>
   <script>
-    $(function () {
-      // Inicializar Select2 para búsqueda de productos
-      $('#productSearch').select2({
-        ajax: {
-          url: '/erp/transfer/search/',
-          type: 'POST',
-          dataType: 'json',
-          delay: 250,
-          data: function (params) {
-            return {
-              action: 'search_products',
-              term: params.term,
-              csrfmiddlewaretoken: getCookie('csrftoken')
-            };
-          },
-          processResults: function (data) {
-            return {
-              results: data.map(function(item) {
-                return {
-                  id: item.id,
-                  text: item.code + ' - ' + item.name + ' (Stock: ' + item.stock + ')',
-                  data: item
-                };
-              })
-            };
-          },
-          cache: true
-        },
-        minimumInputLength: 2,
-        placeholder: 'Buscar por código o nombre...'
-      });
-    });
-
     // Variables globales
     let products = [];
     let rowIndex = 0;
 
-    // Función para agregar producto - DEFINICIÓN GLOBAL
-    window.addProduct = function() {
-      console.log('addProduct() llamada'); // Debug
+    // Función para agregar producto
+    window.addProductFromSearch = function() {
+      // Obtener cantidad
+      let quantity = parseFloat($('#productQuantity').val()) || 1;
+      if (isNaN(quantity) || quantity <= 0) {
+        alert('Ingrese una cantidad válida');
+        return;
+      }
+
+      // Obtener opción seleccionada
       const selected = $('#productSearch').find(':selected');
-      console.log('Opción seleccionada:', selected.val()); // Debug
       
       if (!selected.val()) {
         alert('Seleccione un producto');
@@ -207,50 +195,48 @@
       }
 
       // Obtener datos del producto desde los atributos data
-      const product = {
+      const productData = {
         id: parseInt(selected.val()),
         name: selected.data('name'),
         code: selected.data('code'),
         stock: parseFloat(selected.data('stock')),
-        unit: selected.data('unit'),
         pvp: parseFloat(selected.data('price'))
       };
       
-      console.log('Datos del producto:', product); // Debug
-      
       // Verificar si ya está agregado
-      if (products.find(p => p.id === product.id)) {
+      if (products.find(p => p.id === productData.id)) {
         alert('Este producto ya está agregado');
         return;
       }
 
       // Verificar stock
-      if (product.stock <= 0) {
-        alert('Este producto no tiene stock disponible');
+      if (productData.stock < quantity) {
+        alert(`Stock insuficiente. Disponible: ${productData.stock}, Requerido: ${quantity}`);
         return;
       }
 
       // Agregar a la lista
-      products.push({
-        id: product.id,
-        code: product.code,
-        name: product.name,
-        stock: product.stock,
-        quantity: 1,
-        unit_price: product.pvp,
-        subtotal: product.pvp,
+      const newProduct = {
+        id: productData.id,
+        code: productData.code,
+        name: productData.name,
+        stock: productData.stock,
+        quantity: quantity,
+        unit_price: productData.pvp,
+        subtotal: quantity * productData.pvp,
         index: rowIndex
-      });
-
-      console.log('Producto agregado a la lista:', products); // Debug
+      };
+      
+      products.push(newProduct);
 
       // Agregar fila a la tabla
-      addRow(product);
+      addRow(newProduct);
 
-      // Resetear selección
+      // Resetear selección y cantidad
       $('#productSearch').val('');
+      $('#productQuantity').val('1');
       
-      alert('Producto agregado correctamente');
+      alert(`${productData.name} agregado correctamente`);
     };
 
     function addRow(product) {
@@ -262,7 +248,7 @@
           <td>${product.stock}</td>
           <td>
             <input type="number" name="quantities[]" class="form-control form-control-sm" 
-                   value="1" min="0.001" max="${product.stock}" step="0.001" 
+                   value="${product.quantity}" min="0.001" max="${product.stock}" step="0.001" 
                    onchange="updateQuantity(${rowIndex}, this.value)">
           </td>
           <td>
@@ -270,7 +256,7 @@
                    value="${product.pvp}" min="0" step="0.01" 
                    onchange="updatePrice(${rowIndex}, this.value)">
           </td>
-          <td class="subtotal">$${product.pvp.toFixed(2)}</td>
+          <td class="subtotal">$${product.subtotal.toFixed(2)}</td>
           <td>
             <button type="button" class="btn btn-danger btn-sm" onclick="removeRow(${rowIndex})">
               <i class="fas fa-trash"></i>
@@ -281,6 +267,7 @@
       
       $('#productsTable tbody').append(row);
       rowIndex++;
+      updateTotal();
     }
 
     function removeRow(index) {
@@ -315,293 +302,34 @@
     }
 
     // Validar formulario antes de enviar
-    $('#transferForm').on('submit', function(e) {
-      // Validar selección de empresas
-      const originCompany = $('#origin_company').val();
-      const destinationCompany = $('#destination_company').val();
+    $(document).ready(function() {
+      // Esperar a que Select2 se inicialice y luego destruirlo
+      setTimeout(function() {
+        try {
+          $('#productSearch').select2('destroy');
+        } catch (e) {
+          console.log('Select2 no estaba inicializado:', e);
+        }
+        
+        // Forzar que el select se muestre normalmente
+        $('#productSearch').removeClass('select2-hidden-accessible');
+        $('#productSearch').removeAttr('aria-hidden');
+        $('#productSearch').nextAll('.select2').remove();
+        
+        // Mostrar el select original
+        $('#productSearch').show();
+        
+        console.log('Select de productos forzado a modo normal');
+      }, 100);
       
-      if (!originCompany || !destinationCompany) {
-        e.preventDefault();
-        alert('Debe seleccionar empresas de origen y destino');
-        return false;
-      }
-      
-      if (originCompany === destinationCompany) {
-        e.preventDefault();
-        alert('Las empresas de origen y destino deben ser diferentes');
-        return false;
-      }
-      
-      if (products.length === 0) {
-        e.preventDefault();
-        alert('Debe agregar al menos un producto');
-        return false;
-      }
-      
-      // Verificar cantidades válidas
-      for (let product of products) {
-        if (product.quantity <= 0) {
+      $('#transferForm').on('submit', function(e) {
+        if (products.length === 0) {
           e.preventDefault();
-          alert('Todas las cantidades deben ser mayores a cero');
+          alert('Debe agregar al menos un producto');
           return false;
         }
-      }
-      
-      return true;
-    });
-
-    // Actualizar opciones de destino cuando cambia el origen
-    $('#origin_company').on('change', function() {
-      const selectedOrigin = $(this).val();
-      const destinationSelect = $('#destination_company');
-      
-      // Limpiar y repoblar destino
-      destinationSelect.empty();
-      destinationSelect.append('<option value="">Seleccione una empresa...</option>');
-      
-      // Obtener datos de empresas desde los data-attributes
-      const companiesData = $('#companiesData').data('companies');
-      
-      if (companiesData) {
-        companiesData.forEach(function(company) {
-          if (company.id != selectedOrigin) {
-            destinationSelect.append(`<option value="${company.id}">${company.name}</option>`);
-          }
-        });
-      }
-      
-      // Resetear y reinicializar selector de productos
-      $('#productSearch').select2('destroy');
-      $('#productSearch').empty().append('<option value="">Seleccione un producto...</option>');
-      
-      // Limpiar tabla de productos
-      products = [];
-      $('#productsTable tbody').empty();
-      updateTotal();
-      
-      // Cargar productos disponibles para la nueva empresa origen
-      if (selectedOrigin) {
-        initializeProductSearch();
-        loadAvailableProducts(selectedOrigin);
-      } else {
-        // Ocultar sección de productos disponibles si no hay empresa origen
-        $('#availableProductsSection').empty();
-      }
-    });
-
-    // Inicializar Select2 para búsqueda de productos (solo cuando hay empresa origen)
-    function initializeProductSearch() {
-      const originCompany = $('#origin_company').val();
-      
-      if (!originCompany) {
-        console.log('No hay empresa origen seleccionada');
-        return;
-      }
-      
-      console.log('Inicializando búsqueda para empresa:', originCompany);
-      
-      // Destruir instancia anterior si existe
-      try {
-        $('#productSearch').select2('destroy');
-      } catch(e) {
-        console.log('No había instancia anterior de Select2');
-      }
-      
-      $('#productSearch').select2({
-        placeholder: 'Buscar producto...',
-        allowClear: true,
-        width: '100%',
-        ajax: {
-          url: '/erp/transfer/products/',
-          dataType: 'json',
-          delay: 250,
-          data: function(params) {
-            console.log('Buscando:', params.term); // Debug
-            return {
-              term: params.term,
-              company_id: originCompany
-            };
-          },
-          processResults: function(data) {
-            console.log('Datos recibidos:', data); // Debug
-            if (!data || data.length === 0) {
-              return {
-                results: [{id: '', text: 'No se encontraron productos', disabled: true}]
-              };
-            }
-            return {
-              results: data.map(function(item) {
-                // Formato similar al POS: nombre (código) - Stock: cantidad unidad
-                let stockText = item.stock > 0 ? `Stock: ${item.stock} ${item.unit}` : 'Sin stock';
-                let displayText = item.code ? 
-                  `${item.name} (${item.code}) - ${stockText}` : 
-                  `${item.name} - ${stockText}`;
-                
-                return {
-                  id: item.id,
-                  text: displayText,
-                  data: item
-                };
-              })
-            };
-          },
-          cache: true,
-          error: function(xhr, status, error) {
-            console.error('Error en AJAX:', error); // Debug
-            console.error('Response:', xhr.responseText); // Debug
-            return {
-              results: [{id: '', text: 'Error al cargar productos', disabled: true}]
-            };
-          }
-        },
-        minimumInputLength: 2,
-        language: {
-          noResults: function() {
-            return 'No se encontraron productos';
-          },
-          inputTooShort: function() {
-            return 'Ingrese al menos 2 caracteres';
-          }
-        }
+        return true;
       });
-    }
-
-    // Inicializar búsqueda cuando el documento esté listo
-    $(document).ready(function() {
-      console.log('Documento listo');
-      
-      // Obtener empresa origen actual
-      const originCompany = $('#origin_company').val();
-      console.log('Empresa origen inicial:', originCompany);
-      
-      // Si hay empresa origen seleccionada (debería ser la actual), inicializar búsqueda
-      if (originCompany) {
-        initializeProductSearch();
-        
-        // Cargar automáticamente los productos disponibles
-        loadAvailableProducts(originCompany);
-      }
     });
-
-    // Función para cargar automáticamente productos disponibles
-    function loadAvailableProducts(companyId) {
-      console.log('Cargando productos disponibles para empresa:', companyId);
-      
-      $.ajax({
-        url: `/erp/transfer/products/?company_id=${companyId}`,
-        dataType: 'json',
-        success: function(data) {
-          console.log('Productos cargados:', data);
-          
-          if (data && data.length > 0) {
-            // Mostrar productos en una tabla para fácil selección
-            displayAvailableProducts(data);
-          } else {
-            $('#availableProductsSection').hide();
-            console.log('No hay productos con stock disponible');
-          }
-        },
-        error: function(xhr, status, error) {
-          console.error('Error cargando productos:', error);
-          $('#availableProductsSection').hide();
-        }
-      });
-    }
-
-    // Función para mostrar productos disponibles en una tabla
-    function displayAvailableProducts(products) {
-      let html = `
-        <div class="card mb-3" id="availableProductsSection">
-          <div class="card-header">
-            <h6 class="mb-0">
-              <i class="fas fa-box"></i> 
-              Inventario Disponible - ${products.length} productos con stock
-            </h6>
-          </div>
-          <div class="card-body p-0">
-            <div class="table-responsive">
-              <table class="table table-sm table-hover mb-0">
-                <thead class="table-light">
-                  <tr>
-                    <th>Código</th>
-                    <th>Producto</th>
-                    <th>Stock</th>
-                    <th>Precio</th>
-                    <th width="120">Acción</th>
-                  </tr>
-                </thead>
-                <tbody>
-      `;
-      
-      products.forEach(function(product) {
-        html += `
-          <tr>
-            <td>${product.code || 'S/C'}</td>
-            <td>${product.name}</td>
-            <td><span class="badge bg-info">${product.stock} ${product.unit}</span></td>
-            <td>$${product.pvp.toFixed(2)}</td>
-            <td>
-              <button type="button" class="btn btn-sm btn-primary" onclick="addProductToTransfer(${product.id}, '${product.name.replace(/'/g, "\\'")}', ${product.stock}, ${product.pvp})">
-                <i class="fas fa-plus"></i> Agregar
-              </button>
-            </td>
-          </tr>
-        `;
-      });
-      
-      html += `
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      `;
-      
-      // Insertar antes de la sección de búsqueda manual
-      $('#productSearchSection').before(html);
-    }
-
-    // Función para agregar producto desde la tabla de disponibles
-    function addProductToTransfer(productId, productName, stock, price) {
-      // Verificar si ya está agregado
-      if (products.find(p => p.id === productId)) {
-        alert('Este producto ya está agregado');
-        return;
-      }
-
-      // Agregar a la lista
-      const product = {
-        id: productId,
-        name: productName,
-        stock: stock,
-        quantity: 1, // Cantidad por defecto
-        unit_price: price,
-        subtotal: price
-      };
-      
-      products.push(product);
-      
-      // Agregar fila a la tabla
-      addRow(product, rowIndex++);
-      updateTotal();
-      
-      // Feedback visual
-      alert(`${productName} agregado a la transferencia`);
-    }
-
-    function getCookie(name) {
-      let cookieValue = null;
-      if (document.cookie && document.cookie !== '') {
-        const cookies = document.cookie.split(';');
-        for (let i = 0; i < cookies.length; i++) {
-          const cookie = cookies[i].trim();
-          if (cookie.substring(0, name.length + 1) === (name + '=')) {
-            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-            break;
-          }
-        }
-      }
-      return cookieValue;
-    }
   </script>
 {% endblock %}

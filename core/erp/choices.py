@@ -9,4 +9,5 @@ payment_method_choices = (
     ('transfer', 'Transferencia'),
     ('mp', 'Mercado Pago'),
     ('check', 'Cheque'),
+    ('combined', 'Combinada'),
 )
