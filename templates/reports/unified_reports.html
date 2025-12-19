@@ -417,9 +417,18 @@ $(document).ready(function() {
 });
 
 function exportReport(format) {
-    const form = $('#filter-form');
-    const url = '{% url "erp:export_report" %}?' + form.serialize() + '&format=' + format;
-    window.open(url, '_blank');
+    const form = document.getElementById('filter-form');
+    const formData = new FormData(form);
+    const params = new URLSearchParams();
+    
+    // Add form data to URL params
+    for (let [key, value] of formData.entries()) {
+        params.append(key, value);
+    }
+    params.append('format', format);
+    
+    const url = '{% url "erp:export_report" %}?' + params.toString();
+    window.location.href = url;
 }
 </script>
 {% endblock %}

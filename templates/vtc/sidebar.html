@@ -108,11 +108,19 @@
           </a>
         </li>
         {% endif %}
-        {% if request.user.is_superuser %}
+        {% if perms.erp.add_product %}
         <li class="nav-item">
           <a href="{% url 'erp:product_import' %}" class="nav-link">
             <i class="fas fa-file-import nav-icon"></i>
             <p>Importar inventario</p>
+          </a>
+        </li>
+        {% endif %}
+        {% if request.user.is_superuser or perms.erp.view_sale %}
+        <li class="nav-item">
+          <a href="{% url 'erp:operator_sales_report' %}" class="nav-link">
+            <i class="fas fa-chart-bar nav-icon"></i>
+            <p>Reporte de Ventas</p>
           </a>
         </li>
         {% endif %}

@@ -579,6 +579,7 @@ class SaleListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView
     model = Sale
     template_name = 'sale/list.html'
     permission_required = 'erp.view_sale'
+    ordering = ['-date_joined']
 
     @method_decorator(csrf_exempt)
     def dispatch(self, request, *args, **kwargs):
@@ -593,7 +594,7 @@ class SaleListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView
                 active_cid = request.session.get('company_id') if hasattr(request, 'session') else None
                 if not request.user.is_superuser:
                     active_cid = active_cid or getattr(request.user, 'company_id', None)
-                qs = Sale.objects.all()
+                qs = Sale.objects.all().order_by('-date_joined')
                 if active_cid:
                     qs = qs.filter(company_id=active_cid)
                 for i in qs:

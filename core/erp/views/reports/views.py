@@ -206,7 +206,13 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
 
 class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
     def test_func(self):
-        return self.request.user.is_superuser
+        # Allow superusers and users with view permissions
+        return self.request.user.is_superuser or (
+            hasattr(self.request.user, 'has_perm') and 
+            (self.request.user.has_perm('erp.view_sale') or 
+             self.request.user.has_perm('erp.view_product') or
+             self.request.user.has_perm('erp.view_expense'))
+        )
     
     def get(self, request):
         report_type = request.GET.get('report_type', 'sales')
@@ -216,25 +222,29 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
         payment_method = request.GET.get('payment_method', '')
         export_format = request.GET.get('format', 'csv')
         
-        # Obtener datos según el tipo de reporte
-        if report_type == 'sales':
-            data = self.get_sales_export_data(company_id, start_date, end_date, payment_method)
-            filename = f'ventas_{start_date}_al_{end_date}'
-        elif report_type == 'inventory':
-            data = self.get_inventory_export_data(company_id)
-            filename = f'inventario_{datetime.now().strftime("%Y-%m-%d")}'
-        elif report_type == 'expenses':
-            data = self.get_expenses_export_data(company_id, start_date, end_date)
-            filename = f'gastos_{start_date}_al_{end_date}'
-        elif report_type == 'profit':
-            data = self.get_profit_export_data(company_id, start_date, end_date)
-            filename = f'ganancias_{start_date}_al_{end_date}'
-        
-        # Exportar según formato
-        if export_format == 'excel':
-            return self.export_to_excel(data, filename, report_type)
-        else:
-            return self.export_to_csv(data, filename, report_type)
+        try:
+            # Obtener datos según el tipo de reporte
+            if report_type == 'sales':
+                data = self.get_sales_export_data(company_id, start_date, end_date, payment_method)
+                filename = f'ventas_{start_date}_al_{end_date}'
+            elif report_type == 'inventory':
+                data = self.get_inventory_export_data(company_id)
+                filename = f'inventario_{datetime.now().strftime("%Y-%m-%d")}'
+            elif report_type == 'expenses':
+                data = self.get_expenses_export_data(company_id, start_date, end_date)
+                filename = f'gastos_{start_date}_al_{end_date}'
+            elif report_type == 'profit':
+                data = self.get_profit_export_data(company_id, start_date, end_date)
+                filename = f'ganancias_{start_date}_al_{end_date}'
+            
+            # Exportar según formato
+            if export_format == 'excel':
+                return self.export_to_excel(data, filename, report_type)
+            else:
+                return self.export_to_csv(data, filename, report_type)
+        except Exception as e:
+            # Return error as plain text for debugging
+            return HttpResponse(f"Error en exportación: {str(e)}", content_type='text/plain')
     
     def get_sales_export_data(self, company_id, start_date, end_date, payment_method):
         filters = {

@@ -4,6 +4,7 @@ from core.erp.views.product.views import *
 from core.erp.views.client.views import ClientListView, ClientCreateView, ClientUpdateView, ClientDeleteView
 from core.erp.views.sale.views import SaleListView, SaleCreateView, SaleUpdateView, SaleDeleteView, ticket_print, POSView, InvoiceListView, InvoiceCreateView, invoice_pdf, sync_sales_api
 from core.erp.views.transfer.views import TransferListView, TransferCreateView, TransferDetailView, TransferReceiveView, TransferSearchView, TransferProductSearchView
+from core.erp.views.operator_reports.views import OperatorSalesReportView, operator_sales_export
 from core.erp.views.tests.views import *
 from core.erp.views.dashboard.views import (
     DashboardView,
@@ -97,6 +98,9 @@ urlpatterns = [
     # reports (superuser)
     path('reports/', UnifiedReportsView.as_view(), name='unified_reports'),
     path('reports/export/', ExportReportView.as_view(), name='export_report'),
+    # operator reports
+    path('operator/sales/', OperatorSalesReportView.as_view(), name='operator_sales_report'),
+    path('operator/sales/export/', operator_sales_export, name='operator_sales_export'),
     # profit reports (superuser only)
     path('profit-report/', ProfitReportView.as_view(), name='profit_report'),
     path('generate-profit-report/', GenerateProfitReportView.as_view(), name='generate_profit_report'),
