@@ -288,26 +288,59 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
         writer = csv.writer(response)
         
         if report_type == 'sales':
-            writer.writerow(['Fecha', 'Cliente', 'Total', 'Forma de Pago', 'Empresa'])
+            # Título del reporte
+            writer.writerow(['REPORTE DE VENTAS'])
+            writer.writerow([])  # Fila vacía
+            writer.writerow(['Fecha', 'Ticket/Factura', 'Cliente', 'Subtotal', 'IVA', 'Total', 'Forma de Pago', 'Empresa'])
             total_amount = 0
+            total_iva = 0
             for sale in data:
+                ticket_factura = ''
+                if sale.invoice_number:
+                    ticket_factura = f"{sale.invoice_pos}-{sale.invoice_number}"
+                else:
+                    ticket_factura = f"Ticket #{sale.id}"
+                    
                 writer.writerow([
                     sale.date_joined.strftime('%Y-%m-%d %H:%M'),
+                    ticket_factura,
                     sale.cli.names if sale.cli else 'N/A',
-                    sale.total,
+                    float(sale.subtotal),
+                    float(sale.iva),
+                    float(sale.total),
                     sale.get_payment_method_display(),
                     sale.company.name if sale.company else 'N/A'
                 ])
                 total_amount += float(sale.total)
+                total_iva += float(sale.iva)
             
             # Resumen final
             writer.writerow([])  # Fila vacía
             writer.writerow(['RESUMEN'])
             writer.writerow(['Total Ventas', total_amount])
+            writer.writerow(['Total IVA', total_iva])
             writer.writerow(['Cantidad de Ventas', len(data)])
             writer.writerow(['Promedio por Venta', total_amount / len(data) if data else 0])
+            
+            # Totales por forma de pago
+            writer.writerow([])  # Fila vacía
+            writer.writerow(['VENTAS POR FORMA DE PAGO'])
+            
+            # Calcular totales por forma de pago
+            from django.db.models import Sum
+            payment_totals = data.values('payment_method').annotate(
+                total=Sum('total'),
+                count=Count('id')
+            ).order_by('-total')
+            
+            for payment in payment_totals:
+                payment_name = dict(payment_method_choices).get(payment['payment_method'], payment['payment_method'])
+                writer.writerow([payment_name, f"{payment['total']:.2f}", f"({payment['count']} ventas)"])  
         
         elif report_type == 'inventory':
+            # Título del reporte
+            writer.writerow(['REPORTE DE INVENTARIO'])
+            writer.writerow([])  # Fila vacía
             writer.writerow(['Producto', 'Código', 'Categoría', 'Stock', 'Costo', 'Precio Final', 'Valor Total'])
             total_stock = 0
             total_value = 0
@@ -333,6 +366,9 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
             writer.writerow(['Valor Total del Inventario', total_value])
         
         elif report_type == 'expenses':
+            # Título del reporte
+            writer.writerow(['REPORTE DE GASTOS'])
+            writer.writerow([])  # Fila vacía
             writer.writerow(['Fecha', 'Descripción', 'Monto', 'Proveedor', 'Empresa'])
             total_amount = 0
             for expense in data:
@@ -353,6 +389,9 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
             writer.writerow(['Promedio por Gasto', total_amount / len(data) if data else 0])
         
         elif report_type == 'profit':
+            # Título del reporte
+            writer.writerow(['REPORTE DE GANANCIAS'])
+            writer.writerow([])  # Fila vacía
             writer.writerow(['Concepto', 'Monto'])
             writer.writerow(['Ventas Totales', data['total_sales']])
             writer.writerow(['Costo de Ventas', data['total_cost']])
@@ -372,6 +411,8 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
         ws.title = 'Reporte'
         
         # Estilos
+        title_font = Font(bold=True, size=14)
+        title_alignment = Alignment(horizontal='center')
         header_font = Font(bold=True)
         header_alignment = Alignment(horizontal='center')
         summary_font = Font(bold=True)
@@ -379,24 +420,42 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
         row = 1
         
         if report_type == 'sales':
-            headers = ['Fecha', 'Cliente', 'Total', 'Forma de Pago', 'Empresa']
+            # Título del reporte
+            ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=8)
+            ws.cell(row=row, column=1, value='REPORTE DE VENTAS')
+            ws.cell(row=row, column=1).font = title_font
+            ws.cell(row=row, column=1).alignment = title_alignment
+            row += 2
+            
+            headers = ['Fecha', 'Ticket/Factura', 'Cliente', 'Subtotal', 'IVA', 'Total', 'Forma de Pago', 'Empresa']
             ws.append(headers)
             
-            for cell in ws[1]:
+            for cell in ws[row]:
                 cell.font = header_font
                 cell.alignment = header_alignment
             
             total_amount = 0
+            total_iva = 0
             for sale in data:
                 row += 1
+                ticket_factura = ''
+                if sale.invoice_number:
+                    ticket_factura = f"{sale.invoice_pos}-{sale.invoice_number}"
+                else:
+                    ticket_factura = f"Ticket #{sale.id}"
+                    
                 ws.append([
                     sale.date_joined.strftime('%Y-%m-%d %H:%M'),
+                    ticket_factura,
                     sale.cli.names if sale.cli else 'N/A',
+                    float(sale.subtotal),
+                    float(sale.iva),
                     float(sale.total),
                     sale.get_payment_method_display(),
                     sale.company.name if sale.company else 'N/A'
                 ])
                 total_amount += float(sale.total)
+                total_iva += float(sale.iva)
             
             # Resumen final
             row += 2
@@ -405,15 +464,43 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
             row += 1
             ws.append(['Total Ventas', total_amount])
             row += 1
+            ws.append(['Total IVA', total_iva])
+            row += 1
             ws.append(['Cantidad de Ventas', len(data)])
             row += 1
             ws.append(['Promedio por Venta', total_amount / len(data) if data else 0])
+            
+            # Totales por forma de pago
+            row += 2
+            ws.append(['VENTAS POR FORMA DE PAGO'])
+            ws.cell(row=row, column=1).font = summary_font
+            row += 1
+            
+            # Calcular totales por forma de pago
+            from django.db.models import Sum
+            payment_totals = data.values('payment_method').annotate(
+                total=Sum('total'),
+                count=Count('id')
+            ).order_by('-total')
+            
+            for payment in payment_totals:
+                from core.erp.choices import payment_method_choices
+                payment_name = dict(payment_method_choices).get(payment['payment_method'], payment['payment_method'])
+                ws.append([payment_name, float(payment['total']), f"({payment['count']} ventas)"])
+                row += 1
         
         elif report_type == 'inventory':
+            # Título del reporte
+            ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=7)
+            ws.cell(row=row, column=1, value='REPORTE DE INVENTARIO')
+            ws.cell(row=row, column=1).font = title_font
+            ws.cell(row=row, column=1).alignment = title_alignment
+            row += 2
+            
             headers = ['Producto', 'Código', 'Categoría', 'Stock', 'Costo', 'Precio Final', 'Valor Total']
             ws.append(headers)
             
-            for cell in ws[1]:
+            for cell in ws[row]:
                 cell.font = header_font
                 cell.alignment = header_alignment
             
@@ -446,10 +533,17 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
             ws.append(['Valor Total del Inventario', total_value])
         
         elif report_type == 'expenses':
+            # Título del reporte
+            ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=5)
+            ws.cell(row=row, column=1, value='REPORTE DE GASTOS')
+            ws.cell(row=row, column=1).font = title_font
+            ws.cell(row=row, column=1).alignment = title_alignment
+            row += 2
+            
             headers = ['Fecha', 'Descripción', 'Monto', 'Proveedor', 'Empresa']
             ws.append(headers)
             
-            for cell in ws[1]:
+            for cell in ws[row]:
                 cell.font = header_font
                 cell.alignment = header_alignment
             
@@ -477,10 +571,17 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
             ws.append(['Promedio por Gasto', total_amount / len(data) if data else 0])
         
         elif report_type == 'profit':
+            # Título del reporte
+            ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=2)
+            ws.cell(row=row, column=1, value='REPORTE DE GANANCIAS')
+            ws.cell(row=row, column=1).font = title_font
+            ws.cell(row=row, column=1).alignment = title_alignment
+            row += 2
+            
             headers = ['Concepto', 'Monto']
             ws.append(headers)
             
-            for cell in ws[1]:
+            for cell in ws[row]:
                 cell.font = header_font
                 cell.alignment = header_alignment
             
@@ -500,15 +601,22 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
         # Ajustar ancho de columnas
         for column in ws.columns:
             max_length = 0
-            column_letter = column[0].column_letter
+            # Obtener la primera celda no fusionada para obtener el column_letter
+            column_letter = None
             for cell in column:
-                try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(str(cell.value))
-                except:
-                    pass
-            adjusted_width = min(max_length + 2, 50)
-            ws.column_dimensions[column_letter].width = adjusted_width
+                if not isinstance(cell, openpyxl.cell.cell.MergedCell):
+                    column_letter = cell.column_letter
+                    break
+            
+            if column_letter:
+                for cell in column:
+                    try:
+                        if not isinstance(cell, openpyxl.cell.cell.MergedCell) and len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = min(max_length + 2, 50)
+                ws.column_dimensions[column_letter].width = adjusted_width
         
         # Guardar en BytesIO
         excel_file = BytesIO()

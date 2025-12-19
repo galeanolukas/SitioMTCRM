@@ -418,17 +418,11 @@ $(document).ready(function() {
 
 function exportReport(format) {
     const form = document.getElementById('filter-form');
-    const formData = new FormData(form);
-    const params = new URLSearchParams();
-    
-    // Add form data to URL params
-    for (let [key, value] of formData.entries()) {
-        params.append(key, value);
-    }
+    const params = new URLSearchParams(new FormData(form));
     params.append('format', format);
     
     const url = '{% url "erp:export_report" %}?' + params.toString();
-    window.location.href = url;
+    window.open(url, '_blank');
 }
 </script>
 {% endblock %}
