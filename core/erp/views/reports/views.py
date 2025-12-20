@@ -4,6 +4,7 @@ from django.db.models import Sum, Count, F, ExpressionWrapper, FloatField, Q
 from django.db.models.functions import TruncDay, TruncMonth, TruncYear
 from django.utils import timezone
 from django.http import HttpResponse
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from datetime import timedelta, datetime
 import json
 import csv
@@ -30,6 +31,7 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         start_date = self.request.GET.get('start_date', '')
         end_date = self.request.GET.get('end_date', '')
         payment_method = self.request.GET.get('payment_method', '')
+        page = self.request.GET.get('page', 1)
         
         # Empresas para el dropdown
         companies = Company.objects.all()
@@ -52,17 +54,17 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         
         # Obtener datos según el tipo de reporte
         if report_type == 'sales':
-            context['sales_data'] = self.get_sales_data(company_id, start_date, end_date, payment_method)
+            context['sales_data'] = self.get_sales_data(company_id, start_date, end_date, payment_method, page)
         elif report_type == 'inventory':
-            context['inventory_data'] = self.get_inventory_data(company_id)
+            context['inventory_data'] = self.get_inventory_data(company_id, page)
         elif report_type == 'expenses':
-            context['expenses_data'] = self.get_expenses_data(company_id, start_date, end_date)
+            context['expenses_data'] = self.get_expenses_data(company_id, start_date, end_date, page)
         elif report_type == 'profit':
             context['profit_data'] = self.get_profit_data(company_id, start_date, end_date)
         
         return context
     
-    def get_sales_data(self, company_id, start_date, end_date, payment_method):
+    def get_sales_data(self, company_id, start_date, end_date, payment_method, page=1):
         from core.erp.choices import payment_method_choices
         
         # Filtros base
@@ -76,23 +78,32 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         if payment_method:
             filters['payment_method'] = payment_method
         
-        sales = Sale.objects.filter(**filters).select_related('cli', 'company')
+        sales_queryset = Sale.objects.filter(**filters).select_related('cli', 'company').order_by('-date_joined')
         
-        # Resumen
-        summary = sales.aggregate(
+        # Paginación - 50 ventas por página
+        paginator = Paginator(sales_queryset, 50)
+        try:
+            sales = paginator.page(page)
+        except PageNotAnInteger:
+            sales = paginator.page(1)
+        except EmptyPage:
+            sales = paginator.page(paginator.num_pages)
+        
+        # Resumen (usando todos los datos, no solo la página actual)
+        summary = sales_queryset.aggregate(
             total_sales=Sum('total'),
             total_count=Count('id'),
             avg_ticket=Sum('total') / Count('id')
         )
         
         # Por forma de pago
-        payment_breakdown = sales.values('payment_method').annotate(
+        payment_breakdown = sales_queryset.values('payment_method').annotate(
             count=Count('id'),
             total=Sum('total')
         ).order_by('-total')
         
         # Ventas diarias
-        daily_sales = sales.annotate(
+        daily_sales = sales_queryset.annotate(
             date=TruncDay('date_joined')
         ).values('date').annotate(
             total=Sum('total'),
@@ -107,15 +118,24 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
             'payment_method_choices': dict(payment_method_choices),
         }
     
-    def get_inventory_data(self, company_id):
+    def get_inventory_data(self, company_id, page=1):
         filters = {}
         if company_id:
             filters['company_id'] = company_id
         
-        products = Product.objects.filter(**filters).select_related('cat', 'supplier')
+        products_queryset = Product.objects.filter(**filters).select_related('cat', 'supplier').order_by('name')
         
-        # Resumen
-        summary = products.aggregate(
+        # Paginación - 50 productos por página
+        paginator = Paginator(products_queryset, 50)
+        try:
+            products = paginator.page(page)
+        except PageNotAnInteger:
+            products = paginator.page(1)
+        except EmptyPage:
+            products = paginator.page(paginator.num_pages)
+        
+        # Resumen (usando todos los datos, no solo la página actual)
+        summary = products_queryset.aggregate(
             total_products=Count('id'),
             total_stock=Sum('stock'),
             total_value=Sum(F('stock') * F('pvp_final'))
@@ -126,7 +146,7 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
             'summary': summary,
         }
     
-    def get_expenses_data(self, company_id, start_date, end_date):
+    def get_expenses_data(self, company_id, start_date, end_date, page=1):
         filters = {
             'date__range': [start_date, end_date],
         }
@@ -134,23 +154,32 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         if company_id:
             filters['company_id'] = company_id
         
-        expenses = Expense.objects.filter(**filters).select_related('supplier', 'company')
+        expenses_queryset = Expense.objects.filter(**filters).select_related('supplier', 'company').order_by('-date')
         
-        # Resumen
-        summary = expenses.aggregate(
+        # Paginación - 50 gastos por página
+        paginator = Paginator(expenses_queryset, 50)
+        try:
+            expenses = paginator.page(page)
+        except PageNotAnInteger:
+            expenses = paginator.page(1)
+        except EmptyPage:
+            expenses = paginator.page(paginator.num_pages)
+        
+        # Resumen (usando todos los datos, no solo la página actual)
+        summary = expenses_queryset.aggregate(
             total_expenses=Sum('amount'),
             total_count=Count('id'),
             avg_expense=Sum('amount') / Count('id')
         )
         
         # Por proveedor
-        supplier_breakdown = expenses.values('supplier__name').annotate(
+        supplier_breakdown = expenses_queryset.values('supplier__name').annotate(
             count=Count('id'),
             total=Sum('amount')
         ).order_by('-total')
         
         # Gastos diarios
-        daily_expenses = expenses.annotate(
+        daily_expenses = expenses_queryset.annotate(
             expense_date=TruncDay('date')
         ).values('expense_date').annotate(
             total=Sum('amount'),
@@ -341,11 +370,13 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
             # Título del reporte
             writer.writerow(['REPORTE DE INVENTARIO'])
             writer.writerow([])  # Fila vacía
-            writer.writerow(['Producto', 'Código', 'Categoría', 'Stock', 'Costo', 'Precio Final', 'Valor Total'])
+            writer.writerow(['Producto', 'Código', 'Categoría', 'Stock', 'Costo', 'Precio Final', 'Valor Total', 'Valor con IVA'])
             total_stock = 0
             total_value = 0
+            total_value_with_iva = 0
             for product in data:
                 product_value = float(product.stock * product.pvp_final)
+                product_value_with_iva = float(product.stock * product.pvp_final)  # pvp_final ya incluye IVA
                 writer.writerow([
                     product.name,
                     product.code or '',
@@ -353,10 +384,12 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
                     product.stock,
                     product.cost_price,
                     product.pvp_final,
-                    product_value
+                    product_value,
+                    product_value_with_iva
                 ])
                 total_stock += float(product.stock)
                 total_value += product_value
+                total_value_with_iva += product_value_with_iva
             
             # Resumen final
             writer.writerow([])  # Fila vacía
@@ -364,6 +397,7 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
             writer.writerow(['Total Productos', len(data)])
             writer.writerow(['Stock Total', total_stock])
             writer.writerow(['Valor Total del Inventario', total_value])
+            writer.writerow(['Valor Total con IVA', total_value_with_iva])
         
         elif report_type == 'expenses':
             # Título del reporte
@@ -491,13 +525,13 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
         
         elif report_type == 'inventory':
             # Título del reporte
-            ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=7)
+            ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=8)
             ws.cell(row=row, column=1, value='REPORTE DE INVENTARIO')
             ws.cell(row=row, column=1).font = title_font
             ws.cell(row=row, column=1).alignment = title_alignment
             row += 2
             
-            headers = ['Producto', 'Código', 'Categoría', 'Stock', 'Costo', 'Precio Final', 'Valor Total']
+            headers = ['Producto', 'Código', 'Categoría', 'Stock', 'Costo', 'Precio Final', 'Valor Total', 'Valor con IVA']
             ws.append(headers)
             
             for cell in ws[row]:
@@ -506,9 +540,11 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
             
             total_stock = 0
             total_value = 0
+            total_value_with_iva = 0
             for product in data:
                 row += 1
                 product_value = float(product.stock * product.pvp_final)
+                product_value_with_iva = float(product.stock * product.pvp_final)  # pvp_final ya incluye IVA
                 ws.append([
                     product.name,
                     product.code or '',
@@ -516,10 +552,12 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
                     float(product.stock),
                     float(product.cost_price),
                     float(product.pvp_final),
-                    product_value
+                    product_value,
+                    product_value_with_iva
                 ])
                 total_stock += float(product.stock)
                 total_value += product_value
+                total_value_with_iva += product_value_with_iva
             
             # Resumen final
             row += 2
@@ -531,6 +569,8 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
             ws.append(['Stock Total', total_stock])
             row += 1
             ws.append(['Valor Total del Inventario', total_value])
+            row += 1
+            ws.append(['Valor Total con IVA', total_value_with_iva])
         
         elif report_type == 'expenses':
             # Título del reporte

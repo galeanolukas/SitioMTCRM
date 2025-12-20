@@ -195,6 +195,48 @@
                             </tbody>
                         </table>
                     </div>
+                    
+                    <!-- Paginación -->
+                    {% if sales_data.sales.has_other_pages %}
+                    <nav aria-label="Paginación de ventas">
+                        <ul class="pagination justify-content-center">
+                            {% if sales_data.sales.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?report_type=sales&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}&payment_method={{ payment_method }}&page={{ sales_data.sales.previous_page_number }}">«</a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">«</span>
+                                </li>
+                            {% endif %}
+                            
+                            {% for num in sales_data.sales.paginator.page_range %}
+                                {% if sales_data.sales.number == num %}
+                                    <li class="page-item active">
+                                        <span class="page-link">{{ num }}</span>
+                                    </li>
+                                {% elif num > sales_data.sales.number|add:'-3' and num < sales_data.sales.number|add:'3' %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?report_type=sales&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}&payment_method={{ payment_method }}&page={{ num }}">{{ num }}</a>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% if sales_data.sales.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?report_type=sales&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}&payment_method={{ payment_method }}&page={{ sales_data.sales.next_page_number }}">»</a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">»</span>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    <div class="text-center text-muted">
+                        Mostrando {{ sales_data.sales.start_index }}-{{ sales_data.sales.end_index }} de {{ sales_data.sales.paginator.count }} ventas
+                    </div>
+                    {% endif %}
 
                     {% endif %}
 
@@ -248,6 +290,7 @@
                                     <th>Costo</th>
                                     <th>Precio Final</th>
                                     <th>Valor Total</th>
+                                    <th>Valor con IVA</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -260,15 +303,58 @@
                                     <td>${{ product.cost_price|floatformat:2 }}</td>
                                     <td>${{ product.pvp_final|floatformat:2 }}</td>
                                     <td class="product-total" data-stock="{{ product.stock|add:"0" }}" data-price="{{ product.pvp_final }}">$0.00</td>
+                                    <td class="product-iva-total" data-stock="{{ product.stock|add:"0" }}" data-price="{{ product.pvp_final }}">$0.00</td>
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="7" class="text-center">No hay datos disponibles</td>
+                                    <td colspan="8" class="text-center">No hay datos disponibles</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
                         </table>
                     </div>
+                    
+                    <!-- Paginación de Inventario -->
+                    {% if inventory_data.products.has_other_pages %}
+                    <nav aria-label="Paginación de inventario">
+                        <ul class="pagination justify-content-center">
+                            {% if inventory_data.products.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?report_type=inventory&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}&page={{ inventory_data.products.previous_page_number }}">«</a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">«</span>
+                                </li>
+                            {% endif %}
+                            
+                            {% for num in inventory_data.products.paginator.page_range %}
+                                {% if inventory_data.products.number == num %}
+                                    <li class="page-item active">
+                                        <span class="page-link">{{ num }}</span>
+                                    </li>
+                                {% elif num > inventory_data.products.number|add:'-3' and num < inventory_data.products.number|add:'3' %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?report_type=inventory&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}&page={{ num }}">{{ num }}</a>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% if inventory_data.products.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?report_type=inventory&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}&page={{ inventory_data.products.next_page_number }}">»</a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">»</span>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    <div class="text-center text-muted">
+                        Mostrando {{ inventory_data.products.start_index }}-{{ inventory_data.products.end_index }} de {{ inventory_data.products.paginator.count }} productos
+                    </div>
+                    {% endif %}
 
                     {% endif %}
 
@@ -339,6 +425,48 @@
                             </tbody>
                         </table>
                     </div>
+                    
+                    <!-- Paginación de Gastos -->
+                    {% if expenses_data.expenses.has_other_pages %}
+                    <nav aria-label="Paginación de gastos">
+                        <ul class="pagination justify-content-center">
+                            {% if expenses_data.expenses.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?report_type=expenses&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}&page={{ expenses_data.expenses.previous_page_number }}">«</a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">«</span>
+                                </li>
+                            {% endif %}
+                            
+                            {% for num in expenses_data.expenses.paginator.page_range %}
+                                {% if expenses_data.expenses.number == num %}
+                                    <li class="page-item active">
+                                        <span class="page-link">{{ num }}</span>
+                                    </li>
+                                {% elif num > expenses_data.expenses.number|add:'-3' and num < expenses_data.expenses.number|add:'3' %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?report_type=expenses&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}&page={{ num }}">{{ num }}</a>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% if expenses_data.expenses.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?report_type=expenses&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}&page={{ expenses_data.expenses.next_page_number }}">»</a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">»</span>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    <div class="text-center text-muted">
+                        Mostrando {{ expenses_data.expenses.start_index }}-{{ expenses_data.expenses.end_index }} de {{ expenses_data.expenses.paginator.count }} gastos
+                    </div>
+                    {% endif %}
 
                     {% endif %}
 
