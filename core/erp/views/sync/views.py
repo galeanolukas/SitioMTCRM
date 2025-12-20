@@ -53,3 +53,24 @@ class SyncToggleView(LoginRequiredMixin, UserPassesTestMixin, View):
             'success': True,
             'sync_enabled': sync_enabled
         })
+
+
+class SyncStatusView(LoginRequiredMixin, View):
+    """Public view to check sync status - available for all authenticated users"""
+    
+    def get(self, request):
+        """Get current sync status without requiring superuser permissions"""
+        try:
+            from core.erp.models import GlobalSyncStatus
+            sync_enabled = GlobalSyncStatus.is_sync_enabled()
+            
+            return JsonResponse({
+                'success': True,
+                'sync_enabled': sync_enabled
+            })
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': str(e),
+                'sync_enabled': True  # Default to True on error
+            })

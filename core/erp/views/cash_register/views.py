@@ -97,9 +97,22 @@ class CashRegisterCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin
                 if form.is_valid():
                     cash_register = form.save(commit=False)
                     self._assign_company_and_user(cash_register)
-                    cash_register.save()
-                    messages.success(request, 'Caja abierta correctamente')
-                    data['success'] = True
+                    
+                    # Check if cash register already exists for this company, date, and user
+                    from django.utils import timezone
+                    today = timezone.now().date()
+                    existing = CashRegister.objects.filter(
+                        company=cash_register.company,
+                        date=today,
+                        user=cash_register.user
+                    ).first()
+                    
+                    if existing and not existing.is_closed:
+                        data['error'] = f'Ya existe una caja abierta para {existing.user.get_full_name() or existing.user.username} en la fecha {today}. Debe cerrarla antes de abrir una nueva.'
+                    else:
+                        cash_register.save()
+                        messages.success(request, 'Caja abierta correctamente')
+                        data['success'] = True
                 else:
                     data['error'] = form.errors
             else:
@@ -125,6 +138,42 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
     fields = ['closing_balance', 'notes']
     success_url = reverse_lazy('erp:cash_register_list')
     permission_required = 'erp.close_cash_register'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        cash_register = self.object
+
+        # Totales "en vivo" para la fecha y empresa de esta caja
+        sales_qs = Sale.objects.filter(
+            date_joined__date=cash_register.date,
+            company_id=cash_register.company_id,
+        )
+
+        dynamic_cash = sales_qs.filter(payment_method='cash').aggregate(total=Sum('total'))['total'] or 0
+        dynamic_card = sales_qs.filter(payment_method='card').aggregate(total=Sum('total'))['total'] or 0
+        dynamic_transfer = sales_qs.filter(payment_method='transfer').aggregate(total=Sum('total'))['total'] or 0
+        dynamic_mp = sales_qs.filter(payment_method='mp').aggregate(total=Sum('total'))['total'] or 0
+
+        expenses_qs = Expense.objects.filter(
+            date=cash_register.date,
+            company_id=cash_register.company_id,
+        )
+        dynamic_expenses = expenses_qs.aggregate(total=Sum('amount'))['total'] or 0
+
+        dynamic_total_sales = dynamic_cash + dynamic_card + dynamic_transfer + dynamic_mp
+        dynamic_calculated_balance = cash_register.opening_balance + dynamic_total_sales - dynamic_expenses
+
+        context['movements'] = cash_register.movements.all()
+        context['dynamic_cash_sales'] = dynamic_cash
+        context['dynamic_card_sales'] = dynamic_card
+        context['dynamic_transfer_sales'] = dynamic_transfer
+        context['dynamic_mp_sales'] = dynamic_mp
+        context['dynamic_expenses'] = dynamic_expenses
+        context['dynamic_total_sales'] = dynamic_total_sales
+        context['dynamic_calculated_balance'] = dynamic_calculated_balance
+        context['title'] = 'Cierre de Caja'
+        context['entity'] = 'Cierre de Caja'
+        return context
 
     def form_valid(self, form):
         cash_register = self.get_object()
@@ -159,16 +208,16 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
         form.instance.mp_sales = mp_total
         form.instance.expenses = expenses_total
         form.instance.is_closed = True
+        # Resetear is_synced para forzar sincronización del cierre
+        form.instance.is_synced = False
 
         messages.success(self.request, 'Caja cerrada correctamente')
         
         # Disparar sincronización inmediata con el servidor
         try:
             result = super().form_valid(form)
-            # Solo ejecutar sync si no estamos en producción (servidor central)
-            from django.conf import settings
-            if getattr(settings, 'ENVIRONMENT', 'development') != 'production':
-                sync_cash_register_immediately(cash_register.id)
+            # Siempre sincronizar el cierre de caja, independientemente del entorno
+            sync_cash_register_immediately(cash_register.id)
             return result
         except Exception as e:
             messages.error(self.request, f'Error al sincronizar cierre de caja: {e}')

@@ -29,6 +29,21 @@ class LoginFormView(LoginView):
             return HttpResponseRedirect('/erp/launcher/')
         return super().dispatch(request, *args, **kwargs)
 
+    def form_valid(self, form):
+        # Llamar al método form_valid del padre para hacer el login
+        response = super().form_valid(form)
+        
+        # Asegurar que la sincronización esté activada para operadores
+        if not self.request.user.is_superuser:
+            try:
+                from core.erp.models import GlobalSyncStatus
+                GlobalSyncStatus.ensure_sync_enabled()
+            except Exception:
+                # No impedir el login si falla la activación de sync
+                pass
+        
+        return response
+
     def get_success_url(self):
         return '/erp/launcher/'
 

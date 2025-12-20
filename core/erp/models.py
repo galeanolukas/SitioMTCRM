@@ -16,41 +16,6 @@ from django.conf import settings
 # ... other imports ...
 
 
-class GlobalSyncStatus(models.Model):
-    """Model to store global sync status that can be checked by background threads"""
-    sync_enabled = models.BooleanField(default=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    updated_by = models.CharField(max_length=100, blank=True)
-    
-    class Meta:
-        verbose_name = "Estado de Sincronización Global"
-        verbose_name_plural = "Estados de Sincronización Global"
-    
-    @classmethod
-    def is_sync_enabled(cls):
-        """Check if sync is globally enabled"""
-        try:
-            status = cls.objects.first()
-            return status.sync_enabled if status else True  # Default to True if no record exists
-        except Exception:
-            return True  # Default to True on error
-    
-    @classmethod
-    def set_sync_status(cls, enabled, updated_by=None):
-        """Set global sync status"""
-        status, created = cls.objects.get_or_create(
-            pk=1,  # Use a single record
-            defaults={'sync_enabled': enabled, 'updated_by': updated_by or 'system'}
-        )
-        if not created:
-            status.sync_enabled = enabled
-            status.updated_by = updated_by or 'system'
-            status.save()
-    
-    def __str__(self):
-        return f"Sync {'Enabled' if self.sync_enabled else 'Disabled'}"
-
-
 class Company(models.Model):
     name = models.CharField(max_length=150, verbose_name='Nombre')
     address = models.CharField(max_length=200, verbose_name='Dirección', blank=True, null=True)
@@ -524,7 +489,6 @@ class CashRegister(models.Model):
         verbose_name = 'Cierre de caja'
         verbose_name_plural = 'Cierres de caja'
         ordering = ['-date', '-created_at']
-        unique_together = ['company', 'date', 'user']
         permissions = [
             ("close_cash_register", "Puede cerrar caja"),
             ("view_cash_register", "Puede ver cierres de caja"),
@@ -748,12 +712,34 @@ class GlobalSyncStatus(models.Model):
     
     @classmethod
     def is_sync_enabled(cls):
-        """Check if sync is globally enabled"""
+        """Check if sync is globally enabled - always returns True for operators"""
         try:
             status = cls.objects.first()
-            return status.sync_enabled if status else True  # Default to True if no record exists
+            # Always return True if no record exists or if sync is enabled
+            if not status or status.sync_enabled:
+                return True
+            # Only return False if explicitly disabled and record exists
+            return False
         except Exception:
             return True  # Default to True on error
+    
+    @classmethod
+    def ensure_sync_enabled(cls):
+        """Ensure sync is enabled - called during login for operators"""
+        try:
+            status, created = cls.objects.get_or_create(
+                pk=1,
+                defaults={'sync_enabled': True, 'updated_by': 'system'}
+            )
+            if not created and not status.sync_enabled:
+                # Auto-enable sync for operators
+                status.sync_enabled = True
+                status.updated_by = 'system_auto_enable'
+                status.save()
+                print("Sincronización automática activada para operadores")
+            return True
+        except Exception:
+            return True
     
     @classmethod
     def set_sync_status(cls, enabled, updated_by=None):

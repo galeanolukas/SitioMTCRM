@@ -5,7 +5,7 @@ from core.erp.views.client.views import ClientListView, ClientCreateView, Client
 from core.erp.views.sale.views import SaleListView, SaleCreateView, SaleUpdateView, SaleDeleteView, ticket_print, POSView, InvoiceListView, InvoiceCreateView, invoice_pdf, sync_sales_api
 from core.erp.views.transfer.views import TransferListView, TransferCreateView, TransferDetailView, TransferReceiveView, TransferSearchView, TransferProductSearchView
 from core.erp.views.operator_reports.views import OperatorSalesReportView, operator_sales_export
-from core.erp.views.sync.views import SyncToggleView
+from core.erp.views.sync.views import SyncToggleView, SyncStatusView
 from core.erp.views.tests.views import *
 from core.erp.views.dashboard.views import (
     DashboardView,
@@ -135,4 +135,6 @@ urlpatterns = [
     path('cash-register/delete/<int:pk>/', CashRegisterDeleteView.as_view(), name='cash_register_delete'),
     # sync toggle
     path('sync/toggle/', SyncToggleView.as_view(), name='sync_toggle'),
+    # sync status (public for all authenticated users)
+    path('sync/status/', SyncStatusView.as_view(), name='sync_status'),
 ]

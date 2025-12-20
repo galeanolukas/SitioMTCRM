@@ -274,7 +274,8 @@ body {
     }, 3000);
   })();
   
-  // Sync Toggle Functionality
+  // Sync Toggle Functionality - solo para superusuarios
+  {% if request.user.is_superuser %}
   document.getElementById('syncToggle').addEventListener('change', function() {
     const isEnabled = this.checked;
     
@@ -304,6 +305,7 @@ body {
       showNotification('Error al cambiar estado de sincronización', 'error');
     });
   });
+  {% endif %}
   
   // Helper function to get CSRF token
   function getCookie(name) {

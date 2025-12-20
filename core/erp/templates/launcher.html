@@ -140,7 +140,7 @@
 
   document.addEventListener('DOMContentLoaded', function () {
     // Check if sync is enabled before running automatic sync
-    fetch('/erp/sync/toggle/', {
+    fetch('/erp/sync/status/', {
       method: 'GET',
       headers: {
         'X-CSRFToken': getCookie('csrftoken'),

@@ -5,11 +5,12 @@
 <div class="card">
     <div class="card-header">
         <h3 class="card-title">Cierre de Caja - {{ object.date|date:"d/m/Y" }}</h3>
+        <small class="text-muted">Usuario: {{ object.user.get_full_name|default:object.user.username }}</small>
     </div>
     <div class="card-body">
         <div class="row mb-4">
             <div class="col-md-6">
-                <h5>Resumen</h5>
+                <h5>Resumen de Ventas (en tiempo real)</h5>
                 <table class="table table-bordered">
                     <tr>
                         <th>Saldo Inicial</th>
@@ -17,45 +18,89 @@
                     </tr>
                     <tr>
                         <th>Ventas en Efectivo</th>
-                        <td class="text-right">${{ object.cash_sales|floatformat:2 }}</td>
+                        <td class="text-right">${{ dynamic_cash_sales|floatformat:2 }}</td>
                     </tr>
                     <tr>
                         <th>Ventas con Tarjeta</th>
-                        <td class="text-right">${{ object.card_sales|floatformat:2 }}</td>
+                        <td class="text-right">${{ dynamic_card_sales|floatformat:2 }}</td>
                     </tr>
                     <tr>
                         <th>Ventas por Transferencia</th>
-                        <td class="text-right">${{ object.transfer_sales|floatformat:2 }}</td>
+                        <td class="text-right">${{ dynamic_transfer_sales|floatformat:2 }}</td>
                     </tr>
                     <tr>
                         <th>Ventas por Mercado Pago</th>
-                        <td class="text-right">${{ object.mp_sales|floatformat:2 }}</td>
+                        <td class="text-right">${{ dynamic_mp_sales|floatformat:2 }}</td>
                     </tr>
-                    <tr>
+                    <tr class="table-primary">
                         <th>Total Ventas</th>
-                        <th class="text-right">${{ object.total_sales|floatformat:2 }}</th>
+                        <th class="text-right">${{ dynamic_total_sales|floatformat:2 }}</th>
                     </tr>
                     <tr>
                         <th>Gastos</th>
-                        <td class="text-right">${{ object.expenses|floatformat:2 }}</td>
+                        <td class="text-right">${{ dynamic_expenses|floatformat:2 }}</td>
                     </tr>
-                    <tr>
+                    <tr class="table-success">
                         <th>Saldo Esperado</th>
-                        <th class="text-right">${{ object.calculated_balance|floatformat:2 }}</th>
+                        <th class="text-right">${{ dynamic_calculated_balance|floatformat:2 }}</th>
                     </tr>
                 </table>
             </div>
+            {% if movements %}
+            <div class="col-md-6">
+                <h5>Movimientos de Caja</h5>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Tipo</th>
+                                <th>Monto</th>
+                                <th>Descripción</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for movement in movements %}
+                            <tr>
+                                <td>
+                                    {% if movement.movement_type == 'in' %}
+                                        <span class="badge badge-success">Entrada</span>
+                                    {% else %}
+                                        <span class="badge badge-danger">Salida</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-right">
+                                    {% if movement.movement_type == 'in' %}
+                                        <span class="text-success">+${{ movement.amount|floatformat:2 }}</span>
+                                    {% else %}
+                                        <span class="text-danger">-${{ movement.amount|floatformat:2 }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ movement.description }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
         </div>
 
         <form method="post">
             {% csrf_token %}
-            <div class="form-group">
-                <label for="id_closing_balance">Saldo Final en Caja</label>
-                <input type="number" name="closing_balance" step="0.01" class="form-control" id="id_closing_balance" required>
-            </div>
-            <div class="form-group">
-                <label for="id_notes">Notas</label>
-                <textarea name="notes" class="form-control" id="id_notes" rows="3">{{ object.notes }}</textarea>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="id_closing_balance">Saldo Final en Caja</label>
+                        <input type="number" name="closing_balance" step="0.01" class="form-control" id="id_closing_balance" required>
+                        <small class="form-text text-muted">Ingrese el conteo físico de dinero en caja</small>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="id_notes">Notas</label>
+                        <textarea name="notes" class="form-control" id="id_notes" rows="3">{{ object.notes }}</textarea>
+                    </div>
+                </div>
             </div>
             <button type="submit" class="btn btn-primary">Confirmar Cierre</button>
             <a href="{% url 'erp:cash_register_list' %}" class="btn btn-secondary">Cancelar</a>
