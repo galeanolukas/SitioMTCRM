@@ -172,7 +172,10 @@
                             <thead>
                                 <tr>
                                     <th>Fecha</th>
+                                    <th>Ticket/Factura</th>
                                     <th>Cliente</th>
+                                    <th>Subtotal</th>
+                                    <th>IVA</th>
                                     <th>Total</th>
                                     <th>Forma de Pago</th>
                                     <th>Empresa</th>
@@ -182,14 +185,23 @@
                                 {% for sale in sales_data.sales %}
                                 <tr>
                                     <td>{{ sale.date_joined|date:"d/m/Y H:i" }}</td>
+                                    <td>
+                                        {% if sale.invoice_number %}
+                                            {{ sale.invoice_pos }}-{{ sale.invoice_number }}
+                                        {% else %}
+                                            Ticket #{{ sale.id }}
+                                        {% endif %}
+                                    </td>
                                     <td>{{ sale.cli.names|default:"N/A" }}</td>
+                                    <td>${{ sale.subtotal|floatformat:2 }}</td>
+                                    <td>${{ sale.iva|floatformat:2 }}</td>
                                     <td>${{ sale.total|floatformat:2 }}</td>
                                     <td>{{ sale.get_payment_method_display }}</td>
                                     <td>{{ sale.company.name|default:"N/A" }}</td>
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="5" class="text-center">No hay datos disponibles</td>
+                                    <td colspan="8" class="text-center">No hay datos disponibles</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -526,6 +538,14 @@ $(document).ready(function() {
         var stock = parseFloat($(this).data('stock'));
         var price = parseFloat($(this).data('price'));
         var total = stock * price;
+        $(this).text('$' + total.toFixed(2));
+    });
+    
+    // Calcular valores totales con IVA de productos
+    $('.product-iva-total').each(function() {
+        var stock = parseFloat($(this).data('stock'));
+        var price = parseFloat($(this).data('price'));
+        var total = stock * price;  // pvp_final ya incluye IVA
         $(this).text('$' + total.toFixed(2));
     });
     

@@ -357,6 +357,7 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
             
             # Calcular totales por forma de pago
             from django.db.models import Sum
+            from core.erp.choices import payment_method_choices
             payment_totals = data.values('payment_method').annotate(
                 total=Sum('total'),
                 count=Count('id')

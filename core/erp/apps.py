@@ -50,7 +50,7 @@ class ErpConfig(AppConfig):
             while True:
                 try:
                     # Check if sync is globally disabled before running
-                    from core.erp.models.sync_status import GlobalSyncStatus
+                    from core.erp.models import GlobalSyncStatus
                     if not GlobalSyncStatus.is_sync_enabled():
                         print("Sincronización desactivada globalmente - omitiendo ejecución automática")
                         time.sleep(base_interval)

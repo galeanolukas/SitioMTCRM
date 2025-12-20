@@ -108,7 +108,7 @@
           </a>
         </li>
         {% endif %}
-        {% if perms.erp.add_product %}
+        {% if request.user.is_superuser or perms.erp.add_product %}
         <li class="nav-item">
           <a href="{% url 'erp:product_import' %}" class="nav-link">
             <i class="fas fa-file-import nav-icon"></i>

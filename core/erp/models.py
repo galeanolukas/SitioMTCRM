@@ -1,5 +1,8 @@
 from django.db import models
+from django.utils import timezone
 from datetime import datetime
+
+from core.models import BaseModel
 from decimal import Decimal
 from django.utils import timezone
 from crum import get_current_user
@@ -219,7 +222,7 @@ class Client(models.Model):
     names = models.CharField(max_length=150, verbose_name='Nombres')
     surnames = models.CharField(max_length=150, verbose_name='Apellidos')
     dni = models.CharField(max_length=10, unique=True, verbose_name='Dni')
-    date_birthday = models.DateField(default=datetime.now, verbose_name='Fecha de nacimiento')
+    date_birthday = models.DateField(default=timezone.now, verbose_name='Fecha de nacimiento')
     address = models.CharField(max_length=150, null=True, blank=True, verbose_name='Dirección')
     gender = models.CharField(max_length=10, choices=gender_choices, default='male', verbose_name='Sexo')
     synced_to_server = models.BooleanField(default=False, verbose_name='Sincronizado con servidor')
@@ -731,6 +734,41 @@ class InternalTransferDetail(models.Model):
         verbose_name = 'Detalle de Transferencia'
         verbose_name_plural = 'Detalles de Transferencia'
         ordering = ['id']
+
+
+class GlobalSyncStatus(models.Model):
+    """Model to store global sync status that can be checked by background threads"""
+    sync_enabled = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.CharField(max_length=100, blank=True)
+    
+    class Meta:
+        verbose_name = "Estado de Sincronización Global"
+        verbose_name_plural = "Estados de Sincronización Global"
+    
+    @classmethod
+    def is_sync_enabled(cls):
+        """Check if sync is globally enabled"""
+        try:
+            status = cls.objects.first()
+            return status.sync_enabled if status else True  # Default to True if no record exists
+        except Exception:
+            return True  # Default to True on error
+    
+    @classmethod
+    def set_sync_status(cls, enabled, updated_by=None):
+        """Set global sync status"""
+        status, created = cls.objects.get_or_create(
+            pk=1,  # Use a single record
+            defaults={'sync_enabled': enabled, 'updated_by': updated_by or 'system'}
+        )
+        if not created:
+            status.sync_enabled = enabled
+            status.updated_by = updated_by or 'system'
+            status.save()
+    
+    def __str__(self):
+        return f"Sync {'Enabled' if self.sync_enabled else 'Disabled'}"
 
     def __str__(self):
         return f"{self.get_movement_type_display()} - {self.amount} - {self.description}"

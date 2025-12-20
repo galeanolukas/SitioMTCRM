@@ -59,12 +59,15 @@ class Command(BaseCommand):
                         continue
                     
                     # Crear cabecera de venta en remoto
+                    # Si no es factura facturada, el IVA debe ser 0
+                    iva_amount = sale.iva if sale.is_invoiced else 0
+                    
                     remote_sale = Sale.objects.using('remote').create(
                         company_id=remote_company.id if remote_company else None,
                         cli_id=sale.cli_id,
                         date_joined=sale.date_joined,
                         subtotal=sale.subtotal,
-                        iva=sale.iva,
+                        iva=iva_amount,
                         total=sale.total,
                         payment_method=sale.payment_method,
                         invoice_number=sale.invoice_number,
