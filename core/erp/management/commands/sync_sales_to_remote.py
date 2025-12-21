@@ -1,5 +1,6 @@
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from django.utils import timezone
 
 from core.erp.models import Sale, DetSale, Company, Product
 
@@ -62,10 +63,13 @@ class Command(BaseCommand):
                     # Si no es factura facturada, el IVA debe ser 0
                     iva_amount = sale.iva if sale.is_invoiced else 0
                     
+                    # Mantener el horario local original de la venta
+                    # Preservamos el date_joined tal como está para mantener la hora local del POS
                     remote_sale = Sale.objects.using('remote').create(
                         company_id=remote_company.id if remote_company else None,
                         cli_id=sale.cli_id,
                         date_joined=sale.date_joined,
+                        local_timezone=sale.local_timezone,
                         subtotal=sale.subtotal,
                         iva=iva_amount,
                         total=sale.total,

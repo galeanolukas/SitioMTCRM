@@ -1,6 +1,7 @@
 from django.core.management.base import BaseCommand
 from django.db import transaction, connections
 from django.contrib import messages
+from django.utils import timezone
 from core.erp.models import Client, Sale, Product, Category, Supplier, Expense, CashRegister
 from core.user.models import User
 
@@ -113,10 +114,13 @@ class Command(BaseCommand):
                         continue
                     
                     # Crear venta remota
+                    # Mantener el horario local original de la venta
+                    # Preservamos el date_joined tal como está para mantener la hora local del POS
                     remote_sale = Sale.objects.using('remote').create(
                         company_id=sale.company_id,
                         cli_id=sale.cli_id,
                         date_joined=sale.date_joined,
+                        local_timezone=sale.local_timezone,
                         subtotal=sale.subtotal,
                         iva=sale.iva,
                         total=sale.total,

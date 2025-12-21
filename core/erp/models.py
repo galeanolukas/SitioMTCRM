@@ -249,6 +249,7 @@ class Sale(models.Model):
     company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa', null=True, blank=True)
     cli = models.ForeignKey(Client, on_delete=models.CASCADE, null=True, blank=True, verbose_name='Cliente')
     date_joined = models.DateTimeField(default=timezone.now)
+    local_timezone = models.CharField(max_length=50, blank=True, null=True, verbose_name='Zona horaria local')
     subtotal = models.DecimalField(default=0.00, max_digits=9, decimal_places=2)
     iva = models.DecimalField(default=0.00, max_digits=9, decimal_places=2)
     total = models.DecimalField(default=0.00, max_digits=9, decimal_places=2)
@@ -268,6 +269,20 @@ class Sale(models.Model):
             user = get_current_user()
             if user and not user.is_anonymous:
                 self.company_id = getattr(user, 'company_id', None)
+        
+        # Capturar la zona horaria local solo para nuevas ventas
+        if not self.pk and not self.local_timezone:
+            try:
+                import pytz
+                from django.conf import settings
+                # Obtener la zona horaria local del sistema
+                local_tz = pytz.timezone(getattr(settings, 'TIME_ZONE', 'America/Argentina/Buenos_Aires'))
+                # Guardar la zona horaria actual
+                self.local_timezone = str(timezone.now().astimezone(local_tz).tzinfo)
+            except Exception:
+                # Si hay error, usar zona horaria por defecto
+                self.local_timezone = 'America/Argentina/Buenos_Aires'
+        
         super().save(*args, **kwargs)
 
     def next_sequential_for_pos_type(self):
