@@ -23,6 +23,7 @@ from core.erp.views.dashboard.views import (
     ExpenseDeleteView,
     ExpenseCreateView,
     ExpenseUpdateView,
+    expense_export,
     MercadoPagoConfigUpdateView,
     AutoSyncConfigUpdateView,
     sync_data_view,
@@ -120,6 +121,7 @@ urlpatterns = [
     path('expense/add/', ExpenseCreateView.as_view(), name='expense_create'),
     path('expense/update/<int:pk>/', ExpenseUpdateView.as_view(), name='expense_update'),
     path('expense/delete/<int:pk>/', ExpenseDeleteView.as_view(), name='expense_delete'),
+    path('expense/export/', expense_export, name='expense_export'),
     # switch company (superuser)
     path('company/switch/<int:pk>/', SwitchCompanyView.as_view(), name='company_switch'),
     path('company/switch/clear/', SwitchCompanyView.as_view(), name='company_switch_clear'),

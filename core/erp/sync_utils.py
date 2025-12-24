@@ -41,7 +41,7 @@ def run_full_sync():
 
     # Check if sync is globally disabled
     try:
-        from core.erp.models.sync_status import GlobalSyncStatus
+        from core.erp.models import GlobalSyncStatus
         if not GlobalSyncStatus.is_sync_enabled():
             logger.info("Sincronización desactivada globalmente - omitiendo ejecución")
             return True, ["Sincronización desactivada globalmente"]

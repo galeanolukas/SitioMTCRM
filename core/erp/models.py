@@ -305,17 +305,25 @@ class Sale(models.Model):
     def toJSON(self):
         item = model_to_dict(self)
         item['cli'] = (self.cli.names if self.cli_id else 'Anónimo')
-        item['date_joined'] = self.date_joined.strftime('%d-%m-%Y %H:%M')
-        item['subtotal'] = format(self.subtotal, '.2f') if self.subtotal is not None else '0.00'
-        item['iva'] = format(self.iva, '.2f') if self.iva is not None else '0.00'
-        item['total'] = format(self.total, '.2f') if self.total is not None else '0.00'
-        item['det'] = [i.toJSON() for i in self.detsale_set.all()]
-        item['invoice_number'] = self.invoice_number
-        item['invoice_pos'] = self.invoice_pos
-        item['invoice_type'] = self.invoice_type
+        # Formatear la fecha sin conversión de zona horaria (Django ya maneja esto)
+        try:
+            # Usar timezone.localtime para convertir a la zona horaria local configurada
+            local_dt = timezone.localtime(self.date_joined)
+            item['date_joined'] = local_dt.strftime('%Y-%m-%d %H:%M:%S')
+            item['date_joined_display'] = local_dt.strftime('%d-%m-%Y %H:%M')
+        except Exception as e:
+            # Fallback si hay error
+            item['date_joined'] = self.date_joined.strftime('%Y-%m-%d %H:%M:%S') if self.date_joined else ''
+            item['date_joined_display'] = self.date_joined.strftime('%d-%m-%Y %H:%M') if self.date_joined else ''
+        item['subtotal'] = format(self.subtotal, '.2f')
+        item['iva'] = format(self.iva, '.2f')
+        item['total'] = format(self.total, '.2f')
+        item['payment_method'] = {'id': self.payment_method, 'name': self.get_payment_method_display()}
+        item['invoice_number'] = self.invoice_number or ''
+        item['invoice_pos'] = self.invoice_pos or ''
+        item['invoice_type'] = self.invoice_type or ''
         item['is_invoiced'] = self.is_invoiced
-        item['payment_method'] = self.payment_method
-        item['payment_method_display'] = self.get_payment_method_display()
+        item['det'] = [i.toJSON() for i in self.detsale_set.all()]
         return item
 
     class Meta:
@@ -395,11 +403,26 @@ class QuickOrder(models.Model):
         ordering = ['-created_at']
 
 
+# Choices para motivos recurrentes de gastos
+EXPENSE_RECURRING_REASONS = [
+    ('alquiler', 'Alquiler'),
+    ('habilitacion_comercial', 'Habilitación comercial'),
+    ('boletas_luz', 'Boletas de luz'),
+    ('servicio_internet', 'Servicio de internet'),
+    ('bidon_agua', 'Bidón de agua'),
+    ('combustible', 'Combustible'),
+    ('comision_ventas', 'Comisión de ventas'),
+    ('bolserios', 'Bolseríos'),
+    ('libreria', 'Librería'),
+    ('otro', 'Otro'),
+]
+
 class Expense(models.Model):
     company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa', null=True, blank=True)
     supplier = models.ForeignKey('Supplier', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Proveedor')
     date = models.DateField(default=datetime.now, verbose_name='Fecha')
     description = models.CharField(max_length=255, verbose_name='Descripción', blank=True, null=True)
+    recurring_reason = models.CharField(max_length=30, choices=EXPENSE_RECURRING_REASONS, blank=True, null=True, verbose_name='Motivo recurrente')
     amount = models.DecimalField(default=0.00, max_digits=12, decimal_places=2, verbose_name='Importe')
     payer = models.CharField(max_length=150, verbose_name='Pagado por', blank=True, null=True)
     receipt = models.FileField(upload_to='expenses/%Y/%m/%d', null=True, blank=True, verbose_name='Comprobante (PDF/Imagen)')

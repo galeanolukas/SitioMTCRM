@@ -414,8 +414,22 @@ class ExpenseForm(ModelForm):
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
         super().__init__(*args, **kwargs)
+        
+        # Establecer fecha por defecto a hoy si no hay valor inicial
+        if not self.initial.get('date') and not self.instance.pk:
+            from django.utils import timezone
+            self.initial['date'] = timezone.now().date()
+        
+        # Configurar el widget de fecha para mostrar la fecha actual
+        if 'date' in self.fields:
+            from django.utils import timezone
+            self.fields['date'].widget.attrs.update({
+                'class': 'form-control',
+                'autocomplete': 'off'
+            })
+        
         for f in self.visible_fields():
-            if f.name not in ('supplier',):
+            if f.name not in ('supplier', 'date'):
                 f.field.widget.attrs['class'] = 'form-control'
                 f.field.widget.attrs['autocomplete'] = 'off'
         if 'supplier' in self.fields:

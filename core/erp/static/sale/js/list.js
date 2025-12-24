@@ -24,6 +24,8 @@ function format(d) {
 }
 
 $(function () {
+    console.log('Inicializando DataTable de ventas...');
+    
     // Function to get CSRF token
     function getCookie(name) {
         let cookieValue = null;
@@ -40,6 +42,14 @@ $(function () {
         return cookieValue;
     }
 
+    // Verificar que el elemento #data existe
+    if ($('#data').length === 0) {
+        console.error('El elemento #data no existe en el DOM');
+        return;
+    }
+    
+    console.log('Elemento #data encontrado, inicializando DataTable...');
+    
     tblSale = $('#data').DataTable({
         //responsive: true,
         scrollX: true,
@@ -55,7 +65,14 @@ $(function () {
             data: {
                 'action': 'searchdata'
             },
-            dataSrc: "",
+            dataSrc: function (json) {
+                // Log the raw response data
+                console.log('Raw API response:', json);
+                if (json && json.length > 0) {
+                    console.log('First item date_joined:', json[0].date_joined, 'Type:', typeof json[0].date_joined);
+                }
+                return json;
+            },
             headers: {
                 'X-CSRFToken': getCookie('csrftoken'),
                 'X-Requested-With': 'XMLHttpRequest'
@@ -82,7 +99,16 @@ $(function () {
             },
             { "data": "id" },
             { "data": "cli" },
-            { "data": "date_joined" },
+            { 
+                "data": "date_joined_display",
+                "render": function(data, type, row) {
+                    if (type === 'display' || type === 'filter') {
+                        console.log('Rendering date_joined_display:', data, 'for row:', row.id);
+                        return data || '-';
+                    }
+                    return data;
+                }
+            },
             { "data": "subtotal" },
             { "data": "iva" },
             { "data": "total" },
@@ -177,8 +203,12 @@ $(function () {
             // Completar cabecera de información de la venta
             try {
                 $('#detCli').text(data.cli || 'Anónimo');
-                // date_joined es fecha (sin hora). Mostramos solo fecha y dejamos hora en blanco
-                $('#detDate').text(data.date_joined || '-');
+                // Format the date for display in the modal
+                if (data.date_joined_display) {
+                    $('#detDate').text(data.date_joined_display);
+                } else {
+                    $('#detDate').text(data.date_joined || '-');
+                }
                 $('#detTime').text('');
                 var invoiceLabel = data.invoice_number ? (data.invoice_number) : ('POS ' + (data.invoice_pos || '-') + ' · Tipo ' + (data.invoice_type || '-'));
                 $('#detInvoice').text(invoiceLabel);

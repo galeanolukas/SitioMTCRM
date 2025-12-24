@@ -22,7 +22,7 @@ def ensure_supplier_permissions(sender, **kwargs):
 
     # Permisos de gastos (al menos ver, opcionalmente CRUD)
     ct_exp = ContentType.objects.get_for_model(Expense)
-    exp_codenames = ['view_expense']  # agrega 'add_expense', 'change_expense', 'delete_expense' si lo necesitas
+    exp_codenames = ['view_expense', 'add_expense', 'change_expense', 'delete_expense']  # agrega 'add_expense', 'change_expense', 'delete_expense' si lo necesitas
     exp_perms = list(Permission.objects.filter(content_type=ct_exp, codename__in=exp_codenames))
 
     # Asignar al grupo

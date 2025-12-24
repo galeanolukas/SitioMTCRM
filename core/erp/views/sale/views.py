@@ -17,6 +17,7 @@ from django.db import transaction
 from django.db.models import F
 from django.db import models
 from django.utils import timezone
+import pytz
 
 class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView):
     template_name = 'sale/pos.html'
@@ -412,7 +413,18 @@ class SaleCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Create
                             raise Exception(f"Stock insuficiente para {prod.name}. Disponible: {format(prod.stock, '.2f')}, requerido: {cant}")
 
                     sale = Sale()
-                    sale.date_joined = vents['date_joined']
+                    # Parse the date string to a timezone-aware datetime
+                    from django.utils import timezone
+                    
+                    # Parse the date string (assuming it's in local time)
+                    date_joined = datetime.strptime(vents['date_joined'], '%Y-%m-%d %H:%M:%S')
+                    
+                    # Make it timezone-aware using the current timezone
+                    date_joined = timezone.make_aware(date_joined, timezone.get_current_timezone())
+                    
+                    # Store the date and timezone
+                    sale.date_joined = date_joined
+                    sale.local_timezone = str(timezone.get_current_timezone())  # Store the timezone as string
                     sale.cli_id = vents.get('cli') or None
                     sale.subtotal = vents['subtotal']
                     sale.iva = vents['iva']
@@ -586,44 +598,79 @@ class SaleListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView
         return super().dispatch(request, *args, **kwargs)
 
     def post(self, request, *args, **kwargs):
-        data = {}
         try:
-            action = request.POST['action']
+            action = request.POST.get('action')
+            
             if action == 'searchdata':
                 data = []
                 active_cid = request.session.get('company_id') if hasattr(request, 'session') else None
+                
                 if not request.user.is_superuser:
                     active_cid = active_cid or getattr(request.user, 'company_id', None)
+                
                 qs = Sale.objects.all().order_by('-date_joined')
                 if active_cid:
                     qs = qs.filter(company_id=active_cid)
-                for i in qs:
-                    data.append(i.toJSON())
+                
+                for sale in qs:
+                    try:
+                        sale_data = sale.toJSON()
+                        # El método toJSON ya maneja el formateo de la fecha
+                        data.append(sale_data)
+                    except Exception as e:
+                        print(f"Error procesando venta {getattr(sale, 'id', 'unknown')}: {str(e)}")
+                        continue
+                
+                return JsonResponse(data, safe=False)
+                
             elif action == 'search_details_prod':
                 data = []
-                for i in DetSale.objects.filter(sale_id=request.POST['id']):
-                    data.append(i.toJSON())
+                sale_id = request.POST.get('id')
+                if sale_id:
+                    details = DetSale.objects.filter(sale_id=sale_id)
+                    data = [detail.toJSON() for detail in details]
+                return JsonResponse(data, safe=False)
+                
             elif action == 'invoice':
-                sale = Sale.objects.get(pk=request.POST['id'])
-                if not sale.is_invoiced:
-                    # Obtener datos de POS desde configuración de empresa si existe
-                    company = Company.objects.first()
-                    pos = request.POST.get('pos') or (company.pos if company else None) or sale.invoice_pos or '0001'
-                    tipo = request.POST.get('tipo') or sale.invoice_type or 'B'
-                    sale.invoice_pos = pos
-                    sale.invoice_type = tipo
-                    sale.invoice_number = sale.next_sequential_for_pos_type()
-                    sale.is_invoiced = True
-                    sale.save()
-                data = {
-                    'id': sale.id,
-                    'invoice_number': sale.invoice_number,
-                }
-            else:
-                data['error'] = 'Ha ocurrido un error'
+                response_data = {'error': 'Error al facturar'}
+                try:
+                    sale_id = request.POST.get('id')
+                    if not sale_id:
+                        response_data = {'error': 'ID de venta no proporcionado'}
+                    else:
+                        sale = Sale.objects.get(pk=sale_id)
+                        if not sale.is_invoiced:
+                            company = Company.objects.first()
+                            pos = request.POST.get('pos') or (company.pos if company else None) or getattr(sale, 'invoice_pos', '0001')
+                            tipo = request.POST.get('tipo') or getattr(sale, 'invoice_type', 'B')
+                            
+                            sale.invoice_pos = pos
+                            sale.invoice_type = tipo
+                            sale.invoice_number = sale.next_sequential_for_pos_type()
+                            sale.is_invoiced = True
+                            sale.save()
+                            
+                            response_data = {
+                                'id': sale.id,
+                                'invoice_number': sale.invoice_number,
+                            }
+                        else:
+                            response_data = {
+                                'id': sale.id,
+                                'invoice_number': sale.invoice_number,
+                                'message': 'La venta ya estaba facturada'
+                            }
+                except Sale.DoesNotExist:
+                    response_data = {'error': 'Venta no encontrada'}
+                except Exception as e:
+                    response_data = {'error': str(e)}
+                
+                return JsonResponse(response_data)
+                
+            return JsonResponse({'error': 'Acción no válida'}, status=400)
+            
         except Exception as e:
-            data['error'] = str(e)
-        return JsonResponse(data, safe=False)
+            return JsonResponse({'error': str(e)}, status=500)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

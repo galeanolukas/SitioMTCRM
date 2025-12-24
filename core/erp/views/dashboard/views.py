@@ -10,6 +10,7 @@ from django.db.models import Sum
 from django.contrib.auth import get_user_model
 from django.db import connections
 from django.conf import settings
+from django.contrib import messages
 import json
 import urllib.request
 import urllib.error
@@ -384,6 +385,11 @@ class ExpenseCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Cre
         kwargs['request'] = self.request
         return kwargs
 
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        messages.success(self.request, 'Gasto creado correctamente')
+        return response
+
 
 class ExpenseUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, UpdateView):
     model = Expense
@@ -397,12 +403,23 @@ class ExpenseUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Upd
         kwargs['request'] = self.request
         return kwargs
 
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        messages.success(self.request, 'Gasto actualizado correctamente')
+        return response
+
 
 class ExpenseDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin, DeleteView):
     model = Expense
     template_name = 'expense/delete.html'
     success_url = reverse_lazy('erp:expense_list')
     permission_required = 'erp.delete_expense'
+
+    def delete(self, request, *args, **kwargs):
+        response = super().delete(request, *args, **kwargs)
+        messages.success(self.request, 'Gasto eliminado correctamente')
+        return response
+
 
 class CompanyView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView):
     template_name = 'company/list.html'
@@ -862,4 +879,237 @@ def report_sales_export(request):
         base_url = request.build_absolute_uri('/')
         HTML(string=''.join(html), base_url=base_url).write_pdf(response)
         return response
+    return HttpResponse('Formato no soportado', status=400)
+
+
+def expense_export(request):
+    """Export expense report with daily summary and total sum"""
+    if not request.user.is_superuser:
+        return HttpResponse(status=403)
+    
+    fmt = (request.GET.get('format') or 'csv').lower()
+    
+    # Get today's date or use date range if provided
+    from django.utils import timezone
+    from datetime import timedelta
+    from django.db.models.functions import TruncDay
+    
+    today = timezone.now().date()
+    start_date = request.GET.get('start_date', today.strftime('%Y-%m-%d'))
+    end_date = request.GET.get('end_date', today.strftime('%Y-%m-%d'))
+    
+    # Filter expenses for the date range
+    qs = Expense.objects.filter(date__range=[start_date, end_date]).select_related('supplier', 'company')
+    qs = _filter_company_qs(request, qs).order_by('date')
+    
+    # Get daily summary
+    daily_summary = qs.annotate(
+        day=TruncDay('date')
+    ).values('day').annotate(
+        total=Sum('amount'),
+        count=Count('id')
+    ).order_by('day')
+    
+    # Get total sum
+    total_amount = qs.aggregate(total=Sum('amount'))['total'] or 0
+    total_count = qs.count()
+    
+    # Prepare detailed rows
+    detailed_rows = []
+    for expense in qs:
+        detailed_rows.append({
+            'Fecha': expense.date.strftime('%Y-%m-%d') if expense.date else '',
+            'Proveedor': expense.supplier.name if expense.supplier else 'N/A',
+            'Descripción': expense.description or '',
+            'Monto': float(expense.amount or 0),
+            'Pagado por': expense.payer or '',
+            'Empresa': expense.company.name if expense.company else 'N/A'
+        })
+    
+    # Prepare daily summary rows
+    summary_rows = []
+    for day_data in daily_summary:
+        summary_rows.append({
+            'Fecha': day_data['day'].strftime('%Y-%m-%d') if day_data['day'] else '',
+            'Total Gastos': float(day_data['total'] or 0),
+            'Cantidad': day_data['count'] or 0
+        })
+    
+    ts = datetime.now().strftime('%Y%m%d-%H%M%S')
+    filename = f'gastos_diarios_{start_date}_al_{end_date}_{ts}'
+    
+    if fmt == 'csv':
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="{filename}.csv"'
+        writer = csv.writer(response)
+        
+        # Title
+        writer.writerow(['REPORTE DE GASTOS DIARIOS'])
+        writer.writerow([f'Período: {start_date} al {end_date}'])
+        writer.writerow([])
+        
+        # Detailed expenses
+        writer.writerow(['DETALLE DE GASTOS'])
+        writer.writerow(['Fecha', 'Proveedor', 'Descripción', 'Monto', 'Pagado por', 'Empresa'])
+        for row in detailed_rows:
+            writer.writerow([
+                row['Fecha'],
+                row['Proveedor'],
+                row['Descripción'],
+                row['Monto'],
+                row['Pagado por'],
+                row['Empresa']
+            ])
+        
+        # Daily summary
+        writer.writerow([])
+        writer.writerow(['RESUMEN DIARIO'])
+        writer.writerow(['Fecha', 'Total Gastos', 'Cantidad'])
+        for row in summary_rows:
+            writer.writerow([
+                row['Fecha'],
+                row['Total Gastos'],
+                row['Cantidad']
+            ])
+        
+        # Total summary
+        writer.writerow([])
+        writer.writerow(['RESUMEN GENERAL'])
+        writer.writerow(['Total General de Gastos', total_amount])
+        writer.writerow(['Total de Registros', total_count])
+        writer.writerow(['Promedio por Gasto', total_amount / total_count if total_count > 0 else 0])
+        
+        return response
+    
+    if fmt in ('xlsx', 'xls'):
+        if pd is None:
+            return HttpResponse('Pandas no está instalado. Instala: pip install pandas openpyxl', status=400)
+        
+        import io
+        buf = io.BytesIO()
+        
+        with pd.ExcelWriter(buf, engine='openpyxl') as writer:
+            # Detailed expenses sheet
+            if detailed_rows:
+                df_detailed = pd.DataFrame(detailed_rows)
+                df_detailed.to_excel(writer, index=False, sheet_name='Detalle Gastos')
+            
+            # Daily summary sheet
+            if summary_rows:
+                df_summary = pd.DataFrame(summary_rows)
+                df_summary.to_excel(writer, index=False, sheet_name='Resumen Diario')
+            
+            # Add total summary sheet
+            total_data = [{
+                'Concepto': 'Total General de Gastos',
+                'Monto': total_amount
+            }, {
+                'Concepto': 'Total de Registros',
+                'Monto': total_count
+            }, {
+                'Concepto': 'Promedio por Gasto',
+                'Monto': total_amount / total_count if total_count > 0 else 0
+            }]
+            df_total = pd.DataFrame(total_data)
+            df_total.to_excel(writer, index=False, sheet_name='Resumen General')
+        
+        response = HttpResponse(buf.getvalue(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = f'attachment; filename="{filename}.xlsx"'
+        return response
+    
+    if fmt == 'pdf':
+        if HTML is None:
+            return HttpResponse('WeasyPrint no está instalado. Instala: pip install weasyprint', status=400)
+        
+        html = f'''
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 20px; }}
+                h1, h2 {{ color: #333; }}
+                table {{ border-collapse: collapse; width: 100%; margin-bottom: 20px; }}
+                th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+                th {{ background-color: #f2f2f2; }}
+                .text-right {{ text-align: right; }}
+                .summary {{ background-color: #f9f9f9; }}
+            </style>
+        </head>
+        <body>
+            <h1>REPORTE DE GASTOS DIARIOS</h1>
+            <p><strong>Período:</strong> {start_date} al {end_date}</p>
+            
+            <h2>DETALLE DE GASTOS</h2>
+            <table>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Proveedor</th>
+                    <th>Descripción</th>
+                    <th class="text-right">Monto</th>
+                    <th>Pagado por</th>
+                    <th>Empresa</th>
+                </tr>
+        '''
+        
+        for row in detailed_rows:
+            html += f'''
+                <tr>
+                    <td>{row['Fecha']}</td>
+                    <td>{row['Proveedor']}</td>
+                    <td>{row['Descripción']}</td>
+                    <td class="text-right">${row['Monto']:.2f}</td>
+                    <td>{row['Pagado por']}</td>
+                    <td>{row['Empresa']}</td>
+                </tr>
+            '''
+        
+        html += '''
+            </table>
+            
+            <h2>RESUMEN DIARIO</h2>
+            <table>
+                <tr>
+                    <th>Fecha</th>
+                    <th class="text-right">Total Gastos</th>
+                    <th class="text-right">Cantidad</th>
+                </tr>
+        '''
+        
+        for row in summary_rows:
+            html += f'''
+                <tr>
+                    <td>{row['Fecha']}</td>
+                    <td class="text-right">${row['Total Gastos']:.2f}</td>
+                    <td class="text-right">{row['Cantidad']}</td>
+                </tr>
+            '''
+        
+        html += f'''
+            </table>
+            
+            <h2>RESUMEN GENERAL</h2>
+            <table class="summary">
+                <tr>
+                    <td><strong>Total General de Gastos</strong></td>
+                    <td class="text-right">${total_amount:.2f}</td>
+                </tr>
+                <tr>
+                    <td><strong>Total de Registros</strong></td>
+                    <td class="text-right">{total_count}</td>
+                </tr>
+                <tr>
+                    <td><strong>Promedio por Gasto</strong></td>
+                    <td class="text-right">${total_amount / total_count if total_count > 0 else 0:.2f}</td>
+                </tr>
+            </table>
+        </body>
+        </html>
+        '''
+        
+        response = HttpResponse(content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="{filename}.pdf"'
+        base_url = request.build_absolute_uri('/')
+        HTML(string=html, base_url=base_url).write_pdf(response)
+        return response
+    
     return HttpResponse('Formato no soportado', status=400)
