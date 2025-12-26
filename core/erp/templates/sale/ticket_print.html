@@ -21,7 +21,7 @@
     th { border-bottom: 1px solid #000; font-weight: bold; }
     .totals td { padding: 2px 0.5px; }
     .prod-name {
-      width: 26mm;
+      width: 24mm;
       white-space: normal;
       overflow: visible;
       font-size: 8pt;
@@ -29,11 +29,12 @@
       line-height: 1.1;
     }
     .amount {
-      width: 14mm;
+      width: 16mm;
       text-align: right;
       font-size: 8pt;
       font-weight: bold;
       white-space: nowrap;
+      padding-right: 0.5mm;
     }
     .no-print { margin: 10px 0; text-align: center; }
     @media print {
@@ -104,8 +105,8 @@
     <!-- Totales -->
     <table class="totals">
       <tr>
-        <td class="bold" style="width:34mm;">TOTAL</td>
-        <td class="amount" style="width:14mm; font-size: 8pt;">
+        <td class="bold" style="width:32mm;">TOTAL</td>
+        <td class="amount" style="width:16mm; font-size: 8pt; padding-right: 0.5mm;">
           ${{ sale.total|floatformat:"-2" }}
         </td>
       </tr>

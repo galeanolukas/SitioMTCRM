@@ -1,3 +1,10 @@
+function formatCurrency(amount) {
+    return '$' + Number(amount).toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+}
+
 function message_success(message) {
     var html = '';
     html = '<div id="success-block" class="alert alert-success alert-dismissible">';

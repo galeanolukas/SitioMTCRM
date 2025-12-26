@@ -49,7 +49,13 @@ class ProductListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListV
                     qs = qs.filter(company_id=active_cid)
                 print(f"DEBUG Product: Found {qs.count()} products")
                 for i in qs:
-                    data.append(i.toJSON())
+                    product_data = i.toJSON()
+                    # Formatear valores monetarios con separadores de miles
+                    if 'pvp' in product_data:
+                        product_data['pvp_formatted'] = "${:,.2f}".format(float(product_data['pvp']))
+                    if 'pvp_final' in product_data:
+                        product_data['pvp_final_formatted'] = "${:,.2f}".format(float(product_data['pvp_final']))
+                    data.append(product_data)
                 print(f"DEBUG Product: Returning {len(data)} products")
             else:
                 data = {'error': 'Ha ocurrido un error'}
