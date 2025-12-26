@@ -1,5 +1,6 @@
 {% extends 'list.html' %}
 {% load static %}
+{% load currency_filters %}
 
 {# Columnas de la tabla #}
 {% block columns %}
@@ -21,22 +22,22 @@
         <tr>
             <td>{{ register.date|date:"d/m/Y" }}</td>
             <td>{{ register.user.get_full_name }}</td>
-            <td class="text-right">${{ register.opening_balance|floatformat:2 }}</td>
+            <td class="text-right">{{ register.opening_balance|currency }}</td>
             <td class="text-right">
                 {% if register.is_closed %}
-                    ${{ register.total_sales|floatformat:2 }}
+                    {{ register.total_sales|currency }}
                 {% else %}
-                    ${{ register.live_total_sales|default:0|floatformat:2 }}
+                    {{ register.live_total_sales|default:0|currency }}
                 {% endif %}
             </td>
             <td class="text-right">
                 {% if register.is_closed %}
-                    ${{ register.expenses|floatformat:2 }}
+                    {{ register.expenses|currency }}
                 {% else %}
-                    ${{ register.live_expenses|default:0|floatformat:2 }}
+                    {{ register.live_expenses|default:0|currency }}
                 {% endif %}
             </td>
-            <td class="text-right">${{ register.closing_balance|floatformat:2 }}</td>
+            <td class="text-right">{{ register.closing_balance|currency }}</td>
             <td>
                 {% if register.is_closed %}
                     <span class="badge badge-success">Cerrada</span>

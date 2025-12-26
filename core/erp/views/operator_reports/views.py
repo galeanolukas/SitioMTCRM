@@ -413,7 +413,7 @@ def operator_sales_export(request):
 
 
 def generate_pdf_report(sales, start_date, end_date, company_id, user):
-    """Generate PDF report with printer-friendly formatting"""
+    """Generate PDF report matching the exact format from the image"""
     from django.http import HttpResponse
     from reportlab.lib.pagesizes import letter, A4
     from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
@@ -423,6 +423,7 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user):
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
     from io import BytesIO
+    from django.db.models import Sum
     
     # Register fonts (if available)
     try:
@@ -432,170 +433,166 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user):
         font_name = 'Helvetica'
     
     response = HttpResponse(content_type='application/pdf')
-    response['Content-Disposition'] = f'attachment; filename="ventas_{start_date}_al_{end_date}.pdf"'
+    response['Content-Disposition'] = f'attachment; filename="planilla_ventas_{start_date}_al_{end_date}.pdf"'
     
     buffer = BytesIO()
-    # Reduce margins for more space
-    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
+    # Use A4 with margins matching the image format
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=50, bottomMargin=50)
     
     styles = getSampleStyleSheet()
-    title_style = ParagraphStyle(
-        'CustomTitle',
+    
+    # Custom styles for the exact format
+    header_style = ParagraphStyle(
+        'HeaderStyle',
         parent=styles['Heading1'],
-        fontSize=12,
-        spaceAfter=6,
+        fontSize=16,
+        spaceAfter=12,
         alignment=1,  # Center
-        textColor=colors.black
+        textColor=colors.black,
+        bold=True
     )
     
-    subtitle_style = ParagraphStyle(
-        'CustomSubtitle',
+    date_style = ParagraphStyle(
+        'DateStyle',
         parent=styles['Heading2'],
-        fontSize=10,
-        spaceAfter=6,
+        fontSize=14,
+        spaceAfter=20,
         alignment=1,  # Center
-        textColor=colors.black
+        textColor=colors.black,
+        bold=True
     )
     
     normal_style = styles['Normal']
     
-    # Get company info
-    company_name = "Todas las Empresas"
-    if company_id:
-        try:
-            company = Company.objects.get(id=company_id)
-            company_name = company.name
-        except Company.DoesNotExist:
-            company_name = "Empresa Desconocida"
-    
-    user_name = user.get_full_name() or user.username
-    
     # Build story
     story = []
     
-    # Title
-    story.append(Paragraph("REPORTE DE VENTAS", title_style))
-    story.append(Paragraph(company_name, subtitle_style))
-    story.append(Spacer(1, 4))
+    # Header - Company name and Planilla de Ventas
+    story.append(Paragraph("DISTRIBUIDORA AA GRUPO T N & LA CIA", header_style))
+    story.append(Paragraph("Planilla de Ventas", date_style))
+    story.append(Spacer(1, 20))
     
-    # Report info in single row - more compact
-    info_data = [[
-        f"Por: {user_name[:15]}",
-        f"Período: {start_date} al {end_date}",
-        f"Fecha: {timezone.now().strftime('%d/%m %H:%M')}",
-        f"Ventas: {len(sales)}"
-    ]]
+    # Date section
+    story.append(Paragraph(f"Fecha {start_date.split('-')[0]}", date_style))
+    story.append(Spacer(1, 30))
     
-    info_table = Table(info_data, colWidths=[2*inch, 2.5*inch, 2*inch, 1.2*inch])
-    info_table.setStyle(TableStyle([
+    # Calculate totals by payment method
+    cash_total = 0
+    transfer_total = 0
+    mp_total = 0
+    grand_total = 0
+    
+    for sale in sales:
+        if sale.payment_method == 'cash':
+            cash_total += float(sale.total)
+        elif sale.payment_method == 'transfer':
+            transfer_total += float(sale.total)
+        elif sale.payment_method == 'mp':
+            mp_total += float(sale.total)
+        grand_total += float(sale.total)
+    
+    # Sales table matching the image format
+    headers = ['N° Comprob.', 'Efectivo', 'Transferencia', 'Mercado Pago', 'Total']
+    
+    # Table data with sales distributed by payment method
+    table_data = [headers]
+    
+    # Group sales by payment method and create rows
+    for sale in sales:
+        cash_amount = 0
+        transfer_amount = 0
+        mp_amount = 0
+        
+        if sale.payment_method == 'cash':
+            cash_amount = float(sale.total)
+        elif sale.payment_method == 'transfer':
+            transfer_amount = float(sale.total)
+        elif sale.payment_method == 'mp':
+            mp_amount = float(sale.total)
+        
+        ticket_number = sale.invoice_number if sale.is_invoiced else f"TK-{sale.id:06d}"
+        
+        table_data.append([
+            ticket_number,
+            f"${cash_amount:.2f}" if cash_amount > 0 else '',
+            f"${transfer_amount:.2f}" if transfer_amount > 0 else '',
+            f"${mp_amount:.2f}" if mp_amount > 0 else '',
+            f"${float(sale.total):.2f}"
+        ])
+    
+    # Add summary row
+    table_data.append([
+        'Resumen',
+        f"${cash_total:.2f}",
+        f"${transfer_total:.2f}",
+        f"${mp_total:.2f}",
+        f"${grand_total:.2f}"
+    ])
+    
+    # Create table with exact column widths
+    sales_table = Table(table_data, colWidths=[1.5*inch, 1.5*inch, 1.5*inch, 1.5*inch, 1.5*inch])
+    sales_table.setStyle(TableStyle([
+        # Header styling
         ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
-        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, -1), font_name),
-        ('FONTSIZE', (0, 0), (-1, -1), 8),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
-        ('TOPPADDING', (0, 0), (-1, -1), 3),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), font_name),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('BOLD', (0, 0), (-1, 0), True),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+        ('TOPPADDING', (0, 0), (-1, 0), 8),
+        
+        # Data rows styling
+        ('BACKGROUND', (0, 1), (-2, -1), colors.white),
+        ('TEXTCOLOR', (0, 1), (-2, -1), colors.black),
+        ('ALIGN', (0, 1), (-1, -2), 'CENTER'),
+        ('FONTNAME', (0, 1), (-2, -1), font_name),
+        ('FONTSIZE', (0, 1), (-2, -1), 9),
+        ('BOTTOMPADDING', (0, 1), (-2, -1), 6),
+        ('TOPPADDING', (0, 1), (-2, -1), 6),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        
+        # Summary row styling
+        ('BACKGROUND', (-1, -1), (-1, -1), colors.lightgrey),
+        ('TEXTCOLOR', (-1, -1), (-1, -1), colors.black),
+        ('ALIGN', (-1, -1), (-1, -1), 'CENTER'),
+        ('FONTNAME', (-1, -1), (-1, -1), font_name),
+        ('FONTSIZE', (-1, -1), (-1, -1), 10),
+        ('BOLD', (-1, -1), (-1, -1), True),
+        ('BOTTOMPADDING', (-1, -1), (-1, -1), 8),
+        ('TOPPADDING', (-1, -1), (-1, -1), 8),
     ]))
     
-    story.append(info_table)
-    story.append(Spacer(1, 8))
+    story.append(sales_table)
+    story.append(Spacer(1, 40))
     
-    # Sales table - better spacing
-    if sales:
-        # Calculate totals
-        total_amount = sum(float(sale.total) for sale in sales)
-        
-        # Table headers
-        headers = ['Fecha', 'Ticket', 'Cliente', 'Total', 'Pago']
-        
-        # Table data
-        table_data = [headers]
-        for sale in sales[:80]:  # Adjusted for better spacing
-            ticket_number = sale.invoice_number if sale.is_invoiced else f"TK-{sale.id:06d}"
-            # Truncate client name for space
-            client_name = sale.cli.names if sale.cli else 'Anónimo'
-            if len(client_name) > 18:
-                client_name = client_name[:15] + "..."
-            
-            table_data.append([
-                sale.date_joined.strftime('%d/%m %H:%M'),
-                ticket_number,
-                client_name,
-                f"${float(sale.total):.2f}",
-                sale.get_payment_method_display()[:8]  # Truncate payment method
-            ])
-        
-        # Add total row
-        table_data.append(['', '', 'TOTAL:', f"${total_amount:.2f}", ''])
-        
-        # Better column widths for spacing - match info table width
-        sales_table = Table(table_data, colWidths=[1.5*inch, 1.2*inch, 2.0*inch, 1.0*inch, 1.0*inch])
-        sales_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
-            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), font_name),
-            ('FONTSIZE', (0, 0), (-1, 0), 8),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 5),
-            ('TOPPADDING', (0, 0), (-1, 0), 5),
-            ('BACKGROUND', (0, 1), (-2, -1), colors.white),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
-            ('ALIGN', (3, 0), (3, -1), 'RIGHT'),  # Total column right-aligned
-            ('FONTNAME', (-1, -1), (-1, -1), font_name),  # Total row bold
-            ('FONTSIZE', (-1, -1), (-1, -1), 8),
-            ('BACKGROUND', (-1, -1), (-1, -1), colors.lightgrey),  # Total row background
-            ('BOTTOMPADDING', (-1, -1), (-1, -1), 5),
-            ('TOPPADDING', (-1, -1), (-1, -1), 5),
-            ('BOLD', (-1, -1), (-1, -1), True),  # Make total row bold
-        ]))
-        
-        story.append(sales_table)
-        
-        if len(sales) > 80:
-            story.append(Spacer(1, 4))
-            story.append(Paragraph(f"*Mostrando las primeras 80 ventas de {len(sales)} totales", ParagraphStyle('small', parent=normal_style, fontSize=7)))
+    # Observations section
+    obs_style = ParagraphStyle(
+        'ObsStyle',
+        parent=normal_style,
+        fontSize=10,
+        spaceAfter=10,
+        leftIndent=20
+    )
     
-    story.append(Spacer(1, 8))
+    story.append(Paragraph("Observaciones:", obs_style))
+    story.append(Spacer(1, 20))
     
-    # Payment method breakdown - compact but readable
-    payment_choices = {
-        'cash': 'Efectivo',
-        'card': 'Tarjeta',
-        'transfer': 'Transfer',
-        'mp': 'MP',
-        'check': 'Cheque',
-        'combined': 'Combin'
-    }
+    # Conformity section
+    conformity_style = ParagraphStyle(
+        'ConformityStyle',
+        parent=normal_style,
+        fontSize=10,
+        spaceAfter=10,
+        leftIndent=20
+    )
     
-    payment_data = [['Método', 'Total', 'Cant.']]
-    for method_key, method_name in payment_choices.items():
-        method_sales = sales.filter(payment_method=method_key)
-        if method_sales.exists():
-            method_total = method_sales.aggregate(total=Sum('total'))['total'] or 0
-            method_count = method_sales.count()
-            payment_data.append([method_name, f"${method_total:.2f}", str(method_count)])
+    story.append(Paragraph("Conformidad:", conformity_style))
     
-    if len(payment_data) > 1:
-        story.append(Paragraph("DESGLOSE POR MÉTODO DE PAGO", subtitle_style))
-        payment_table = Table(payment_data, colWidths=[2.0*inch, 2.0*inch, 1.0*inch])
-        payment_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
-            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), font_name),
-            ('FONTSIZE', (0, 0), (-1, 0), 8),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 4),
-            ('TOPPADDING', (0, 0), (-1, 0), 4),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.white),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
-            ('ALIGN', (1, 0), (1, -1), 'RIGHT'),  # Total column right-aligned
-            ('BOTTOMPADDING', (0, 1), (-1, -1), 4),
-            ('TOPPADDING', (0, 1), (-1, -1), 4),
-            ('BOLD', (0, 1), (-1, -1), True),  # Make payment totals bold
-        ]))
-        
-        story.append(payment_table)
+    # Add signature line
+    story.append(Spacer(1, 30))
+    story.append(Paragraph("_________________________", conformity_style))
+    story.append(Paragraph("Firma", conformity_style))
     
     # Build PDF
     doc.build(story)

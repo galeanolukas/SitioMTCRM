@@ -65,6 +65,19 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 if not prod:
                     return JsonResponse({'error': 'Producto no encontrado'}, status=404)
                 data = prod.toJSON()
+                # Agregar advertencias de stock
+                if prod.is_out_of_stock():
+                    data['stock_warning'] = 'SIN STOCK - No hay unidades disponibles'
+                    data['stock_warning_type'] = 'danger'
+                elif prod.has_low_stock():
+                    data['stock_warning'] = f'STOCK BAJO - Solo {prod.stock} {prod.get_unit_display()} disponibles'
+                    data['stock_warning_type'] = 'warning'
+                
+                # Formatear valores monetarios con separadores de miles
+                if 'pvp' in data:
+                    data['pvp_formatted'] = "${:,.2f}".format(float(data['pvp']))
+                if 'pvp_final' in data:
+                    data['pvp_final_formatted'] = "${:,.2f}".format(float(data['pvp_final']))
             elif action == 'search_products':
                 term = (request.POST.get('term') or '').strip()
                 active_cid = request.session.get('company_id')
@@ -77,16 +90,30 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 for w in filter(None, term.split()):
                     qs = qs.filter(name__icontains=w)
                 qs = qs[:10]
-                data = [
-                    {
+                data = []
+                for p in qs:
+                    item = {
                         'id': p.id,
                         'name': p.name,
                         'pvp': float(p.pvp),
                         'stock': float(p.stock),
                         'code': p.code or '',
                         'iva_rate': float(getattr(p, 'iva_rate', 0) or 0),
-                    } for p in qs
-                ]
+                        'stock_status': p.get_stock_status(),
+                        'stock_status_display': p.get_stock_status_display(),
+                        'has_low_stock': p.has_low_stock(),
+                        'is_out_of_stock': p.is_out_of_stock(),
+                        'min_stock': float(p.min_stock),
+                        'track_stock': p.track_stock,
+                    }
+                    # Agregar advertencias de stock
+                    if p.is_out_of_stock():
+                        item['stock_warning'] = 'SIN STOCK - No hay unidades disponibles'
+                        item['stock_warning_type'] = 'danger'
+                    elif p.has_low_stock():
+                        item['stock_warning'] = f'STOCK BAJO - Solo {p.stock} {p.get_unit_display()} disponibles'
+                        item['stock_warning_type'] = 'warning'
+                    data.append(item)
             elif action == 'quick_create_product':
                 from decimal import Decimal
                 name = (request.POST.get('name') or 'PRODUCTO GENERICO').strip()
@@ -196,7 +223,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         if cant <= 0:
                             raise Exception("Cantidad inválida")
                         if getattr(prod, 'track_stock', True) and prod.stock < cant:
-                            raise Exception(f"Stock insuficiente para {prod.name}")
+                            raise Exception(f"Stock insuficiente para {prod.name}. Disponible: {format(prod.stock, '.2f')} {prod.get_unit_display()}, requerido: {format(cant, '.2f')} {prod.get_unit_display()}")
                     sale = Sale()
                     # Asignar empresa activa a la venta
                     active_cid = request.session.get('company_id')
@@ -321,7 +348,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         prod = Product.objects.select_for_update().get(pk=prod_id)
                         cant = int(it.get('quantity', 1) or 1)
                         if getattr(prod, 'track_stock', True) and prod.stock < cant:
-                            raise Exception(f"Stock insuficiente para {prod.name}")
+                            raise Exception(f"Stock insuficiente para {prod.name}. Disponible: {format(prod.stock, '.2f')} {prod.get_unit_display()}, requerido: {format(cant, '.2f')} {prod.get_unit_display()}")
                         price = float(it.get('unit_price', 0))
                         subtotal = float(it.get('line_total', price * cant))
                         DetSale.objects.create(
@@ -615,6 +642,13 @@ class SaleListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView
                 for sale in qs:
                     try:
                         sale_data = sale.toJSON()
+                        # Formatear valores monetarios con separadores de miles
+                        if 'total' in sale_data:
+                            sale_data['total_formatted'] = "${:,.2f}".format(float(sale_data['total']))
+                        if 'subtotal' in sale_data:
+                            sale_data['subtotal_formatted'] = "${:,.2f}".format(float(sale_data['subtotal']))
+                        if 'iva' in sale_data:
+                            sale_data['iva_formatted'] = "${:,.2f}".format(float(sale_data['iva']))
                         # El método toJSON ya maneja el formateo de la fecha
                         data.append(sale_data)
                     except Exception as e:

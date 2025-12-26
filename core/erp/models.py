@@ -126,6 +126,7 @@ class Product(models.Model):
     pvp_final = models.DecimalField(default=0.00, max_digits=9, decimal_places=2, verbose_name='Precio final (con IVA)')
     unit = models.CharField(max_length=10, choices=UNIT_CHOICES, default='unit', verbose_name='Unidad de medida')
     stock = models.DecimalField(default=0.00, max_digits=12, decimal_places=2, verbose_name='Stock')
+    min_stock = models.DecimalField(default=5.00, max_digits=12, decimal_places=2, verbose_name='Stock mínimo alerta')
     synced_to_server = models.BooleanField(default=False, verbose_name='Sincronizado con servidor')
     track_stock = models.BooleanField(default=True, verbose_name='Controlar stock')
 
@@ -154,6 +155,36 @@ class Product(models.Model):
             self.pvp_final = Decimal('0.00')
         super().save(*args, **kwargs)
 
+    def get_stock_status(self):
+        """Determinar el estado del stock"""
+        if not self.track_stock:
+            return 'no_track'
+        if self.stock <= 0:
+            return 'out_of_stock'
+        elif self.stock <= self.min_stock:
+            return 'low_stock'
+        else:
+            return 'in_stock'
+
+    def get_stock_status_display(self):
+        """Obtener descripción del estado del stock"""
+        status = self.get_stock_status()
+        displays = {
+            'no_track': 'No controla stock',
+            'out_of_stock': 'Sin stock',
+            'low_stock': 'Stock bajo',
+            'in_stock': 'En stock'
+        }
+        return displays.get(status, 'Desconocido')
+
+    def has_low_stock(self):
+        """Verificar si tiene stock bajo"""
+        return self.track_stock and self.stock > 0 and self.stock <= self.min_stock
+
+    def is_out_of_stock(self):
+        """Verificar si está sin stock"""
+        return self.track_stock and self.stock <= 0
+
     def toJSON(self):
         item = model_to_dict(self)
         item['cat'] = self.cat.toJSON()
@@ -167,8 +198,13 @@ class Product(models.Model):
         item['unit'] = self.unit
         item['unit_display'] = self.get_unit_display()
         item['stock'] = format(self.stock, '.2f') if self.stock is not None else '0.00'
+        item['min_stock'] = format(self.min_stock, '.2f') if self.min_stock is not None else '5.00'
         item['code'] = self.code
         item['track_stock'] = self.track_stock
+        item['stock_status'] = self.get_stock_status()
+        item['stock_status_display'] = self.get_stock_status_display()
+        item['has_low_stock'] = self.has_low_stock()
+        item['is_out_of_stock'] = self.is_out_of_stock()
         return item
 
     def get_image(self):

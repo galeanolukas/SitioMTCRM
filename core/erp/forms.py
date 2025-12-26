@@ -428,6 +428,16 @@ class ExpenseForm(ModelForm):
                 'autocomplete': 'off'
             })
         
+        # Establecer usuario actual como valor por defecto en 'pagado por'
+        if 'payer' in self.fields and self.request and hasattr(self.request, 'user'):
+            if not self.initial.get('payer') and not self.instance.pk:
+                user = self.request.user
+                full_name = user.get_full_name().strip()
+                if full_name:
+                    self.initial['payer'] = full_name
+                else:
+                    self.initial['payer'] = user.username
+        
         for f in self.visible_fields():
             if f.name not in ('supplier', 'date'):
                 f.field.widget.attrs['class'] = 'form-control'

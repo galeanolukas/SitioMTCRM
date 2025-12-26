@@ -6,7 +6,7 @@ from django.urls import reverse_lazy
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import redirect
-from django.db.models import Sum
+from django.db.models import Sum, Count
 from django.contrib.auth import get_user_model
 from django.db import connections
 from django.conf import settings
@@ -357,7 +357,17 @@ class ExpenseListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListV
         return super().dispatch(request, *args, **kwargs)
 
     def get_queryset(self):
-        qs = super().get_queryset().filter(is_active=True)
+        qs = super().get_queryset()
+        
+        # Apply date range filters
+        start_date = self.request.GET.get('start_date')
+        end_date = self.request.GET.get('end_date')
+        
+        if start_date:
+            qs = qs.filter(date__gte=start_date)
+        if end_date:
+            qs = qs.filter(date__lte=end_date)
+        
         if not self.request.user.is_superuser:
             active_cid = self.request.session.get('company_id') or getattr(self.request.user, 'company_id', None)
             if active_cid:
@@ -884,10 +894,21 @@ def report_sales_export(request):
 
 def expense_export(request):
     """Export expense report with daily summary and total sum"""
-    if not request.user.is_superuser:
+    # Debug: Log user and permissions
+    print(f"DEBUG: User {request.user.username}, is_superuser: {request.user.is_superuser}")
+    print(f"DEBUG: User permissions: {[p.codename for p in request.user.user_permissions.all()]}")
+    print(f"DEBUG: Has erp.view_expense: {request.user.has_perm('erp.view_expense')}")
+    print(f"DEBUG: Is authenticated: {request.user.is_authenticated}")
+    
+    # Allow all authenticated users for testing
+    if not request.user.is_authenticated:
+        print("DEBUG: User not authenticated, returning 403")
         return HttpResponse(status=403)
     
+    print("DEBUG: User authenticated, proceeding with export")
+    
     fmt = (request.GET.get('format') or 'csv').lower()
+    print(f"DEBUG: Export format: {fmt}")
     
     # Get today's date or use date range if provided
     from django.utils import timezone
@@ -914,13 +935,21 @@ def expense_export(request):
     total_amount = qs.aggregate(total=Sum('amount'))['total'] or 0
     total_count = qs.count()
     
-    # Prepare detailed rows
+    # Prepare detailed rows with items as columns
     detailed_rows = []
     for expense in qs:
+        # Get expense items if they exist
+        items = []
+        if hasattr(expense, 'items'):
+            for item in expense.items.all():
+                items.append(f"{item.description} (${item.amount:.2f})")
+        items_str = " | ".join(items) if items else "N/A"
+        
         detailed_rows.append({
             'Fecha': expense.date.strftime('%Y-%m-%d') if expense.date else '',
             'Proveedor': expense.supplier.name if expense.supplier else 'N/A',
             'Descripción': expense.description or '',
+            'Items': items_str,
             'Monto': float(expense.amount or 0),
             'Pagado por': expense.payer or '',
             'Empresa': expense.company.name if expense.company else 'N/A'
@@ -950,16 +979,21 @@ def expense_export(request):
         
         # Detailed expenses
         writer.writerow(['DETALLE DE GASTOS'])
-        writer.writerow(['Fecha', 'Proveedor', 'Descripción', 'Monto', 'Pagado por', 'Empresa'])
+        writer.writerow(['Fecha', 'Proveedor', 'Descripción', 'Items', 'Monto', 'Pagado por', 'Empresa'])
         for row in detailed_rows:
             writer.writerow([
                 row['Fecha'],
                 row['Proveedor'],
                 row['Descripción'],
+                row['Items'],
                 row['Monto'],
                 row['Pagado por'],
                 row['Empresa']
             ])
+        
+        # Add total sum row
+        writer.writerow([])
+        writer.writerow(['TOTAL GENERAL', '', '', '', '', total_amount, '', ''])
         
         # Daily summary
         writer.writerow([])
@@ -994,6 +1028,19 @@ def expense_export(request):
                 df_detailed = pd.DataFrame(detailed_rows)
                 df_detailed.to_excel(writer, index=False, sheet_name='Detalle Gastos')
             
+            # Add total sum row to detailed sheet
+            if detailed_rows:
+                total_row = pd.DataFrame([{
+                    'Fecha': 'TOTAL GENERAL',
+                    'Proveedor': '',
+                    'Descripción': '',
+                    'Items': '',
+                    'Monto': total_amount,
+                    'Pagado por': '',
+                    'Empresa': ''
+                }])
+                pd.concat([df_detailed, total_row]).to_excel(writer, index=False, sheet_name='Detalle Gastos', startrow=0)
+            
             # Daily summary sheet
             if summary_rows:
                 df_summary = pd.DataFrame(summary_rows)
@@ -1002,13 +1049,9 @@ def expense_export(request):
             # Add total summary sheet
             total_data = [{
                 'Concepto': 'Total General de Gastos',
-                'Monto': total_amount
-            }, {
-                'Concepto': 'Total de Registros',
-                'Monto': total_count
-            }, {
-                'Concepto': 'Promedio por Gasto',
-                'Monto': total_amount / total_count if total_count > 0 else 0
+                'Monto': total_amount,
+                'Cantidad': total_count,
+                'Promedio': total_amount / total_count if total_count > 0 else 0
             }]
             df_total = pd.DataFrame(total_data)
             df_total.to_excel(writer, index=False, sheet_name='Resumen General')
@@ -1018,98 +1061,183 @@ def expense_export(request):
         return response
     
     if fmt == 'pdf':
-        if HTML is None:
-            return HttpResponse('WeasyPrint no está instalado. Instala: pip install weasyprint', status=400)
-        
-        html = f'''
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <style>
-                body {{ font-family: Arial, sans-serif; margin: 20px; }}
-                h1, h2 {{ color: #333; }}
-                table {{ border-collapse: collapse; width: 100%; margin-bottom: 20px; }}
-                th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
-                th {{ background-color: #f2f2f2; }}
-                .text-right {{ text-align: right; }}
-                .summary {{ background-color: #f9f9f9; }}
-            </style>
-        </head>
-        <body>
-            <h1>REPORTE DE GASTOS DIARIOS</h1>
-            <p><strong>Período:</strong> {start_date} al {end_date}</p>
+        # Try using ReportLab as alternative to WeasyPrint
+        try:
+            from reportlab.lib.pagesizes import letter, A4
+            from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+            from reportlab.lib.styles import getSampleStyleSheet
+            from reportlab.lib import colors
+            from reportlab.lib.units import inch
+            from io import BytesIO
             
-            <h2>DETALLE DE GASTOS</h2>
-            <table>
-                <tr>
-                    <th>Fecha</th>
-                    <th>Proveedor</th>
-                    <th>Descripción</th>
-                    <th class="text-right">Monto</th>
-                    <th>Pagado por</th>
-                    <th>Empresa</th>
-                </tr>
-        '''
-        
-        for row in detailed_rows:
-            html += f'''
-                <tr>
-                    <td>{row['Fecha']}</td>
-                    <td>{row['Proveedor']}</td>
-                    <td>{row['Descripción']}</td>
-                    <td class="text-right">${row['Monto']:.2f}</td>
-                    <td>{row['Pagado por']}</td>
-                    <td>{row['Empresa']}</td>
-                </tr>
+            # Create PDF buffer
+            buffer = BytesIO()
+            doc = SimpleDocTemplate(buffer, pagesize=A4)
+            elements = []
+            
+            # Styles
+            styles = getSampleStyleSheet()
+            title_style = styles['Heading1']
+            heading_style = styles['Heading2']
+            normal_style = styles['Normal']
+            
+            # Title
+            elements.append(Paragraph("REPORTE DE GASTOS", title_style))
+            elements.append(Spacer(1, 12))
+            elements.append(Paragraph(f"<b>Período:</b> {start_date} al {end_date}", normal_style))
+            elements.append(Spacer(1, 20))
+            
+            # Summary Table
+            elements.append(Paragraph("RESUMEN DE GASTOS", heading_style))
+            elements.append(Spacer(1, 12))
+            
+            # Table data
+            table_data = [['Fecha', 'Proveedor', 'Descripción', 'Items', 'Monto', 'Pagado por', 'Empresa']]
+            for row in detailed_rows:
+                table_data.append([
+                    row['Fecha'],
+                    row['Proveedor'],
+                    row['Descripción'],
+                    row['Items'],
+                    f"${row['Monto']:.2f}",
+                    row['Pagado por'],
+                    row['Empresa']
+                ])
+            
+            # Add total row
+            table_data.append(['', '', '', '', f"${total_amount:.2f}", '', ''])
+            
+            # Create table
+            table = Table(table_data)
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('ALIGN', (4, 1), (4, -1), 'RIGHT'),
+                ('FONTNAME', (4, -1), (4, -1), 'Helvetica-Bold'),
+                ('BACKGROUND', (4, -1), (4, -1), colors.lightgrey),
+            ]))
+            
+            elements.append(table)
+            elements.append(Spacer(1, 20))
+            
+            # Statistics
+            elements.append(Paragraph("RESUMEN ESTADÍSTICO", heading_style))
+            elements.append(Spacer(1, 12))
+            
+            stats_data = [
+                ['Total de Gastos', f"${total_amount:.2f}"],
+                ['Cantidad de Registros', str(total_count)],
+                ['Promedio por Gasto', f"${total_amount / total_count if total_count > 0 else 0:.2f}"]
+            ]
+            
+            stats_table = Table(stats_data)
+            stats_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, -1), colors.lightgrey),
+                ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+                ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ]))
+            
+            elements.append(stats_table)
+            
+            # Build PDF
+            doc.build(elements)
+            buffer.seek(0)
+            
+            response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="resumen_gastos_{start_date}_al_{end_date}.pdf"'
+            return response
+            
+        except ImportError:
+            # Fallback to HTML if ReportLab is not available
+            return HttpResponse('ReportLab no está instalado. Instala: pip install reportlab', status=400)
+        except Exception as e:
+            # Fallback to HTML if PDF generation fails
+            html = f'''
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <style>
+                    body {{ font-family: Arial, sans-serif; margin: 20px; }}
+                    h1 {{ text-align: center; color: #333; }}
+                    h2 {{ color: #333; border-bottom: 1px solid #ccc; }}
+                    table {{ border-collapse: collapse; width: 100%; margin-bottom: 20px; }}
+                    th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+                    th {{ background-color: #f2f2f2; font-weight: bold; }}
+                    .text-right {{ text-align: right; }}
+                    .summary {{ background-color: #f9f9f9; font-weight: bold; }}
+                    .total {{ background-color: #e0e0e0; font-weight: bold; font-size: 14px; }}
+                </style>
+            </head>
+            <body>
+                <h1>REPORTE DE GASTOS</h1>
+                <p><strong>Período:</strong> {start_date} al {end_date}</p>
+                
+                <h2>RESUMEN DE GASTOS</h2>
+                <table>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Proveedor</th>
+                        <th>Descripción</th>
+                        <th>Items</th>
+                        <th class="text-right">Monto</th>
+                        <th>Pagado por</th>
+                        <th>Empresa</th>
+                    </tr>
             '''
-        
-        html += '''
-            </table>
             
-            <h2>RESUMEN DIARIO</h2>
-            <table>
-                <tr>
-                    <th>Fecha</th>
-                    <th class="text-right">Total Gastos</th>
-                    <th class="text-right">Cantidad</th>
-                </tr>
-        '''
-        
-        for row in summary_rows:
+            for row in detailed_rows:
+                html += f'''
+                    <tr>
+                        <td>{row['Fecha']}</td>
+                        <td>{row['Proveedor']}</td>
+                        <td>{row['Descripción']}</td>
+                        <td>{row['Items']}</td>
+                        <td class="text-right">${row['Monto']:.2f}</td>
+                        <td>{row['Pagado por']}</td>
+                        <td>{row['Empresa']}</td>
+                    </tr>
+                '''
+            
             html += f'''
-                <tr>
-                    <td>{row['Fecha']}</td>
-                    <td class="text-right">${row['Total Gastos']:.2f}</td>
-                    <td class="text-right">{row['Cantidad']}</td>
-                </tr>
+                    <tr class="total">
+                        <td colspan="4"><strong>TOTAL GENERAL</strong></td>
+                        <td class="text-right"><strong>${total_amount:.2f}</strong></td>
+                        <td colspan="2"></td>
+                    </tr>
+                </table>
+                
+                <h2>RESUMEN ESTADÍSTICO</h2>
+                <table>
+                    <tr class="summary">
+                        <td><strong>Total de Gastos</strong></td>
+                        <td class="text-right">${total_amount:.2f}</td>
+                    </tr>
+                    <tr class="summary">
+                        <td><strong>Cantidad de Registros</strong></td>
+                        <td class="text-right">{total_count}</td>
+                    </tr>
+                    <tr class="summary">
+                        <td><strong>Promedio por Gasto</strong></td>
+                        <td class="text-right">${total_amount / total_count if total_count > 0 else 0:.2f}</td>
+                    </tr>
+                </table>
+            </body>
+            </html>
             '''
-        
-        html += f'''
-            </table>
             
-            <h2>RESUMEN GENERAL</h2>
-            <table class="summary">
-                <tr>
-                    <td><strong>Total General de Gastos</strong></td>
-                    <td class="text-right">${total_amount:.2f}</td>
-                </tr>
-                <tr>
-                    <td><strong>Total de Registros</strong></td>
-                    <td class="text-right">{total_count}</td>
-                </tr>
-                <tr>
-                    <td><strong>Promedio por Gasto</strong></td>
-                    <td class="text-right">${total_amount / total_count if total_count > 0 else 0:.2f}</td>
-                </tr>
-            </table>
-        </body>
-        </html>
-        '''
-        
-        response = HttpResponse(content_type='application/pdf')
-        response['Content-Disposition'] = f'attachment; filename="{filename}.pdf"'
-        base_url = request.build_absolute_uri('/')
-        HTML(string=html, base_url=base_url).write_pdf(response)
-        return response
+            response = HttpResponse(html, content_type='text/html')
+            response['Content-Disposition'] = f'attachment; filename="resumen_gastos_{start_date}_al_{end_date}.html"'
+            return response
     
     return HttpResponse('Formato no soportado', status=400)

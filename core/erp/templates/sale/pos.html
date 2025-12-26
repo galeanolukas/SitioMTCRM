@@ -1,5 +1,6 @@
-{% extends 'layout.html' %}
+{% extends 'vtc/body.html' %}
 {% load static %}
+{% load currency_filters %}
 
 {% block head %}
   {{ block.super }}
@@ -116,7 +117,7 @@
                 <td>{{ s.date_joined|date:"d/m/Y H:i" }}</td>
                 <td>{{ s.cli|default:"Anónimo" }}</td>
                 <td class="text-center">{{ s.items|default:0 }}</td>
-                <td class="text-end">${{ s.total|floatformat:2 }}</td>
+                <td class="text-end">{{ s.total|currency }}</td>
                 <td>
                   {% if s.payment_method == 'mp' %}
                     <span class="badge bg-info text-dark">Mercado Pago</span>
@@ -178,6 +179,63 @@
             <li class="list-group-item d-flex justify-content-between"><span>IVA</span> <span id="tIva">$0.00</span></li>
             <li class="list-group-item d-flex justify-content-between fw-bold"><span>Total</span> <span id="tTotal">$0.00</span></li>
           </ul>
+
+          <script>
+            // Función para formatear moneda con separadores de miles
+            function formatCurrency(amount) {
+              return '$' + Number(amount).toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+              });
+            }
+            
+            // Función para actualizar los totales con formato
+            function updateTotalsWithFormat() {
+              const subtotal = parseFloat($('#tSubtotal').text().replace('$', '').replace(',', '')) || 0;
+              const iva = parseFloat($('#tIva').text().replace('$', '').replace(',', '')) || 0;
+              const total = parseFloat($('#tTotal').text().replace('$', '').replace(',', '')) || 0;
+              
+              $('#tSubtotal').text(formatCurrency(subtotal));
+              $('#tIva').text(formatCurrency(iva));
+              $('#tTotal').text(formatCurrency(total));
+            }
+            
+            // Función para actualizar tabla de items con formato
+            function updateItemsTableWithFormat() {
+              $('#posItems tbody tr').each(function() {
+                const subtotalCell = $(this).find('td:eq(3)'); // Subtotal column
+                const subtotalText = subtotalCell.text().replace('$', '').replace(',', '');
+                const subtotal = parseFloat(subtotalText) || 0;
+                subtotalCell.text(formatCurrency(subtotal));
+                
+                const pvpCell = $(this).find('td:eq(2)'); // PVP column
+                const pvpText = pvpCell.text().replace('$', '').replace(',', '');
+                const pvp = parseFloat(pvpText) || 0;
+                pvpCell.text(formatCurrency(pvp));
+              });
+            }
+            
+            // Sobrescribir funciones que actualizan totales
+            $(document).ready(function() {
+              updateTotalsWithFormat();
+              updateItemsTableWithFormat();
+              
+              // Observer para cambios en la tabla
+              const observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                  if (mutation.type === 'childList') {
+                    updateItemsTableWithFormat();
+                    updateTotalsWithFormat();
+                  }
+                });
+              });
+              
+              observer.observe(document.getElementById('posItems').getElementsByTagName('tbody')[0], {
+                childList: true,
+                subtree: true
+              });
+            });
+          </script>
 
           <div class="mb-3">
             <label for="payMethod" class="form-label">Forma de pago</label>
@@ -333,6 +391,19 @@
         <div class="mb-3">
           <label class="form-label">Total a pagar: <strong id="combinedTotalAmount">$0.00</strong></label>
         </div>
+        
+        <script>
+          // Formatear montos en pagos combinados
+          function updateCombinedPaymentsFormat() {
+            const subtotal = parseFloat($('#combinedSubtotalAmount').text().replace('$', '').replace(',', '')) || 0;
+            const iva = parseFloat($('#combinedIvaAmount').text().replace('$', '').replace(',', '')) || 0;
+            const total = parseFloat($('#combinedTotalAmount').text().replace('$', '').replace(',', '')) || 0;
+            
+            $('#combinedSubtotalAmount').text(formatCurrency(subtotal));
+            $('#combinedIvaAmount').text(formatCurrency(iva));
+            $('#combinedTotalAmount').text(formatCurrency(total));
+          }
+        </script>
         <div class="mb-3">
           <label class="form-label">Tipo de comprobante</label>
           <div>
@@ -384,6 +455,14 @@
         <div class="mb-3">
           <label class="form-label">Primer pago: <strong id="firstPaymentSummary">$0.00</strong></label>
         </div>
+        
+        <script>
+          // Formatear primer pago en resumen
+          function updateFirstPaymentFormat() {
+            const firstPayment = parseFloat($('#firstPaymentSummary').text().replace('$', '').replace(',', '')) || 0;
+            $('#firstPaymentSummary').text(formatCurrency(firstPayment));
+          }
+        </script>
         <div class="mb-3">
           <label for="secondPaymentMethod" class="form-label">Segunda forma de pago</label>
           <select id="secondPaymentMethod" class="form-select">
