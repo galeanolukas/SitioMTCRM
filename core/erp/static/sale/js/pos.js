@@ -5,9 +5,9 @@
   const $tItems = $('#tItems'), $tSubtotal = $('#tSubtotal'), $tIva = $('#tIva'), $tTotal = $('#tTotal');
   const $summaryCard = $('#posSummaryCard');
 
-  const getIvaRate = () => {
-    // IVA global desactivado: si el producto no tiene iva_rate, se considera 0
-    return 0;
+  const getIvaRate = (forInvoice = false) => {
+    // Para facturas usar 21%, para tickets usar 0% (IVA global desactivado)
+    return forInvoice ? 0.21 : 0;
   };
   let items = [];
   let selectedIndex = -1;
@@ -430,7 +430,7 @@
       });
   });
 
-  function buildPayload() {
+  function buildPayload(forInvoice = false) {
     let subtotal_neto = 0;
     let iva_total = 0;
     items.forEach(it => {
@@ -438,7 +438,7 @@
       const cant = parseFloat(it.cant) || 0;
       const sub_neto = net * cant;
       subtotal_neto += sub_neto;
-      const rate = (typeof it.iva_rate !== 'undefined' && !isNaN(parseFloat(it.iva_rate))) ? parseFloat(it.iva_rate) : getIvaRate();
+      const rate = (typeof it.iva_rate !== 'undefined' && !isNaN(parseFloat(it.iva_rate))) ? parseFloat(it.iva_rate) : getIvaRate(forInvoice);
       iva_total += sub_neto * rate;
     });
     const items_net = items.map(it => {
@@ -474,7 +474,7 @@
   }
 
   function doCreateSale() {
-    const calc = buildPayload();
+    const calc = buildPayload(false); // Ticket sin IVA
     const subtotal = calc.subtotal_neto;
     const iva = 0;
     const total = subtotal;
@@ -508,7 +508,7 @@
   }
 
   function doInvoiceSale() {
-    const calc = buildPayload();
+    const calc = buildPayload(true); // Factura con IVA
     const subtotal = calc.subtotal_neto;
     const iva = calc.iva_total;
     const total = subtotal + iva;
@@ -691,7 +691,7 @@
     }
     
     // Construir payload de pagos combinados
-    const calc = buildPayload();
+    const calc = buildPayload(wantsInvoice); // Usar IVA si es factura
     const paymentDescription = `${getPaymentMethodName(firstMethod)} + ${getPaymentMethodName(secondMethod)}`;
     
     // Usar items con IVA si es factura, sin IVA si es ticket

@@ -866,55 +866,55 @@ class InvoiceCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Cre
             data['error'] = str(e)
         return JsonResponse(data, safe=False)
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['title'] = 'Crear Factura'
-        context['entity'] = 'Facturación'
-        context['list_url'] = self.success_url
-        context['action'] = 'add_invoice'
-        context['det'] = json.dumps([])
-        return context
-
 
 def invoice_pdf(request, pk):
     sale = Sale.objects.filter(pk=pk).first()
     if sale is None:
         return HttpResponse(status=404)
 
-    template = get_template('sale/invoice_b.html')
-    # Usar la empresa asociada a la venta; si no hay, caer a la primera definida
-    company_obj = sale.company or Company.objects.first()
-    html_string = template.render({
-        'sale': sale,
-        'items': sale.detsale_set.all(),
-        'company': {
-            'name': company_obj.name if company_obj else 'Empresa no configurada',
-            'address': company_obj.address if company_obj else '',
-            'cuit': company_obj.cuit if company_obj else '',
-            'iibb': company_obj.iibb if company_obj else '',
-            'start': company_obj.start.strftime('%d/%m/%Y') if company_obj and company_obj.start else '',
-            'pos': company_obj.pos if company_obj else sale.invoice_pos,
-            'email': company_obj.email if company_obj else '',
-            'phone': company_obj.phone if company_obj else '',
-            'logo': company_obj.get_logo_url() if company_obj else '',
-        }
-    })
+    try:
+        # Intentar usar WeasyPrint primero
+        template = get_template('sale/invoice_b.html')
+        company_obj = sale.company or Company.objects.first()
+        html_string = template.render({
+            'sale': sale,
+            'items': sale.detsale_set.all(),
+            'company': {
+                'name': company_obj.name if company_obj else 'Empresa no configurada',
+                'address': company_obj.address if company_obj else '',
+                'cuit': company_obj.cuit if company_obj else '',
+                'iibb': company_obj.iibb if company_obj else '',
+                'start': company_obj.start.strftime('%d/%m/%Y') if company_obj and company_obj.start else '',
+                'pos': company_obj.pos if company_obj else sale.invoice_pos,
+                'email': company_obj.email if company_obj else '',
+                'phone': company_obj.phone if company_obj else '',
+                'logo': company_obj.get_logo_url() if company_obj else '',
+            }
+        })
 
-    response = HttpResponse(content_type='application/pdf')
-    filename = f"factura_{sale.invoice_number or sale.id}.pdf"
-    response['Content-Disposition'] = f'inline; filename="{filename}"'
+        response = HttpResponse(content_type='application/pdf')
+        filename = f"factura_{sale.invoice_number or sale.id}.pdf"
+        response['Content-Disposition'] = f'inline; filename="{filename}"'
 
-    base_url = request.build_absolute_uri('/')
-    # Si tuvieras un CSS de impresión, puedes colocarlo en static/sale/invoice.css
-    css_path = os.path.join(settings.BASE_DIR, 'static', 'sale', 'invoice.css')
-    styles = [CSS(filename=css_path)] if os.path.exists(css_path) else None
+        base_url = request.build_absolute_uri('/')
+        css_path = os.path.join(settings.BASE_DIR, 'static', 'sale', 'invoice.css')
+        styles = [CSS(filename=css_path)] if os.path.exists(css_path) else None
 
-    HTML(string=html_string, base_url=base_url).write_pdf(
-        response,
-        stylesheets=styles
-    )
+        HTML(string=html_string, base_url=base_url).write_pdf(
+            response,
+            stylesheets=styles
+        )
 
-    return response
+        return response
+    
+    except Exception as e:
+        # Si WeasyPrint falla, usar ReportLab como fallback
+        try:
+            from core.erp.utils.pdf_utils import invoice_pdf_reportlab
+            return invoice_pdf_reportlab(request, sale)
+        except ImportError:
+            # Si ni ReportLab está disponible, devolver error
+            return HttpResponse(f"Error generando PDF: {str(e)}", status=500)
 
 
 @csrf_exempt
