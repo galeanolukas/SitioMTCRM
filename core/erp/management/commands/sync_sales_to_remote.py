@@ -74,6 +74,7 @@ class Command(BaseCommand):
                         iva=iva_amount,
                         total=sale.total,
                         payment_method=sale.payment_method,
+                        payment_details=getattr(sale, 'payment_details', None),
                         invoice_number=sale.invoice_number,
                         invoice_pos=sale.invoice_pos,
                         invoice_type=sale.invoice_type,

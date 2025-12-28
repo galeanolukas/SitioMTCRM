@@ -463,6 +463,7 @@ class Expense(models.Model):
     company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa', null=True, blank=True)
     supplier = models.ForeignKey('Supplier', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Proveedor')
     date = models.DateField(default=datetime.now, verbose_name='Fecha')
+    time = models.TimeField(default=datetime.now, verbose_name='Hora')
     description = models.CharField(max_length=255, verbose_name='Descripción', blank=True, null=True)
     recurring_reason = models.CharField(max_length=30, choices=EXPENSE_RECURRING_REASONS, blank=True, null=True, verbose_name='Motivo recurrente')
     amount = models.DecimalField(default=0.00, max_digits=12, decimal_places=2, verbose_name='Importe')
@@ -492,6 +493,7 @@ class Expense(models.Model):
         item['supplier'] = (self.supplier.name if self.supplier_id else None)
         item['supplier_id'] = self.supplier_id
         item['date'] = self.date.strftime('%Y-%m-%d') if self.date else None
+        item['time'] = self.time.strftime('%H:%M') if self.time else None
         item['amount'] = format(self.amount, '.2f') if self.amount is not None else '0.00'
         item['receipt_url'] = self.get_receipt_url()
         return item

@@ -232,6 +232,10 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     if 'combined_payments' in payload and payload['combined_payments']:
                         sale.payment_details = payload['combined_payments']
                     
+                    # Establecer zona horaria local
+                    import pytz
+                    sale.local_timezone = 'America/Argentina/Buenos_Aires'
+                    
                     sale.save()
                     for it in items:
                         raw_cant = it.get('cant', 1)

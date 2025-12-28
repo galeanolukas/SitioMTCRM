@@ -46,6 +46,7 @@ class Command(BaseCommand):
                         company_id=remote_company_id,
                         supplier_id=exp.supplier_id,
                         date=exp.date,
+                        time=exp.time,
                         description=exp.description,
                         amount=exp.amount,
                         payer=exp.payer,
