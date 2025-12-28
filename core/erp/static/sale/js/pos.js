@@ -22,6 +22,12 @@
 
   function fmt(n) { return '$' + (parseFloat(n || 0)).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
 
+  // Función para parsear formato argentino (coma decimal, punto miles)
+  function parseArgentineAmount(text) {
+    const cleanText = text.replace('$', '').replace(/\./g, '').replace(',', '.');
+    return parseFloat(cleanText) || 0;
+  }
+
   function showToast(type, message) {
     const toastEl = document.getElementById('posToast');
     if (!toastEl) {
@@ -554,9 +560,13 @@
 
   // Funciones para pagos combinados
   function openCombinedPaymentModal() {
-    const subtotal = parseFloat($tSubtotal.text().replace('$', '')) || 0;
-    const iva = parseFloat($tIva.text().replace('$', '')) || 0;
-    const total = parseFloat($tTotal.text().replace('$', '')) || 0;
+    const subtotalText = $tSubtotal.text();
+    const ivaText = $tIva.text();
+    const totalText = $tTotal.text();
+    
+    const subtotal = parseArgentineAmount(subtotalText);
+    const iva = parseArgentineAmount(ivaText);
+    const total = parseArgentineAmount(totalText);
     
     $('#combinedSubtotalAmount').text(fmt(subtotal));
     $('#combinedIvaAmount').text(fmt(iva));
@@ -596,16 +606,20 @@
     }
     
     // Actualizar restante
-    const firstAmount = parseFloat($('#firstPaymentAmount').val()) || 0;
-    const total = parseFloat($('#combinedTotalAmount').text().replace('$', '').replace(/,/g, '')) || 0;
+    const firstAmountText = $('#firstPaymentAmount').val();
+    const firstAmount = parseArgentineAmount(firstAmountText);
+    const totalText = $('#combinedTotalAmount').text();
+    const total = parseArgentineAmount(totalText);
     const remaining = total - firstAmount;
     $('#combinedRemaining').text(fmt(remaining));
   }
 
   // Calcular monto restante en tiempo real
   $(document).on('input', '#firstPaymentAmount', function() {
-    const total = parseFloat($('#combinedTotalAmount').text().replace('$', '').replace(/,/g, '')) || 0;
-    const firstAmount = parseFloat($(this).val()) || 0;
+    const totalText = $('#combinedTotalAmount').text();
+    const total = parseArgentineAmount(totalText);
+    const firstAmountText = $(this).val();
+    const firstAmount = parseArgentineAmount(firstAmountText);
     const remaining = total - firstAmount;
     
     if (firstAmount > 0 && firstAmount < total) {
@@ -623,8 +637,8 @@
 
   // Continuar al paso 2
   $(document).on('click', '#btnCombinedPaymentStep2', function() {
-    const total = parseFloat($('#combinedTotalAmount').text().replace('$', '').replace(/,/g, '')) || 0;
-    const firstAmount = parseFloat($('#firstPaymentAmount').val()) || 0;
+    const total = parseArgentineAmount($('#combinedTotalAmount').text());
+    const firstAmount = parseArgentineAmount($('#firstPaymentAmount').val());
     const firstMethod = $('#firstPaymentMethod').val();
     
     if (firstAmount <= 0 || firstAmount >= total) {
@@ -638,13 +652,21 @@
     const wantsInvoice = $('#combinedInvoice').is(':checked');
     const invoiceType = wantsInvoice ? 'Factura' : 'Ticket';
     $('#firstPaymentSummary').text(`${getPaymentMethodName(firstMethod)}: ${fmt(firstAmount)} (${invoiceType})`);
-    $('#secondPaymentAmount').val(remaining.toFixed(2));
+    
+    // Establecer el segundo pago con el restante
+    const secondPaymentValue = remaining.toFixed(2).replace('.', ',');
+    $('#secondPaymentAmount').val(secondPaymentValue);
     $('#secondPaymentMethod').val('cash');
     
     // Cerrar modal paso 1 y abrir paso 2
     bootstrap.Modal.getInstance(document.getElementById('combinedPaymentModal')).hide();
     const modal2 = new bootstrap.Modal(document.getElementById('combinedPaymentStep2Modal'));
     modal2.show();
+    
+    // Establecer el segundo pago después de que el modal se muestre
+    setTimeout(() => {
+      $('#secondPaymentAmount').val(secondPaymentValue);
+    }, 100);
   });
 
   // Volver al paso 1
@@ -656,11 +678,11 @@
 
   // Confirmar pagos combinados
   $(document).on('click', '#btnCombinedPaymentConfirm', function() {
-    const total = parseFloat($('#combinedTotalAmount').text().replace('$', '').replace(/,/g, '')) || 0;
-    const firstAmount = parseFloat($('#firstPaymentAmount').val()) || 0;
+    const total = parseArgentineAmount($('#combinedTotalAmount').text());
+    const firstAmount = parseArgentineAmount($('#firstPaymentAmount').val());
     const firstMethod = $('#firstPaymentMethod').val();
     const secondMethod = $('#secondPaymentMethod').val();
-    const secondAmount = parseFloat($('#secondPaymentAmount').val()) || 0;
+    const secondAmount = parseArgentineAmount($('#secondPaymentAmount').val());
     const wantsInvoice = $('#combinedInvoice').is(':checked');
     
     if (Math.abs((firstAmount + secondAmount) - total) > 0.01) {

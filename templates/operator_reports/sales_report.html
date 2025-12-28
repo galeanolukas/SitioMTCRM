@@ -243,8 +243,8 @@ function displayReport(data) {
                 transferAmount = parseFloat(sale.total) || 0;
             } else if (sale.payment_method === 'mp') {
                 mpAmount = parseFloat(sale.total) || 0;
-            } else if (sale.payment_method === 'combined') {
-                // Distribuir pagos combinados según los detalles
+            } else if (sale.payment_method && sale.payment_method.includes('+')) {
+                // Distribuir pagos combinados (cualquier método que contenga '+')
                 if (sale.payment_details && Array.isArray(sale.payment_details)) {
                     sale.payment_details.forEach(function(payment) {
                         const amount = parseFloat(payment.amount) || 0;

@@ -205,18 +205,55 @@ def operator_sales_export(request):
             writer.writerow([f"Fecha de generación: {timezone.now().strftime('%d/%m/%Y %H:%M')}"])
             writer.writerow([])
             
-            writer.writerow(['Fecha', 'Ticket/Factura', 'Cliente', 'Total', 'Forma de Pago', 'Empresa'])
+            writer.writerow(['Fecha', 'Ticket/Factura', 'Cliente', 'Efectivo', 'Transferencia', 'Mercado Pago', 'Total', 'Forma de Pago', 'Empresa'])
             
             total_amount = 0
+            cash_total = 0
+            transfer_total = 0
+            mp_total = 0
+            
             for sale in sales:
                 # Get invoice/ticket number
                 ticket_number = sale.invoice_number if sale.is_invoiced else f"TK-{sale.id:06d}"
+                
+                # Distribute amounts by payment method
+                cash_amount = 0
+                transfer_amount = 0
+                mp_amount = 0
+                
+                if sale.payment_method == 'cash':
+                    cash_amount = float(sale.total)
+                elif sale.payment_method == 'transfer':
+                    transfer_amount = float(sale.total)
+                elif sale.payment_method == 'mp':
+                    mp_amount = float(sale.total)
+                elif sale.payment_method and '+' in sale.payment_method:
+                    # Distribuir pagos combinados
+                    payment_details = getattr(sale, 'payment_details', [])
+                    if payment_details:
+                        for payment in payment_details:
+                            amount = float(payment.get('amount', 0))
+                            if payment.get('method') == 'cash':
+                                cash_amount += amount
+                            elif payment.get('method') == 'transfer':
+                                transfer_amount += amount
+                            elif payment.get('method') == 'mp':
+                                mp_amount += amount
+                    else:
+                        cash_amount = float(sale.total)
+                
+                cash_total += cash_amount
+                transfer_total += transfer_amount
+                mp_total += mp_amount
                 
                 writer.writerow([
                     sale.date_joined.strftime('%d/%m/%Y %H:%M'),
                     ticket_number,
                     sale.cli.names if sale.cli else 'Anónimo',
-                    sale.total,
+                    cash_amount,
+                    transfer_amount,
+                    mp_amount,
+                    float(sale.total),
                     sale.get_payment_method_display(),
                     sale.company.name if sale.company else 'N/A'
                 ])
@@ -232,6 +269,10 @@ def operator_sales_export(request):
             # Add payment method breakdown
             writer.writerow([])
             writer.writerow(['DESGLOSE POR MÉTODO DE PAGO'])
+            writer.writerow(['Efectivo', cash_total])
+            writer.writerow(['Transferencia', transfer_total])
+            writer.writerow(['Mercado Pago', mp_total])
+            writer.writerow(['Total Verificado', cash_total + transfer_total + mp_total])
             
             payment_choices = {
                 'cash': 'Efectivo',
@@ -527,11 +568,12 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user):
             card_total += sale_total
         elif sale.payment_method == 'check':
             check_total += sale_total
-        elif sale.payment_method == 'combined':
-            # Para pagos combinados, usar los detalles guardados
-            if hasattr(sale, 'payment_details') and sale.payment_details:
+        elif sale.payment_method and '+' in sale.payment_method:
+            # Para pagos combinados (cualquier método que contenga '+')
+            payment_details = getattr(sale, 'payment_details', [])
+            if payment_details:
                 # Distribuir montos según los detalles guardados
-                for payment in sale.payment_details:
+                for payment in payment_details:
                     method = payment.get('method', '')
                     amount = float(payment.get('amount', 0))
                     if method == 'cash':
@@ -583,11 +625,12 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user):
             transfer_amount = sale_total
         elif sale.payment_method == 'mp':
             mp_amount = sale_total
-        elif sale.payment_method == 'combined':
-            # Para pagos combinados, usar los detalles guardados
-            if hasattr(sale, 'payment_details') and sale.payment_details:
+        elif sale.payment_method and '+' in sale.payment_method:
+            # Para pagos combinados (cualquier método que contenga '+')
+            payment_details = getattr(sale, 'payment_details', [])
+            if payment_details:
                 # Distribuir montos según los detalles guardados
-                for payment in sale.payment_details:
+                for payment in payment_details:
                     method = payment.get('method', '')
                     amount = float(payment.get('amount', 0))
                     if method == 'cash':
