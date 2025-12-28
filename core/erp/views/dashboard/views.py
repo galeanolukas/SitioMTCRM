@@ -109,6 +109,38 @@ class DashboardView(TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        
+        # Obtener parámetros de filtro
+        time_filter = self.request.GET.get('time_filter', 'today')  # today, week, month
+        
+        # Calcular fechas según el filtro
+        today = date.today()
+        if time_filter == 'today':
+            start_date = today
+            end_date = today
+            filter_label = "Hoy"
+        elif time_filter == 'week':
+            start_date = today - timedelta(days=today.weekday())  # Lunes de esta semana
+            end_date = start_date + timedelta(days=6)  # Domingo
+            filter_label = "Esta semana"
+        elif time_filter == 'month':
+            start_date = today.replace(day=1)  # Primer día del mes
+            # Último día del mes
+            if today.month == 12:
+                end_date = today.replace(year=today.year+1, month=1, day=1) - timedelta(days=1)
+            else:
+                end_date = today.replace(month=today.month+1, day=1) - timedelta(days=1)
+            filter_label = "Este mes"
+        else:
+            start_date = today
+            end_date = today
+            filter_label = "Hoy"
+        
+        context['time_filter'] = time_filter
+        context['filter_label'] = filter_label
+        context['start_date'] = start_date
+        context['end_date'] = end_date
+        
         # Resolver empresa activa
         active_cid = self.request.session.get('company_id')
         
@@ -136,13 +168,13 @@ class DashboardView(TemplateView):
                 active_cid = self.request.session.get('company_id')
         else:
             active_cid = active_cid or getattr(self.request.user, 'company_id', None)
-        # KPIs básicos
+        # KPIs básicos con filtro de tiempo
         UserModel = get_user_model()
         context['users_count'] = UserModel.objects.count()
         context['companies_count'] = Company.objects.count()
         prod_qs = Product.objects.all()
-        sale_qs = Sale.objects.all()
-        expense_qs = Expense.objects.filter(is_active=True)
+        sale_qs = Sale.objects.filter(date_joined__date__gte=start_date, date_joined__date__lte=end_date)
+        expense_qs = Expense.objects.filter(date__gte=start_date, date__lte=end_date, is_active=True)
         if active_cid:
             prod_qs = prod_qs.filter(company_id=active_cid)
             sale_qs = sale_qs.filter(company_id=active_cid)
@@ -151,24 +183,57 @@ class DashboardView(TemplateView):
         context['sales_count'] = sale_qs.count()
         context['revenue_total'] = sale_qs.aggregate(total=Sum('total'))['total'] or 0
         context['expenses_total'] = expense_qs.aggregate(total=Sum('amount'))['total'] or 0
-        # Últimos 7 días de recaudación
-        start = date.today() - timedelta(days=6)
-        qs = (
-            sale_qs.filter(date_joined__gte=start)
-            .values('date_joined')
-            .annotate(total=Sum('total'))
-            .order_by('date_joined')
-        )
-        # Normalizar a 7 días consecutivos
-        series_map = {x['date_joined']: float(x['total']) for x in qs}
-        labels = []
-        data = []
-        for i in range(7):
-            day = start + timedelta(days=i)
-            labels.append(day.strftime('%d-%m-%Y'))
-            data.append(series_map.get(day, 0.0))
-        context['chart_labels'] = labels
-        context['chart_data'] = data
+        # Gráfico de recaudación según el período
+        if time_filter == 'today':
+            # Para hoy, mostrar horas
+            qs = (
+                sale_qs.filter(date_joined__date=today)
+                .extra({'hour': "strftime('%%H', date_joined)"})
+                .values('hour')
+                .annotate(total=Sum('total'))
+                .order_by('hour')
+            )
+            labels = [f"{h:02d}:00" for h in range(8, 22)]  # 8 AM a 10 PM
+            data = []
+            series_map = {int(x['hour']): float(x['total']) for x in qs}
+            for h in range(8, 22):
+                data.append(series_map.get(h, 0.0))
+        elif time_filter == 'week':
+            # Para semana, mostrar días
+            qs = (
+                sale_qs.filter(date_joined__date__gte=start_date, date_joined__date__lte=end_date)
+                .values('date_joined__date')
+                .annotate(total=Sum('total'))
+                .order_by('date_joined__date')
+            )
+            labels = []
+            data = []
+            series_map = {x['date_joined__date']: float(x['total']) for x in qs}
+            for i in range(7):
+                day = start_date + timedelta(days=i)
+                labels.append(day.strftime('%d/%m'))
+                data.append(series_map.get(day, 0.0))
+        else:  # month
+            # Para mes, mostrar semanas
+            weeks = []
+            current = start_date
+            while current <= end_date:
+                week_end = min(current + timedelta(days=6), end_date)
+                weeks.append((current, week_end))
+                current = week_end + timedelta(days=1)
+            
+            labels = []
+            data = []
+            for i, (week_start, week_end) in enumerate(weeks):
+                week_total = sale_qs.filter(
+                    date_joined__date__gte=week_start,
+                    date_joined__date__lte=week_end
+                ).aggregate(total=Sum('total'))['total'] or 0
+                labels.append(f"Sem {i+1}")
+                data.append(float(week_total))
+        
+        context['chart_labels'] = json.dumps(labels)
+        context['chart_data'] = json.dumps(data)
         # Desglose por forma de pago
         pm_map = dict(payment_method_choices)
         pm_qs = (
@@ -176,8 +241,8 @@ class DashboardView(TemplateView):
             .annotate(total=Sum('total'))
             .order_by()
         )
-        context['pm_labels'] = [pm_map.get(x['payment_method'], x['payment_method']) for x in pm_qs]
-        context['pm_data'] = [float(x['total']) for x in pm_qs]
+        context['pm_labels'] = json.dumps([pm_map.get(x['payment_method'], x['payment_method']) for x in pm_qs])
+        context['pm_data'] = json.dumps([float(x['total']) for x in pm_qs])
 
         # Control de inventario (porcentaje de productos por estado de stock)
         LOW_STOCK_THRESHOLD = 10

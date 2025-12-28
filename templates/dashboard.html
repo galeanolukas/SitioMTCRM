@@ -69,6 +69,32 @@
       </a>
     </div>
     
+    <!-- Selector de tiempo para filtros -->
+    <div class="row mb-3">
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+              <i class="fas fa-filter me-2"></i>
+              Período: <span class="badge bg-primary">{{ filter_label }}</span>
+              <small class="text-muted ms-2">{{ start_date|date:"d/m/Y" }} - {{ end_date|date:"d/m/Y" }}</small>
+            </h5>
+            <div class="btn-group" role="group">
+              <a href="?time_filter=today" class="btn btn-outline-primary {% if time_filter == 'today' %}active{% endif %}">
+                Hoy
+              </a>
+              <a href="?time_filter=week" class="btn btn-outline-primary {% if time_filter == 'week' %}active{% endif %}">
+                Semana
+              </a>
+              <a href="?time_filter=month" class="btn btn-outline-primary {% if time_filter == 'month' %}active{% endif %}">
+                Mes
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
     {% if request.user.is_superuser %}
     <!-- Card de Ganancias especial para superusuario -->
     <div class="{{ box_class }}">
@@ -145,12 +171,22 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+  // Datos del dashboard pasados como JSON string
+  window.dashboardData = {
+    chart_labels: JSON.parse('{{ chart_labels|escapejs }}'),
+    chart_data: JSON.parse('{{ chart_data|escapejs }}'),
+    pm_labels: JSON.parse('{{ pm_labels|escapejs }}'),
+    pm_data: JSON.parse('{{ pm_data|escapejs }}')
+  };
+  
   (function() {
     const canvas = document.getElementById('revenueChart');
-    if (!canvas) return;
+    if (!canvas) {
+      return;
+    }
     const ctx = canvas.getContext('2d');
-    const labels = {{ chart_labels|safe }};
-    const data = {{ chart_data|safe }};
+    const labels = window.dashboardData.chart_labels;
+    const data = window.dashboardData.chart_data;
     new Chart(ctx, {
       type: 'line',
       data: {
@@ -176,8 +212,8 @@
     const pmCanvas = document.getElementById('salesPercentChart');
     if (pmCanvas) {
       const pmCtx = pmCanvas.getContext('2d');
-      const pmLabels = {{ pm_labels|safe }};
-      const pmData = {{ pm_data|safe }};
+      const pmLabels = window.dashboardData.pm_labels;
+      const pmData = window.dashboardData.pm_data;
       const colors = [
         '#0d6efd', '#198754', '#dc3545', '#ffc107', '#20c997', '#6f42c1', '#fd7e14'
       ];
