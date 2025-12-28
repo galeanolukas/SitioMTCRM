@@ -20,7 +20,7 @@
     return '';
   }
 
-  function fmt(n) { return '$' + (parseFloat(n || 0).toFixed(2)); }
+  function fmt(n) { return '$' + (parseFloat(n || 0)).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
 
   function showToast(type, message) {
     const toastEl = document.getElementById('posToast');
@@ -64,6 +64,8 @@
   function recalc() {
     let subtotal = 0;
     let iva = 0;
+    
+    // Calcular totales
     items.forEach(it => {
       const price = parseFloat(it.price) || 0;
       const cant = parseFloat(it.cant) || 0;
@@ -76,11 +78,16 @@
       }
       iva += it.subtotal * rate;
     });
+    
     const total = subtotal + iva;
+    
+    // Actualizar totales
     $tItems.text(items.length);
     $tSubtotal.text(fmt(subtotal));
     $tIva.text(fmt(iva));
     $tTotal.text(fmt(total));
+    
+    // Renderizar items
     render();
   }
 
@@ -113,14 +120,22 @@
   function findById(id) { return items.find(x => x.id === id); }
 
   function addOrInc(prod) {
+    // Validar que el producto tenga un ID válido
+    if (!prod || !prod.id) {
+      console.error("Invalid product data:", prod);
+      showToast('error', 'Producto inválido');
+      return;
+    }
+    
     let it = findById(prod.id);
+    
     if (it) {
       it.cant = (parseFloat(it.cant) || 0) + 1;
     } else {
       // price = pvp neto; pvp_final se usará solo al facturar
       it = {
         id: prod.id,
-        name: prod.name,
+        name: prod.name || 'Producto sin nombre',
         price: parseFloat(prod.pvp || prod.price || 0),
         pvp_final: parseFloat(prod.pvp_final || 0),
         iva_rate: (typeof prod.iva_rate !== 'undefined' && !isNaN(parseFloat(prod.iva_rate))) ? parseFloat(prod.iva_rate) : getIvaRate(),
@@ -129,8 +144,10 @@
       };
       items.push(it);
     }
+    
     selectedIndex = items.indexOf(it);
     recalc();
+    flashSummary();
   }
 
   function ajaxAction(action, data) {
@@ -152,14 +169,16 @@
   const doSuggest = debounce(function () {
     const term = ($input.val() || '').trim();
     if (term.length < 2) { $suggest.hide().empty(); return; }
+    
     ajaxAction('search_products', { action: 'search_products', term })
       .done(list => {
         $suggest.empty();
         if (!Array.isArray(list) || !list.length) { $suggest.hide(); return; }
+        
         list.forEach(p => {
           const item = $(`<button type="button" class="list-group-item list-group-item-action">${p.name} <span class='text-muted small'>${p.code || ''}</span> <span class='float-end'>$${parseFloat(p.pvp).toFixed(2)}</span></button>`);
-          item.on('click', () => {
-            // Pasamos todo el objeto p para conservar pvp_final e iva_rate
+          item.on('click', function(e) {
+            e.preventDefault();
             addOrInc(p);
             $suggest.hide().empty();
             $input.val('').focus();
@@ -169,7 +188,7 @@
         $suggest.show();
       })
       .fail(() => { $suggest.hide().empty(); });
-  }, 180);
+  }, 200);
 
   $input.on('input', function (e) {
     if (e.originalEvent && e.originalEvent.inputType === 'insertLineBreak') return; // handled by keydown
@@ -557,7 +576,7 @@
   });
 
   function updateCombinedTotals() {
-    const subtotal = parseFloat($tSubtotal.text().replace('$', '')) || 0;
+    const subtotal = parseFloat($tSubtotal.text().replace('$', '').replace(/,/g, '')) || 0;
     const wantsInvoice = $('#combinedInvoice').is(':checked');
     
     if (wantsInvoice) {
@@ -578,14 +597,14 @@
     
     // Actualizar restante
     const firstAmount = parseFloat($('#firstPaymentAmount').val()) || 0;
-    const total = parseFloat($('#combinedTotalAmount').text().replace('$', '')) || 0;
+    const total = parseFloat($('#combinedTotalAmount').text().replace('$', '').replace(/,/g, '')) || 0;
     const remaining = total - firstAmount;
     $('#combinedRemaining').text(fmt(remaining));
   }
 
   // Calcular monto restante en tiempo real
   $(document).on('input', '#firstPaymentAmount', function() {
-    const total = parseFloat($('#combinedTotalAmount').text().replace('$', '')) || 0;
+    const total = parseFloat($('#combinedTotalAmount').text().replace('$', '').replace(/,/g, '')) || 0;
     const firstAmount = parseFloat($(this).val()) || 0;
     const remaining = total - firstAmount;
     
@@ -604,7 +623,7 @@
 
   // Continuar al paso 2
   $(document).on('click', '#btnCombinedPaymentStep2', function() {
-    const total = parseFloat($('#combinedTotalAmount').text().replace('$', '')) || 0;
+    const total = parseFloat($('#combinedTotalAmount').text().replace('$', '').replace(/,/g, '')) || 0;
     const firstAmount = parseFloat($('#firstPaymentAmount').val()) || 0;
     const firstMethod = $('#firstPaymentMethod').val();
     
@@ -637,7 +656,7 @@
 
   // Confirmar pagos combinados
   $(document).on('click', '#btnCombinedPaymentConfirm', function() {
-    const total = parseFloat($('#combinedTotalAmount').text().replace('$', '')) || 0;
+    const total = parseFloat($('#combinedTotalAmount').text().replace('$', '').replace(/,/g, '')) || 0;
     const firstAmount = parseFloat($('#firstPaymentAmount').val()) || 0;
     const firstMethod = $('#firstPaymentMethod').val();
     const secondMethod = $('#secondPaymentMethod').val();

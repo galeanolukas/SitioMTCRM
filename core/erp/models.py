@@ -290,6 +290,7 @@ class Sale(models.Model):
     iva = models.DecimalField(default=0.00, max_digits=9, decimal_places=2)
     total = models.DecimalField(default=0.00, max_digits=9, decimal_places=2)
     payment_method = models.CharField(max_length=12, choices=payment_method_choices, default='cash', verbose_name='Forma de pago')
+    payment_details = models.JSONField(default=dict, blank=True, verbose_name='Detalles de pago combinado')
     # Facturación
     invoice_number = models.CharField(max_length=20, null=True, blank=True, unique=True)
     invoice_pos = models.CharField(max_length=5, default='0001')
@@ -353,8 +354,13 @@ class Sale(models.Model):
             item['date_joined_display'] = self.date_joined.strftime('%d-%m-%Y %H:%M') if self.date_joined else ''
         item['subtotal'] = format(self.subtotal, '.2f')
         item['iva'] = format(self.iva, '.2f')
-        item['total'] = format(self.total, '.2f')
+        item['total'] = float(self.total)  # Devolver como número, no como string
         item['payment_method'] = {'id': self.payment_method, 'name': self.get_payment_method_display()}
+        # Incluir detalles de pago combinado si existen
+        if hasattr(self, 'payment_details') and self.payment_details:
+            item['payment_details'] = self.payment_details
+        else:
+            item['payment_details'] = []
         item['invoice_number'] = self.invoice_number or ''
         item['invoice_pos'] = self.invoice_pos or ''
         item['invoice_type'] = self.invoice_type or ''

@@ -12,7 +12,20 @@
       padding-bottom: .75rem;
     }
     .pos-input { font-size: 1.25rem; height: 3rem; }
-    .pos-totals .list-group-item { font-size: 1.05rem; }
+    .pos-totals .list-group-item { 
+      font-size: 1.25rem; 
+      padding: 0.75rem 1rem;
+      font-weight: 500;
+    }
+    .pos-totals .list-group-item span:last-child {
+      font-weight: 600;
+      font-size: 1.3rem;
+    }
+    .pos-totals .list-group-item:last-child span:last-child {
+      font-weight: 700;
+      font-size: 1.5rem;
+      color: #10b981;
+    }
     .pos-card-main,
     .pos-card-secondary,
     .pos-card-summary {
@@ -189,7 +202,7 @@
               });
             }
             
-            // Función para actualizar los totales con formato
+            // Función simplificada para actualizar totales (sin bucles)
             function updateTotalsWithFormat() {
               const subtotal = parseFloat($('#tSubtotal').text().replace('$', '').replace(',', '')) || 0;
               const iva = parseFloat($('#tIva').text().replace('$', '').replace(',', '')) || 0;
@@ -200,41 +213,7 @@
               $('#tTotal').text(formatCurrency(total));
             }
             
-            // Función para actualizar tabla de items con formato
-            function updateItemsTableWithFormat() {
-              $('#posItems tbody tr').each(function() {
-                const subtotalCell = $(this).find('td:eq(3)'); // Subtotal column
-                const subtotalText = subtotalCell.text().replace('$', '').replace(',', '');
-                const subtotal = parseFloat(subtotalText) || 0;
-                subtotalCell.text(formatCurrency(subtotal));
-                
-                const pvpCell = $(this).find('td:eq(2)'); // PVP column
-                const pvpText = pvpCell.text().replace('$', '').replace(',', '');
-                const pvp = parseFloat(pvpText) || 0;
-                pvpCell.text(formatCurrency(pvp));
-              });
-            }
-            
-            // Sobrescribir funciones que actualizan totales
-            $(document).ready(function() {
-              updateTotalsWithFormat();
-              updateItemsTableWithFormat();
-              
-              // Observer para cambios en la tabla
-              const observer = new MutationObserver(function(mutations) {
-                mutations.forEach(function(mutation) {
-                  if (mutation.type === 'childList') {
-                    updateItemsTableWithFormat();
-                    updateTotalsWithFormat();
-                  }
-                });
-              });
-              
-              observer.observe(document.getElementById('posItems').getElementsByTagName('tbody')[0], {
-                childList: true,
-                subtree: true
-              });
-            });
+            // Eliminada updateItemsTableWithFormat para evitar bucles infinitos
           </script>
 
           <div class="mb-3">
@@ -393,15 +372,16 @@
         </div>
         
         <script>
-          // Formatear montos en pagos combinados
+          // Formatear montos en pagos combinados usando la misma función que el POS
           function updateCombinedPaymentsFormat() {
-            const subtotal = parseFloat($('#combinedSubtotalAmount').text().replace('$', '').replace(',', '')) || 0;
-            const iva = parseFloat($('#combinedIvaAmount').text().replace('$', '').replace(',', '')) || 0;
-            const total = parseFloat($('#combinedTotalAmount').text().replace('$', '').replace(',', '')) || 0;
+            const subtotal = parseFloat($('#combinedSubtotalAmount').text().replace('$', '').replace(/,/g, '')) || 0;
+            const iva = parseFloat($('#combinedIvaAmount').text().replace('$', '').replace(/,/g, '')) || 0;
+            const total = parseFloat($('#combinedTotalAmount').text().replace('$', '').replace(/,/g, '')) || 0;
             
-            $('#combinedSubtotalAmount').text(formatCurrency(subtotal));
-            $('#combinedIvaAmount').text(formatCurrency(iva));
-            $('#combinedTotalAmount').text(formatCurrency(total));
+            // Usar la misma función fmt() del POS para consistencia
+            $('#combinedSubtotalAmount').text('$' + subtotal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+            $('#combinedIvaAmount').text('$' + iva.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+            $('#combinedTotalAmount').text('$' + total.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
           }
         </script>
         <div class="mb-3">
@@ -459,8 +439,8 @@
         <script>
           // Formatear primer pago en resumen
           function updateFirstPaymentFormat() {
-            const firstPayment = parseFloat($('#firstPaymentSummary').text().replace('$', '').replace(',', '')) || 0;
-            $('#firstPaymentSummary').text(formatCurrency(firstPayment));
+            const firstPayment = parseFloat($('#firstPaymentSummary').text().replace('$', '').replace(/,/g, '')) || 0;
+            $('#firstPaymentSummary').text('$' + firstPayment.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
           }
         </script>
         <div class="mb-3">

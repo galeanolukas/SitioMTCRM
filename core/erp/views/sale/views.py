@@ -19,6 +19,7 @@ from django.db import models
 from django.utils import timezone
 import pytz
 
+@method_decorator(csrf_exempt, name='dispatch')
 class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView):
     template_name = 'sale/pos.html'
     permission_required = 'erp.add_sale'
@@ -86,9 +87,9 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 qs = Product.objects.all()
                 if active_cid:
                     qs = qs.filter(company_id=active_cid)
-                # Buscar por palabras clave en nombre o por código
-                for w in filter(None, term.split()):
-                    qs = qs.filter(name__icontains=w)
+                # Búsqueda simple por nombre o código
+                if term:
+                    qs = qs.filter(models.Q(name__icontains=term) | models.Q(code__icontains=term))
                 qs = qs[:10]
                 data = []
                 for p in qs:
@@ -96,23 +97,11 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         'id': p.id,
                         'name': p.name,
                         'pvp': float(p.pvp),
+                        'pvp_final': float(p.pvp_final),
                         'stock': float(p.stock),
                         'code': p.code or '',
                         'iva_rate': float(getattr(p, 'iva_rate', 0) or 0),
-                        'stock_status': p.get_stock_status(),
-                        'stock_status_display': p.get_stock_status_display(),
-                        'has_low_stock': p.has_low_stock(),
-                        'is_out_of_stock': p.is_out_of_stock(),
-                        'min_stock': float(p.min_stock),
-                        'track_stock': p.track_stock,
                     }
-                    # Agregar advertencias de stock
-                    if p.is_out_of_stock():
-                        item['stock_warning'] = 'SIN STOCK - No hay unidades disponibles'
-                        item['stock_warning_type'] = 'danger'
-                    elif p.has_low_stock():
-                        item['stock_warning'] = f'STOCK BAJO - Solo {p.stock} {p.get_unit_display()} disponibles'
-                        item['stock_warning_type'] = 'warning'
                     data.append(item)
             elif action == 'quick_create_product':
                 from decimal import Decimal
@@ -238,6 +227,11 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     sale.iva = float(payload.get('iva', 0))
                     sale.total = float(payload.get('total', 0))
                     sale.payment_method = payload.get('payment_method') or 'cash'
+                    
+                    # Guardar detalles de pagos combinados si existen
+                    if 'combined_payments' in payload and payload['combined_payments']:
+                        sale.payment_details = payload['combined_payments']
+                    
                     sale.save()
                     for it in items:
                         raw_cant = it.get('cant', 1)
@@ -658,11 +652,17 @@ class SaleListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView
                 return JsonResponse(data, safe=False)
                 
             elif action == 'search_details_prod':
-                data = []
+                data = {}
                 sale_id = request.POST.get('id')
                 if sale_id:
-                    details = DetSale.objects.filter(sale_id=sale_id)
-                    data = [detail.toJSON() for detail in details]
+                    try:
+                        sale = Sale.objects.get(id=sale_id)
+                        data = sale.toJSON()
+                        # Agregar detalles de productos
+                        details = DetSale.objects.filter(sale_id=sale_id)
+                        data['det'] = [detail.toJSON() for detail in details]
+                    except Sale.DoesNotExist:
+                        data = {'error': 'Venta no encontrada'}
                 return JsonResponse(data, safe=False)
                 
             elif action == 'invoice':

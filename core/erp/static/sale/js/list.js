@@ -16,7 +16,7 @@ function format(d) {
         html += '<td>' + value.prod.cat.name + '</td>';
         html += '<td>' + value.price + '</td>';
         html += '<td>' + value.cant + '</td>';
-        html += '<td>' + value.subtotal + '</td>';
+        html += '<td>' + (parseFloat(value.subtotal) || 0).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</td>';
         html += '</tr>';
     });
     html += '</tbody>';
@@ -103,7 +103,6 @@ $(function () {
                 "data": "date_joined_display",
                 "render": function(data, type, row) {
                     if (type === 'display' || type === 'filter') {
-                        console.log('Rendering date_joined_display:', data, 'for row:', row.id);
                         return data || '-';
                     }
                     return data;
@@ -126,7 +125,7 @@ $(function () {
                 targets: [-2, -3, -4],
                 class: 'text-center',
                 render: function (data, type, row) {
-                    return '$' + parseFloat(data).toFixed(2);
+                    return '$' + (parseFloat(data) || 0).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
                 }
             },
             {
@@ -210,15 +209,26 @@ $(function () {
                     $('#detDate').text(data.date_joined || '-');
                 }
                 $('#detTime').text('');
-                var invoiceLabel = data.invoice_number ? (data.invoice_number) : ('POS ' + (data.invoice_pos || '-') + ' · Tipo ' + (data.invoice_type || '-'));
+                var invoiceLabel = data.invoice_number ? (data.invoice_number) : ('TK-' + (String(data.id || '').padStart(6, '0')));
                 $('#detInvoice').text(invoiceLabel);
-                $('#detPay').text(data.payment_method_display || data.payment_method || '-');
+                
+                var paymentText = '-';
+                if (data.payment_method) {
+                    if (typeof data.payment_method === 'object') {
+                        paymentText = data.payment_method.name || data.payment_method.id || '-';
+                    } else if (typeof data.payment_method === 'string') {
+                        paymentText = data.payment_method;
+                    } else {
+                        paymentText = String(data.payment_method);
+                    }
+                }
+                $('#detPay').text(paymentText);
                 // Resumen
                 var items = Array.isArray(data.det) ? data.det.length : 0;
                 $('#detItems').text(items);
-                $('#detSubtotal').text('$' + parseFloat(data.subtotal || 0).toFixed(2));
-                $('#detIva').text('$' + parseFloat(data.iva || 0).toFixed(2));
-                $('#detTotal').text('$' + parseFloat(data.total || 0).toFixed(2));
+                $('#detSubtotal').text('$' + (parseFloat(data.subtotal || 0)).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+                $('#detIva').text('$' + (parseFloat(data.iva || 0)).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+                $('#detTotal').text('$' + (parseFloat(data.total || 0)).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
             } catch (e) {
                 console.warn('No se pudo completar cabecera del detalle:', e);
             }
@@ -253,7 +263,7 @@ $(function () {
                         targets: [-1, -3],
                         class: 'text-center',
                         render: function (data, type, row) {
-                            return '$' + parseFloat(data).toFixed(2);
+                            return '$' + (parseFloat(data) || 0).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
                         }
                     },
                     {
