@@ -200,11 +200,12 @@ class Product(models.Model):
         item['stock'] = format(self.stock, '.2f') if self.stock is not None else '0.00'
         item['min_stock'] = format(self.min_stock, '.2f') if self.min_stock is not None else '5.00'
         item['code'] = self.code
-        item['track_stock'] = self.track_stock
+        item['track_stock'] = bool(self.track_stock)
         item['stock_status'] = self.get_stock_status()
         item['stock_status_display'] = self.get_stock_status_display()
-        item['has_low_stock'] = self.has_low_stock()
-        item['is_out_of_stock'] = self.is_out_of_stock()
+        item['has_low_stock'] = bool(self.has_low_stock())
+        item['is_out_of_stock'] = bool(self.is_out_of_stock())
+        item['unit_display'] = self.get_unit_display()
         return item
 
     def get_image(self):
@@ -463,7 +464,7 @@ class Expense(models.Model):
     company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa', null=True, blank=True)
     supplier = models.ForeignKey('Supplier', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Proveedor')
     date = models.DateField(default=datetime.now, verbose_name='Fecha')
-    time = models.TimeField(default=datetime.now, verbose_name='Hora')
+    time = models.TimeField(default=datetime.now, verbose_name='Hora', blank=True, null=True)
     description = models.CharField(max_length=255, verbose_name='Descripción', blank=True, null=True)
     recurring_reason = models.CharField(max_length=30, choices=EXPENSE_RECURRING_REASONS, blank=True, null=True, verbose_name='Motivo recurrente')
     amount = models.DecimalField(default=0.00, max_digits=12, decimal_places=2, verbose_name='Importe')

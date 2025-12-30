@@ -65,7 +65,21 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 prod = qs.filter(models.Q(code__iexact=code) | models.Q(name__icontains=code)).first()
                 if not prod:
                     return JsonResponse({'error': 'Producto no encontrado'}, status=404)
-                data = prod.toJSON()
+                # Construir respuesta manualmente para asegurar que todos los campos lleguen
+                data = {
+                    'id': prod.id,
+                    'name': prod.name,
+                    'pvp': float(prod.pvp),
+                    'pvp_final': float(prod.pvp_final),
+                    'stock': float(prod.stock),
+                    'code': prod.code,
+                    'iva_rate': float(prod.iva_rate) if prod.iva_rate else 0.0,
+                    'track_stock': prod.track_stock,
+                    'is_out_of_stock': prod.is_out_of_stock(),
+                    'has_low_stock': prod.has_low_stock(),
+                    'unit_display': prod.get_unit_display()
+                }
+                
                 # Agregar advertencias de stock
                 if prod.is_out_of_stock():
                     data['stock_warning'] = 'SIN STOCK - No hay unidades disponibles'

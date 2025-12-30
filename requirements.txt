@@ -11,7 +11,7 @@ psycopg2-binary==2.9.9
 
 # Reportes y PDF
 reportlab==4.2.2
-weasyprint==62.3
+weasyprint==67.0
 
 # Mercado Pago SDK
 mercadopago==2.2.0

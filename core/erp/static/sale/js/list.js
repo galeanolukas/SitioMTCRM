@@ -263,7 +263,7 @@ $(function () {
                         targets: [-1, -3],
                         class: 'text-center',
                         render: function (data, type, row) {
-                            return '$' + (parseFloat(data) || 0).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                            return '$' + (parseFloat(data) || 0).toFixed(2);
                         }
                     },
                     {

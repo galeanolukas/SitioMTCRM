@@ -428,6 +428,19 @@ class ExpenseForm(ModelForm):
                 'autocomplete': 'off'
             })
         
+        # Establecer hora por defecto a la actual si no hay valor inicial
+        if not self.initial.get('time') and not self.instance.pk:
+            from django.utils import timezone
+            self.initial['time'] = timezone.now().time()
+        
+        # Configurar el widget de hora
+        if 'time' in self.fields:
+            self.fields['time'].widget.attrs.update({
+                'class': 'form-control',
+                'autocomplete': 'off'
+            })
+            self.fields['time'].required = False
+        
         # Establecer usuario actual como valor por defecto en 'pagado por'
         if 'payer' in self.fields and self.request and hasattr(self.request, 'user'):
             if not self.initial.get('payer') and not self.instance.pk:
@@ -439,7 +452,7 @@ class ExpenseForm(ModelForm):
                     self.initial['payer'] = user.username
         
         for f in self.visible_fields():
-            if f.name not in ('supplier', 'date'):
+            if f.name not in ('supplier', 'date', 'time'):
                 f.field.widget.attrs['class'] = 'form-control'
                 f.field.widget.attrs['autocomplete'] = 'off'
         if 'supplier' in self.fields:
@@ -457,11 +470,36 @@ class ExpenseForm(ModelForm):
         fields = '__all__'
         widgets = {
             'date': DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'time': TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
             'supplier': Select(attrs={'class': 'select2', 'style': 'width: 100%'}),
             'description': TextInput(attrs={'placeholder': 'Descripción del gasto'}),
             'amount': NumberInput(attrs={'step': '0.01'}),
             'payer': TextInput(attrs={'placeholder': 'Pagado por'}),
         }
+
+    def save(self, commit=True):
+        data = {}
+        try:
+            if self.is_valid():
+                obj = super().save(commit=False)
+                # Establecer hora actual si no se proporcionó
+                if not obj.time and not self.instance.pk:
+                    from django.utils import timezone
+                    obj.time = timezone.now().time()
+                
+                if self.request and hasattr(self.request, 'user') and not getattr(self.request.user, 'is_superuser', False):
+                    if getattr(self.request.user, 'company_id', None) and not getattr(obj, 'company_id', None):
+                        obj.company_id = self.request.user.company_id
+                if commit:
+                    obj.save()
+                data = obj.toJSON() if hasattr(obj, 'toJSON') else {}
+            else:
+                print('ERRORES DEL FORMULARIO EXPENSE:', self.errors)
+                data['error'] = self.errors
+        except Exception as e:
+            print('EXCEPCIÓN EN SAVE EXPENSE:', str(e))
+            data['error'] = str(e)
+        return data
 
 
 class AutoSyncConfigForm(ModelForm):

@@ -133,6 +133,17 @@
       return;
     }
     
+    // Validación simple de stock
+    const currentStock = parseFloat(prod.stock) || 0;
+    if (currentStock <= 0) {
+      showToast('error', `SIN STOCK - No hay unidades disponibles de ${prod.name}`);
+      return;
+    }
+    
+    if (currentStock <= 5) {
+      showToast('warning', `STOCK BAJO - Solo ${currentStock} unidades disponibles de ${prod.name}`);
+    }
+    
     let it = findById(prod.id);
     
     if (it) {
@@ -146,7 +157,8 @@
         pvp_final: parseFloat(prod.pvp_final || 0),
         iva_rate: (typeof prod.iva_rate !== 'undefined' && !isNaN(parseFloat(prod.iva_rate))) ? parseFloat(prod.iva_rate) : getIvaRate(),
         cant: 1,
-        subtotal: 0
+        subtotal: 0,
+        prod_data: prod // Guardar datos completos del producto para validación de stock
       };
       items.push(it);
     }
@@ -212,7 +224,7 @@
           addOrInc(resp);
           $input.val('').focus();
         })
-        .fail(jq => {
+        .fail((jqXHR, textStatus, errorThrown) => {
           // Si no encontró exacto por código/nombre, intenta sugerencias inmediatamente
           doSuggest();
           $input.select();
@@ -231,7 +243,16 @@
   $tbody.on('click', '.btnPlus', function () {
     const idx = $(this).closest('tr').data('idx');
     const current = parseFloat(items[idx].cant || 0);
-    items[idx].cant = (current || 0) + 1;
+    const newCant = current + 1;
+    
+    // Validación simple de stock
+    const productStock = parseFloat(items[idx].prod_data?.stock || 0);
+    if (newCant > productStock && productStock > 0) {
+      showToast('error', `Stock insuficiente. Disponible: ${productStock} unidades`);
+      return;
+    }
+    
+    items[idx].cant = newCant;
     selectedIndex = idx; recalc();
   });
   $tbody.on('click', '.btnMinus', function () {
@@ -243,7 +264,17 @@
   $tbody.on('change', '.inpCant', function () {
     const idx = $(this).closest('tr').data('idx');
     const v = parseFloat($(this).val() || 0);
-    items[idx].cant = Math.max(0.01, v || 0);
+    const newCant = Math.max(0.01, v || 0);
+    
+    // Validación simple de stock
+    const productStock = parseFloat(items[idx].prod_data?.stock || 0);
+    if (newCant > productStock && productStock > 0) {
+      showToast('error', `Stock insuficiente. Disponible: ${productStock} unidades`);
+      $(this).val(items[idx].cant); // Restaurar valor anterior
+      return;
+    }
+    
+    items[idx].cant = newCant;
     selectedIndex = idx; recalc();
   });
   $tbody.on('change', '.inpPrice', function () {

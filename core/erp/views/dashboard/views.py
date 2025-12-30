@@ -3,7 +3,7 @@ from django.utils.decorators import method_decorator
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
 from django.urls import reverse_lazy
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse, HttpResponse, HttpResponseRedirect
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import redirect
 from django.db.models import Sum, Count
@@ -186,16 +186,28 @@ class DashboardView(TemplateView):
         # Gráfico de recaudación según el período
         if time_filter == 'today':
             # Para hoy, mostrar horas
-            qs = (
-                sale_qs.filter(date_joined__date=today)
-                .extra({'hour': "strftime('%%H', date_joined)"})
-                .values('hour')
-                .annotate(total=Sum('total'))
-                .order_by('hour')
-            )
+            from django.db import connection
+            if connection.vendor == 'postgresql':
+                # PostgreSQL usa EXTRACT
+                qs = (
+                    sale_qs.filter(date_joined__date=today)
+                    .extra({'hour': "EXTRACT(HOUR FROM date_joined)"})
+                    .values('hour')
+                    .annotate(total=Sum('total'))
+                    .order_by('hour')
+                )
+            else:
+                # SQLite usa strftime
+                qs = (
+                    sale_qs.filter(date_joined__date=today)
+                    .extra({'hour': "strftime('%%H', date_joined)"})
+                    .values('hour')
+                    .annotate(total=Sum('total'))
+                    .order_by('hour')
+                )
             labels = [f"{h:02d}:00" for h in range(8, 22)]  # 8 AM a 10 PM
             data = []
-            series_map = {int(x['hour']): float(x['total']) for x in qs}
+            series_map = {int(float(x['hour'])): float(x['total']) for x in qs}
             for h in range(8, 22):
                 data.append(series_map.get(h, 0.0))
         elif time_filter == 'week':
@@ -461,9 +473,25 @@ class ExpenseCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Cre
         return kwargs
 
     def form_valid(self, form):
-        response = super().form_valid(form)
-        messages.success(self.request, 'Gasto creado correctamente')
-        return response
+        try:
+            # Usar nuestro método save personalizado
+            result = form.save()
+            
+            # Verificar si hay error en el resultado
+            if 'error' in result:
+                messages.error(self.request, f'Error al guardar gasto: {result["error"]}')
+                return self.form_invalid(form)
+            
+            # Éxito
+            messages.success(self.request, 'Gasto creado correctamente')
+            return HttpResponseRedirect(reverse_lazy('erp:expense_list'))
+            
+        except Exception as e:
+            messages.error(self.request, f'Error inesperado: {str(e)}')
+            return self.form_invalid(form)
+
+    def form_invalid(self, form):
+        return super().form_invalid(form)
 
 
 class ExpenseUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, UpdateView):
@@ -479,9 +507,22 @@ class ExpenseUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Upd
         return kwargs
 
     def form_valid(self, form):
-        response = super().form_valid(form)
-        messages.success(self.request, 'Gasto actualizado correctamente')
-        return response
+        try:
+            # Usar nuestro método save personalizado
+            result = form.save()
+            
+            # Verificar si hay error en el resultado
+            if 'error' in result:
+                messages.error(self.request, f'Error al actualizar gasto: {result["error"]}')
+                return self.form_invalid(form)
+            
+            # Éxito
+            messages.success(self.request, 'Gasto actualizado correctamente')
+            return HttpResponseRedirect(self.get_success_url())
+            
+        except Exception as e:
+            messages.error(self.request, f'Error inesperado: {str(e)}')
+            return self.form_invalid(form)
 
 
 class ExpenseDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin, DeleteView):
