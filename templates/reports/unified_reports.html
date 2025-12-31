@@ -146,7 +146,7 @@
                                 </span>
                                 <div class="info-box-content">
                                     <span class="info-box-text">Total Ventas</span>
-                                    <span class="info-box-number">${{ sales_data.summary.total_sales|floatformat:2|default:"0.00" }}</span>
+                                    <span class="info-box-number">{{ sales_data.summary.total_sales|ars_currency|default:"0.00" }}</span>
                                 </div>
                             </div>
                         </div>
@@ -168,7 +168,7 @@
                                 </span>
                                 <div class="info-box-content">
                                     <span class="info-box-text">Ticket Promedio</span>
-                                    <span class="info-box-number">${{ sales_data.summary.avg_ticket|floatformat:2|default:"0.00" }}</span>
+                                    <span class="info-box-number">{{ sales_data.summary.avg_ticket|ars_currency|default:"0.00" }}</span>
                                 </div>
                             </div>
                         </div>
@@ -201,9 +201,9 @@
                                         {% endif %}
                                     </td>
                                     <td>{{ sale.cli.names|default:"N/A" }}</td>
-                                    <td>${{ sale.subtotal|floatformat:2 }}</td>
-                                    <td>${{ sale.iva|floatformat:2 }}</td>
-                                    <td>${{ sale.total|floatformat:2 }}</td>
+                                    <td>{{ sale.subtotal|ars_currency }}</td>
+                                    <td>{{ sale.iva|ars_currency }}</td>
+                                    <td>{{ sale.total|ars_currency }}</td>
                                     <td>{{ sale.get_payment_method_display }}</td>
                                     <td>{{ sale.company.name|default:"N/A" }}</td>
                                 </tr>
@@ -281,7 +281,7 @@
                                 </span>
                                 <div class="info-box-content">
                                     <span class="info-box-text">Stock Total</span>
-                                    <span class="info-box-number">{{ inventory_data.summary.total_stock|floatformat:2|default:"0.00" }}</span>
+                                    <span class="info-box-number">{{ inventory_data.summary.total_stock|ars_format|default:"0.00" }}</span>
                                 </div>
                             </div>
                         </div>
@@ -292,7 +292,7 @@
                                 </span>
                                 <div class="info-box-content">
                                     <span class="info-box-text">Valor Total</span>
-                                    <span class="info-box-number">${{ inventory_data.summary.total_value|floatformat:2|default:"0.00" }}</span>
+                                    <span class="info-box-number">{{ inventory_data.summary.total_value|ars_currency|default:"0.00" }}</span>
                                 </div>
                             </div>
                         </div>
@@ -319,9 +319,9 @@
                                     <td>{{ product.name }}</td>
                                     <td>{{ product.code|default:"" }}</td>
                                     <td>{{ product.cat.name|default:"" }}</td>
-                                    <td>{{ product.stock|floatformat:2 }}</td>
-                                    <td>${{ product.cost_price|floatformat:2 }}</td>
-                                    <td>${{ product.pvp_final|floatformat:2 }}</td>
+                                    <td>{{ product.stock|ars_format }}</td>
+                                    <td>{{ product.cost_price|ars_currency }}</td>
+                                    <td>{{ product.pvp_final|ars_currency }}</td>
                                     <td class="product-total" data-stock="{{ product.stock|add:"0" }}" data-price="{{ product.pvp_final }}">$0.00</td>
                                     <td class="product-iva-total" data-stock="{{ product.stock|add:"0" }}" data-price="{{ product.pvp_final }}">$0.00</td>
                                 </tr>
@@ -388,7 +388,7 @@
                                 </span>
                                 <div class="info-box-content">
                                     <span class="info-box-text">Total Gastos</span>
-                                    <span class="info-box-number">${{ expenses_data.summary.total_expenses|floatformat:2|default:"0.00" }}</span>
+                                    <span class="info-box-number">{{ expenses_data.summary.total_expenses|ars_currency|default:"0.00" }}</span>
                                 </div>
                             </div>
                         </div>
@@ -410,7 +410,7 @@
                                 </span>
                                 <div class="info-box-content">
                                     <span class="info-box-text">Promedio</span>
-                                    <span class="info-box-number">${{ expenses_data.summary.avg_expense|floatformat:2|default:"0.00" }}</span>
+                                    <span class="info-box-number">{{ expenses_data.summary.avg_expense|ars_currency|default:"0.00" }}</span>
                                 </div>
                             </div>
                         </div>
@@ -433,7 +433,7 @@
                                 <tr>
                                     <td>{{ expense.date|date:"d/m/Y" }}</td>
                                     <td>{{ expense.description|default:"" }}</td>
-                                    <td>${{ expense.amount|floatformat:2 }}</td>
+                                    <td>{{ expense.amount|ars_currency }}</td>
                                     <td>{{ expense.supplier.name|default:"N/A" }}</td>
                                     <td>{{ expense.company.name|default:"N/A" }}</td>
                                 </tr>
@@ -502,27 +502,27 @@
                                     <table class="table table-borderless">
                                         <tr>
                                             <td><strong>Ventas Totales:</strong></td>
-                                            <td class="text-right">${{ profit_data.total_sales|floatformat:2 }}</td>
+                                            <td class="text-right">{{ profit_data.total_sales|ars_currency }}</td>
                                         </tr>
                                         <tr>
                                             <td><strong>Costo de Ventas:</strong></td>
-                                            <td class="text-right text-danger">- ${{ profit_data.total_cost|floatformat:2 }}</td>
+                                            <td class="text-right text-danger">- {{ profit_data.total_cost|ars_currency }}</td>
                                         </tr>
                                         <tr class="bg-light">
                                             <td><strong>Ganancia Bruta:</strong></td>
-                                            <td class="text-right">${{ profit_data.gross_profit|floatformat:2 }}</td>
+                                            <td class="text-right">{{ profit_data.gross_profit|ars_currency }}</td>
                                         </tr>
                                         <tr>
                                             <td><strong>Gastos:</strong></td>
-                                            <td class="text-right text-danger">- ${{ profit_data.total_expenses|floatformat:2 }}</td>
+                                            <td class="text-right text-danger">- {{ profit_data.total_expenses|ars_currency }}</td>
                                         </tr>
                                         <tr class="bg-success text-white">
                                             <td><strong>Ganancia Neta:</strong></td>
-                                            <td class="text-right">${{ profit_data.net_profit|floatformat:2 }}</td>
+                                            <td class="text-right">{{ profit_data.net_profit|ars_currency }}</td>
                                         </tr>
                                         <tr>
                                             <td><strong>Margen de Ganancia:</strong></td>
-                                            <td class="text-right">{{ profit_data.profit_margin|floatformat:2 }}%</td>
+                                            <td class="text-right">{{ profit_data.profit_margin|ars_format }}%</td>
                                         </tr>
                                     </table>
                                 </div>
