@@ -74,6 +74,7 @@ class Command(BaseCommand):
                             'name': prod.name,
                             'cat': remote_cat,
                             'supplier': remote_supplier,
+                            'cost_price': prod.cost_price,
                             'pvp': prod.pvp,
                             'iva_rate': prod.iva_rate,
                             'pvp_final': prod.pvp_final,
@@ -88,6 +89,7 @@ class Command(BaseCommand):
                         if remote_cat:
                             remote_prod.cat = remote_cat
                         remote_prod.supplier = remote_supplier
+                        remote_prod.cost_price = prod.cost_price
                         remote_prod.pvp = prod.pvp
                         remote_prod.iva_rate = prod.iva_rate
                         remote_prod.pvp_final = prod.pvp_final

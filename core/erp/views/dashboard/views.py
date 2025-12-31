@@ -14,6 +14,7 @@ from django.contrib import messages
 import json
 import urllib.request
 import urllib.error
+from decimal import Decimal
 from core.erp.mixins import ValidatePermissionRequiredMixin
 from core.erp.sync_utils import run_full_sync
 from core.erp.forms import CompanyForm, SupplierForm, ExpenseForm, MercadoPagoConfigForm, AutoSyncConfigForm
@@ -290,21 +291,21 @@ class DashboardView(TemplateView):
             all_expenses = Expense.objects.filter(is_active=True)
             
             # Calcular costo total de ventas
-            total_cost_all = 0
+            total_cost_all = Decimal('0')
             for sale in all_sales:
                 for detail in sale.detsale_set.all():
                     if detail.prod.cost_price:
-                        total_cost_all += float(detail.prod.cost_price) * detail.cant
+                        total_cost_all += Decimal(str(detail.prod.cost_price)) * detail.cant
             
-            total_revenue_all = float(all_sales.aggregate(total=Sum('total'))['total'] or 0)
-            total_expenses_all = float(all_expenses.aggregate(total=Sum('amount'))['total'] or 0)
+            total_revenue_all = Decimal(str(all_sales.aggregate(total=Sum('total'))['total'] or 0))
+            total_expenses_all = Decimal(str(all_expenses.aggregate(total=Sum('amount'))['total'] or 0))
             total_profit_all = total_revenue_all - total_cost_all - total_expenses_all
             
             # Asegurar que los valores sean numéricos
-            data['total_profit_all'] = round(total_profit_all, 2) if total_profit_all else 0.0
-            data['total_revenue_all'] = round(total_revenue_all, 2) if total_revenue_all else 0.0
-            data['total_cost_all'] = round(total_cost_all, 2) if total_cost_all else 0.0
-            data['total_expenses_all'] = round(total_expenses_all, 2) if total_expenses_all else 0.0
+            data['total_profit_all'] = float(round(total_profit_all, 2)) if total_profit_all else 0.0
+            data['total_revenue_all'] = float(round(total_revenue_all, 2)) if total_revenue_all else 0.0
+            data['total_cost_all'] = float(round(total_cost_all, 2)) if total_cost_all else 0.0
+            data['total_expenses_all'] = float(round(total_expenses_all, 2)) if total_expenses_all else 0.0
             
             # Ganancias por empresa
             company_profits = []
@@ -313,14 +314,14 @@ class DashboardView(TemplateView):
                 company_expenses = Expense.objects.filter(company=company, is_active=True)
                 
                 # Calcular costo de ventas de la empresa
-                company_cost = 0
+                company_cost = Decimal('0')
                 for sale in company_sales:
                     for detail in sale.detsale_set.all():
                         if detail.prod.cost_price:
-                            company_cost += float(detail.prod.cost_price) * detail.cant
+                            company_cost += Decimal(str(detail.prod.cost_price)) * detail.cant
                 
-                company_revenue = float(company_sales.aggregate(total=Sum('total'))['total'] or 0)
-                company_expense_total = float(company_expenses.aggregate(total=Sum('amount'))['total'] or 0)
+                company_revenue = Decimal(str(company_sales.aggregate(total=Sum('total'))['total'] or 0))
+                company_expense_total = Decimal(str(company_expenses.aggregate(total=Sum('amount'))['total'] or 0))
                 company_profit = company_revenue - company_cost - company_expense_total
                 
                 company_profits.append({
@@ -341,18 +342,18 @@ class DashboardView(TemplateView):
                     active_expenses = Expense.objects.filter(company=active_company, is_active=True)
                     
                     # Calcular costo de ventas de la empresa activa
-                    active_cost = 0
+                    active_cost = Decimal('0')
                     for sale in active_sales:
                         for detail in sale.detsale_set.all():
                             if detail.prod.cost_price:
-                                active_cost += float(detail.prod.cost_price) * detail.cant
+                                active_cost += Decimal(str(detail.prod.cost_price)) * detail.cant
                     
-                    active_revenue = float(active_sales.aggregate(total=Sum('total'))['total'] or 0)
-                    active_expense_total = float(active_expenses.aggregate(total=Sum('amount'))['total'] or 0)
+                    active_revenue = Decimal(str(active_sales.aggregate(total=Sum('total'))['total'] or 0))
+                    active_expense_total = Decimal(str(active_expenses.aggregate(total=Sum('amount'))['total'] or 0))
                     active_profit = active_revenue - active_cost - active_expense_total
                     
                     # Asegurar que los valores sean numéricos
-                    data['active_company_profit'] = round(active_profit, 2) if active_profit else 0.0
+                    data['active_company_profit'] = float(round(active_profit, 2)) if active_profit else 0.0
                     data['active_company'] = active_company
         
         return data
