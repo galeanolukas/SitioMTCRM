@@ -1,0 +1,192 @@
+{% extends 'layout.html' %}
+
+{% block title %}Reportes Unificados{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+    <div class="content-header">
+        <div class="container-fluid">
+            <div class="row mb-2">
+                <div class="col-sm-6">
+                    <h1 class="m-0">Reportes</h1>
+                </div>
+                <div class="col-sm-6">
+                    <ol class="breadcrumb float-sm-right">
+                        <li class="breadcrumb-item"><a href="{% url 'erp:dashboard' %}">Dashboard</a></li>
+                        <li class="breadcrumb-item active">Reportes</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <section class="content">
+        <div class="container-fluid">
+            <!-- Filtros -->
+            <div class="card card-outline card-primary">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-filter"></i> Filtros del Reporte
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <form method="GET" id="report-filters">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <label for="report_type" class="form-label">Tipo de Reporte</label>
+                                <select class="form-control" id="report_type" name="report_type">
+                                    <option value="sales" {% if report_type == 'sales' %}selected{% endif %}>Ventas</option>
+                                    <option value="inventory" {% if report_type == 'inventory' %}selected{% endif %}>Inventario</option>
+                                    <option value="expenses" {% if report_type == 'expenses' %}selected{% endif %}>Gastos</option>
+                                    <option value="profit" {% if report_type == 'profit' %}selected{% endif %}>Ganancias</option>
+                                    <option value="top_selling" {% if report_type == 'top_selling' %}selected{% endif %}>Productos Más Vendidos</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label for="start_date" class="form-label">Fecha Inicio</label>
+                                <input type="date" class="form-control" id="start_date" name="start_date" 
+                                       value="{{ start_date }}" {% if report_type == 'inventory' %}disabled{% endif %}>
+                            </div>
+                            <div class="col-md-2">
+                                <label for="end_date" class="form-label">Fecha Fin</label>
+                                <input type="date" class="form-control" id="end_date" name="end_date" 
+                                       value="{{ end_date }}" {% if report_type == 'inventory' %}disabled{% endif %}>
+                            </div>
+                            <div class="col-md-2">
+                                <label for="company" class="form-label">Empresa</label>
+                                <select class="form-control" id="company" name="company">
+                                    <option value="">Todas</option>
+                                    {% for company in companies %}
+                                        <option value="{{ company.id }}" {% if company_id == company.id|stringformat:"s" %}selected{% endif %}>
+                                            {{ company.name }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">&nbsp;</label><br>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-search"></i> Generar Reporte
+                                </button>
+                                <div class="btn-group">
+                                    <button type="button" class="btn btn-success dropdown-toggle" data-toggle="dropdown">
+                                        <i class="fas fa-download"></i> Exportar
+                                    </button>
+                                    <div class="dropdown-menu">
+                                        <a class="dropdown-item" href="#" onclick="exportReport('csv')">
+                                            <i class="fas fa-file-csv"></i> CSV
+                                        </a>
+                                        <a class="dropdown-item" href="#" onclick="exportReport('excel')">
+                                            <i class="fas fa-file-excel"></i> Excel
+                                        </a>
+                                        <a class="dropdown-item" href="#" onclick="exportReport('pdf')">
+                                            <i class="fas fa-file-pdf"></i> PDF
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Filtro adicional para ventas -->
+                        {% if report_type == 'sales' %}
+                        <div class="row mt-2">
+                            <div class="col-md-3">
+                                <label for="payment_method" class="form-label">Forma de Pago</label>
+                                <select class="form-control" id="payment_method" name="payment_method">
+                                    <option value="">Todas</option>
+                                    {% for key, value in sales_data.payment_method_choices.items %}
+                                        <option value="{{ key }}" {% if payment_method == key %}selected{% endif %}>
+                                            {{ value }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </form>
+                </div>
+            </div>
+
+            <!-- Contenido del Reporte -->
+            <div id="report-content">
+                {% if report_type == 'sales' %}
+                    {% include 'reports/sales_report.html' %}
+                {% elif report_type == 'inventory' %}
+                    {% include 'reports/products_report.html' %}
+                {% elif report_type == 'expenses' %}
+                    {% include 'reports/cash_flow.html' %}
+                {% elif report_type == 'profit' %}
+                    {% include 'reports/profit_report.html' %}
+                {% elif report_type == 'top_selling' %}
+                    {% include 'reports/top_selling_report.html' %}
+                {% endif %}
+            </div>
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block javascript %}
+<script>
+$(document).ready(function() {
+    // Manejar cambio de tipo de reporte
+    $('#report_type').on('change', function() {
+        var reportType = $(this).val();
+        
+        // Habilitar/deshabilitar campos de fecha según el tipo de reporte
+        if (reportType === 'inventory') {
+            $('#start_date, #end_date').prop('disabled', true);
+        } else {
+            $('#start_date, #end_date').prop('disabled', false);
+        }
+        
+        // Enviar formulario automáticamente
+        $('#report-filters').submit();
+    });
+    
+    // Validar fechas
+    $('#report-filters').on('submit', function(e) {
+        var startDate = $('#start_date').val();
+        var endDate = $('#end_date').val();
+        
+        if (startDate && endDate && startDate > endDate) {
+            e.preventDefault();
+            alert('La fecha de fin no puede ser anterior a la fecha de inicio');
+            $('#end_date').focus();
+        }
+    });
+});
+
+function exportReport(format) {
+    var form = $('#report-filters');
+    var action = form.attr('action') || window.location.pathname;
+    
+    // Crear formulario temporal para exportación
+    var exportForm = $('<form>', {
+        'method': 'GET',
+        'action': '{% url "erp:export_report" %}'
+    });
+    
+    // Copiar todos los campos del formulario original
+    form.find('input, select').each(function() {
+        exportForm.append($('<input>', {
+            'type': 'hidden',
+            'name': $(this).attr('name'),
+            'value': $(this).val()
+        }));
+    });
+    
+    // Agregar formato de exportación
+    exportForm.append($('<input>', {
+        'type': 'hidden',
+        'name': 'format',
+        'value': format
+    }));
+    
+    // Enviar formulario
+    $('body').append(exportForm);
+    exportForm.submit();
+    exportForm.remove();
+}
+</script>
+{% endblock %}

@@ -1,7 +1,7 @@
 from django.views.generic import TemplateView, View
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db.models import Sum, Count, F, ExpressionWrapper, FloatField, Q
-from django.db.models.functions import TruncDay, TruncMonth, TruncYear
+from django.db.models.functions import TruncDay, TruncMonth, TruncYear, Coalesce
 from django.utils import timezone
 from django.http import HttpResponse
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
@@ -11,6 +11,11 @@ import csv
 import openpyxl
 from openpyxl.styles import Font, Alignment
 from io import BytesIO
+from reportlab.lib.pagesizes import letter, landscape
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
+from reportlab.lib.units import inch
 
 from core.erp.models import Sale, DetSale, Product, Company, Expense
 from core.user.models import User
@@ -61,15 +66,21 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
             context['expenses_data'] = self.get_expenses_data(company_id, start_date, end_date, page)
         elif report_type == 'profit':
             context['profit_data'] = self.get_profit_data(company_id, start_date, end_date)
+        elif report_type == 'top_selling':
+            context['top_selling_data'] = self.get_top_selling_data(company_id, start_date, end_date, page)
         
         return context
     
     def get_sales_data(self, company_id, start_date, end_date, payment_method, page=1):
         from core.erp.choices import payment_method_choices
         
+        # Convertir strings a datetime para el rango completo
+        start_datetime = timezone.make_aware(datetime.strptime(start_date, '%Y-%m-%d'))
+        end_datetime = timezone.make_aware(datetime.strptime(end_date, '%Y-%m-%d')) + timedelta(days=1, seconds=-1)
+        
         # Filtros base
         filters = {
-            'date_joined__date__range': [start_date, end_date],
+            'date_joined__range': [start_datetime, end_datetime],
         }
         
         if company_id:
@@ -195,8 +206,12 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
     
     def get_profit_data(self, company_id, start_date, end_date):
         # Calcular ganancias basadas en ventas vs costos
+        # Convertir strings a datetime para el rango completo
+        start_datetime = timezone.make_aware(datetime.strptime(start_date, '%Y-%m-%d'))
+        end_datetime = timezone.make_aware(datetime.strptime(end_date, '%Y-%m-%d')) + timedelta(days=1, seconds=-1)
+        
         filters = {
-            'date_joined__date__range': [start_date, end_date],
+            'date_joined__range': [start_datetime, end_datetime],
         }
         
         if company_id:
@@ -230,6 +245,75 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
             'gross_profit': gross_profit,
             'net_profit': net_profit,
             'profit_margin': (net_profit / total_sales * 100) if total_sales > 0 else 0,
+        }
+    
+    def get_top_selling_data(self, company_id, start_date, end_date, page=1):
+        """Obtener datos de productos más vendidos"""
+        # Convertir strings a datetime para el rango completo
+        start_datetime = timezone.make_aware(datetime.strptime(start_date, '%Y-%m-%d'))
+        end_datetime = timezone.make_aware(datetime.strptime(end_date, '%Y-%m-%d')) + timedelta(days=1, seconds=-1)
+        
+        # Filtros base
+        filters = {
+            'sale__date_joined__range': [start_datetime, end_datetime],
+        }
+        
+        if company_id:
+            filters['sale__company_id'] = company_id
+        
+        # Consulta principal de productos más vendidos
+        queryset = DetSale.objects.filter(**filters)
+        
+        # Agrupar por producto y calcular totales
+        top_products = queryset.values(
+            'prod_id',
+            'prod__name',
+            'prod__code',
+            'prod__unit'
+        ).annotate(
+            total_quantity=Sum('cant'),
+            total_sales=Count('sale_id'),
+            total_amount=Sum(F('cant') * F('price')),
+            avg_price=Coalesce(Sum(F('cant') * F('price')) / Sum('cant'), 0, output_field=FloatField())
+        ).order_by('-total_quantity')
+        
+        # Convertir cantidades a números formateados por página
+        paginator = Paginator(top_products, 50)
+        try:
+            products_page = paginator.page(page)
+        except PageNotAnInteger:
+            products_page = paginator.page(1)
+        except EmptyPage:
+            products_page = paginator.page(paginator.num_pages)
+        
+        # Convertir a lista de diccionarios para el template
+        products_data = []
+        for item in products_page:
+            if item['total_quantity'] and item['total_quantity'] > 0:
+                products_data.append({
+                    'id': item['prod_id'],
+                    'name': item['prod__name'] or 'Sin nombre',
+                    'code': item['prod__code'] or 'N/A',
+                    'unit': item['prod__unit'] or 'Unidad',
+                    'total_quantity': float(item['total_quantity']),
+                    'total_sales': int(item['total_sales']),
+                    'total_amount': float(item['total_amount'] or 0),
+                    'avg_price': float(item['avg_price'])
+                })
+        
+        # Resumen (usando todos los datos, no solo la página actual)
+        summary = queryset.aggregate(
+            total_products=Count('prod_id', distinct=True),
+            total_quantity=Sum('cant'),
+            total_amount=Sum(F('cant') * F('price')),
+            avg_price=Coalesce(Sum(F('cant') * F('price')) / Sum('cant'), 0, output_field=FloatField())
+        )
+        
+        return {
+            'products': products_data,
+            'products_json': json.dumps(products_data, ensure_ascii=False),
+            'summary': summary,
+            'page_obj': products_page,
         }
 
 
@@ -265,10 +349,15 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
             elif report_type == 'profit':
                 data = self.get_profit_export_data(company_id, start_date, end_date)
                 filename = f'ganancias_{start_date}_al_{end_date}'
+            elif report_type == 'top_selling':
+                data = self.get_top_selling_export_data(company_id, start_date, end_date)
+                filename = f'productos_mas_vendidos_{start_date}_al_{end_date}'
             
             # Exportar según formato
             if export_format == 'excel':
                 return self.export_to_excel(data, filename, report_type)
+            elif export_format == 'pdf':
+                return self.export_to_pdf(data, filename, report_type)
             else:
                 return self.export_to_csv(data, filename, report_type)
         except Exception as e:
@@ -276,8 +365,12 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
             return HttpResponse(f"Error en exportación: {str(e)}", content_type='text/plain')
     
     def get_sales_export_data(self, company_id, start_date, end_date, payment_method):
+        # Convertir strings a datetime para el rango completo
+        start_datetime = timezone.make_aware(datetime.strptime(start_date, '%Y-%m-%d'))
+        end_datetime = timezone.make_aware(datetime.strptime(end_date, '%Y-%m-%d')) + timedelta(days=1, seconds=-1)
+        
         filters = {
-            'date_joined__date__range': [start_date, end_date],
+            'date_joined__range': [start_datetime, end_datetime],
         }
         
         if company_id:
@@ -309,6 +402,11 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
         # Similar a get_profit_data pero para exportación
         unified_view = UnifiedReportsView()
         return unified_view.get_profit_data(company_id, start_date, end_date)
+    
+    def get_top_selling_export_data(self, company_id, start_date, end_date):
+        """Obtener datos para exportación de productos más vendidos"""
+        unified_view = UnifiedReportsView()
+        return unified_view.get_top_selling_data(company_id, start_date, end_date)
     
     def export_to_csv(self, data, filename, report_type):
         response = HttpResponse(content_type='text/csv')
@@ -434,6 +532,31 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
             writer.writerow(['Ganancia Bruta', data['gross_profit']])
             writer.writerow(['Ganancia Neta', data['net_profit']])
             writer.writerow(['Margen de Ganancia %', f"{data['profit_margin']:.2f}%"])
+        
+        elif report_type == 'top_selling':
+            # Título del reporte
+            writer.writerow(['REPORTE DE PRODUCTOS MÁS VENDIDOS'])
+            writer.writerow([])  # Fila vacía
+            writer.writerow(['Código', 'Producto', 'Unidad', 'Cantidad Vendida', 'N° Ventas', 'Precio Promedio', 'Total Recaudado'])
+            
+            for product in data['products']:
+                writer.writerow([
+                    product['code'],
+                    product['name'],
+                    product['unit'],
+                    product['total_quantity'],
+                    product['total_sales'],
+                    round(product['avg_price'], 2),
+                    round(product['total_amount'], 2)
+                ])
+            
+            # Resumen final
+            writer.writerow([])  # Fila vacía
+            writer.writerow(['RESUMEN'])
+            writer.writerow(['Total de Productos', data['summary']['total_products']])
+            writer.writerow(['Cantidad Total Vendida', data['summary']['total_quantity']])
+            writer.writerow(['Monto Total Recaudado', data['summary']['total_amount']])
+            writer.writerow(['Precio Promedio General', data['summary']['avg_price']])
         
         return response
     
@@ -639,6 +762,46 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
                 row += 1
                 ws.append(item)
         
+        elif report_type == 'top_selling':
+            # Título del reporte
+            ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=7)
+            ws.cell(row=row, column=1, value='REPORTE DE PRODUCTOS MÁS VENDIDOS')
+            ws.cell(row=row, column=1).font = title_font
+            ws.cell(row=row, column=1).alignment = title_alignment
+            row += 2
+            
+            headers = ['Código', 'Producto', 'Unidad', 'Cantidad Vendida', 'N° Ventas', 'Precio Promedio', 'Total Recaudado']
+            ws.append(headers)
+            
+            for cell in ws[row]:
+                cell.font = header_font
+                cell.alignment = header_alignment
+            
+            for product in data['products']:
+                row += 1
+                ws.append([
+                    product['code'],
+                    product['name'],
+                    product['unit'],
+                    product['total_quantity'],
+                    product['total_sales'],
+                    round(product['avg_price'], 2),
+                    round(product['total_amount'], 2)
+                ])
+            
+            # Resumen final
+            row += 2
+            ws.append(['RESUMEN'])
+            ws.cell(row=row, column=1).font = summary_font
+            row += 1
+            ws.append(['Total de Productos', data['summary']['total_products']])
+            row += 1
+            ws.append(['Cantidad Total Vendida', data['summary']['total_quantity']])
+            row += 1
+            ws.append(['Monto Total Recaudado', data['summary']['total_amount']])
+            row += 1
+            ws.append(['Precio Promedio General', data['summary']['avg_price']])
+        
         # Ajustar ancho de columnas
         for column in ws.columns:
             max_length = 0
@@ -665,4 +828,105 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
         excel_file.seek(0)
         
         response.write(excel_file.read())
+        return response
+    
+    def export_to_pdf(self, data, filename, report_type):
+        """Exportar datos a PDF"""
+        response = HttpResponse(content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="{filename}.pdf"'
+        
+        # Crear documento PDF
+        doc = SimpleDocTemplate(response, pagesize=landscape(letter))
+        story = []
+        styles = getSampleStyleSheet()
+        
+        # Estilo personalizado para título
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=18,
+            spaceAfter=30,
+            alignment=1  # Centrado
+        )
+        
+        # Estilo para encabezados
+        header_style = ParagraphStyle(
+            'CustomHeader',
+            parent=styles['Heading2'],
+            fontSize=12,
+            spaceAfter=12,
+            textColor=colors.darkblue
+        )
+        
+        if report_type == 'top_selling':
+            # Título
+            story.append(Paragraph("REPORTE DE PRODUCTOS MÁS VENDIDOS", title_style))
+            story.append(Spacer(1, 12))
+            
+            # Información del período
+            if hasattr(self, 'request'):
+                start_date = self.request.GET.get('start_date', '')
+                end_date = self.request.GET.get('end_date', '')
+                if start_date and end_date:
+                    story.append(Paragraph(f"Período: {start_date} al {end_date}", styles['Normal']))
+                    story.append(Spacer(1, 12))
+            
+            # Datos de la tabla
+            table_data = [['Código', 'Producto', 'Unidad', 'Cantidad', 'N° Ventas', 'Precio Prom.', 'Total']]
+            
+            for product in data['products']:
+                table_data.append([
+                    product['code'],
+                    product['name'],
+                    product['unit'],
+                    f"{product['total_quantity']:.2f}",
+                    str(product['total_sales']),
+                    f"${product['avg_price']:.2f}",
+                    f"${product['total_amount']:.2f}"
+                ])
+            
+            # Crear tabla
+            table = Table(table_data)
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ]))
+            
+            story.append(table)
+            story.append(Spacer(1, 20))
+            
+            # Resumen
+            story.append(Paragraph("RESUMEN", header_style))
+            story.append(Spacer(1, 12))
+            
+            summary_data = [
+                ['Concepto', 'Valor'],
+                ['Total de Productos', str(data['summary']['total_products'])],
+                ['Cantidad Total Vendida', f"{data['summary']['total_quantity']:.2f}"],
+                ['Monto Total Recaudado', f"${data['summary']['total_amount']:.2f}"],
+                ['Precio Promedio General', f"${data['summary']['avg_price']:.2f}"]
+            ]
+            
+            summary_table = Table(summary_data)
+            summary_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ]))
+            
+            story.append(summary_table)
+        
+        # Construir PDF
+        doc.build(story)
         return response

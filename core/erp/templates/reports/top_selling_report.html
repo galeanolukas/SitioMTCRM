@@ -1,0 +1,247 @@
+<!-- Resumen -->
+<div class="row">
+    <div class="col-lg-3 col-6">
+        <div class="small-box bg-info">
+            <div class="inner">
+                <h3>{{ top_selling_data.summary.total_products|default:0 }}</h3>
+                <p>Productos Vendidos</p>
+            </div>
+            <div class="icon">
+                <i class="fas fa-box"></i>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-6">
+        <div class="small-box bg-success">
+            <div class="inner">
+                <h3>{{ top_selling_data.summary.total_quantity|floatformat:2|default:0 }}</h3>
+                <p>Unidades Totales</p>
+            </div>
+            <div class="icon">
+                <i class="fas fa-cubes"></i>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-6">
+        <div class="small-box bg-warning">
+            <div class="inner">
+                <h3>${{ top_selling_data.summary.total_amount|floatformat:0|intcomma|default:0 }}</h3>
+                <p>Monto Total</p>
+            </div>
+            <div class="icon">
+                <i class="fas fa-dollar-sign"></i>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-6">
+        <div class="small-box bg-secondary">
+            <div class="inner">
+                <h3>${{ top_selling_data.summary.avg_price|floatformat:2|default:0 }}</h3>
+                <p>Precio Promedio</p>
+            </div>
+            <div class="icon">
+                <i class="fas fa-chart-line"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabla de Productos Más Vendidos -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">
+            <i class="fas fa-list"></i> Productos Más Vendidos
+        </h3>
+        <div class="card-tools">
+            <span class="badge badge-info">Ordenado por cantidad vendida</span>
+        </div>
+    </div>
+    <div class="card-body">
+        {% if top_selling_data.products %}
+            <div class="table-responsive">
+                <table class="table table-bordered table-striped">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Código</th>
+                            <th>Producto</th>
+                            <th>Unidad</th>
+                            <th class="text-right">Cantidad Vendida</th>
+                            <th class="text-right">N° Ventas</th>
+                            <th class="text-right">Precio Promedio</th>
+                            <th class="text-right">Total Recaudado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for product in top_selling_data.page_obj.object_list %}
+                            <tr>
+                                <td>{{ forloop.counter0|add:top_selling_data.page_obj.start_index }}</td>
+                                <td>{{ product.code }}</td>
+                                <td>{{ product.name }}</td>
+                                <td>{{ product.unit }}</td>
+                                <td class="text-right">{{ product.total_quantity|floatformat:2 }}</td>
+                                <td class="text-right">{{ product.total_sales }}</td>
+                                <td class="text-right">${{ product.avg_price|floatformat:2 }}</td>
+                                <td class="text-right font-weight-bold">${{ product.total_amount|floatformat:2|intcomma }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Paginación -->
+            {% if top_selling_data.page_obj.has_other_pages %}
+                <nav aria-label="Page navigation">
+                    <ul class="pagination justify-content-center">
+                        {% if top_selling_data.page_obj.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ top_selling_data.page_obj.previous_page_number }}&{{ request.GET.urlencode }}">«</a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled">
+                                <span class="page-link">«</span>
+                            </li>
+                        {% endif %}
+
+                        {% for num in top_selling_data.page_obj.paginator.page_range %}
+                            {% if top_selling_data.page_obj.number == num %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ num }}</span>
+                                </li>
+                            {% elif num > top_selling_data.page_obj.number|add:'-3' and num < top_selling_data.page_obj.number|add:'3' %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ num }}&{{ request.GET.urlencode }}">{{ num }}</a>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+
+                        {% if top_selling_data.page_obj.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ top_selling_data.page_obj.next_page_number }}&{{ request.GET.urlencode }}">»</a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled">
+                                <span class="page-link">»</span>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            {% endif %}
+        {% else %}
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> No se encontraron productos vendidos en el período seleccionado.
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Gráfico de Top 10 Productos -->
+{% if top_selling_data.products %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">
+            <i class="fas fa-chart-bar"></i> Top 10 Productos Más Vendidos
+        </h3>
+    </div>
+    <div class="card-body">
+        <canvas id="topProductsChart" height="100"></canvas>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    // Preparar datos para el gráfico
+    var productsData = {{ top_selling_data.products_json|safe }};
+    var labels = [];
+    var quantities = [];
+    var amounts = [];
+    
+    // Extraer solo los primeros 10 productos para el gráfico
+    var top10Products = productsData.slice(0, 10);
+    for (var i = 0; i < top10Products.length; i++) {
+        labels.push(top10Products[i].name || '');
+        quantities.push(top10Products[i].total_quantity || 0);
+        amounts.push(top10Products[i].total_amount || 0);
+    }
+    
+    if (typeof Chart !== 'undefined' && top10Products.length > 0) {
+        var ctx = document.getElementById('topProductsChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Cantidad Vendida',
+                        data: quantities,
+                        backgroundColor: 'rgba(54, 162, 235, 0.8)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Monto Total ($)',
+                        data: amounts,
+                        backgroundColor: 'rgba(255, 206, 86, 0.8)',
+                        borderColor: 'rgba(255, 206, 86, 1)',
+                        borderWidth: 1,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: {
+                            display: true,
+                            text: 'Cantidad'
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: 'Monto ($)'
+                        },
+                        grid: {
+                            drawOnChartArea: false
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                var label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.parsed.y !== null) {
+                                    if (context.datasetIndex === 0) {
+                                        label += context.parsed.y.toFixed(2) + ' unidades';
+                                    } else {
+                                        label += '$' + context.parsed.y.toFixed(2);
+                                    }
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+});
+</script>
+{% endif %}
