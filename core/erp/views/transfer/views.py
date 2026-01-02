@@ -248,6 +248,7 @@ class TransferCreateView(LoginRequiredMixin, View):
                                         
                                         # Descontar stock del origen
                                         product.stock -= quantity
+                                        product.synced_to_server = False  # Marcar para sincronizar
                                         product.save()
                                         
                                         # Buscar o crear producto en destino
@@ -259,6 +260,7 @@ class TransferCreateView(LoginRequiredMixin, View):
                                         if dest_product:
                                             # Si existe, aumentar stock
                                             dest_product.stock += quantity
+                                            dest_product.synced_to_server = False  # Marcar para sincronizar
                                             dest_product.save()
                                         else:
                                             # Si no existe, crear copia en destino
@@ -329,6 +331,7 @@ class TransferReceiveView(LoginRequiredMixin, View):
                     for detail in transfer.details.all():
                         product = detail.product
                         product.stock += detail.quantity
+                        product.synced_to_server = False  # Marcar para sincronizar
                         product.save()
                     
                     # Cambiar estado a "Recibido"
@@ -350,6 +353,7 @@ class TransferReceiveView(LoginRequiredMixin, View):
                         for detail in transfer.details.all():
                             product = detail.product
                             product.stock += detail.quantity
+                            product.synced_to_server = False  # Marcar para sincronizar
                             product.save()
                     
                     # Cambiar estado a "Cancelado"

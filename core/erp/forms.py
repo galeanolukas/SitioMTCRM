@@ -64,10 +64,13 @@ class ProductForm(ModelForm):
             self.fields['supplier'].empty_label = '--- Sin proveedor ---'
         if 'company' in self.fields and self.request and hasattr(self.request, 'user') and not getattr(self.request.user, 'is_superuser', False):
             if getattr(self.request.user, 'company_id', None):
-                self.fields['company'].queryset = Company.objects.filter(pk=self.request.user.company_id)
+                self.fields['company'].queryset = Company.objects.filter(pk=self.request.user.company_id, is_active=True)
                 self.fields['company'].initial = self.request.user.company
                 self.fields['company'].widget = HiddenInput()
                 self.fields['company'].required = False
+        elif 'company' in self.fields:
+            # Para superusuarios, mostrar solo empresas activas
+            self.fields['company'].queryset = Company.objects.filter(is_active=True)
 
     class Meta:
         model = Product
@@ -201,10 +204,13 @@ class ClientForm(ModelForm):
         self.fields['names'].widget.attrs['autofocus'] = True
         if 'company' in self.fields and self.request and hasattr(self.request, 'user') and not getattr(self.request.user, 'is_superuser', False):
             if getattr(self.request.user, 'company_id', None):
-                self.fields['company'].queryset = Company.objects.filter(pk=self.request.user.company_id)
+                self.fields['company'].queryset = Company.objects.filter(pk=self.request.user.company_id, is_active=True)
                 self.fields['company'].initial = self.request.user.company
                 self.fields['company'].widget = HiddenInput()
                 self.fields['company'].required = False
+        elif 'company' in self.fields:
+            # Para superusuarios, mostrar solo empresas activas
+            self.fields['company'].queryset = Company.objects.filter(is_active=True)
 
     class Meta:
         model = Client
@@ -271,10 +277,13 @@ class SupplierForm(ModelForm):
         self.fields['name'].widget.attrs['autofocus'] = True
         if 'company' in self.fields and self.request and hasattr(self.request, 'user') and not getattr(self.request.user, 'is_superuser', False):
             if getattr(self.request.user, 'company_id', None):
-                self.fields['company'].queryset = Company.objects.filter(pk=self.request.user.company_id)
+                self.fields['company'].queryset = Company.objects.filter(pk=self.request.user.company_id, is_active=True)
                 self.fields['company'].initial = self.request.user.company
                 self.fields['company'].widget = HiddenInput()
                 self.fields['company'].required = False
+        elif 'company' in self.fields:
+            # Para superusuarios, mostrar solo empresas activas
+            self.fields['company'].queryset = Company.objects.filter(is_active=True)
 
     class Meta:
         model = Supplier
@@ -315,10 +324,13 @@ class SaleForm(ModelForm):
             self.fields['cli'].required = False
         if 'company' in self.fields and self.request and hasattr(self.request, 'user') and not getattr(self.request.user, 'is_superuser', False):
             if getattr(self.request.user, 'company_id', None):
-                self.fields['company'].queryset = Company.objects.filter(pk=self.request.user.company_id)
+                self.fields['company'].queryset = Company.objects.filter(pk=self.request.user.company_id, is_active=True)
                 self.fields['company'].initial = self.request.user.company
                 self.fields['company'].widget = HiddenInput()
                 self.fields['company'].required = False
+        elif 'company' in self.fields:
+            # Para superusuarios, mostrar solo empresas activas
+            self.fields['company'].queryset = Company.objects.filter(is_active=True)
 
     class Meta:
         model = Sale
@@ -460,10 +472,13 @@ class ExpenseForm(ModelForm):
             self.fields['supplier'].empty_label = '--- Sin proveedor ---'
         if 'company' in self.fields and self.request and hasattr(self.request, 'user') and not getattr(self.request.user, 'is_superuser', False):
             if getattr(self.request.user, 'company_id', None):
-                self.fields['company'].queryset = Company.objects.filter(pk=self.request.user.company_id)
+                self.fields['company'].queryset = Company.objects.filter(pk=self.request.user.company_id, is_active=True)
                 self.fields['company'].initial = self.request.user.company
                 self.fields['company'].widget = HiddenInput()
                 self.fields['company'].required = False
+        elif 'company' in self.fields:
+            # Para superusuarios, mostrar solo empresas activas
+            self.fields['company'].queryset = Company.objects.filter(is_active=True)
 
     class Meta:
         model = Expense

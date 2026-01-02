@@ -153,6 +153,22 @@ class Product(models.Model):
             self.pvp_final = (pvp * (Decimal('1.0') + rate)).quantize(Decimal('0.01'))
         except Exception:
             self.pvp_final = Decimal('0.00')
+        
+        # Marcar para sincronizar si el producto ya existe y hay cambios
+        if self.pk:
+            # Verificar si hay cambios relevantes para sincronizar
+            old_product = Product.objects.filter(pk=self.pk).first()
+            if old_product:
+                changes = (
+                    old_product.stock != self.stock or
+                    old_product.pvp != self.pvp or
+                    old_product.cost_price != self.cost_price or
+                    old_product.pvp_final != self.pvp_final or
+                    old_product.iva_rate != self.iva_rate
+                )
+                if changes:
+                    self.synced_to_server = False
+        
         super().save(*args, **kwargs)
 
     def get_stock_status(self):

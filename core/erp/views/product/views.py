@@ -642,6 +642,7 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                         prod.stock = stock
                         if company_id:
                             prod.company_id = company_id
+                        prod.synced_to_server = False  # Marcar para sincronizar stock actualizado
                         prod.save()
                         updated += 1
                 except Exception as e:

@@ -169,7 +169,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     prod.pvp = price
                     prod.iva_rate = iva_rate
                     prod.track_stock = False
-
+                    prod.synced_to_server = False  # Marcar para sincronizar
                 prod.save()
                 data = prod.toJSON()
                 
@@ -264,7 +264,10 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         det.save()
                         prod = Product.objects.filter(pk=det.prod_id).first()
                         if prod and getattr(prod, 'track_stock', True):
-                            Product.objects.filter(pk=det.prod_id).update(stock=F('stock') - cant)
+                            Product.objects.filter(pk=det.prod_id).update(
+                                stock=F('stock') - cant,
+                                synced_to_server=False  # Marcar para sincronizar
+                            )
                     data = {'id': sale.id}
             elif action == 'invoice':
                 from decimal import Decimal
@@ -323,7 +326,10 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                             subtotal=float(it.get('subtotal', 0)),
                         )
                         det.save()
-                        Product.objects.filter(pk=det.prod_id).update(stock=F('stock') - cant)
+                        Product.objects.filter(pk=det.prod_id).update(
+                            stock=F('stock') - cant,
+                            synced_to_server=False  # Marcar para sincronizar
+                        )
                     data = {'id': sale.id, 'invoice_url': reverse_lazy('erp:invoice_pdf', kwargs={'pk': sale.id})}
             elif action == 'import_quickorder':
                 qo_id = request.POST.get('quickorder_id') or ''
@@ -371,7 +377,10 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                             subtotal=subtotal,
                         )
                         if getattr(prod, 'track_stock', True):
-                            Product.objects.filter(pk=prod.id).update(stock=F('stock') - cant)
+                            Product.objects.filter(pk=prod.id).update(
+                                stock=F('stock') - cant,
+                                synced_to_server=False  # Marcar para sincronizar
+                            )
 
                     qo.status = 'paid'
                     qo.save(update_fields=['status'])
@@ -479,7 +488,10 @@ class SaleCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Create
                         det.subtotal = float(i['subtotal'])
                         det.save()
                         # Descontar stock
-                        Product.objects.filter(pk=det.prod_id).update(stock=F('stock') - det.cant)
+                        Product.objects.filter(pk=det.prod_id).update(
+                            stock=F('stock') - det.cant,
+                            synced_to_server=False  # Marcar para sincronizar
+                        )
                 
             else:
                 data['error'] = 'No ha ingresado a ninguna opción'
@@ -543,7 +555,10 @@ class SaleUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Update
                     sale.save()
                     # Restaurar stock de detalles anteriores
                     for d in sale.detsale_set.all():
-                        Product.objects.filter(pk=d.prod_id).update(stock=F('stock') + d.cant)
+                        Product.objects.filter(pk=d.prod_id).update(
+                            stock=F('stock') + d.cant,
+                            synced_to_server=False  # Marcar para sincronizar
+                        )
                     sale.detsale_set.all().delete()
 
                     # Validación de stock suficiente para nuevos detalles (cantidades decimales)
@@ -567,7 +582,10 @@ class SaleUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Update
                         det.price = float(i['pvp'])
                         det.subtotal = float(i['subtotal'])
                         det.save()
-                        Product.objects.filter(pk=det.prod_id).update(stock=F('stock') - cant)
+                        Product.objects.filter(pk=det.prod_id).update(
+                            stock=F('stock') - cant,
+                            synced_to_server=False  # Marcar para sincronizar
+                        )
                 
             else:
                 data['error'] = 'No ha ingresado a ninguna opción'
@@ -613,7 +631,10 @@ class SaleDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Delete
         try:
             # Restaurar stock antes de eliminar
             for d in self.object.detsale_set.all():
-                Product.objects.filter(pk=d.prod_id).update(stock=F('stock') + d.cant)
+                Product.objects.filter(pk=d.prod_id).update(
+                    stock=F('stock') + d.cant,
+                    synced_to_server=False  # Marcar para sincronizar
+                )
             self.object.delete()
         except Exception as e:
             data['error'] = str(e)
@@ -873,7 +894,10 @@ class InvoiceCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Cre
                         det.price = det_info['price_final']            # precio final con IVA
                         det.subtotal = det_info['subtotal_final']      # subtotal con IVA
                         det.save()
-                        Product.objects.filter(pk=det.prod_id).update(stock=F('stock') - det.cant)
+                        Product.objects.filter(pk=det.prod_id).update(
+                            stock=F('stock') - det.cant,
+                            synced_to_server=False  # Marcar para sincronizar
+                        )
             else:
                 data['error'] = 'No ha ingresado a ninguna opción'
         except Exception as e:
@@ -998,7 +1022,10 @@ def sync_sales_api(request):
                     )
                     prod = Product.objects.filter(pk=prod_id).first()
                     if prod and getattr(prod, 'track_stock', True):
-                        Product.objects.filter(pk=prod_id).update(stock=F('stock') - cant)
+                        Product.objects.filter(pk=prod_id).update(
+                            stock=F('stock') - cant,
+                            synced_to_server=False  # Marcar para sincronizar
+                        )
 
                 synced.append(local_uuid)
         except Exception as e:
