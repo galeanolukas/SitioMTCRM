@@ -46,18 +46,30 @@ class Command(BaseCommand):
                     continue
 
                 with transaction.atomic(using='remote'):
-                    # Verificar si ya existe venta con misma fecha y monto para evitar duplicados
+                    # Verificar si ya existe venta duplicada usando múltiples criterios
+                    # Buscar por fecha, monto, cliente y método de pago
                     existing_sale = Sale.objects.using('remote').filter(
-                        date_joined=sale.date_joined,
+                        date_joined__year=sale.date_joined.year,
+                        date_joined__month=sale.date_joined.month,
+                        date_joined__day=sale.date_joined.day,
                         total=sale.total,
+                        subtotal=sale.subtotal,
+                        payment_method=sale.payment_method,
                         cli_id=sale.cli_id
                     ).first()
                     
                     if existing_sale:
-                        # Ya existe, marcar como sincronizada y continuar
-                        Sale.objects.using('default').filter(pk=sale.pk).update(synced_to_server=True)
-                        synced += 1
-                        continue
+                        # Ya existe una venta muy similar, verificar si es la misma
+                        # Comparar timestamp exacto (diferencia de menos de 5 segundos = misma venta)
+                        time_diff = abs((existing_sale.date_joined - sale.date_joined).total_seconds())
+                        if time_diff < 5:  # Si la diferencia es menor a 5 segundos, es la misma venta
+                            # Ya existe, marcar como sincronizada y continuar
+                            Sale.objects.using('default').filter(pk=sale.pk).update(synced_to_server=True)
+                            synced += 1
+                            self.stdout.write(
+                                self.style.WARNING(f"Venta {sale.id} ya existe en servidor remoto (ID: {existing_sale.id}), omitiendo...")
+                            )
+                            continue
                     
                     # Crear cabecera de venta en remoto
                     # Si no es factura facturada, el IVA debe ser 0

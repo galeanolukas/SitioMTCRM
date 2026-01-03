@@ -314,6 +314,7 @@ class Sale(models.Model):
     invoice_type = models.CharField(max_length=1, default='B')  # A/B/C
     is_invoiced = models.BooleanField(default=False)
     synced_to_server = models.BooleanField(default=False, verbose_name='Sincronizado con servidor')
+    local_sale_id = models.PositiveIntegerField(blank=True, null=True, verbose_name='ID de venta local', help_text='ID de la venta en la base de datos local para evitar duplicados')
 
     def __str__(self):
         return self.cli.names
