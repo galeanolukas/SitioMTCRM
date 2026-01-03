@@ -724,6 +724,7 @@ class InternalTransfer(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', verbose_name='Estado')
     observations = models.TextField(blank=True, verbose_name='Observaciones')
     transfer_number = models.CharField(max_length=20, unique=True, verbose_name='Número de Remito')
+    synced_to_server = models.BooleanField(default=False, verbose_name='Sincronizado con servidor')
     
     def __str__(self):
         return f"Transferencia {self.transfer_number} - {self.origin_pos} → {self.destination_pos}"
@@ -736,6 +737,21 @@ class InternalTransfer(models.Model):
         
         if not self.transfer_number:
             self.transfer_number = self.generate_transfer_number()
+        
+        # Marcar para sincronizar si la transferencia ya existe y hay cambios
+        if self.pk:
+            # Verificar si hay cambios relevantes para sincronizar
+            old_transfer = InternalTransfer.objects.filter(pk=self.pk).first()
+            if old_transfer:
+                changes = (
+                    old_transfer.status != self.status or
+                    old_transfer.observations != self.observations
+                )
+                if changes:
+                    self.synced_to_server = False
+        else:
+            # Nueva transferencia, marcar para sincronizar
+            self.synced_to_server = False
         
         super().save(*args, **kwargs)
     

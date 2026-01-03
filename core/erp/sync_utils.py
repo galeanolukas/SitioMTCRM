@@ -127,8 +127,16 @@ def run_full_sync():
         except Exception as e:
             logger.error(f"Error en sincronización de cierres de caja: {e}")
             errors.append(f"sync_cash_registers_to_remote: {e}")
+
+        # Transferencias internas
+        try:
+            call_command("sync_transfers_to_remote")
+            logger.info("Sincronización de transferencias completada")
+        except Exception as e:
+            logger.error(f"Error en sincronización de transferencias: {e}")
+            errors.append(f"sync_transfers_to_remote: {e}")
     else:
-        msg = "Sin conexión a la base de datos remota; se omite sincronización de empresas, categorias, productos, ventas, clientes, proveedores y gastos."
+        msg = "Sin conexión a la base de datos remota; se omite sincronización de empresas, categorias, productos, ventas, clientes, proveedores, gastos y transferencias."
         logger.warning(msg)
         errors.append(msg)
 

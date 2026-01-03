@@ -461,8 +461,28 @@
         </div>
         <div class="mb-3">
           <label for="secondPaymentAmount" class="form-label">Monto segundo pago</label>
-          <input type="number" id="secondPaymentAmount" class="form-control" min="0" step="0.01" placeholder="0.00" readonly>
+          <input type="number" id="secondPaymentAmount" class="form-control" min="0" step="0.01" placeholder="0.00">
         </div>
+        
+        <script>
+          // Establecer el segundo pago con el restante
+          const secondPaymentValue = remaining.toFixed(2);
+          $('#secondPaymentAmount').val(secondPaymentValue);
+          $('#secondPaymentMethod').val('cash');
+          
+          // Establecer el segundo pago después de que el modal se muestre
+          setTimeout(() => {
+            $('#secondPaymentAmount').val(secondPaymentValue);
+          }, 100);
+          
+          // Actualizar el resumen del restante en tiempo real
+          function updateSecondPaymentSummary() {
+            const secondPayment = parseFloat($('#secondPaymentAmount').val()) || 0;
+            const remaining = parseFloat($('#combinedRemaining').text().replace('$', '').replace(/,/g, '')) || 0;
+            const newRemaining = remaining - secondPayment;
+            $('#combinedRemaining').text('$' + newRemaining.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+          }
+        </script>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" id="btnCombinedPaymentBack">Volver</button>
