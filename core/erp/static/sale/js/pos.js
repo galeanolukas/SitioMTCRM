@@ -752,8 +752,8 @@
 
   // Confirmar pagos combinados
   $(document).on('click', '#btnCombinedPaymentConfirm', function() {
-    const total = parseArgentineAmount($('#combinedTotalAmount').text());
-    const firstAmount = parseArgentineAmount($('#firstPaymentAmount').val());
+    const total = parseFormattedAmount($('#combinedTotalAmount').text());
+    const firstAmount = parseFloat($('#firstPaymentAmount').val()) || 0;
     const firstMethod = $('#firstPaymentMethod').val();
     const secondMethod = $('#secondPaymentMethod').val();
     const secondAmount = parseFloat($('#secondPaymentAmount').val()) || 0;

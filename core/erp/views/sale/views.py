@@ -691,17 +691,15 @@ class SaleListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView
                 return JsonResponse(data, safe=False)
                 
             elif action == 'search_details_prod':
-                data = {}
+                data = []
                 sale_id = request.POST.get('id')
                 if sale_id:
                     try:
-                        sale = Sale.objects.get(id=sale_id)
-                        data = sale.toJSON()
-                        # Agregar detalles de productos
-                        details = DetSale.objects.filter(sale_id=sale_id)
-                        data['det'] = [detail.toJSON() for detail in details]
-                    except Sale.DoesNotExist:
-                        data = {'error': 'Venta no encontrada'}
+                        details = DetSale.objects.filter(sale_id=sale_id).select_related('prod', 'prod__cat')
+                        for detail in details:
+                            data.append(detail.toJSON())
+                    except Exception as e:
+                        data = []
                 return JsonResponse(data, safe=False)
                 
             elif action == 'invoice':
