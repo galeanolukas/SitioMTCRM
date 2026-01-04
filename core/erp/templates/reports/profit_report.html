@@ -4,20 +4,40 @@
 <style>
 .profit-card {
   transition: transform 0.2s;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 .profit-card:hover {
-  transform: translateY(-2px);
+  transform: translateY(-3px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
 .profit-positive {
   color: #28a745;
   font-weight: bold;
+  text-shadow: 0 1px 2px rgba(40, 167, 69, 0.2);
 }
 .profit-negative {
   color: #dc3545;
   font-weight: bold;
+  text-shadow: 0 1px 2px rgba(220, 53, 69, 0.2);
 }
 .profit-neutral {
   color: #6c757d;
+  font-weight: bold;
+}
+.bg-gradient-success {
+  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+}
+.bg-gradient-info {
+  background: linear-gradient(135deg, #17a2b8 0%, #20c997 100%);
+}
+.badge-light {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
 }
 .chart-container {
   height: 300px;
@@ -28,6 +48,31 @@
 }
 .loading-spinner {
   display: none;
+}
+/* Mejoras para el resumen financiero */
+.profit-card h2 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.profit-card h6 {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.border-primary {
+  border: 2px solid #007bff !important;
+}
+.border-danger {
+  border: 2px solid #dc3545 !important;
+}
+.profit-card .card-body {
+  padding: 1.5rem;
+}
+.profit-card .badge {
+  font-size: 0.8rem;
+  padding: 6px 12px;
+  border-radius: 20px;
 }
 </style>
 {% endblock %}
@@ -103,41 +148,49 @@
             <!-- Resumen General -->
             <div class="row mb-4">
               <div class="col-md-3">
-                <div class="card profit-card bg-light">
+                <div class="card profit-card bg-light border-primary">
                   <div class="card-body text-center">
-                    <h6 class="card-title text-muted">Ventas Totales</h6>
-                    <h3 class="profit-neutral" id="total-sales">$0.00</h3>
+                    <h6 class="card-title text-muted">
+                      <i class="fas fa-chart-line text-primary"></i> Ventas Totales
+                    </h6>
+                    <h2 class="profit-neutral mb-2" id="total-sales">$0.00</h2>
                     <small class="text-muted" id="period-info"></small>
                   </div>
                 </div>
               </div>
               
               <div class="col-md-3">
-                <div class="card profit-card bg-light">
+                <div class="card profit-card bg-light border-danger">
                   <div class="card-body text-center">
-                    <h6 class="card-title text-muted">Costo Total</h6>
-                    <h3 class="profit-negative" id="total-cost">$0.00</h3>
+                    <h6 class="card-title text-muted">
+                      <i class="fas fa-shopping-cart text-danger"></i> Costo Total
+                    </h6>
+                    <h2 class="profit-negative mb-2" id="total-cost">$0.00</h2>
                     <small class="text-muted">Productos vendidos: <span id="total-products">0</span></small>
                   </div>
                 </div>
               </div>
               
               <div class="col-md-3">
-                <div class="card profit-card bg-success">
+                <div class="card profit-card bg-gradient-success">
                   <div class="card-body text-center text-white">
-                    <h6 class="card-title">Ganancia Neta</h6>
-                    <h3 id="total-profit">$0.00</h3>
-                    <small id="profit-margin">Margen: 0%</small>
+                    <h6 class="card-title">
+                      <i class="fas fa-dollar-sign"></i> Ganancia Neta
+                    </h6>
+                    <h2 class="mb-2 font-weight-bold" id="total-profit">$0.00</h2>
+                    <div class="badge badge-light text-success" id="profit-margin">Margen: 0%</div>
                   </div>
                 </div>
               </div>
               
               <div class="col-md-3">
-                <div class="card profit-card bg-info">
+                <div class="card profit-card bg-gradient-info">
                   <div class="card-body text-center text-white">
-                    <h6 class="card-title">Eficiencia</h6>
-                    <h3 id="efficiency">0%</h3>
-                    <small>Margen de ganancia</small>
+                    <h6 class="card-title">
+                      <i class="fas fa-percentage"></i> Eficiencia
+                    </h6>
+                    <h2 class="mb-2 font-weight-bold" id="efficiency">0%</h2>
+                    <div class="badge badge-light text-info" id="efficiency-label">Margen de ganancia</div>
                   </div>
                 </div>
               </div>
@@ -287,24 +340,33 @@ function generateReport() {
 }
 
 function displayReportResults(data) {
+  // Redondear porcentajes a 1 decimal
+  const roundedMargin = parseFloat(data.profit_margin).toFixed(1);
+  const roundedEfficiency = parseFloat(data.profit_margin).toFixed(1);
+  
   // Actualizar resumen
   document.getElementById('total-sales').textContent = '$' + data.total_sales;
   document.getElementById('total-cost').textContent = '$' + data.total_cost;
   document.getElementById('total-profit').textContent = '$' + data.total_profit;
-  document.getElementById('profit-margin').textContent = 'Margen: ' + data.profit_margin + '%';
-  document.getElementById('efficiency').textContent = data.profit_margin + '%';
+  document.getElementById('profit-margin').textContent = 'Margen: ' + roundedMargin + '%';
+  document.getElementById('efficiency').textContent = roundedEfficiency + '%';
   document.getElementById('total-products').textContent = data.total_products_sold;
   document.getElementById('period-info').textContent = data.period_type + ' (' + data.date_from + ' - ' + data.date_to + ')';
   
   // Actualizar colores según ganancia
   const profitValue = parseFloat(data.total_profit);
   const profitElement = document.getElementById('total-profit');
+  const efficiencyElement = document.getElementById('efficiency');
+  
   if (profitValue > 0) {
     profitElement.className = 'profit-positive';
+    efficiencyElement.className = 'profit-positive';
   } else if (profitValue < 0) {
     profitElement.className = 'profit-negative';
+    efficiencyElement.className = 'profit-negative';
   } else {
     profitElement.className = 'profit-neutral';
+    efficiencyElement.className = 'profit-neutral';
   }
   
   // Actualizar tabla de top productos
@@ -314,6 +376,7 @@ function displayReportResults(data) {
   data.top_products.forEach((product, index) => {
     const row = document.createElement('tr');
     row.className = 'product-row';
+    const roundedProductMargin = parseFloat(product.margin).toFixed(2);
     row.innerHTML = `
       <td>${index + 1}. ${product.name}</td>
       <td class="text-center">${product.quantity}</td>
@@ -322,7 +385,7 @@ function displayReportResults(data) {
       <td class="text-right profit-${product.profit >= 0 ? 'positive' : 'negative'}">
         $${product.profit.toFixed(2)}
       </td>
-      <td class="text-right">${product.margin.toFixed(2)}%</td>
+      <td class="text-right">${roundedProductMargin}%</td>
     `;
     tbody.appendChild(row);
   });

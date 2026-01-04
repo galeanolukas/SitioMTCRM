@@ -91,6 +91,7 @@ class Command(BaseCommand):
                         invoice_pos=sale.invoice_pos,
                         invoice_type=sale.invoice_type,
                         is_invoiced=sale.is_invoiced,
+                        synced_to_server=True,  # Marcar como sincronizada en servidor
                     )
 
                     # Crear detalles en remoto

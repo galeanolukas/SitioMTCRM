@@ -42,6 +42,22 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         companies = Company.objects.all()
         context['companies'] = companies
         
+        # Establecer empresa por defecto si no se especifica
+        if not company_id:
+            # Para superusuarios, usar la primera empresa o la del usuario si tiene
+            if self.request.user.is_superuser:
+                user_company = getattr(self.request.user, 'company_id', None)
+                if user_company:
+                    company_id = str(user_company)
+                else:
+                    # Si el superusuario no tiene empresa asignada, usar la primera activa
+                    first_company = companies.filter(is_active=True).first()
+                    company_id = str(first_company.id) if first_company else ''
+            else:
+                # Para usuarios no superusuarios, usar su empresa
+                user_company = getattr(self.request.user, 'company_id', None)
+                company_id = str(user_company) if user_company else ''
+        
         # Fechas por defecto (últimos 30 días)
         if not start_date or not end_date:
             end_date_obj = timezone.now()
