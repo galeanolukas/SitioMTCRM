@@ -1,0 +1,252 @@
+{% extends 'layout.html' %}
+
+{% block title %}Dashboard de Actividades{% endblock %}
+
+{% block content %}
+<div class="content-wrapper">
+    <div class="content-header">
+        <div class="container-fluid">
+            <div class="row mb-2">
+                <div class="col-sm-6">
+                    <h1 class="m-0">
+                        <i class="fas fa-chart-line"></i> Dashboard de Actividades
+                    </h1>
+                </div>
+                <div class="col-sm-6">
+                    <ol class="breadcrumb float-sm-right">
+                        <li class="breadcrumb-item"><a href="{% url 'erp:dashboard' %}">Dashboard</a></li>
+                        <li class="breadcrumb-item active">Actividades</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <section class="content">
+        <div class="container-fluid">
+            <!-- Estadísticas Principales -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="info-box bg-gradient-info">
+                        <span class="info-box-icon"><i class="fas fa-list"></i></span>
+                        <div class="info-box-content">
+                            <span class="info-box-text">Total Actividades</span>
+                            <span class="info-box-number">{{ total_activities }}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="info-box bg-gradient-success">
+                        <span class="info-box-icon"><i class="fas fa-calendar-day"></i></span>
+                        <div class="info-box-content">
+                            <span class="info-box-text">Hoy</span>
+                            <span class="info-box-number">{{ today_activities }}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="info-box bg-gradient-warning">
+                        <span class="info-box-icon"><i class="fas fa-calendar-week"></i></span>
+                        <div class="info-box-content">
+                            <span class="info-box-text">Esta Semana</span>
+                            <span class="info-box-number">{{ week_activities }}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="info-box bg-gradient-primary">
+                        <span class="info-box-icon"><i class="fas fa-calendar-alt"></i></span>
+                        <div class="info-box-content">
+                            <span class="info-box-text">Este Mes</span>
+                            <span class="info-box-number">{{ month_activities }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gráficos y Estadísticas -->
+            <div class="row">
+                <!-- Actividades por Día -->
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">
+                                <i class="fas fa-chart-area"></i> Actividades por Día (Últimos 7 días)
+                            </h3>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="dailyChart" height="100"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Top Acciones -->
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">
+                                <i class="fas fa-trophy"></i> Top Acciones
+                            </h3>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="actionsChart" height="200"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row mt-4">
+                <!-- Top Usuarios -->
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">
+                                <i class="fas fa-users"></i> Usuarios Más Activos
+                            </h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Usuario</th>
+                                            <th class="text-right">Actividades</th>
+                                            <th class="text-right">%</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for user_stat in top_users %}
+                                        <tr>
+                                            <td>{{ user_stat.user__username }}</td>
+                                            <td class="text-right">{{ user_stat.count }}</td>
+                                            <td class="text-right">
+                                                {% if total_activities > 0 %}
+                                                    {{ user_stat.count|mul:100|div:total_activities|floatformat:1 }}%
+                                                {% else %}
+                                                    0%
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Acciones Detalladas -->
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">
+                                <i class="fas fa-cogs"></i> Acciones Detalladas
+                            </h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Acción</th>
+                                            <th class="text-right">Cantidad</th>
+                                            <th class="text-right">%</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for action in top_actions %}
+                                        <tr>
+                                            <td>
+                                                <span class="badge badge-secondary">{{ action.action }}</span>
+                                            </td>
+                                            <td class="text-right">{{ action.count }}</td>
+                                            <td class="text-right">
+                                                {% if total_activities > 0 %}
+                                                    {{ action.count|mul:100|div:total_activities|floatformat:1 }}%
+                                                {% else %}
+                                                    0%
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Acciones -->
+            <div class="row mt-4">
+                <div class="col-12 text-center">
+                    <a href="{% url 'erp:activity_log' %}" class="btn btn-primary">
+                        <i class="fas fa-list"></i> Ver Registro Completo
+                    </a>
+                    <button onclick="window.print()" class="btn btn-secondary">
+                        <i class="fas fa-print"></i> Imprimir
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block javascript %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Gráfico de actividades por día
+const dailyCtx = document.getElementById('dailyChart').getContext('2d');
+new Chart(dailyCtx, {
+    type: 'line',
+    data: {
+        labels: [{% for stat in daily_stats %}'{{ stat.date }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+        datasets: [{
+            label: 'Actividades',
+            data: [{% for stat in daily_stats %}{{ stat.count }}{% if not forloop.last %},{% endif %}{% endfor %}],
+            borderColor: 'rgb(75, 192, 192)',
+            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+            tension: 0.1
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+
+// Gráfico de top acciones
+const actionsCtx = document.getElementById('actionsChart').getContext('2d');
+new Chart(actionsCtx, {
+    type: 'doughnut',
+    data: {
+        labels: [{% for action in top_actions %}'{{ action.action }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+        datasets: [{
+            data: [{% for action in top_actions %}{{ action.count }}{% if not forloop.last %},{% endif %}{% endfor %}],
+            backgroundColor: [
+                'rgba(255, 99, 132, 0.8)',
+                'rgba(54, 162, 235, 0.8)',
+                'rgba(255, 205, 86, 0.8)',
+                'rgba(75, 192, 192, 0.8)',
+                'rgba(153, 102, 255, 0.8)'
+            ]
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'bottom'
+            }
+        }
+    }
+});
+</script>
+{% endblock %}

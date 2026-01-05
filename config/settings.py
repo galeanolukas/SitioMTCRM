@@ -98,6 +98,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     # 'crum.CurrentRequestUserMiddleware'  # Temporalmente deshabilitado para pruebas
+    'core.erp.middleware.ActivityLogMiddleware',  # Registro de actividades (solo en producción)
     
 ]
 

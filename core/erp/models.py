@@ -872,5 +872,44 @@ class GlobalSyncStatus(models.Model):
     def __str__(self):
         return f"Sync {'Enabled' if self.sync_enabled else 'Disabled'}"
 
+
+class ActivityLog(models.Model):
+    """Registro de actividades de usuarios para modo servidor"""
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    action = models.CharField(max_length=100, verbose_name='Acción')
+    description = models.TextField(blank=True, verbose_name='Descripción')
+    model_name = models.CharField(max_length=50, blank=True, verbose_name='Modelo')
+    object_id = models.PositiveIntegerField(null=True, blank=True, verbose_name='ID del Objeto')
+    ip_address = models.GenericIPAddressField(null=True, blank=True, verbose_name='Dirección IP')
+    user_agent = models.TextField(blank=True, verbose_name='User Agent')
+    timestamp = models.DateTimeField(auto_now_add=True, verbose_name='Fecha y Hora')
+    company = models.ForeignKey(Company, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Empresa')
+    
+    class Meta:
+        verbose_name = 'Registro de Actividad'
+        verbose_name_plural = 'Registros de Actividad'
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['user', 'timestamp']),
+            models.Index(fields=['action', 'timestamp']),
+            models.Index(fields=['company', 'timestamp']),
+        ]
+    
     def __str__(self):
-        return f"{self.get_movement_type_display()} - {self.amount} - {self.description}"
+        return f"{self.user} - {self.action} - {self.timestamp.strftime('%Y-%m-%d %H:%M')}"
+    
+    def get_action_display(self):
+        """Retorna una descripción más amigable de la acción"""
+        action_descriptions = {
+            'CREATE': 'Creación',
+            'UPDATE': 'Actualización', 
+            'DELETE': 'Eliminación',
+            'LOGIN': 'Inicio de Sesión',
+            'LOGOUT': 'Cierre de Sesión',
+            'VIEW': 'Visualización',
+            'EXPORT': 'Exportación',
+            'SYNC': 'Sincronización',
+            'SALE': 'Venta',
+            'INVOICE': 'Facturación',
+        }
+        return action_descriptions.get(self.action, self.action)

@@ -7,6 +7,7 @@ from core.erp.views.transfer.views import TransferListView, TransferCreateView, 
 from core.erp.views.operator_reports.views import OperatorSalesReportView, operator_sales_export
 from core.erp.views.sync.views import SyncToggleView, SyncStatusView
 from core.erp.views.tests.views import *
+from core.erp.views.activity_log import ActivityLogView, ActivityLogDashboardView
 from core.erp.views.dashboard.views import (
     DashboardView,
     CompanyUpdateView,
@@ -139,4 +140,7 @@ urlpatterns = [
     path('sync/toggle/', SyncToggleView.as_view(), name='sync_toggle'),
     # sync status (public for all authenticated users)
     path('sync/status/', SyncStatusView.as_view(), name='sync_status'),
+    # activity log (solo superusuarios)
+    path('activity/log/', ActivityLogView.as_view(), name='activity_log'),
+    path('activity/dashboard/', ActivityLogDashboardView.as_view(), name='activity_dashboard'),
 ]
