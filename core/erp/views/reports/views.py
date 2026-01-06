@@ -285,10 +285,9 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
             'prod_id',
             'prod__name',
             'prod__code',
-            'prod__unit'
+            'prod__stock'
         ).annotate(
             total_quantity=Sum('cant'),
-            total_sales=Count('sale_id'),
             total_amount=Sum(F('cant') * F('price')),
             avg_price=Coalesce(Sum(F('cant') * F('price')) / Sum('cant'), 0, output_field=FloatField())
         ).order_by('-total_quantity')
@@ -310,9 +309,8 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
                     'id': item['prod_id'],
                     'name': item['prod__name'] or 'Sin nombre',
                     'code': item['prod__code'] or 'N/A',
-                    'unit': item['prod__unit'] or 'Unidad',
+                    'stock_available': float(item['prod__stock'] or 0),
                     'total_quantity': float(item['total_quantity']),
-                    'total_sales': int(item['total_sales']),
                     'total_amount': float(item['total_amount'] or 0),
                     'avg_price': float(item['avg_price'])
                 })
@@ -352,6 +350,14 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
         export_format = request.GET.get('format', 'csv')
         
         try:
+            # Preparar información del período para incluir en los reportes
+            period_info = {
+                'start_date': start_date,
+                'end_date': end_date,
+                'company_id': company_id,
+                'payment_method': payment_method
+            }
+            
             # Obtener datos según el tipo de reporte
             if report_type == 'sales':
                 data = self.get_sales_export_data(company_id, start_date, end_date, payment_method)
@@ -359,6 +365,8 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
             elif report_type == 'inventory':
                 data = self.get_inventory_export_data(company_id)
                 filename = f'inventario_{datetime.now().strftime("%Y-%m-%d")}'
+                period_info['start_date'] = datetime.now().strftime('%Y-%m-%d')
+                period_info['end_date'] = datetime.now().strftime('%Y-%m-%d')
             elif report_type == 'expenses':
                 data = self.get_expenses_export_data(company_id, start_date, end_date)
                 filename = f'gastos_{start_date}_al_{end_date}'
@@ -371,11 +379,11 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
             
             # Exportar según formato
             if export_format == 'excel':
-                return self.export_to_excel(data, filename, report_type)
+                return self.export_to_excel(data, filename, report_type, period_info)
             elif export_format == 'pdf':
-                return self.export_to_pdf(data, filename, report_type)
+                return self.export_to_pdf(data, filename, report_type, period_info)
             else:
-                return self.export_to_csv(data, filename, report_type)
+                return self.export_to_csv(data, filename, report_type, period_info)
         except Exception as e:
             # Return error as plain text for debugging
             return HttpResponse(f"Error en exportación: {str(e)}", content_type='text/plain')
@@ -424,16 +432,42 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
         unified_view = UnifiedReportsView()
         return unified_view.get_top_selling_data(company_id, start_date, end_date)
     
-    def export_to_csv(self, data, filename, report_type):
+    def export_to_csv(self, data, filename, report_type, period_info=None):
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = f'attachment; filename="{filename}.csv"'
         
         writer = csv.writer(response)
         
-        if report_type == 'sales':
-            # Título del reporte
-            writer.writerow(['REPORTE DE VENTAS'])
+        # Agregar información del período al inicio del reporte
+        if period_info:
+            writer.writerow(['REPORTE DE VENTAS' if report_type == 'sales' else 
+                           'REPORTE DE INVENTARIO' if report_type == 'inventory' else
+                           'REPORTE DE GASTOS' if report_type == 'expenses' else
+                           'REPORTE DE GANANCIAS' if report_type == 'profit' else
+                           'REPORTE DE PRODUCTOS MÁS VENDIDOS'])
             writer.writerow([])  # Fila vacía
+            
+            # Información del período
+            if period_info.get('start_date') and period_info.get('end_date'):
+                writer.writerow(['Período:', f'Desde {period_info["start_date"]} hasta {period_info["end_date"]}'])
+            
+            # Información de la empresa si está disponible
+            if period_info.get('company_id'):
+                try:
+                    company = Company.objects.get(id=period_info['company_id'])
+                    writer.writerow(['Empresa:', company.name])
+                except Company.DoesNotExist:
+                    pass
+            
+            # Método de pago si está disponible
+            if period_info.get('payment_method'):
+                writer.writerow(['Método de Pago:', period_info['payment_method']])
+            
+            writer.writerow(['Fecha de Generación:', datetime.now().strftime('%Y-%m-%d %H:%M:%S')])
+            writer.writerow([])  # Fila vacía
+        
+        if report_type == 'sales':
+            # Encabezados de columnas
             writer.writerow(['Fecha', 'Ticket/Factura', 'Cliente', 'Subtotal', 'IVA', 'Total', 'Forma de Pago', 'Empresa'])
             total_amount = 0
             total_iva = 0
@@ -550,18 +584,15 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
             writer.writerow(['Margen de Ganancia %', f"{data['profit_margin']:.2f}%"])
         
         elif report_type == 'top_selling':
-            # Título del reporte
-            writer.writerow(['REPORTE DE PRODUCTOS MÁS VENDIDOS'])
-            writer.writerow([])  # Fila vacía
-            writer.writerow(['Código', 'Producto', 'Unidad', 'Cantidad Vendida', 'N° Ventas', 'Precio Promedio', 'Total Recaudado'])
+            # Encabezados de columnas
+            writer.writerow(['Código', 'Producto', 'Stock Disponible', 'Total Vendidos', 'Precio Promedio', 'Total Recaudado'])
             
             for product in data['products']:
                 writer.writerow([
                     product['code'],
                     product['name'],
-                    product['unit'],
+                    product['stock_available'],
                     product['total_quantity'],
-                    product['total_sales'],
                     round(product['avg_price'], 2),
                     round(product['total_amount'], 2)
                 ])
@@ -576,7 +607,7 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
         
         return response
     
-    def export_to_excel(self, data, filename, report_type):
+    def export_to_excel(self, data, filename, report_type, period_info=None):
         response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         response['Content-Disposition'] = f'attachment; filename="{filename}.xlsx"'
         
@@ -593,14 +624,50 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
         
         row = 1
         
-        if report_type == 'sales':
+        # Agregar información del período al inicio del reporte
+        if period_info:
             # Título del reporte
+            report_title = 'REPORTE DE VENTAS' if report_type == 'sales' else \
+                         'REPORTE DE INVENTARIO' if report_type == 'inventory' else \
+                         'REPORTE DE GASTOS' if report_type == 'expenses' else \
+                         'REPORTE DE GANANCIAS' if report_type == 'profit' else \
+                         'REPORTE DE PRODUCTOS MÁS VENDIDOS'
+            
             ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=8)
-            ws.cell(row=row, column=1, value='REPORTE DE VENTAS')
+            ws.cell(row=row, column=1, value=report_title)
             ws.cell(row=row, column=1).font = title_font
             ws.cell(row=row, column=1).alignment = title_alignment
             row += 2
             
+            # Información del período
+            if period_info.get('start_date') and period_info.get('end_date'):
+                ws.cell(row=row, column=1, value='Período:')
+                ws.cell(row=row, column=2, value=f'Desde {period_info["start_date"]} hasta {period_info["end_date"]}')
+                row += 1
+            
+            # Información de la empresa si está disponible
+            if period_info.get('company_id'):
+                try:
+                    company = Company.objects.get(id=period_info['company_id'])
+                    ws.cell(row=row, column=1, value='Empresa:')
+                    ws.cell(row=row, column=2, value=company.name)
+                    row += 1
+                except Company.DoesNotExist:
+                    pass
+            
+            # Método de pago si está disponible
+            if period_info.get('payment_method'):
+                ws.cell(row=row, column=1, value='Método de Pago:')
+                ws.cell(row=row, column=2, value=period_info['payment_method'])
+                row += 1
+            
+            # Fecha de generación
+            ws.cell(row=row, column=1, value='Fecha de Generación:')
+            ws.cell(row=row, column=2, value=datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+            row += 2  # Espacio extra después del encabezado
+        
+        if report_type == 'sales':
+            # Encabezados de columnas
             headers = ['Fecha', 'Ticket/Factura', 'Cliente', 'Subtotal', 'IVA', 'Total', 'Forma de Pago', 'Empresa']
             ws.append(headers)
             
@@ -779,14 +846,8 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
                 ws.append(item)
         
         elif report_type == 'top_selling':
-            # Título del reporte
-            ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=7)
-            ws.cell(row=row, column=1, value='REPORTE DE PRODUCTOS MÁS VENDIDOS')
-            ws.cell(row=row, column=1).font = title_font
-            ws.cell(row=row, column=1).alignment = title_alignment
-            row += 2
-            
-            headers = ['Código', 'Producto', 'Unidad', 'Cantidad Vendida', 'N° Ventas', 'Precio Promedio', 'Total Recaudado']
+            # Encabezados de columnas
+            headers = ['Código', 'Producto', 'Stock Disponible', 'Total Vendidos', 'Precio Promedio', 'Total Recaudado']
             ws.append(headers)
             
             for cell in ws[row]:
@@ -798,9 +859,8 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
                 ws.append([
                     product['code'],
                     product['name'],
-                    product['unit'],
+                    product['stock_available'],
                     product['total_quantity'],
-                    product['total_sales'],
                     round(product['avg_price'], 2),
                     round(product['total_amount'], 2)
                 ])
@@ -846,7 +906,7 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
         response.write(excel_file.read())
         return response
     
-    def export_to_pdf(self, data, filename, report_type):
+    def export_to_pdf(self, data, filename, report_type, period_info=None):
         """Exportar datos a PDF"""
         response = HttpResponse(content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="{filename}.pdf"'
@@ -874,29 +934,56 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
             textColor=colors.darkblue
         )
         
-        if report_type == 'top_selling':
-            # Título
-            story.append(Paragraph("REPORTE DE PRODUCTOS MÁS VENDIDOS", title_style))
-            story.append(Spacer(1, 12))
+        # Estilo para información del período
+        info_style = ParagraphStyle(
+            'CustomInfo',
+            parent=styles['Normal'],
+            fontSize=10,
+            spaceAfter=6,
+            leftIndent=20
+        )
+        
+        # Agregar información del período al inicio del reporte
+        if period_info:
+            # Título del reporte
+            report_title = 'REPORTE DE VENTAS' if report_type == 'sales' else \
+                         'REPORTE DE INVENTARIO' if report_type == 'inventory' else \
+                         'REPORTE DE GASTOS' if report_type == 'expenses' else \
+                         'REPORTE DE GANANCIAS' if report_type == 'profit' else \
+                         'REPORTE DE PRODUCTOS MÁS VENDIDOS'
+            
+            story.append(Paragraph(report_title, title_style))
             
             # Información del período
-            if hasattr(self, 'request'):
-                start_date = self.request.GET.get('start_date', '')
-                end_date = self.request.GET.get('end_date', '')
-                if start_date and end_date:
-                    story.append(Paragraph(f"Período: {start_date} al {end_date}", styles['Normal']))
-                    story.append(Spacer(1, 12))
+            if period_info.get('start_date') and period_info.get('end_date'):
+                story.append(Paragraph(f"<b>Período:</b> Desde {period_info['start_date']} hasta {period_info['end_date']}", info_style))
             
+            # Información de la empresa si está disponible
+            if period_info.get('company_id'):
+                try:
+                    company = Company.objects.get(id=period_info['company_id'])
+                    story.append(Paragraph(f"<b>Empresa:</b> {company.name}", info_style))
+                except Company.DoesNotExist:
+                    pass
+            
+            # Método de pago si está disponible
+            if period_info.get('payment_method'):
+                story.append(Paragraph(f"<b>Método de Pago:</b> {period_info['payment_method']}", info_style))
+            
+            # Fecha de generación
+            story.append(Paragraph(f"<b>Fecha de Generación:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", info_style))
+            story.append(Spacer(1, 20))  # Espacio después del encabezado
+        
+        if report_type == 'top_selling':
             # Datos de la tabla
-            table_data = [['Código', 'Producto', 'Unidad', 'Cantidad', 'N° Ventas', 'Precio Prom.', 'Total']]
+            table_data = [['Código', 'Producto', 'Stock Disponible', 'Total Vendidos', 'Precio Promedio', 'Total Recaudado']]
             
             for product in data['products']:
                 table_data.append([
                     product['code'],
                     product['name'],
-                    product['unit'],
+                    f"{product['stock_available']:.2f}",
                     f"{product['total_quantity']:.2f}",
-                    str(product['total_sales']),
                     f"${product['avg_price']:.2f}",
                     f"${product['total_amount']:.2f}"
                 ])

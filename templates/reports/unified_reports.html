@@ -609,9 +609,8 @@
                                             <th>#</th>
                                             <th>Código</th>
                                             <th>Producto</th>
-                                            <th>Unidad</th>
-                                            <th class="text-right">Cantidad Vendida</th>
-                                            <th class="text-right">N° Ventas</th>
+                                            <th class="text-right">Stock Disponible</th>
+                                            <th class="text-right">Total Vendidos</th>
                                             <th class="text-right">Precio Promedio</th>
                                             <th class="text-right">Total Recaudado</th>
                                         </tr>
@@ -622,9 +621,8 @@
                                             <td>{{ forloop.counter0|add:top_selling_data.page_obj.start_index }}</td>
                                             <td>{{ product.prod__code }}</td>
                                             <td>{{ product.prod__name }}</td>
-                                            <td>{{ product.prod__unit }}</td>
+                                            <td class="text-right">{{ product.prod__stock|ars_format|default:0 }}</td>
                                             <td class="text-right">{{ product.total_quantity|ars_format }}</td>
-                                            <td class="text-right">{{ product.total_sales|ars_format }}</td>
                                             <td class="text-right">{{ product.avg_price|ars_currency }}</td>
                                             <td class="text-right font-weight-bold">{{ product.total_amount|ars_currency }}</td>
                                         </tr>

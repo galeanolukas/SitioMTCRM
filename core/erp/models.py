@@ -1,6 +1,7 @@
 from django.db import models
 from django.utils import timezone
 from datetime import datetime
+from django.contrib.auth import get_user_model
 
 from core.models import BaseModel
 from decimal import Decimal
@@ -871,6 +872,10 @@ class GlobalSyncStatus(models.Model):
     
     def __str__(self):
         return f"Sync {'Enabled' if self.sync_enabled else 'Disabled'}"
+
+
+# Obtener el modelo de usuario activo (después de que todos los modelos estén definidos)
+User = get_user_model()
 
 
 class ActivityLog(models.Model):
