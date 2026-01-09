@@ -121,17 +121,44 @@ class DashboardView(TemplateView):
             end_date = today
             filter_label = "Hoy"
         elif time_filter == 'week':
-            start_date = today - timedelta(days=today.weekday())  # Lunes de esta semana
-            end_date = start_date + timedelta(days=6)  # Domingo
-            filter_label = "Esta semana"
+            # Calcular semana desde hoy hacia atrás, excluyendo domingos
+            start_date = today
+            days_checked = 0
+            current_date = today
+            
+            while days_checked < 7:  # Buscar 7 días laborales hacia atrás
+                current_date -= timedelta(days=1)
+                if current_date.weekday() != 6:  # 6 = domingo, excluir domingos
+                    days_checked += 1
+            
+            start_date = current_date + timedelta(days=1)  # El día después del último día no laboral encontrado
+            end_date = today
+            filter_label = "Últimos 7 días laborales"
+            
+            # Debug: mostrar fechas calculadas
+            print(f"DEBUG: Día actual: {today}")
+            print(f"DEBUG: Período: {start_date} al {end_date}")
+            print(f"DEBUG: Días laborales calculados: {days_checked}")
         elif time_filter == 'month':
-            start_date = today.replace(day=1)  # Primer día del mes
-            # Último día del mes
-            if today.month == 12:
-                end_date = today.replace(year=today.year+1, month=1, day=1) - timedelta(days=1)
-            else:
-                end_date = today.replace(month=today.month+1, day=1) - timedelta(days=1)
-            filter_label = "Este mes"
+            # Calcular mes desde hoy hacia atrás, excluyendo domingos
+            start_date = today
+            days_checked = 0
+            current_date = today
+            
+            # Buscar hacia atrás hasta encontrar 30 días laborales (aproximadamente un mes)
+            while days_checked < 30:
+                current_date -= timedelta(days=1)
+                if current_date.weekday() != 6:  # 6 = domingo, excluir domingos
+                    days_checked += 1
+            
+            start_date = current_date + timedelta(days=1)  # El día después del último día no laboral encontrado
+            end_date = today
+            filter_label = "Últimos 30 días laborales"
+            
+            # Debug: mostrar fechas calculadas
+            print(f"DEBUG: Día actual: {today}")
+            print(f"DEBUG: Período: {start_date} al {end_date}")
+            print(f"DEBUG: Días laborales calculados: {days_checked}")
         else:
             start_date = today
             end_date = today

@@ -513,15 +513,21 @@
   function doCreateSale() {
     const calc = buildPayload(false); // Ticket sin IVA
     const subtotal = calc.subtotal_neto;
-    const iva = 0;
-    const total = subtotal;
+    const iva = calc.iva_total;
+    const total = subtotal + iva;
     const payMethod = ($('#payMethod').val() || 'cash');
+    
+    // Generar token único para esta venta
+    const saleToken = 'sale_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    
     const payload = {
+      client_id: calc.client_id,
       items: calc.items_net,     // Detalle con precio neto
       subtotal, iva, total,
-      payment_method: payMethod
+      payment_method: payMethod,
+      sale_token: saleToken  // Agregar token
     };
-    ajaxAction('create_sale', { action: 'create_sale', sale: JSON.stringify(payload) })
+    ajaxAction('create_sale', { action: 'create_sale', sale: JSON.stringify(payload), sale_token: saleToken })
       .done(resp => {
         if (resp && resp.id) {
           lastSaleId = resp.id;
@@ -550,24 +556,34 @@
     const iva = calc.iva_total;
     const total = subtotal + iva;
     const payMethod = ($('#payMethod').val() || 'cash');
+    
+    // Generar token único para esta factura
+    const saleToken = 'invoice_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    
     const payload = {
-      items: calc.items_final,   // Detalle con precio con IVA
+      client_id: calc.client_id,
+      items: calc.items_final,   // Detalle con IVA incluido
       subtotal, iva, total,
-      payment_method: payMethod
+      payment_method: payMethod,
+      sale_token: saleToken  // Agregar token
     };
-    ajaxAction('invoice', { action: 'invoice', sale: JSON.stringify(payload) })
+    ajaxAction('invoice', { action: 'invoice', sale: JSON.stringify(payload), sale_token: saleToken })
       .done(resp => {
-        flashSummary();
-        if (resp.invoice_url) {
-          window.open(resp.invoice_url, '_blank');
-        } else {
-          showToast('success', 'Factura generada.');
+        if (resp && resp.id) {
+          lastSaleId = resp.id;
+          flashSummary();
+          showToast('success', 'Factura generada correctamente.');
+          const modalEl = document.getElementById('printTicketModal');
+          if (modalEl) {
+            const modal = new bootstrap.Modal(modalEl);
+            modal.show();
+          }
+          // Recargar página después de generar factura
+          setTimeout(() => {
+            window.location.reload();
+          }, 2000);
+          $('#btnClear').trigger('click');
         }
-        // Recargar página después de generar factura
-        setTimeout(() => {
-          window.location.reload();
-        }, 2000);
-        $('#btnClear').trigger('click');
       })
       .fail(jq => {
         showToast('error', 'Error al facturar: ' + (jq.responseJSON ? jq.responseJSON.error : jq.statusText));
@@ -576,6 +592,9 @@
 
   // Botón principal: abrir modal para elegir modo de registro
   $('#btnCheckout').on('click', function () {
+    // Prevenir doble clic
+    if ($(this).prop('disabled')) return;
+    
     if (!items.length) { showToast('warning', 'No hay ítems en el carrito.'); return; }
     
     // Verificar si se seleccionó pagos combinados
@@ -761,6 +780,7 @@
     
     if (Math.abs((firstAmount + secondAmount) - total) > 0.01) {
       showToast('error', 'Los montos no suman el total correcto');
+      $(this).prop('disabled', false);
       return;
     }
     
@@ -805,6 +825,7 @@
         })
         .fail(jq => {
           showToast('error', 'Error al facturar: ' + (jq.responseJSON ? jq.responseJSON.error : jq.statusText));
+          $(this).prop('disabled', false);
         });
     } else {
       // Registrar venta normal
@@ -827,6 +848,7 @@
         })
         .fail(jq => {
           showToast('error', 'Error al registrar: ' + (jq.responseJSON ? jq.responseJSON.error : jq.statusText));
+          $(this).prop('disabled', false);
         });
     }
   });
@@ -844,15 +866,33 @@
 
   // Botones del modal de modo de registro
   $(document).on('click', '#btnModeNoInvoice', function () {
+    // Prevenir doble clic
+    if ($(this).prop('disabled')) return;
+    $(this).prop('disabled', true);
+    
     const modal = bootstrap.Modal.getInstance(document.getElementById('saleModeModal'));
     if (modal) modal.hide();
     doCreateSale();
+    
+    // Rehabilitar después de 5 segundos
+    setTimeout(() => {
+      $(this).prop('disabled', false);
+    }, 5000);
   });
 
   $(document).on('click', '#btnModeInvoice', function () {
+    // Prevenir doble clic
+    if ($(this).prop('disabled')) return;
+    $(this).prop('disabled', true);
+    
     const modal = bootstrap.Modal.getInstance(document.getElementById('saleModeModal'));
     if (modal) modal.hide();
     doInvoiceSale();
+    
+    // Rehabilitar después de 5 segundos
+    setTimeout(() => {
+      $(this).prop('disabled', false);
+    }, 5000);
   });
 
   // Botón del modal de impresión de ticket

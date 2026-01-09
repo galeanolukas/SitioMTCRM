@@ -32,11 +32,8 @@ class CashRegisterListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
         context = super().get_context_data(**kwargs)
         qs = context.get('object_list') or []
 
-        # Calcular totales en vivo para cajas abiertas
+        # Calcular totales en vivo para todas las cajas (abiertas y cerradas)
         for cr in qs:
-            if cr.is_closed:
-                continue
-
             sales_qs = Sale.objects.filter(
                 date_joined__date=cr.date,
                 company_id=cr.company_id,
@@ -55,12 +52,34 @@ class CashRegisterListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
 
             live_total_sales = live_cash + live_card + live_transfer + live_mp
 
-            cr.live_cash_sales = live_cash
-            cr.live_card_sales = live_card
-            cr.live_transfer_sales = live_transfer
-            cr.live_mp_sales = live_mp
-            cr.live_total_sales = live_total_sales
-            cr.live_expenses = live_expenses
+            # Para cajas abiertas, usar valores en vivo
+            if not cr.is_closed:
+                cr.live_cash_sales = live_cash
+                cr.live_card_sales = live_card
+                cr.live_transfer_sales = live_transfer
+                cr.live_mp_sales = live_mp
+                cr.live_total_sales = live_total_sales
+                cr.live_expenses = live_expenses
+            else:
+                # Para cajas cerradas, verificar si los valores guardados son correctos
+                # Si no, usar los valores en vivo para mostrar datos correctos
+                cr.live_cash_sales = live_cash
+                cr.live_card_sales = live_card
+                cr.live_transfer_sales = live_transfer
+                cr.live_mp_sales = live_mp
+                cr.live_total_sales = live_total_sales
+                cr.live_expenses = live_expenses
+                
+                # Debug: mostrar diferencias si existen
+                if (cr.cash_sales != live_cash or cr.card_sales != live_card or 
+                    cr.transfer_sales != live_transfer or cr.mp_sales != live_mp or
+                    cr.expenses != live_expenses):
+                    print(f"⚠️  Caja {cr.id} cerrada tiene datos desactualizados:")
+                    print(f"   Guardado - Efectivo: {cr.cash_sales}, Real: {live_cash}")
+                    print(f"   Guardado - Tarjeta: {cr.card_sales}, Real: {live_card}")
+                    print(f"   Guardado - Transfer: {cr.transfer_sales}, Real: {live_transfer}")
+                    print(f"   Guardado - MP: {cr.mp_sales}, Real: {live_mp}")
+                    print(f"   Guardado - Gastos: {cr.expenses}, Real: {live_expenses}")
 
         context['title'] = 'Cierres de Caja'
         context['create_url'] = reverse_lazy('erp:cash_register_create')
@@ -177,17 +196,15 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
 
     def form_valid(self, form):
         cash_register = self.get_object()
-        today = timezone.now().date()
+        
+        # Usar la fecha de la caja, no la fecha actual
+        cash_register_date = cash_register.date
 
-        # Determinar empresa activa igual que en apertura/lista
-        active_cid = self.request.session.get('company_id')
-        if not active_cid:
-            active_cid = getattr(self.request.user, 'company_id', None)
+        # Usar la empresa de la caja para consistencia con la vista de detalle
+        company_id = cash_register.company_id
 
-        # Base de ventas del día para la empresa activa
-        sales_qs = Sale.objects.filter(date_joined__date=today)
-        if active_cid:
-            sales_qs = sales_qs.filter(company_id=active_cid)
+        # Base de ventas del día para la empresa de la caja (usando fecha de la caja)
+        sales_qs = Sale.objects.filter(date_joined__date=cash_register_date, company_id=company_id)
 
         # Calcular totales de ventas por forma de pago
         cash_total = sales_qs.filter(payment_method='cash').aggregate(total=Sum('total'))['total'] or 0
@@ -195,11 +212,9 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
         transfer_total = sales_qs.filter(payment_method='transfer').aggregate(total=Sum('total'))['total'] or 0
         mp_total = sales_qs.filter(payment_method='mp').aggregate(total=Sum('total'))['total'] or 0
 
-        # Calcular gastos del día
-        expenses_qs = Expense.objects.all()
-        if active_cid:
-            expenses_qs = expenses_qs.filter(company_id=active_cid)
-        expenses_total = expenses_qs.filter(date=today).aggregate(total=Sum('amount'))['total'] or 0
+        # Calcular gastos del día (usando fecha de la caja y empresa de la caja)
+        expenses_qs = Expense.objects.filter(date=cash_register_date, company_id=company_id)
+        expenses_total = expenses_qs.aggregate(total=Sum('amount'))['total'] or 0
 
         # Actualizar caja
         form.instance.cash_sales = cash_total
@@ -210,6 +225,12 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
         form.instance.is_closed = True
         # Resetear is_synced para forzar sincronización del cierre
         form.instance.is_synced = False
+        
+        # Debug: imprimir valores para verificar
+        print(f"Cerrando caja ID {cash_register.id} - Fecha: {cash_register_date} - Empresa: {company_id}")
+        print(f"Ventas efectivo: {cash_total}, tarjeta: {card_total}, transfer: {transfer_total}, MP: {mp_total}")
+        print(f"Gastos: {expenses_total}")
+        print(f"Saldo calculado esperado: {cash_register.opening_balance + cash_total + card_total + transfer_total + mp_total - expenses_total}")
 
         messages.success(self.request, 'Caja cerrada correctamente')
         

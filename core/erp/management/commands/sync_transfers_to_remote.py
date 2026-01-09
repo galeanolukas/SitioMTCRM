@@ -9,6 +9,48 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         self.stdout.write(self.style.NOTICE("Iniciando sincronización de transferencias hacia servidor remoto..."))
 
+        # Verificar si las tablas existen en el servidor remoto
+        try:
+            from django.db import connections
+            remote_conn = connections['remote']
+            
+            with remote_conn.cursor() as cursor:
+                # Intentar verificar si existe la tabla erp_internaltransfer
+                if remote_conn.vendor == 'postgresql':
+                    cursor.execute("""
+                        SELECT table_name 
+                        FROM information_schema.tables 
+                        WHERE table_schema = 'public' 
+                        AND table_name = 'erp_internaltransfer'
+                    """)
+                elif remote_conn.vendor == 'sqlite':
+                    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='erp_internaltransfer'")
+                else:  # MySQL
+                    cursor.execute("SHOW TABLES LIKE 'erp_internaltransfer'")
+                
+                table_exists = cursor.fetchone()
+                
+                if not table_exists:
+                    self.stdout.write(self.style.WARNING("Tabla erp_internaltransfer no existe en servidor remoto."))
+                    self.stdout.write(self.style.WARNING("Omitiendo sincronización de transferencias."))
+                    
+                    # Marcar todas las transferencias locales como sincronizadas para que no bloqueen
+                    local_qs = InternalTransfer.objects.using('default').filter(synced_to_server=False)
+                    count = local_qs.count()
+                    if count > 0:
+                        local_qs.update(synced_to_server=True)
+                        self.stdout.write(self.style.SUCCESS(f"Marcadas {count} transferencias como sincronizadas (omitidas)."))
+                    else:
+                        self.stdout.write(self.style.SUCCESS("No hay transferencias pendientes de sincronizar."))
+                    
+                    return
+                
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f"Error verificando tablas remotas: {e}"))
+            self.stdout.write(self.style.WARNING("Omitiendo sincronización de transferencias por seguridad."))
+            return
+
+        # Si las tablas existen, proceder con sincronización normal
         local_qs = InternalTransfer.objects.using('default').filter(synced_to_server=False).order_by('id')
         total = local_qs.count()
         if not total:

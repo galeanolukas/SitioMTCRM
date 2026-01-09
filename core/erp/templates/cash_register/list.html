@@ -23,20 +23,8 @@
             <td>{{ register.date|date:"d/m/Y" }}</td>
             <td>{{ register.user.get_full_name }}</td>
             <td class="text-right">{{ register.opening_balance|currency }}</td>
-            <td class="text-right">
-                {% if register.is_closed %}
-                    {{ register.total_sales|currency }}
-                {% else %}
-                    {{ register.live_total_sales|default:0|currency }}
-                {% endif %}
-            </td>
-            <td class="text-right">
-                {% if register.is_closed %}
-                    {{ register.expenses|currency }}
-                {% else %}
-                    {{ register.live_expenses|default:0|currency }}
-                {% endif %}
-            </td>
+            <td class="text-right">{{ register.live_total_sales|default:0|currency }}</td>
+            <td class="text-right">{{ register.live_expenses|default:0|currency }}</td>
             <td class="text-right">{{ register.closing_balance|currency }}</td>
             <td>
                 {% if register.is_closed %}

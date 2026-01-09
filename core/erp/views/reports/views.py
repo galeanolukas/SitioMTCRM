@@ -288,6 +288,7 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
             'prod__stock'
         ).annotate(
             total_quantity=Sum('cant'),
+            total_sales=Count('sale_id', distinct=True),
             total_amount=Sum(F('cant') * F('price')),
             avg_price=Coalesce(Sum(F('cant') * F('price')) / Sum('cant'), 0, output_field=FloatField())
         ).order_by('-total_quantity')
@@ -311,6 +312,7 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
                     'code': item['prod__code'] or 'N/A',
                     'stock_available': float(item['prod__stock'] or 0),
                     'total_quantity': float(item['total_quantity']),
+                    'total_sales': int(item['total_sales'] or 0),
                     'total_amount': float(item['total_amount'] or 0),
                     'avg_price': float(item['avg_price'])
                 })
@@ -319,6 +321,7 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         summary = queryset.aggregate(
             total_products=Count('prod_id', distinct=True),
             total_quantity=Sum('cant'),
+            total_sales=Count('sale_id', distinct=True),
             total_amount=Sum(F('cant') * F('price')),
             avg_price=Coalesce(Sum(F('cant') * F('price')) / Sum('cant'), 0, output_field=FloatField())
         )
@@ -585,14 +588,15 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
         
         elif report_type == 'top_selling':
             # Encabezados de columnas
-            writer.writerow(['Código', 'Producto', 'Stock Disponible', 'Total Vendidos', 'Precio Promedio', 'Total Recaudado'])
+            writer.writerow(['Código', 'Producto', 'Stock Disponible', 'Total Vendidos', 'N° Ventas', 'Precio Promedio', 'Total Recaudado'])
             
             for product in data['products']:
                 writer.writerow([
                     product['code'],
                     product['name'],
                     product['stock_available'],
-                    product['total_quantity'],
+                    int(product['total_quantity']),
+                    product['total_sales'],
                     round(product['avg_price'], 2),
                     round(product['total_amount'], 2)
                 ])
@@ -601,7 +605,8 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
             writer.writerow([])  # Fila vacía
             writer.writerow(['RESUMEN'])
             writer.writerow(['Total de Productos', data['summary']['total_products']])
-            writer.writerow(['Cantidad Total Vendida', data['summary']['total_quantity']])
+            writer.writerow(['Cantidad Total Vendida', int(data['summary']['total_quantity'] or 0)])
+            writer.writerow(['Número Total de Ventas', data['summary']['total_sales']])
             writer.writerow(['Monto Total Recaudado', data['summary']['total_amount']])
             writer.writerow(['Precio Promedio General', data['summary']['avg_price']])
         
@@ -847,7 +852,7 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
         
         elif report_type == 'top_selling':
             # Encabezados de columnas
-            headers = ['Código', 'Producto', 'Stock Disponible', 'Total Vendidos', 'Precio Promedio', 'Total Recaudado']
+            headers = ['Código', 'Producto', 'Stock Disponible', 'Total Vendidos', 'N° Ventas', 'Precio Promedio', 'Total Recaudado']
             ws.append(headers)
             
             for cell in ws[row]:
@@ -860,7 +865,8 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
                     product['code'],
                     product['name'],
                     product['stock_available'],
-                    product['total_quantity'],
+                    int(product['total_quantity']),
+                    product['total_sales'],
                     round(product['avg_price'], 2),
                     round(product['total_amount'], 2)
                 ])
@@ -872,7 +878,9 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
             row += 1
             ws.append(['Total de Productos', data['summary']['total_products']])
             row += 1
-            ws.append(['Cantidad Total Vendida', data['summary']['total_quantity']])
+            ws.append(['Cantidad Total Vendida', int(data['summary']['total_quantity'] or 0)])
+            row += 1
+            ws.append(['Número Total de Ventas', data['summary']['total_sales']])
             row += 1
             ws.append(['Monto Total Recaudado', data['summary']['total_amount']])
             row += 1

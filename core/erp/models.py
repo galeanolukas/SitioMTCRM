@@ -371,9 +371,11 @@ class Sale(models.Model):
             # Fallback si hay error
             item['date_joined'] = self.date_joined.strftime('%Y-%m-%d %H:%M:%S') if self.date_joined else ''
             item['date_joined_display'] = self.date_joined.strftime('%d-%m-%Y %H:%M') if self.date_joined else ''
+        
+        # Formatear valores monetarios como strings para consistencia
         item['subtotal'] = format(self.subtotal, '.2f')
         item['iva'] = format(self.iva, '.2f')
-        item['total'] = float(self.total)  # Devolver como número, no como string
+        item['total'] = format(self.total, '.2f')
         item['payment_method'] = {'id': self.payment_method, 'name': self.get_payment_method_display()}
         # Incluir detalles de pago combinado si existen
         if hasattr(self, 'payment_details') and self.payment_details:

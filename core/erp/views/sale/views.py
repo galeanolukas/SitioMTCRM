@@ -204,6 +204,15 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 data = {'id': category.id, 'name': category.name, 'desc': category.desc or ''}
             elif action == 'create_sale':
                 from decimal import Decimal
+                # Prevenir duplicación con token de sesión
+                sale_token = request.POST.get('sale_token')
+                if not sale_token:
+                    return JsonResponse({'error': 'Token de venta requerido'}, status=400)
+                
+                # Verificar si este token ya fue procesado
+                if request.session.get(f'processed_sale_{sale_token}'):
+                    return JsonResponse({'error': 'Venta ya procesada', 'duplicate': True}, status=400)
+                
                 # Bloquear registro de ventas para operadores sin caja abierta
                 is_operator = request.user.groups.filter(name='operadores').exists()
                 active_cid = request.session.get('company_id')
@@ -215,6 +224,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 current_cr = cr_qs.order_by('-created_at').first()
                 if is_operator and not current_cr:
                     return JsonResponse({'error': 'Debe abrir una caja antes de registrar ventas.'}, status=400)
+                    
                 payload = json.loads(request.POST.get('sale') or '{}')
                 with transaction.atomic():
                     items = payload.get('items', [])
@@ -251,6 +261,11 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     sale.local_timezone = 'America/Argentina/Buenos_Aires'
                     
                     sale.save()
+                    
+                    # Marcar token como procesado
+                    request.session[f'processed_sale_{sale_token}'] = True
+                    request.session.save()
+                    
                     for it in items:
                         raw_cant = it.get('cant', 1)
                         cant = Decimal(str(raw_cant or '1'))
@@ -271,6 +286,15 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     data = {'id': sale.id}
             elif action == 'invoice':
                 from decimal import Decimal
+                # Prevenir duplicación con token de sesión
+                sale_token = request.POST.get('sale_token')
+                if not sale_token:
+                    return JsonResponse({'error': 'Token de venta requerido'}, status=400)
+                
+                # Verificar si este token ya fue procesado
+                if request.session.get(f'processed_invoice_{sale_token}'):
+                    return JsonResponse({'error': 'Factura ya procesada', 'duplicate': True}, status=400)
+                
                 # Bloquear facturación para operadores sin caja abierta
                 is_operator = request.user.groups.filter(name='operadores').exists()
                 active_cid = request.session.get('company_id')
@@ -315,6 +339,9 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     sale.invoice_number = sale.next_sequential_for_pos_type()
                     sale.is_invoiced = True
                     sale.save()
+                    # Marcar token como procesado
+                    request.session[f'processed_invoice_{sale_token}'] = True
+                    request.session.save()
                     for it in items:
                         raw_cant = it.get('cant', 1)
                         cant = Decimal(str(raw_cant or '1'))
@@ -668,27 +695,48 @@ class SaleListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView
                 if not request.user.is_superuser:
                     active_cid = active_cid or getattr(request.user, 'company_id', None)
                 
-                qs = Sale.objects.all().order_by('-date_joined')
-                if active_cid:
-                    qs = qs.filter(company_id=active_cid)
-                
-                for sale in qs:
-                    try:
-                        sale_data = sale.toJSON()
-                        # Formatear valores monetarios con separadores de miles
-                        if 'total' in sale_data:
-                            sale_data['total_formatted'] = "${:,.2f}".format(float(sale_data['total']))
-                        if 'subtotal' in sale_data:
-                            sale_data['subtotal_formatted'] = "${:,.2f}".format(float(sale_data['subtotal']))
-                        if 'iva' in sale_data:
-                            sale_data['iva_formatted'] = "${:,.2f}".format(float(sale_data['iva']))
-                        # El método toJSON ya maneja el formateo de la fecha
-                        data.append(sale_data)
-                    except Exception as e:
-                        print(f"Error procesando venta {getattr(sale, 'id', 'unknown')}: {str(e)}")
-                        continue
-                
-                return JsonResponse(data, safe=False)
+                try:
+                    qs = Sale.objects.all().order_by('-date_joined')
+                    if active_cid:
+                        qs = qs.filter(company_id=active_cid)
+                    
+                    for sale in qs:
+                        try:
+                            sale_data = sale.toJSON()
+                            # Los valores ya vienen formateados desde toJSON()
+                            # Solo agregar versiones formateadas con separadores si se necesitan
+                            if 'total' in sale_data:
+                                try:
+                                    total_float = float(sale_data['total'])
+                                    sale_data['total_formatted'] = "${:,.2f}".format(total_float)
+                                except (ValueError, TypeError):
+                                    sale_data['total_formatted'] = sale_data['total']
+                            
+                            if 'subtotal' in sale_data:
+                                try:
+                                    subtotal_float = float(sale_data['subtotal'])
+                                    sale_data['subtotal_formatted'] = "${:,.2f}".format(subtotal_float)
+                                except (ValueError, TypeError):
+                                    sale_data['subtotal_formatted'] = sale_data['subtotal']
+                            
+                            if 'iva' in sale_data:
+                                try:
+                                    iva_float = float(sale_data['iva'])
+                                    sale_data['iva_formatted'] = "${:,.2f}".format(iva_float)
+                                except (ValueError, TypeError):
+                                    sale_data['iva_formatted'] = sale_data['iva']
+                            
+                            data.append(sale_data)
+                            
+                        except Exception as e:
+                            print(f"Error procesando venta {getattr(sale, 'id', 'unknown')}: {str(e)}")
+                            continue
+                    
+                    return JsonResponse(data, safe=False)
+                    
+                except Exception as e:
+                    print(f"ERROR en query de ventas: {str(e)}")
+                    return JsonResponse({'error': str(e)}, status=500)
                 
             elif action == 'search_details_prod':
                 data = []

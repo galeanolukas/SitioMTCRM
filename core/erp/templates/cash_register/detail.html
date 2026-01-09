@@ -120,6 +120,52 @@
             </div>
         </div>
 
+        {% if object.is_closed %}
+        <!-- Debug: Mostrar diferencias si existen -->
+        {% if object.expenses != dynamic_expenses or object.total_sales != dynamic_total_sales %}
+        <div class="alert alert-warning mt-3">
+            <h6><i class="fas fa-exclamation-triangle"></i> Inconsistencias detectadas</h6>
+            <table class="table table-sm">
+                <tr>
+                    <th>Concepto</th>
+                    <th>Valor Guardado</th>
+                    <th>Valor Calculado</th>
+                    <th>Diferencia</th>
+                </tr>
+                <tr>
+                    <td>Gastos</td>
+                    <td>${{ object.expenses|floatformat:2 }}</td>
+                    <td>${{ dynamic_expenses|floatformat:2 }}</td>
+                    <td class="{% if object.expenses != dynamic_expenses %}text-danger{% endif %}">
+                        ${{ object.expenses|add:"-"|add:dynamic_expenses|floatformat:2 }}
+                    </td>
+                </tr>
+                <tr>
+                    <td>Total Ventas</td>
+                    <td>${{ object.total_sales|floatformat:2 }}</td>
+                    <td>${{ dynamic_total_sales|floatformat:2 }}</td>
+                    <td class="{% if object.total_sales != dynamic_total_sales %}text-danger{% endif %}">
+                        ${{ object.total_sales|add:"-"|add:dynamic_total_sales|floatformat:2 }}
+                    </td>
+                </tr>
+                <tr>
+                    <td>Saldo Esperado</td>
+                    <td>${{ object.calculated_balance|floatformat:2 }}</td>
+                    <td>${{ dynamic_calculated_balance|floatformat:2 }}</td>
+                    <td class="{% if object.calculated_balance != dynamic_calculated_balance %}text-danger{% endif %}">
+                        ${{ object.calculated_balance|add:"-"|add:dynamic_calculated_balance|floatformat:2 }}
+                    </td>
+                </tr>
+            </table>
+            <small class="text-muted">
+                <i class="fas fa-info-circle"></i> 
+                Las diferencias pueden ocurrir si se modificaron ventas/gastos después del cierre 
+                o si el cierre se realizó con datos incorrectos.
+            </small>
+        </div>
+        {% endif %}
+        {% endif %}
+
         <h5>Movimientos</h5>
         <table class="table table-bordered">
             <thead>

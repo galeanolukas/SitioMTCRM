@@ -79,8 +79,8 @@
                                 <td>{{ product.code }}</td>
                                 <td>{{ product.name }}</td>
                                 <td>{{ product.unit }}</td>
-                                <td class="text-right">{{ product.total_quantity|floatformat:2 }}</td>
-                                <td class="text-right">{{ product.total_sales }}</td>
+                                <td class="text-right">{{ product.total_quantity|floatformat:0 }}</td>
+                                <td class="text-right">{{ product.total_sales|floatformat:0 }}</td>
                                 <td class="text-right">${{ product.avg_price|floatformat:2 }}</td>
                                 <td class="text-right font-weight-bold">${{ product.total_amount|floatformat:2|intcomma }}</td>
                             </tr>

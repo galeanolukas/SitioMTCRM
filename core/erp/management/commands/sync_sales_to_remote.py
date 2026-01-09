@@ -56,6 +56,10 @@ class Command(BaseCommand):
                         subtotal=sale.subtotal,
                         payment_method=sale.payment_method,
                         cli_id=sale.cli_id
+                    ).only(
+                        'id', 'company_id', 'cli_id', 'date_joined', 'subtotal', 
+                        'total', 'payment_method', 'is_invoiced', 'invoice_number',
+                        'invoice_pos', 'invoice_type', 'local_timezone'
                     ).first()
                     
                     if existing_sale:
