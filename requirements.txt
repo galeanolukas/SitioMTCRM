@@ -22,3 +22,6 @@ python-dotenv==1.0.1
 # Manejo de datos en Excel
 pandas
 openpyxl
+
+# Manejo de versiones semánticas
+packaging

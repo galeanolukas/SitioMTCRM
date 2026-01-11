@@ -49,12 +49,16 @@ if ! git diff-index --quiet HEAD --; then
 fi
 
 # Backup de archivos importantes si existen
-if [ -d "venv" ]; then
-    echo "Haciendo backup del entorno virtual..."
-    if [ -d "venv_backup" ]; then
-        rm -rf venv_backup
+if [ -d "/media/lukas/ARCHIVOS/GitHub/DJENV" ]; then
+    echo "Entorno virtual DJENV detectado externamente, no se requiere backup."
+else
+    if [ -d "DJENV" ]; then
+        echo "Haciendo backup del entorno virtual local..."
+        if [ -d "DJENV_backup" ]; then
+            rm -rf DJENV_backup
+        fi
+        mv DJENV DJENV_backup
     fi
-    mv venv venv_backup
 fi
 
 # Backup de la base de datos local si existe
@@ -75,9 +79,13 @@ if [ $? -ne 0 ]; then
     echo "Si hay conflictos, resuélvalos manualmente y vuelva a ejecutar."
     
     # Restaurar backup si falla
-    if [ -d "venv_backup" ]; then
-        echo "Restaurando entorno virtual desde backup..."
-        mv venv_backup venv
+    if [ -d "/media/lukas/ARCHIVOS/GitHub/DJENV" ]; then
+        echo "El entorno virtual DJENV es externo, no se requiere restauración."
+    else
+        if [ -d "DJENV_backup" ]; then
+            echo "Restaurando entorno virtual desde backup..."
+            mv DJENV_backup DJENV
+        fi
     fi
     
     if [ -f "db.sqlite3_backup" ]; then
@@ -88,19 +96,21 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# 1) Activar entorno virtual (o crearlo si no existe)
-if [ ! -d "venv" ]; then
-    echo "Entorno virtual no encontrado. Creando uno nuevo..."
-    python3 -m venv venv
-    if [ $? -ne 0 ]; then
-        echo "Error al crear el entorno virtual. Verifica que Python3 esté instalado."
-        exit 1
-    fi
-else
-    echo "Activando entorno virtual existente..."
+# 1) Activar entorno virtual DJENV (o crearlo si no existe)
+if [ ! -d "DJENV" ] && [ ! -d "/media/lukas/ARCHIVOS/GitHub/DJENV" ]; then
+    echo "[ERROR] Entorno virtual DJENV no encontrado."
+    echo "Por favor, cree el entorno virtual DJENV en /media/lukas/ARCHIVOS/GitHub/"
+    exit 1
 fi
 
-source venv/bin/activate
+# Usar el entorno virtual DJENV externo
+if [ -d "/media/lukas/ARCHIVOS/GitHub/DJENV" ]; then
+    echo "Activando entorno virtual DJENV externo..."
+    source /media/lukas/ARCHIVOS/GitHub/DJENV/bin/activate
+else
+    echo "Activando entorno virtual DJENV local..."
+    source DJENV/bin/activate
+fi
 if [ $? -ne 0 ]; then
     echo "No se pudo activar el entorno virtual."
     exit 1
@@ -148,9 +158,13 @@ if [ $? -ne 0 ]; then
 fi
 
 # 5) Limpiar backup antiguo si la actualización fue exitosa
-if [ -d "venv_backup" ]; then
-    echo "Limpiando backup antiguo..."
-    rm -rf venv_backup
+if [ -d "/media/lukas/ARCHIVOS/GitHub/DJENV" ]; then
+    echo "Entorno virtual DJENV externo, no hay backup local que limpiar."
+else
+    if [ -d "DJENV_backup" ]; then
+        echo "Limpiando backup antiguo..."
+        rm -rf DJENV_backup
+    fi
 fi
 
 if [ -f "db.sqlite3_backup" ]; then

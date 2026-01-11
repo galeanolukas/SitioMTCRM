@@ -18,6 +18,7 @@ from decimal import Decimal
 from core.erp.mixins import ValidatePermissionRequiredMixin
 from core.erp.sync_utils import run_full_sync
 from core.erp.forms import CompanyForm, SupplierForm, ExpenseForm, MercadoPagoConfigForm, AutoSyncConfigForm
+from core.utils.version_utils import get_version_info, format_version_display
 from core.erp.models import Company, Product, Sale, DetSale, Supplier, Expense, MercadoPagoConfig, SyncLog, AutoSyncConfig
 from core.erp.choices import payment_method_choices
 from datetime import timedelta, date, datetime
@@ -53,31 +54,16 @@ class LauncherView(LoginRequiredMixin, TemplateView):
             last_log = None
 
         ctx['last_sync'] = last_log
-        current_version = getattr(settings, 'APP_VERSION', '1.0.0')
-        ctx['app_version'] = current_version
-
-        # Consultar última release en GitHub (si hay conexión), sin romper la vista ante errores.
-        latest_version = None
-        update_available = False
-        try:
-            url = 'https://api.github.com/repos/galeanolukas/SitioMTCRM/releases/latest'
-            req = urllib.request.Request(url, headers={'Accept': 'application/vnd.github+json'})
-            with urllib.request.urlopen(req, timeout=3) as resp:
-                data = json.loads(resp.read().decode('utf-8'))
-            tag = data.get('tag_name') or ''
-            # normalizar quitando prefijo 'v'
-            if tag.startswith('v'):
-                tag = tag[1:]
-            latest_version = tag or None
-        except Exception:
-            latest_version = None
-
-        # Comparación simple: si ambas versiones existen y son distintas, marcamos update.
-        if latest_version and current_version and latest_version != current_version:
-            update_available = True
-
-        ctx['latest_version'] = latest_version
-        ctx['update_available'] = update_available
+        
+        # Usar el nuevo sistema de versiones
+        version_info = get_version_info()
+        ctx.update({
+            'app_version': format_version_display(version_info['current_version']),
+            'latest_version': format_version_display(version_info['latest_version']),
+            'update_available': version_info['update_available'],
+            'is_dev_version': version_info['is_dev_version']
+        })
+        
         return ctx
 
 
@@ -397,30 +383,14 @@ class UpdatesView(TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
 
-        current_version = getattr(settings, 'APP_VERSION', '1.0.0')
-        ctx['app_version'] = current_version
-
-        latest_version = None
-        update_available = False
-        try:
-            url = 'https://api.github.com/repos/galeanolukas/SitioMTCRM/releases'
-            req = urllib.request.Request(url, headers={'Accept': 'application/vnd.github+json'})
-            with urllib.request.urlopen(req, timeout=3) as resp:
-                data = json.loads(resp.read().decode('utf-8'))
-            # Obtener la primera release (la más reciente)
-            if data and len(data) > 0:
-                tag = data[0].get('tag_name') or ''
-                if tag.startswith('v'):
-                    tag = tag[1:]
-                latest_version = tag or None
-        except Exception:
-            latest_version = None
-
-        if latest_version and current_version and latest_version != current_version:
-            update_available = True
-
-        ctx['latest_version'] = latest_version
-        ctx['update_available'] = update_available
+        # Usar el nuevo sistema de versiones
+        version_info = get_version_info()
+        ctx.update({
+            'app_version': format_version_display(version_info['current_version']),
+            'latest_version': format_version_display(version_info['latest_version']),
+            'update_available': version_info['update_available'],
+            'is_dev_version': version_info['is_dev_version']
+        })
         
         # Detectar sistema operativo para mostrar el botón correcto
         import platform
