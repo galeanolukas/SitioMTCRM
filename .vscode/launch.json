@@ -12,8 +12,11 @@
             ],
             "django": true,
             "justMyCode": true,
-            "python": "${command:python.interpreterPath}",
-            "console": "integratedTerminal"
+            "python": "/media/lukas/ARCHIVOS/GitHub/DJENV/bin/python",
+            "console": "integratedTerminal",
+            "env": {
+                "DJENV": "development"
+            }
         }
     ]
 }
