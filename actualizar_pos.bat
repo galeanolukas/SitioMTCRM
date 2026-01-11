@@ -53,14 +53,12 @@ if errorlevel 1 (
 )
 
 REM Backup de archivos importantes si existen
-if exist "DJENV" (
-    echo Haciendo backup del entorno virtual DJENV...
-    if exist "DJENV_backup" (
-        rmdir /s /q "DJENV_backup"
+if exist venv (
+    echo Haciendo backup del entorno virtual...
+    if exist venv_backup (
+        rmdir /s /q venv_backup
     )
-    move "DJENV" "DJENV_backup"
-) else (
-    echo Entorno virtual DJENV no encontrado localmente, se usara entorno externo si existe.
+    move venv venv_backup
 )
 
 REM Backup de la base de datos local si existe
@@ -81,9 +79,9 @@ if errorlevel 1 (
     echo Si hay conflictos, resuelvalos manualmente y vuelva a ejecutar.
     
     REM Restaurar backup si falla
-    if exist "DJENV_backup" (
-        echo Restaurando entorno virtual DJENV desde backup...
-        move "DJENV_backup" "DJENV"
+    if exist venv_backup (
+        echo Restaurando entorno virtual desde backup...
+        move venv_backup venv
     )
     
     if exist db.sqlite3_backup (
@@ -95,20 +93,20 @@ if errorlevel 1 (
     exit /b 1
 )
 
-REM 1) Activar entorno virtual DJENV (o crearlo si no existe)
-IF NOT EXIST "DJENV" (
-    echo [ADVERTENCIA] Entorno virtual DJENV no encontrado localmente.
-    echo Se intentara usar el entorno virtual DJENV externo si existe.
-    echo Si no existe, por favor cree DJENV en C:\media\lukas\ARCHIVOS\GitHub\
-) ELSE (
-    echo Activando entorno virtual DJENV existente...
-    call "DJENV\Scripts\activate"
+REM 1) Activar entorno virtual (o crearlo si no existe)
+IF NOT EXIST venv (
+    echo Entorno virtual no encontrado. Creando uno nuevo...
+    python -m venv venv
     if errorlevel 1 (
-        echo No se pudo activar el entorno virtual DJENV local.
+        echo Error al crear el entorno virtual. Verifica que Python este instalado.
         pause
         exit /b 1
     )
+) ELSE (
+    echo Activando entorno virtual existente...
 )
+
+call venv\Scripts\activate
 if errorlevel 1 (
     echo No se pudo activar el entorno virtual.
     pause
@@ -160,9 +158,9 @@ if errorlevel 1 (
 )
 
 REM 5) Limpiar backup antiguo si la actualizacion fue exitosa
-if exist "DJENV_backup" (
+if exist venv_backup (
     echo Limpiando backup antiguo...
-    rmdir /s /q "DJENV_backup"
+    rmdir /s /q venv_backup
 )
 
 if exist db.sqlite3_backup (

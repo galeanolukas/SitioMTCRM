@@ -5,7 +5,7 @@ REM Ir siempre a la carpeta donde esta este script
 cd /d "%~dp0"
 
 if not exist venv\Scripts\activate.bat (
-    echo [ERROR] Entorno virtual no encontrado. Cree el venv primero:
+    echo [ERROR] Entorno virtual venv no encontrado. Cree el venv primero:
     echo python -m venv venv
     pause
     exit /b 1

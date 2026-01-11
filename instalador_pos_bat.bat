@@ -19,20 +19,20 @@ if errorlevel 1 (
     echo.
 )
 
-REM 1) Crear entorno virtual si no existe
+REM 1) Crear entorno virtual venv si no existe
 IF NOT EXIST venv (
-    echo Creando entorno virtual...
+    echo Creando entorno virtual venv...
     python -m venv venv
     if errorlevel 1 (
-        echo Error al crear el entorno virtual. Verifica que Python este instalado y en el PATH.
+        echo Error al crear el entorno virtual venv. Verifica que Python este instalado y en el PATH.
         pause
         exit /b 1
     )
 ) ELSE (
-    echo Entorno virtual ya existe.
+    echo Entorno virtual venv ya existe.
 )
 
-REM 2) Activar entorno virtual
+REM 2) Activar entorno virtual venv
 call venv\Scripts\activate
 if errorlevel 1 (
     echo No se pudo activar el entorno virtual.
@@ -65,7 +65,7 @@ if errorlevel 1 (
 REM Verificacion rapida de pandas y openpyxl en este entorno virtual
 python -c "import pandas, openpyxl; print('pandas:', pandas.__version__)" >nul 2>&1
 if errorlevel 1 (
-    echo [ADVERTENCIA] No se pudo importar pandas u openpyxl en el entorno virtual.
+    echo [ADVERTENCIA] No se pudo importar pandas u openpyxl en el entorno virtual venv.
     echo Verifique la instalacion manualmente con:
     echo   call venv\Scripts\activate
     echo   pip install pandas openpyxl

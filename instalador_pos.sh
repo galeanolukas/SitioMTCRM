@@ -30,20 +30,20 @@ if ! command -v git &> /dev/null; then
     echo
 fi
 
-# 1) Crear entorno virtual si no existe
-if [ ! -d "venv" ]; then
-    echo "Creando entorno virtual..."
-    python3 -m venv venv
+# 1) Crear entorno virtual DJENV si no existe
+if [ ! -d "DJENV" ]; then
+    echo "Creando entorno virtual DJENV..."
+    python3 -m venv DJENV
     if [ $? -ne 0 ]; then
-        echo "Error al crear el entorno virtual. Verifica que Python3 esté instalado."
+        echo "Error al crear el entorno virtual DJENV. Verifica que Python3 esté instalado."
         exit 1
     fi
 else
-    echo "Entorno virtual ya existe."
+    echo "Entorno virtual DJENV ya existe."
 fi
 
-# 2) Activar entorno virtual
-source venv/bin/activate
+# 2) Activar entorno virtual DJENV
+source DJENV/bin/activate
 if [ $? -ne 0 ]; then
     echo "No se pudo activar el entorno virtual."
     exit 1
@@ -73,9 +73,9 @@ fi
 # Verificación rápida de pandas y openpyxl en este entorno virtual
 python -c "import pandas, openpyxl; print('pandas:', pandas.__version__)" &> /dev/null
 if [ $? -ne 0 ]; then
-    echo "[ADVERTENCIA] No se pudo importar pandas u openpyxl en el entorno virtual."
+    echo "[ADVERTENCIA] No se pudo importar pandas u openpyxl en el entorno virtual DJENV."
     echo "Verifique la instalación manualmente con:"
-    echo "  source venv/bin/activate"
+    echo "  source DJENV/bin/activate"
     echo "  pip install pandas openpyxl"
 fi
 
@@ -102,7 +102,7 @@ echo "Si es la primera vez, crea un superusuario con:"
 echo "  python manage.py createsuperuser"
 echo
 echo "Para iniciar el POS local:"
-echo "  source venv/bin/activate"
+echo "  source DJENV/bin/activate"
 echo "  python manage.py runserver 0.0.0.0:8000"
 echo "y luego abre: http://localhost:8000/erp/sale/pos/"
 echo

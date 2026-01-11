@@ -6,7 +6,7 @@
 cd "$(dirname "$0")"
 
 if [ ! -f "venv/bin/activate" ]; then
-    echo "[ERROR] Entorno virtual no encontrado. Cree el venv primero:"
+    echo "[ERROR] Entorno virtual venv no encontrado. Cree el venv primero:"
     echo "python3 -m venv venv"
     echo "Luego ejecute: ./instalador_pos.sh"
     exit 1
