@@ -109,7 +109,24 @@ def get_latest_github_version(timeout=5):
         if data and len(data) > 0:
             tag_info = data[0]
             tag = tag_info.get('name', '')
+            
+            # Para tags, obtener el mensaje del commit si no hay message en el tag
             message = tag_info.get('message', '')
+            if not message:
+                # Obtener información del commit para el mensaje
+                commit_sha = tag_info.get('commit', {}).get('sha', '')
+                if commit_sha:
+                    try:
+                        commit_url = f'https://api.github.com/repos/galeanolukas/SitioMTCRM/commits/{commit_sha}'
+                        commit_req = urllib.request.Request(
+                            commit_url,
+                            headers={'Accept': 'application/vnd.github+json', 'User-Agent': 'SitioMTCRM-Updater'}
+                        )
+                        with urllib.request.urlopen(commit_req, timeout=timeout) as commit_resp:
+                            commit_data = json.loads(commit_resp.read().decode('utf-8'))
+                            message = commit_data.get('commit', {}).get('message', '').split('\n')[0]
+                    except:
+                        message = f'Tag {tag} creado'
             
             if tag.startswith('v'):
                 tag = tag[1:]
