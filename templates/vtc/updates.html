@@ -443,6 +443,10 @@ $('#confirmUpdateBtn').click(function() {
     $.ajax({
         url: '{% url "api_execute_update" %}',
         method: 'POST',
+        data: JSON.stringify({
+            type: so === 'windows-portable' ? 'portable' : 'auto'
+        }),
+        contentType: 'application/json',
         beforeSend: function() {
             $('#update-log').html('<p class="text-muted">Iniciando proceso de actualización...</p>');
         },

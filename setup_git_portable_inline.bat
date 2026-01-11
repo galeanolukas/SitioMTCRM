@@ -11,7 +11,7 @@ echo.
 REM Configuracion
 set "SCRIPT_DIR=%~dp0"
 set "TOOLS_DIR=%SCRIPT_DIR%tools"
-set "GIT_PORTABLE_DIR=%TOOLS_DIR%\git-portable"
+set "GIT_PORTABLE_DIR=%TOOLS_DIR%\PortableGit"
 set "GIT_VERSION=2.45.0"
 set "GIT_URL=https://github.com/git-for-windows/git/releases/download/v%GIT_VERSION%.windows.1/PortableGit-%GIT_VERSION%-64-bit.7z.exe"
 
@@ -62,7 +62,6 @@ if not errorlevel 1 (
         echo Extrayendo Git Portable...
         echo Esto puede tardar varios minutos...
         
-        REM Intentar extraccion automatica
         "%GIT_INSTALLER%" -y -o"%GIT_PORTABLE_DIR%" >nul 2>&1
         if not errorlevel 1 (
             echo [OK] Git Portable extraido exitosamente.

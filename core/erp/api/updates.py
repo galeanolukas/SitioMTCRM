@@ -81,7 +81,7 @@ def execute_update_script(request):
             if update_type == 'portable':
                 script_path = os.path.join(base_dir, 'actualizar_pos_portable.bat')
                 # Verificar si Git Portable está configurado
-                git_portable_path = os.path.join(base_dir, 'tools', 'git-portable', 'bin', 'git.exe')
+                git_portable_path = os.path.join(base_dir, 'tools', 'PortableGit', 'bin', 'git.exe')
                 if not os.path.exists(git_portable_path):
                     # Ejecutar setup primero
                     setup_script = os.path.join(base_dir, 'setup_git_portable.bat')
@@ -178,7 +178,7 @@ def check_git_portable(request):
     """
     try:
         base_dir = getattr(settings, 'BASE_DIR', os.getcwd())
-        git_portable_path = os.path.join(base_dir, 'tools', 'git-portable', 'bin', 'git.exe')
+        git_portable_path = os.path.join(base_dir, 'tools', 'PortableGit', 'bin', 'git.exe')
         
         git_portable_ready = os.path.exists(git_portable_path)
         

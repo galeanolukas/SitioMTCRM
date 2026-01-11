@@ -10,7 +10,7 @@ echo.
 REM Configuracion
 set "PROJECT_DIR=%~dp0"
 set "TOOLS_DIR=%PROJECT_DIR%tools"
-set "GIT_PORTABLE_DIR=%TOOLS_DIR%\git-portable"
+set "GIT_PORTABLE_DIR=%TOOLS_DIR%\PortableGit"
 set "PACK_DIR=%PROJECT_DIR%paquete_instalacion"
 set "GIT_DOWNLOAD_URL=https://github.com/git-for-windows/git/releases/download/v2.45.0.windows.1/PortableGit-2.45.0-64-bit.7z.exe"
 set "GIT_INSTALLER=%TOOLS_DIR%\PortableGit-2.45.0-64-bit.7z.exe"
@@ -161,7 +161,7 @@ echo - Soporte para actualizaciones sin instalar Git
 echo.
 echo Estructura:
 echo - SitioMTCRM\          : Sistema principal
-echo - tools\git-portable\  : Git Portable incluido
+echo - tools\PortableGit\    : Git Portable incluido
 echo.
 echo Instalacion:
 echo 1. Ejecute: instalador_pos_bat.bat

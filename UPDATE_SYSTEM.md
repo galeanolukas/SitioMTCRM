@@ -174,7 +174,7 @@ Crea un paquete de distribución que ya incluye Git Portable.
 ```
 SitioMTCRM/
 ├── tools/
-│   └── git-portable/
+│   └── PortableGit/
 │       ├── bin/
 │       │   ├── git.exe
 │       │   └── git-bash.exe

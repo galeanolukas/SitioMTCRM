@@ -79,7 +79,7 @@ IF NOT EXIST tools (
 )
 
 REM Verificar si Git Portable ya esta configurado
-IF EXIST tools\git-portable\bin\git.exe (
+IF EXIST tools\PortableGit\bin\git.exe (
     echo [OK] Git Portable ya esta configurado.
     echo.
     echo Git Portable listo para usar en actualizaciones automaticas.
@@ -136,16 +136,16 @@ echo Extrayendo Git Portable...
 echo Esto puede tardar varios minutos, por favor espere...
 
 REM Usar 7z si esta disponible, sino intentar con el auto-extractor
-7z x "%GIT_INSTALLER%" -o"tools\git-portable" >nul 2>&1
+7z x "%GIT_INSTALLER%" -o"tools\PortableGit" >nul 2>&1
 if errorlevel 1 (
     echo Intentando extraccion automatica...
-    "%GIT_INSTALLER%" -y -o"tools\git-portable" >nul 2>&1
+    "%GIT_INSTALLER%" -y -o"tools\PortableGit" >nul 2>&1
     if errorlevel 1 (
         echo [ADVERTENCIA] Error al extraer Git Portable automaticamente.
         echo.
         echo Extraiga manualmente:
         echo   1. Abra: %GIT_INSTALLER%
-        echo   2. Seleccione destino: tools\git-portable\
+        echo   2. Seleccione destino: tools\PortableGit\
         echo   3. Extraiga todos los archivos
         echo.
         echo El instalador continuara, pero Git Portable no estara disponible.
@@ -158,17 +158,17 @@ REM Limpiar instalador
 del "%GIT_INSTALLER%" 2>nul
 
 REM Verificar instalacion
-IF EXIST tools\git-portable\bin\git.exe (
+IF EXIST tools\PortableGit\bin\git.exe (
     echo [OK] Git Portable instalado exitosamente!
     echo.
     echo Configurando Git Portable...
     
     REM Configurar Git Portable
-    tools\git-portable\bin\git.exe config --global user.name "POS User"
-    tools\git-portable\bin\git.exe config --global user.email "pos@multilideres.com"
-    tools\git-portable\bin\git.exe config --global init.defaultBranch main
-    tools\git-portable\bin\git.exe config --global pull.rebase false
-    tools\git-portable\bin\git.exe config --global safe.directory "*"
+    tools\PortableGit\bin\git.exe config --global user.name "POS User"
+    tools\PortableGit\bin\git.exe config --global user.email "pos@multilideres.com"
+    tools\PortableGit\bin\git.exe config --global init.defaultBranch main
+    tools\PortableGit\bin\git.exe config --global pull.rebase false
+    tools\PortableGit\bin\git.exe config --global safe.directory "*"
     
     echo [OK] Git Portable configurado.
     echo.
@@ -236,7 +236,7 @@ echo   - Dependencias Python
 echo   - Base de datos SQLite
 echo   - Superusuario: admin / admin
 echo   - Acceso directo en escritorio
-echo   - Git Portable: %IF EXIST tools\git-portable\bin\git.exe (echo Listo) ELSE (echo No disponible)%
+echo   - Git Portable: %IF EXIST tools\PortableGit\bin\git.exe (echo Listo) ELSE (echo No disponible)%
 echo.
 echo Para iniciar el sistema:
 echo   1. Use el acceso directo en el escritorio
