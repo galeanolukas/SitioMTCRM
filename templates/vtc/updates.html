@@ -120,6 +120,10 @@
                                 <button type="button" class="btn btn-secondary btn-lg" onclick="refreshVersionInfo()">
                                     <i class="fas fa-redo"></i> Refrescar Información
                                 </button>
+                                
+                                <button type="button" class="btn btn-outline-info btn-lg" onclick="runDiagnostics()">
+                                    <i class="fas fa-stethoscope"></i> Diagnóstico
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -246,6 +250,143 @@ function verificarActualizaciones() {
 
 function refreshVersionInfo() {
     location.reload();
+}
+
+function runDiagnostics() {
+    $('#loading-overlay').show();
+    
+    $.ajax({
+        url: '{% url "api_version_diagnostics" %}',
+        method: 'GET',
+        success: function(response) {
+            if (response.success) {
+                showDiagnosticModal(response.diagnostics);
+            } else {
+                showAlert('Error', 'No se pudo ejecutar diagnóstico', 'error');
+            }
+        },
+        error: function() {
+            showAlert('Error', 'No se pudo conectar con el servidor', 'error');
+        },
+        complete: function() {
+            $('#loading-overlay').hide();
+        }
+    });
+}
+
+function showDiagnosticModal(diagnostics) {
+    var html = `
+        <div class="modal fade" id="diagnosticModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="fas fa-stethoscope"></i> Diagnóstico del Sistema
+                        </h5>
+                        <button type="button" class="close" data-dismiss="modal">
+                            <span>&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-desktop"></i> Información del Sistema</h6>
+                                <table class="table table-sm">
+                                    <tr><td>Plataforma:</td><td>${diagnostics.system_info.platform}</td></tr>
+                                    <tr><td>Python:</td><td>${diagnostics.system_info.python_version}</td></tr>
+                                    <tr><td>Versión App:</td><td>${diagnostics.system_info.app_version}</td></tr>
+                                </table>
+                            </div>
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-network-wired"></i> Tests de Red</h6>
+                                <div class="list-group">
+    `;
+    
+    // Network tests
+    for (var test in diagnostics.network_tests) {
+        var result = diagnostics.network_tests[test];
+        var icon = result.status === 'OK' ? '✅' : '❌';
+        html += `<div class="list-group-item">${icon} ${test}: ${result.message}</div>`;
+    }
+    
+    html += `
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <h6><i class="fab fa-git-alt"></i> Tests de Git</h6>
+                                <div class="list-group">
+    `;
+    
+    // Git tests
+    for (var test in diagnostics.git_tests) {
+        var result = diagnostics.git_tests[test];
+        var icon = result.status === 'OK' ? '✅' : '❌';
+        html += `<div class="list-group-item">${icon} ${test}: ${result.message}</div>`;
+    }
+    
+    html += `
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-plug"></i> Tests de API</h6>
+                                <div class="list-group">
+    `;
+    
+    // API tests
+    for (var test in diagnostics.api_tests) {
+        var result = diagnostics.api_tests[test];
+        var icon = result.status === 'OK' ? '✅' : result.status === 'NO_RELEASES' ? '⚠️' : '❌';
+        html += `<div class="list-group-item">${icon} ${test}: ${result.message}</div>`;
+    }
+    
+    html += `
+                                </div>
+                            </div>
+                        </div>
+    `;
+    
+    // Recommendations
+    if (diagnostics.recommendations && diagnostics.recommendations.length > 0) {
+        html += `
+            <div class="row mt-3">
+                <div class="col-12">
+                    <h6><i class="fas fa-lightbulb"></i> Recomendaciones</h6>
+                    <div class="alert alert-info">
+                        <ul class="mb-0">
+        `;
+        
+        diagnostics.recommendations.forEach(function(rec) {
+            html += `<li>${rec}</li>`;
+        });
+        
+        html += `
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    html += `
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remove existing modal if present
+    $('#diagnosticModal').remove();
+    
+    // Add new modal to body
+    $('body').append(html);
+    
+    // Show modal
+    $('#diagnosticModal').modal('show');
 }
 
 function ejecutarActualizacion(so) {

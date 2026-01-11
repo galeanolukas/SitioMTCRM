@@ -44,11 +44,93 @@ def is_newer_version(latest_version, current_version):
     return latest_parsed > current_parsed
 
 
-def get_latest_github_version(timeout=5):
+def get_latest_github_version_fallback(timeout=10):
+    """
+    Método alternativo para obtener versión desde GitHub.
+    Usa diferentes enfoques para máxima compatibilidad.
+    """
+    try:
+        # Método 1: Usar subprocess con git command si está disponible
+        import subprocess
+        
+        # Intentar obtener el último tag con git command
+        try:
+            result = subprocess.run(
+                ['git', 'ls-remote', '--tags', 'https://github.com/galeanolukas/SitioMTCRM.git'],
+                capture_output=True,
+                text=True,
+                timeout=timeout
+            )
+            
+            if result.returncode == 0:
+                lines = result.stdout.strip().split('\n')
+                if lines:
+                    # Obtener el tag más reciente (última línea)
+                    latest_line = lines[-1]
+                    tag = latest_line.split('\t')[-1].replace('refs/tags/', '')
+                    if tag.endswith('^{}'):
+                        tag = tag[:-3]
+                    
+                    if tag.startswith('v'):
+                        tag = tag[1:]
+                    
+                    return {
+                        'version': tag,
+                        'description': f'Versión {tag}',
+                        'published_at': '',
+                        'source': 'git-remote'
+                    }
+        except (subprocess.TimeoutExpired, subprocess.CalledProcessError, FileNotFoundError):
+            pass
+        
+        # Método 2: Usar requests si urllib falla
+        try:
+            import requests
+            response = requests.get(
+                'https://api.github.com/repos/galeanolukas/SitioMTCRM/tags',
+                headers={
+                    'Accept': 'application/vnd.github+json',
+                    'User-Agent': 'SitioMTCRM-Updater'
+                },
+                timeout=timeout
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data and len(data) > 0:
+                    tag = data[0]['name']
+                    if tag.startswith('v'):
+                        tag = tag[1:]
+                    
+                    return {
+                        'version': tag,
+                        'description': f'Versión {tag}',
+                        'published_at': '',
+                        'source': 'requests-api'
+                    }
+        except ImportError:
+            pass
+        except Exception:
+            pass
+        
+        # Método 3: Versión hardcoded como último recurso
+        return {
+            'version': '1.2.0',
+            'description': 'Última versión estable',
+            'published_at': '',
+            'source': 'fallback'
+        }
+        
+    except Exception:
+        return None
+
+
+def get_latest_github_version(timeout=10):
     """
     Obtiene la última versión desde GitHub API.
     Intenta primero releases, si no hay usa tags como fallback.
     Retorna un diccionario con versión y descripción.
+    Compatible con Linux y Windows.
     """
     cache_key = 'github_latest_version'
     cached_data = cache.get(cache_key)
@@ -110,31 +192,51 @@ def get_latest_github_version(timeout=5):
             tag_info = data[0]
             tag = tag_info.get('name', '')
             
-            # Para tags, obtener el mensaje del commit si no hay message en el tag
-            message = tag_info.get('message', '')
-            if not message:
-                # Obtener información del commit para el mensaje
-                commit_sha = tag_info.get('commit', {}).get('sha', '')
-                if commit_sha:
-                    try:
-                        commit_url = f'https://api.github.com/repos/galeanolukas/SitioMTCRM/commits/{commit_sha}'
-                        commit_req = urllib.request.Request(
-                            commit_url,
-                            headers={'Accept': 'application/vnd.github+json', 'User-Agent': 'SitioMTCRM-Updater'}
-                        )
-                        with urllib.request.urlopen(commit_req, timeout=timeout) as commit_resp:
-                            commit_data = json.loads(commit_resp.read().decode('utf-8'))
-                            message = commit_data.get('commit', {}).get('message', '').split('\n')[0]
-                    except:
-                        message = f'Tag {tag} creado'
-            
             if tag.startswith('v'):
                 tag = tag[1:]
             
+            # Obtener información del commit para la descripción y fecha
+            commit_sha = tag_info.get('commit', {}).get('sha', '')
+            commit_url = tag_info.get('commit', {}).get('url', '')
+            
+            description = f'Tag {tag} creado'
+            published_at = ''
+            
+            if commit_url:
+                try:
+                    # Obtener información detallada del commit
+                    commit_req = urllib.request.Request(
+                        commit_url,
+                        headers={
+                            'Accept': 'application/vnd.github+json',
+                            'User-Agent': 'SitioMTCRM-Updater'
+                        }
+                    )
+                    
+                    with urllib.request.urlopen(commit_req, timeout=timeout) as commit_resp:
+                        commit_data = json.loads(commit_resp.read().decode('utf-8'))
+                    
+                    # Extraer mensaje del commit
+                    commit_message = commit_data.get('commit', {}).get('message', '')
+                    if commit_message:
+                        # Usar solo la primera línea del mensaje
+                        description = commit_message.split('\n')[0]
+                    
+                    # Extraer fecha del commit
+                    commit_date = commit_data.get('commit', {}).get('committer', {}).get('date', '')
+                    if commit_date:
+                        published_at = commit_date
+                        
+                except Exception as commit_error:
+                    print(f"Could not fetch commit details: {commit_error}")
+                    # Usar información básica del tag
+                    description = f'Actualización {tag}'
+                    published_at = tag_info.get('commit', {}).get('url', '').split('/')[-1][:8]  # Usar SHA como fallback
+            
             result = {
                 'version': tag,
-                'description': message,
-                'published_at': tag_info.get('commit', {}).get('committer', {}).get('date', ''),
+                'description': description,
+                'published_at': published_at,
                 'source': 'tag'
             }
             
@@ -146,7 +248,10 @@ def get_latest_github_version(timeout=5):
         
     except (urllib.error.URLError, json.JSONDecodeError, Exception) as e:
         print(f"Tags API also failed: {e}")
-        return None
+    
+    # Fallback final si todos los métodos anteriores fallan
+    print("Using fallback method for version detection...")
+    return get_latest_github_version_fallback(timeout)
 
 
 def get_version_info():

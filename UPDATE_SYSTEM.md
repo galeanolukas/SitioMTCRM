@@ -123,7 +123,7 @@ print(f"Última versión: {format_version_display(vi['latest_version'])}")
 print(f"Actualización disponible: {vi['update_available']}")
 ```
 
-### � **Git Portable (Thumbdrive Edition)**
+### 🚀 **Git Portable (Thumbdrive Edition)**
 
 Para entornos Windows donde no se puede instalar Git:
 
@@ -133,25 +133,44 @@ Para entornos Windows donde no se puede instalar Git:
 - **Compatibilidad total:** Mismas funciones que Git instalado
 - **Portabilidad:** Funciona en cualquier Windows sin permisos de admin
 
-#### Instalación:
+#### Opciones de Instalación:
+
+##### Opción 1: Instalador Automático (Recomendado)
 ```cmd
-# Ejecutar una sola vez
-setup_git_portable.bat
+# El instalador principal incluye Git Portable
+instalador_pos_bat.bat
 ```
+El instalador detectará si Git Portable está disponible y lo descargará automáticamente.
 
-El script:
-1. Descarga Git Portable automáticamente
-2. Extrae en `tools/git-portable/`
-3. Configura Git para el proyecto
-4. Verifica instalación
-
-#### Uso:
+##### Opción 2: Configurador Manual
 ```cmd
-# Para actualizaciones posteriores
-actualizar_pos_portable.bat
+# Configurar Git Portable manualmente
+setup_git_portable_inline.bat
 ```
+Ofrece múltiples métodos de descarga y configuración.
 
-#### Estructura de directorios:
+##### Opción 3: Paquete Portable Completo
+```cmd
+# Crear paquete con Git Portable incluido
+preparar_paquete_portable.bat
+```
+Crea un paquete de distribución que ya incluye Git Portable.
+
+#### Flujo de Instalación Automática:
+
+1. **Ejecutar instalador:** `instalador_pos_bat.bat`
+2. **Detección automática:** Verifica si Git Portable existe
+3. **Descarga automática:** Si no existe, intenta descargarlo
+4. **Configuración automática:** Configura Git para el proyecto
+5. **Verificación:** Confirma que Git Portable está listo
+
+#### Métodos de Descarga Automática:
+
+1. **curl:** Si está disponible en el sistema
+2. **PowerShell:** Como alternativa a curl
+3. **Manual:** Instrucciones detalladas si fallan los métodos automáticos
+
+#### Estructura de Directorios:
 ```
 SitioMTCRM/
 ├── tools/
@@ -159,13 +178,44 @@ SitioMTCRM/
 │       ├── bin/
 │       │   ├── git.exe
 │       │   └── git-bash.exe
+│       ├── etc/
 │       └── ...
-├── setup_git_portable.bat
+├── instalador_pos_bat.bat      # Con Git Portable integrado
+├── setup_git_portable_inline.bat
 ├── actualizar_pos_portable.bat
 └── ... (archivos del proyecto)
 ```
 
-### �🐛 **Correcciones de Problemas**
+#### Ventajas del Integrado:
+
+- **Una sola instalación:** Todo en un solo script
+- **Sin dependencias:** No necesita descargas adicionales
+- **Detección automática:** El sistema sabe cuándo usar Git Portable
+- **Fallback inteligente:** Si Git Portable falla, usa Git del sistema
+- **Distribución sencilla:** Un solo archivo para enviar a usuarios
+
+#### Uso en Actualizaciones:
+
+```cmd
+# Actualización con Git Portable
+actualizar_pos_portable.bat
+
+# O desde la interfaz web
+# Botón: "Actualizar (Portable)"
+```
+
+#### Diagnóstico de Git Portable:
+
+El sistema incluye diagnóstico automático:
+```cmd
+# Verificar estado
+python manage.py shell -c "
+from core.erp.api.updates import check_git_portable
+# ... o usar la interfaz web
+"
+```
+
+### � **Correcciones de Problemas**
 
 1. **Problema:** Scripts usaban `venv` pero el entorno es `DJENV`
    **Solución:** Detección automática de `DJENV` local y externo

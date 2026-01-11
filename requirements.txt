@@ -25,3 +25,4 @@ openpyxl
 
 # Manejo de versiones semánticas
 packaging
+requests

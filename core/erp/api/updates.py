@@ -193,3 +193,26 @@ def check_git_portable(request):
             'success': False,
             'error': str(e)
         }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+@login_required
+def version_diagnostics(request):
+    """
+    Endpoint para diagnóstico del sistema de versiones.
+    """
+    try:
+        from core.utils.version_diagnostics import diagnose_version_system
+        report = diagnose_version_system()
+        
+        return JsonResponse({
+            'success': True,
+            'diagnostics': report
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)

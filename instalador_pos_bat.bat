@@ -44,17 +44,11 @@ REM 2.1) Actualizar pip en el entorno virtual
 echo Actualizando pip...
 python -m pip install --upgrade pip
 if errorlevel 1 (
-    echo No se pudo actualizar pip. Continuando con la instalacion de dependencias...
-) else (
-    echo pip actualizado correctamente.
+    echo Error actualizando pip. Continuando de todas formas...
 )
 
-REM 3) Instalar dependencias (incluye pandas y openpyxl desde requirements.txt)
+REM 3) Instalar dependencias
 echo Instalando dependencias desde requirements.txt...
-
-REM Asegurar que no quede instalada la libreria vieja pandas-openpyxl
-pip uninstall -y pandas-openpyxl >nul 2>&1
-
 pip install -r requirements.txt
 if errorlevel 1 (
     echo Error instalando dependencias.
@@ -71,7 +65,129 @@ if errorlevel 1 (
     echo   pip install pandas openpyxl
 )
 
-REM 4) Migraciones
+REM 4) Configurar Git Portable para actualizaciones automaticas
+echo.
+echo ============================================
+echo  Configurando Git Portable
+echo ============================================
+echo.
+
+REM Crear directorio tools si no existe
+IF NOT EXIST tools (
+    echo Creando directorio tools...
+    mkdir tools
+)
+
+REM Verificar si Git Portable ya esta configurado
+IF EXIST tools\git-portable\bin\git.exe (
+    echo [OK] Git Portable ya esta configurado.
+    echo.
+    echo Git Portable listo para usar en actualizaciones automaticas.
+    echo Puede usar el boton "Actualizar (Portable)" cuando haya actualizaciones.
+    goto skip_git_portable
+)
+
+REM Intentar descargar Git Portable automaticamente
+echo Git Portable no encontrado. Intentando descarga automatica...
+echo.
+
+REM Verificar si curl esta disponible
+curl --version >nul 2>&1
+if errorlevel 1 (
+    echo [ADVERTENCIA] curl no esta disponible.
+    echo.
+    echo Opciones para Git Portable:
+    echo 1. Descargar manualmente desde: https://git-scm.com/download/win
+    echo 2. Usar Git instalado en el sistema
+    echo 3. El instalador intentara usar Git del sistema
+    echo.
+    echo Para configurar Git Portable manualmente:
+    echo   1. Descargue "Portable Git" desde la web oficial
+    echo   2. Extraiga en: tools\git-portable\
+    echo   3. El sistema lo detectara automaticamente
+    echo.
+    set /p git_option="Desea continuar sin Git Portable? (S/N): "
+    if /i not "%git_option%"=="S" (
+        echo Instalacion cancelada.
+        pause
+        exit /b 1
+    )
+    goto skip_git_portable
+)
+
+REM Descargar Git Portable
+echo Descargando Git Portable (esto puede tardar varios minutos)...
+set "GIT_URL=https://github.com/git-for-windows/git/releases/download/v2.45.0.windows.1/PortableGit-2.45.0-64-bit.7z.exe"
+set "GIT_INSTALLER=tools\PortableGit-2.45.0-64-bit.7z.exe"
+
+curl -L -o "%GIT_INSTALLER%" "%GIT_URL%"
+if errorlevel 1 (
+    echo [ERROR] Error al descargar Git Portable.
+    echo Verifique su conexion a internet.
+    echo.
+    echo Continuando sin Git Portable. Podra configurarlo mas tarde.
+    goto skip_git_portable
+)
+
+echo [OK] Git Portable descargado exitosamente.
+
+REM Extraer Git Portable
+echo Extrayendo Git Portable...
+echo Esto puede tardar varios minutos, por favor espere...
+
+REM Usar 7z si esta disponible, sino intentar con el auto-extractor
+7z x "%GIT_INSTALLER%" -o"tools\git-portable" >nul 2>&1
+if errorlevel 1 (
+    echo Intentando extraccion automatica...
+    "%GIT_INSTALLER%" -y -o"tools\git-portable" >nul 2>&1
+    if errorlevel 1 (
+        echo [ADVERTENCIA] Error al extraer Git Portable automaticamente.
+        echo.
+        echo Extraiga manualmente:
+        echo   1. Abra: %GIT_INSTALLER%
+        echo   2. Seleccione destino: tools\git-portable\
+        echo   3. Extraiga todos los archivos
+        echo.
+        echo El instalador continuara, pero Git Portable no estara disponible.
+        goto cleanup_installer
+    )
+)
+
+REM Limpiar instalador
+:cleanup_installer
+del "%GIT_INSTALLER%" 2>nul
+
+REM Verificar instalacion
+IF EXIST tools\git-portable\bin\git.exe (
+    echo [OK] Git Portable instalado exitosamente!
+    echo.
+    echo Configurando Git Portable...
+    
+    REM Configurar Git Portable
+    tools\git-portable\bin\git.exe config --global user.name "POS User"
+    tools\git-portable\bin\git.exe config --global user.email "pos@multilideres.com"
+    tools\git-portable\bin\git.exe config --global init.defaultBranch main
+    tools\git-portable\bin\git.exe config --global pull.rebase false
+    tools\git-portable\bin\git.exe config --global safe.directory "*"
+    
+    echo [OK] Git Portable configurado.
+    echo.
+    echo Git Portable esta listo para usar en actualizaciones automaticas.
+) ELSE (
+    echo [ADVERTENCIA] Git Portable no se pudo instalar correctamente.
+    echo.
+    echo Puede configurarlo mas tarde ejecutando:
+    echo   setup_git_portable.bat
+)
+
+:skip_git_portable
+echo.
+echo ============================================
+echo  Git Portable - Configuracion Completa
+echo ============================================
+echo.
+
+REM 5) Migraciones
 echo Creando migraciones si hacen falta (apps user y erp)...
 python manage.py makemigrations user erp
 if errorlevel 1 (
@@ -80,7 +196,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo Ejecutando migraciones...
+echo Ejecutando migraciones de la base de datos...
 python manage.py migrate
 if errorlevel 1 (
     echo Error ejecutando migraciones.
@@ -88,42 +204,54 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo.
-echo ============================================
-echo Instalacion terminada.
-echo ============================================
-echo Si es la primera vez, crea un superusuario con:
-echo   python manage.py createsuperuser
-echo.
-echo Para iniciar el POS local:
-echo   call venv\Scripts\activate
-echo   python manage.py runserver 0.0.0.0:8000
-echo y luego abre: http://localhost:8000/erp/sale/pos/
-echo.
-echo Para futuras actualizaciones del POS (nueva version desde GitHub):
-echo   1) Cierre el POS.
-echo   2) Ejecute: actualizar_pos.bat
-echo   3) Vuelva a iniciar con lanzar_pos.bat
-echo ============================================
+REM 6) Crear superusuario si no existe
+echo Creando superusuario por defecto (admin/admin)...
+python manage.py shell -c "
+from django.contrib.auth import get_user_model
+User = get_user_model()
+if not User.objects.filter(username='admin').exists():
+    User.objects.create_superuser('admin', 'admin@example.com', 'admin')
+    print('Superusuario admin creado con contrasena: admin')
+else:
+    print('Superusuario admin ya existe')
+"
 
-REM Crear acceso directo (launcher) en el escritorio para el POS local
-set "LAUNCHER_TARGET=%CD%\lanzar_pos.bat"
-set "SHORTCUT_PATH=%USERPROFILE%\Desktop\POS_Local.lnk"
-REM Icono esperado en la raiz del proyecto, junto a este instalador
-set "ICON_FILE=%CD%\icon.ico"
-
+REM 7) Crear acceso directo en el escritorio
 echo Creando acceso directo en el escritorio...
+set "SHORTCUT=%USERPROFILE%\Desktop\MultilideresCRM POS.lnk"
+set "TARGET=%~dp0lanzar_pos.bat"
 
-if not exist "%LAUNCHER_TARGET%" (
-    echo No se encontro el archivo lanzar_pos.bat en la carpeta del proyecto.
-    echo Crea el archivo lanzar_pos.bat y vuelve a ejecutar este instalador.
-    pause
-    exit /b 1
-)
+powershell -Command "$WshShell = New-Object -comObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('%SHORTCUT%'); $Shortcut.TargetPath = '%TARGET%'; $Shortcut.Save()"
 
-REM Crear acceso directo usando PowerShell y WScript.Shell
-powershell -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('%SHORTCUT_PATH%');$s.TargetPath='%LAUNCHER_TARGET%';$s.WorkingDirectory='%CD%';$s.IconLocation='%ICON_FILE%';$s.Save()" >nul 2>&1
-
+echo.
+echo ============================================
+echo  INSTALACION COMPLETADA EXITOSAMENTE!
+echo ============================================
+echo.
+echo El sistema ha sido instalado y configurado.
+echo.
+echo Componentes instalados:
+echo   - Entorno virtual venv
+echo   - Dependencias Python
+echo   - Base de datos SQLite
+echo   - Superusuario: admin / admin
+echo   - Acceso directo en escritorio
+echo   - Git Portable: %IF EXIST tools\git-portable\bin\git.exe (echo Listo) ELSE (echo No disponible)%
+echo.
+echo Para iniciar el sistema:
+echo   1. Use el acceso directo en el escritorio
+echo   2. O ejecute: lanzar_pos.bat
+echo.
+echo Para actualizaciones futuras:
+echo   - Use la interfaz web: http://localhost:8000/erp/updates/
+echo   - O ejecute: actualizar_pos.bat
+echo.
+echo Si Git Portable esta disponible, podra usar:
+echo   - Boton "Actualizar (Portable)" en la web
+echo   - Script: actualizar_pos_portable.bat
+echo.
+echo Presione cualquier tecla para salir...
+pause >nulse
 if errorlevel 1 (
     echo No se pudo crear el acceso directo con PowerShell.
     echo Puedes crear manualmente un acceso directo a lanzar_pos.bat en el escritorio.
