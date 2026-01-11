@@ -100,6 +100,9 @@
                                     <button type="button" class="btn btn-warning btn-lg" onclick="ejecutarActualizacion('windows')">
                                         <i class="fas fa-download"></i> Actualizar Sistema (Windows)
                                     </button>
+                                    <button type="button" class="btn btn-info btn-lg" onclick="ejecutarActualizacion('windows-portable')">
+                                        <i class="fas fa-usb"></i> Actualizar (Portable)
+                                    </button>
                                 {% elif is_linux %}
                                     <button type="button" class="btn btn-warning btn-lg" onclick="ejecutarActualizacion('linux')">
                                         <i class="fas fa-download"></i> Actualizar Sistema (Linux)
@@ -248,10 +251,31 @@ function refreshVersionInfo() {
 function ejecutarActualizacion(so) {
     var scriptName = '';
     var instructions = '';
+    var setupRequired = false;
     
     if (so === 'windows') {
         scriptName = 'actualizar_pos.bat';
         instructions = 'El sistema ejecutará el script de actualización para Windows y se cerrará automáticamente.';
+    } else if (so === 'windows-portable') {
+        scriptName = 'actualizar_pos_portable.bat';
+        instructions = 'El sistema ejecutará el script de actualización portable con Git Portable y se cerrará automáticamente.';
+        
+        // Verificar si Git Portable está configurado
+        $.ajax({
+            url: '{% url "api_check_git_portable" %}',
+            method: 'GET',
+            async: false,
+            success: function(response) {
+                if (!response.git_portable_ready) {
+                    setupRequired = true;
+                    instructions += '<br><br><strong>Git Portable no está configurado.</strong><br>Primero se ejecutará setup_git_portable.bat para descargar y configurar Git Portable.';
+                }
+            },
+            error: function() {
+                setupRequired = true;
+                instructions += '<br><br><strong>No se pudo verificar Git Portable.</strong><br>Se intentará configurar automáticamente.';
+            }
+        });
     } else if (so === 'linux') {
         scriptName = './actualizar_pos.sh';
         instructions = 'El sistema ejecutará el script de actualización para Linux y se cerrará automáticamente.';
@@ -264,6 +288,7 @@ function ejecutarActualizacion(so) {
         <p><strong>Sistema Operativo:</strong> ${so.toUpperCase()}</p>
         <p><strong>Script:</strong> <code>${scriptName}</code></p>
         <p>${instructions}</p>
+        ${setupRequired ? '<div class="alert alert-info mt-2"><i class="fas fa-info"></i> Git Portable se configurará automáticamente.</div>' : ''}
     `);
     
     $('#confirmUpdateModal').modal('show');

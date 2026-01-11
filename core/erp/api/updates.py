@@ -73,9 +73,40 @@ def execute_update_script(request):
         # Obtener el directorio base del proyecto
         base_dir = getattr(settings, 'BASE_DIR', os.getcwd())
         
+        # Obtener el tipo de actualización desde el request
+        data = json.loads(request.body) if request.body else {}
+        update_type = data.get('type', 'auto')  # auto, portable
+        
         if system_os == 'windows':
-            script_path = os.path.join(base_dir, 'actualizar_pos.bat')
-            command = ['cmd', '/c', script_path]
+            if update_type == 'portable':
+                script_path = os.path.join(base_dir, 'actualizar_pos_portable.bat')
+                # Verificar si Git Portable está configurado
+                git_portable_path = os.path.join(base_dir, 'tools', 'git-portable', 'bin', 'git.exe')
+                if not os.path.exists(git_portable_path):
+                    # Ejecutar setup primero
+                    setup_script = os.path.join(base_dir, 'setup_git_portable.bat')
+                    if os.path.exists(setup_script):
+                        process = subprocess.Popen(
+                            ['start', 'cmd', '/c', setup_script],
+                            shell=True,
+                            cwd=base_dir,
+                            creationflags=subprocess.CREATE_NEW_CONSOLE
+                        )
+                        return JsonResponse({
+                            'success': True,
+                            'message': 'Configurando Git Portable...',
+                            'data': {
+                                'script': setup_script,
+                                'pid': process.pid if hasattr(process, 'pid') else None,
+                                'os': system_os,
+                                'setup_required': True
+                            }
+                        })
+                
+                command = ['start', 'cmd', '/c', script_path]
+            else:
+                script_path = os.path.join(base_dir, 'actualizar_pos.bat')
+                command = ['start', 'cmd', '/c', script_path]
         elif system_os == 'linux':
             script_path = os.path.join(base_dir, 'actualizar_pos.sh')
             # Hacer el script ejecutable
@@ -99,7 +130,7 @@ def execute_update_script(request):
             # En Windows, usar START para abrir en nueva ventana
             if system_os == 'windows':
                 process = subprocess.Popen(
-                    ['start', 'cmd', '/c', script_path],
+                    command,
                     shell=True,
                     cwd=base_dir,
                     creationflags=subprocess.CREATE_NEW_CONSOLE
@@ -120,7 +151,8 @@ def execute_update_script(request):
                 'data': {
                     'script': script_path,
                     'pid': process.pid if hasattr(process, 'pid') else None,
-                    'os': system_os
+                    'os': system_os,
+                    'type': update_type
                 }
             })
             
@@ -134,4 +166,30 @@ def execute_update_script(request):
         return JsonResponse({
             'success': False,
             'error': f'Error general: {str(e)}'
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+@login_required
+def check_git_portable(request):
+    """
+    Verifica si Git Portable está configurado.
+    """
+    try:
+        base_dir = getattr(settings, 'BASE_DIR', os.getcwd())
+        git_portable_path = os.path.join(base_dir, 'tools', 'git-portable', 'bin', 'git.exe')
+        
+        git_portable_ready = os.path.exists(git_portable_path)
+        
+        return JsonResponse({
+            'success': True,
+            'git_portable_ready': git_portable_ready,
+            'git_portable_path': git_portable_path
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
         }, status=500)

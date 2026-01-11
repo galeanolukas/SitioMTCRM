@@ -92,19 +92,28 @@ Fuerza la actualización del cache y retorna información actualizada.
 6. **Limpieza**
    - Eliminación de backups si la actualización fue exitosa
 
-### 🛠 **Uso**
+### Ejecución de Scripts
 
-#### Linux/Mac:
+### Linux/Mac:
 ```bash
 ./actualizar_pos.sh
 ```
 
-#### Windows:
+### Windows (con Git instalado):
 ```cmd
 actualizar_pos.bat
 ```
 
-#### Verificación Manual:
+### Windows Portable (Thumbdrive Edition):
+```cmd
+# Primera vez - descargar Git Portable
+setup_git_portable.bat
+
+# Actualizaciones posteriores
+actualizar_pos_portable.bat
+```
+
+### Verificación Manual:
 ```python
 # En Django shell
 from core.utils.version_utils import get_version_info, format_version_display
@@ -114,7 +123,49 @@ print(f"Última versión: {format_version_display(vi['latest_version'])}")
 print(f"Actualización disponible: {vi['update_available']}")
 ```
 
-### 🐛 **Correcciones de Problemas**
+### � **Git Portable (Thumbdrive Edition)**
+
+Para entornos Windows donde no se puede instalar Git:
+
+#### Características:
+- **Sin instalación:** Git Portable funciona desde USB o carpeta local
+- **Auto-configuración:** Descarga y configuración automática
+- **Compatibilidad total:** Mismas funciones que Git instalado
+- **Portabilidad:** Funciona en cualquier Windows sin permisos de admin
+
+#### Instalación:
+```cmd
+# Ejecutar una sola vez
+setup_git_portable.bat
+```
+
+El script:
+1. Descarga Git Portable automáticamente
+2. Extrae en `tools/git-portable/`
+3. Configura Git para el proyecto
+4. Verifica instalación
+
+#### Uso:
+```cmd
+# Para actualizaciones posteriores
+actualizar_pos_portable.bat
+```
+
+#### Estructura de directorios:
+```
+SitioMTCRM/
+├── tools/
+│   └── git-portable/
+│       ├── bin/
+│       │   ├── git.exe
+│       │   └── git-bash.exe
+│       └── ...
+├── setup_git_portable.bat
+├── actualizar_pos_portable.bat
+└── ... (archivos del proyecto)
+```
+
+### �🐛 **Correcciones de Problemas**
 
 1. **Problema:** Scripts usaban `venv` pero el entorno es `DJENV`
    **Solución:** Detección automática de `DJENV` local y externo

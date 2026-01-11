@@ -8,7 +8,7 @@ from core.erp.views.operator_reports.views import OperatorSalesReportView, opera
 from core.erp.views.sync.views import SyncToggleView, SyncStatusView
 from core.erp.views.tests.views import *
 from core.erp.views.activity_log import ActivityLogView, ActivityLogDashboardView
-from core.erp.api.updates import check_updates_api, refresh_version_info, execute_update_script
+from core.erp.api.updates import check_updates_api, refresh_version_info, execute_update_script, check_git_portable
 from core.erp.views.dashboard.views import (
     DashboardView,
     CompanyUpdateView,
@@ -148,4 +148,5 @@ urlpatterns = [
     path('api/updates/check/', check_updates_api, name='api_check_updates'),
     path('api/updates/refresh/', refresh_version_info, name='api_refresh_version'),
     path('api/updates/execute/', execute_update_script, name='api_execute_update'),
+    path('api/updates/check-git-portable/', check_git_portable, name='api_check_git_portable'),
 ]
