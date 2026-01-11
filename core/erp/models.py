@@ -316,6 +316,9 @@ class Sale(models.Model):
     is_invoiced = models.BooleanField(default=False)
     synced_to_server = models.BooleanField(default=False, verbose_name='Sincronizado con servidor')
     local_sale_id = models.PositiveIntegerField(blank=True, null=True, verbose_name='ID de venta local', help_text='ID de la venta en la base de datos local para evitar duplicados')
+    local_uuid = models.CharField(max_length=64, blank=True, null=True, unique=True, verbose_name='UUID local', help_text='UUID único para evitar duplicados en sincronización')
+    source = models.CharField(max_length=20, blank=True, null=True, verbose_name='Origen', help_text='Origen de la venta (local_pos, web, etc.)')
+    synced_at = models.DateTimeField(blank=True, null=True, verbose_name='Fecha de sincronización')
 
     def __str__(self):
         return self.cli.names
@@ -325,6 +328,12 @@ class Sale(models.Model):
             user = get_current_user()
             if user and not user.is_anonymous:
                 self.company_id = getattr(user, 'company_id', None)
+        
+        # Generar local_uuid para nuevas ventas locales
+        if not self.pk and not self.local_uuid:
+            import uuid
+            self.local_uuid = f"sale_{uuid.uuid4().hex}"
+            self.source = 'local_pos'
         
         # Capturar la zona horaria local solo para nuevas ventas
         if not self.pk and not self.local_timezone:
@@ -386,6 +395,10 @@ class Sale(models.Model):
         item['invoice_pos'] = self.invoice_pos or ''
         item['invoice_type'] = self.invoice_type or ''
         item['is_invoiced'] = self.is_invoiced
+        item['local_uuid'] = self.local_uuid or ''
+        item['source'] = self.source or ''
+        item['synced_to_server'] = self.synced_to_server
+        item['synced_at'] = self.synced_at.strftime('%Y-%m-%d %H:%M:%S') if self.synced_at else ''
         item['det'] = [i.toJSON() for i in self.detsale_set.all()]
         return item
 

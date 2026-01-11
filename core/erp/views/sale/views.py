@@ -1021,9 +1021,36 @@ def sync_sales_api(request):
             errors.append({'local_uuid': None, 'error': 'Sin local_uuid'})
             continue
 
+        # Verificación mejorada para evitar duplicados
         if Sale.objects.filter(local_uuid=local_uuid).exists():
             synced.append(local_uuid)
             continue
+
+        # Verificación adicional por fecha, monto y cliente para mayor seguridad
+        date_joined = s.get('date_joined')
+        total = s.get('total', 0)
+        cli_id = s.get('cli_id')
+        
+        if date_joined and total:
+            try:
+                # Parsear la fecha y buscar duplicados en un rango de 60 segundos
+                from datetime import datetime, timedelta
+                sale_date = datetime.fromisoformat(date_joined.replace('Z', '+00:00'))
+                start_time = sale_date - timedelta(seconds=60)
+                end_time = sale_date + timedelta(seconds=60)
+                
+                duplicate_check = Sale.objects.filter(
+                    date_joined__range=[start_time, end_time],
+                    total=total,
+                    cli_id=cli_id
+                ).exclude(local_uuid=local_uuid).exists()
+                
+                if duplicate_check:
+                    synced.append(local_uuid)
+                    continue
+            except Exception:
+                # Si hay error con la fecha, continuar con la verificación normal
+                pass
 
         try:
             with transaction.atomic():
