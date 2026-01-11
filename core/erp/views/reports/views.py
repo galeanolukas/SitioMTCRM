@@ -8,14 +8,24 @@ from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from datetime import timedelta, datetime
 import json
 import csv
-import openpyxl
-from openpyxl.styles import Font, Alignment
-from io import BytesIO
-from reportlab.lib.pagesizes import letter, landscape
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib import colors
-from reportlab.lib.units import inch
+
+try:
+    import openpyxl
+    from openpyxl.styles import Font, Alignment
+    from io import BytesIO
+    OPENPYXL_AVAILABLE = True
+except ImportError:
+    OPENPYXL_AVAILABLE = False
+
+try:
+    from reportlab.lib.pagesizes import letter, landscape
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib import colors
+    from reportlab.lib.units import inch
+    REPORTLAB_AVAILABLE = True
+except ImportError:
+    REPORTLAB_AVAILABLE = False
 
 from core.erp.models import Sale, DetSale, Product, Company, Expense
 from core.user.models import User
@@ -613,6 +623,9 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
         return response
     
     def export_to_excel(self, data, filename, report_type, period_info=None):
+        if not OPENPYXL_AVAILABLE:
+            return HttpResponse("Error: openpyxl no está instalado. Instale con: pip install openpyxl", content_type='text/plain')
+        
         response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         response['Content-Disposition'] = f'attachment; filename="{filename}.xlsx"'
         
@@ -916,6 +929,9 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
     
     def export_to_pdf(self, data, filename, report_type, period_info=None):
         """Exportar datos a PDF"""
+        if not REPORTLAB_AVAILABLE:
+            return HttpResponse("Error: ReportLab no está instalado. Instale con: pip install reportlab", content_type='text/plain')
+        
         response = HttpResponse(content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="{filename}.pdf"'
         

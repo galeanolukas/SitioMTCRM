@@ -10,6 +10,26 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 import json
 
+try:
+    from reportlab.lib.pagesizes import letter, A4
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.lib import colors
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    from io import BytesIO
+    REPORTLAB_AVAILABLE = True
+except ImportError:
+    REPORTLAB_AVAILABLE = False
+
+try:
+    import openpyxl
+    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+    OPENPYXL_AVAILABLE = True
+except ImportError:
+    OPENPYXL_AVAILABLE = False
+
 
 class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView):
     template_name = 'operator_reports/sales_report.html'
@@ -177,6 +197,8 @@ def operator_sales_export(request):
         sales = Sale.objects.filter(**filters).order_by('-date_joined')
         
         if export_format == 'pdf':
+            if not REPORTLAB_AVAILABLE:
+                return HttpResponse("Error: ReportLab no está instalado. Instale con: pip install reportlab", content_type='text/plain')
             return generate_pdf_report(sales, start_date, end_date, active_cid, request.user)
         
         elif export_format == 'csv':
@@ -293,6 +315,8 @@ def operator_sales_export(request):
             return response
         
         elif export_format == 'excel':
+            if not OPENPYXL_AVAILABLE:
+                return HttpResponse("Error: openpyxl no está instalado. Instale con: pip install openpyxl", content_type='text/plain')
             import openpyxl
             from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
             from django.http import HttpResponse
@@ -456,6 +480,10 @@ def operator_sales_export(request):
 
 def generate_pdf_report(sales, start_date, end_date, company_id, user):
     """Generate PDF report matching the exact format from the image"""
+    if not REPORTLAB_AVAILABLE:
+        from django.http import HttpResponse
+        return HttpResponse("Error: ReportLab no está instalado. Instale con: pip install reportlab", content_type='text/plain')
+    
     from django.http import HttpResponse
     from reportlab.lib.pagesizes import letter, A4
     from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
