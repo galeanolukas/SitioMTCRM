@@ -99,12 +99,16 @@ if errorlevel 1 (
     echo Opciones para Git Portable:
     echo 1. Descargar manualmente desde: https://git-scm.com/download/win
     echo 2. Usar Git instalado en el sistema
-    echo 3. El instalador intentara usar Git del sistema
+    echo 3. Continuar sin Git Portable (funciones limitadas)
     echo.
     echo Para configurar Git Portable manualmente:
     echo   1. Descargue "Portable Git" desde la web oficial
-    echo   2. Extraiga en: tools\git-portable\
+    echo   2. Extraiga en: tools\PortableGit\
     echo   3. El sistema lo detectara automaticamente
+    echo.
+    echo Sin Git Portable, podra usar:
+    echo - Actualizaciones con Git instalado en el sistema
+    echo - Funciones basicas del sistema
     echo.
     set /p git_option="Desea continuar sin Git Portable? (S/N): "
     if /i not "%git_option%"=="S" (
@@ -112,6 +116,9 @@ if errorlevel 1 (
         pause
         exit /b 1
     )
+    echo.
+    echo Continuando con la instalacion sin Git Portable...
+    echo Podra configurarlo mas tarde ejecutando: setup_git_portable_inline.bat
     goto skip_git_portable
 )
 
@@ -124,6 +131,32 @@ curl -L -o "%GIT_INSTALLER%" "%GIT_URL%"
 if errorlevel 1 (
     echo [ERROR] Error al descargar Git Portable.
     echo Verifique su conexion a internet.
+    echo.
+    echo Opciones:
+    echo 1. Reintentar la descarga
+    echo 2. Continuar sin Git Portable
+    echo 3. Cancelar instalacion
+    echo.
+    set /p download_option="Elija una opcion (1/2/3): "
+    if "%download_option%"=="1" (
+        echo Reintentando descarga...
+        goto download_retry
+    ) else if "%download_option%"=="2" (
+        echo Continuando sin Git Portable.
+        echo Podra configurarlo mas tarde ejecutando: setup_git_portable_inline.bat
+        goto skip_git_portable
+    ) else (
+        echo Instalacion cancelada.
+        pause
+        exit /b 1
+    )
+)
+
+:download_retry
+echo Reintentando descarga de Git Portable...
+curl -L -o "%GIT_INSTALLER%" "%GIT_URL%"
+if errorlevel 1 (
+    echo [ERROR] Error persistente en la descarga.
     echo.
     echo Continuando sin Git Portable. Podra configurarlo mas tarde.
     goto skip_git_portable
@@ -209,19 +242,40 @@ echo Creando superusuario por defecto (admin/admin)...
 python manage.py shell -c "
 from django.contrib.auth import get_user_model
 User = get_user_model()
-if not User.objects.filter(username='admin').exists():
-    User.objects.create_superuser('admin', 'admin@example.com', 'admin')
-    print('Superusuario admin creado con contrasena: admin')
-else:
-    print('Superusuario admin ya existe')
+try:
+    if not User.objects.filter(username='admin').exists():
+        User.objects.create_superuser('admin', 'admin@example.com', 'admin')
+        print('Superusuario admin creado con contrasena: admin')
+    else:
+        print('Superusuario admin ya existe')
+except Exception as e:
+    print(f'Error creando superusuario: {e}')
+    print('Podra crearlo manualmente con: python manage.py createsuperuser')
 "
+if errorlevel 1 (
+    echo [ADVERTENCIA] Error al crear superusuario automaticamente.
+    echo Podra crearlo manualmente despues con:
+    echo   python manage.py createsuperuser
+    echo.
+    echo Continuando con la instalacion...
+)
 
 REM 7) Crear acceso directo en el escritorio
 echo Creando acceso directo en el escritorio...
 set "SHORTCUT=%USERPROFILE%\Desktop\MultilideresCRM POS.lnk"
 set "TARGET=%~dp0lanzar_pos.bat"
 
-powershell -Command "$WshShell = New-Object -comObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('%SHORTCUT%'); $Shortcut.TargetPath = '%TARGET%'; $Shortcut.Save()"
+powershell -Command "$WshShell = New-Object -comObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('%SHORTCUT%'); $Shortcut.TargetPath = '%TARGET%'; $Shortcut.Save()" 2>nul
+if errorlevel 1 (
+    echo [ADVERTENCIA] No se pudo crear el acceso directo automaticamente.
+    echo Puede crearlo manualmente:
+    echo   1. Boton derecho en el escritorio
+    echo   2. Nuevo - Acceso directo
+    echo   3. Destino: "%TARGET%"
+    echo   4. Nombre: MultilideresCRM POS
+    echo.
+    echo Continuando con la instalacion...
+)
 
 echo.
 echo ============================================
@@ -251,12 +305,4 @@ echo   - Boton "Actualizar (Portable)" en la web
 echo   - Script: actualizar_pos_portable.bat
 echo.
 echo Presione cualquier tecla para salir...
-pause >nulse
-if errorlevel 1 (
-    echo No se pudo crear el acceso directo con PowerShell.
-    echo Puedes crear manualmente un acceso directo a lanzar_pos.bat en el escritorio.
-) else (
-    echo Acceso directo creado en el escritorio: POS_Local.lnk
-)
-
-pause
+pause >nul

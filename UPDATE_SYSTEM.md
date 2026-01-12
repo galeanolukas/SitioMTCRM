@@ -163,6 +163,15 @@ Crea un paquete de distribución que ya incluye Git Portable.
 3. **Descarga automática:** Si no existe, intenta descargarlo
 4. **Configuración automática:** Configura Git para el proyecto
 5. **Verificación:** Confirma que Git Portable está listo
+6. **Finalización:** Completa instalación sin suspender si hay errores
+
+#### Manejo de Errores Mejorado:
+
+- **Sin curl:** Pregunta si continuar sin Git Portable
+- **Error de descarga:** Ofrece reintentar o continuar sin Git Portable
+- **Error en extracción:** Continúa con instalación normal
+- **Error en superusuario:** Continúa y permite creación manual
+- **Error en acceso directo:** Continúa y da instrucciones manuales
 
 #### Métodos de Descarga Automática:
 
