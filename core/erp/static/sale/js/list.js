@@ -129,6 +129,17 @@ $(function () {
                 targets: [-2, -3, -4],
                 class: 'text-center',
                 render: function (data, type, row) {
+                    // Para tickets (no facturados), mostrar IVA=0 y total=subtotal
+                    if (!row.invoice_number) {
+                        if (type === 'display') {
+                            // Columna -4: Subtotal (mostrar subtotal)
+                            if (this[0] === -4) return '$' + (parseFloat(row.subtotal) || 0).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                            // Columna -3: IVA (mostrar 0 para tickets)
+                            if (this[0] === -3) return '$0.00';
+                            // Columna -2: Total (mostrar subtotal para tickets)
+                            if (this[0] === -2) return '$' + (parseFloat(row.subtotal) || 0).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                        }
+                    }
                     return '$' + (parseFloat(data) || 0).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
                 }
             },

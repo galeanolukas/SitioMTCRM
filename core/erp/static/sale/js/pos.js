@@ -520,8 +520,8 @@
   function doCreateSale() {
     const calc = buildPayload(false); // Ticket sin IVA
     const subtotal = calc.subtotal_neto;
-    const iva = calc.iva_total;
-    const total = subtotal + iva;
+    const iva = 0; // Tickets no tienen IVA
+    const total = subtotal; // Total es solo el subtotal sin IVA
     const payMethod = ($('#payMethod').val() || 'cash');
     
     // Generar token único para esta venta
@@ -801,6 +801,9 @@
     const calc = buildPayload(wantsInvoice); // Usar IVA si es factura
     const paymentDescription = `${getPaymentMethodName(firstMethod)} + ${getPaymentMethodName(secondMethod)}`;
     
+    // Generar token único para esta venta combinada
+    const saleToken = 'combined_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    
     // Usar items con IVA si es factura, sin IVA si es ticket
     const items = wantsInvoice ? calc.items_final : calc.items_net;
     const subtotal = wantsInvoice ? calc.subtotal_neto : calc.subtotal_neto;
@@ -823,7 +826,7 @@
     
     if (wantsInvoice) {
       // Generar factura
-      ajaxAction('invoice', { action: 'invoice', sale: JSON.stringify(payload) })
+      ajaxAction('invoice', { action: 'invoice', sale: JSON.stringify(payload), sale_token: saleToken })
         .done(resp => {
           flashSummary();
           if (resp.invoice_url) {
@@ -842,7 +845,7 @@
         });
     } else {
       // Registrar venta normal
-      ajaxAction('create_sale', { action: 'create_sale', sale: JSON.stringify(payload) })
+      ajaxAction('create_sale', { action: 'create_sale', sale: JSON.stringify(payload), sale_token: saleToken })
         .done(resp => {
           if (resp && resp.id) {
             lastSaleId = resp.id;

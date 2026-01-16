@@ -267,6 +267,11 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     sale.total = float(payload.get('total', 0))
                     sale.payment_method = payload.get('payment_method') or 'cash'
                     
+                    # Para tickets (sin factura), asegurar que IVA sea 0 y total sea igual a subtotal
+                    if not payload.get('invoice_number'):
+                        sale.iva = 0.0
+                        sale.total = sale.subtotal
+                    
                     # Guardar detalles de pagos combinados si existen
                     if 'combined_payments' in payload and payload['combined_payments']:
                         sale.payment_details = payload['combined_payments']
@@ -347,6 +352,11 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     sale.iva = float(payload.get('iva', 0))
                     sale.total = float(payload.get('total', 0))
                     sale.payment_method = payload.get('payment_method') or 'cash'
+                    
+                    # Para tickets (sin factura), asegurar que IVA sea 0 y total sea igual a subtotal
+                    if not payload.get('invoice_number'):
+                        sale.iva = 0.0
+                        sale.total = sale.subtotal
                     # Generar facturación: usar el POS configurado en la empresa de la venta
                     company = sale.company or Company.objects.first()
                     sale.invoice_pos = (company.pos if company else sale.invoice_pos) or '0001'
