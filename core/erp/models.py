@@ -414,15 +414,37 @@ class DetSale(models.Model):
     price = models.DecimalField(default=0.00, max_digits=9, decimal_places=2)
     cant = models.DecimalField(default=0, max_digits=9, decimal_places=3)
     subtotal = models.DecimalField(default=0.00, max_digits=9, decimal_places=2)
+    iva_amount = models.DecimalField(default=0.00, max_digits=9, decimal_places=2, verbose_name='Monto IVA')
 
     def __str__(self):
         return self.prod.name
+    
+    def calculate_iva_amount(self):
+        """Calcular el monto de IVA para este detalle"""
+        if self.prod and self.prod.iva_rate:
+            # Calcular IVA basado en el subtotal
+            iva_rate = Decimal(str(self.prod.iva_rate))
+            # Normalizar rate: si es mayor que 1, tratarlo como porcentaje (21 -> 0.21)
+            if iva_rate > Decimal('1.0'):
+                iva_rate = iva_rate / Decimal('100.0')
+            subtotal_decimal = Decimal(str(self.subtotal))
+            return (subtotal_decimal * iva_rate).quantize(Decimal('0.01'))
+        return Decimal('0.00')
+    
+    def save(self, *args, **kwargs):
+        # Calcular el monto de IVA automáticamente
+        self.iva_amount = self.calculate_iva_amount()
+        super().save(*args, **kwargs)
 
     def toJSON(self):
         item = model_to_dict(self, exclude=['sale'])
         item['prod'] = self.prod.toJSON()
         item['price'] = format(self.price, '.2f') if self.price is not None else '0.00'
         item['subtotal'] = format(self.subtotal, '.2f') if self.subtotal is not None else '0.00'
+        item['iva_amount'] = format(self.iva_amount, '.2f') if self.iva_amount is not None else '0.00'
+        # Agregar información del IVA del producto
+        item['prod']['iva_rate'] = float(self.prod.iva_rate) if self.prod and self.prod.iva_rate else 0.0
+        item['prod']['pvp_with_iva'] = format(self.prod.pvp_final, '.2f') if self.prod and self.prod.pvp_final else '0.00'
         return item
 
     class Meta:
@@ -926,10 +948,140 @@ class ActivityLog(models.Model):
             'DELETE': 'Eliminación',
             'LOGIN': 'Inicio de Sesión',
             'LOGOUT': 'Cierre de Sesión',
-            'VIEW': 'Visualización',
-            'EXPORT': 'Exportación',
-            'SYNC': 'Sincronización',
-            'SALE': 'Venta',
-            'INVOICE': 'Facturación',
+            'EMPLOYEE_ACCOUNT': 'Cuenta Corriente Empleado',
         }
         return action_descriptions.get(self.action, self.action)
+
+
+class EmployeeAccountSale(models.Model):
+    """Ventas por cuenta corriente de empleados - descuentan stock pero no suman al total de ventas"""
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa', null=True, blank=True)
+    employee = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name='Empleado')
+    date_joined = models.DateTimeField(default=timezone.now, verbose_name='Fecha y hora')
+    local_timezone = models.CharField(max_length=50, blank=True, null=True, verbose_name='Zona horaria local')
+    subtotal = models.DecimalField(default=0.00, max_digits=9, decimal_places=2, verbose_name='Subtotal')
+    iva = models.DecimalField(default=0.00, max_digits=9, decimal_places=2, verbose_name='IVA')
+    total = models.DecimalField(default=0.00, max_digits=9, decimal_places=2, verbose_name='Total')
+    notes = models.TextField(blank=True, null=True, verbose_name='Notas')
+    is_paid = models.BooleanField(default=False, verbose_name='Pagado')
+    paid_date = models.DateTimeField(null=True, blank=True, verbose_name='Fecha de pago')
+    related_sale_id = models.IntegerField(null=True, blank=True, verbose_name='ID de venta relacionada')
+    synced_to_server = models.BooleanField(default=False, verbose_name='Sincronizado con servidor')
+    local_uuid = models.CharField(max_length=64, blank=True, null=True, unique=True, verbose_name='UUID local')
+
+    def __str__(self):
+        return f"Cta. Cte. {self.employee.get_full_name()} - {self.date_joined.strftime('%d/%m/%Y')}"
+
+    def save(self, *args, **kwargs):
+        if not self.company_id:
+            user = get_current_user()
+            if user and not user.is_anonymous:
+                self.company_id = getattr(user, 'company_id', None)
+        
+        # Generar local_uuid para nuevos registros
+        if not self.pk and not self.local_uuid:
+            import uuid
+            self.local_uuid = f"emp_acc_{uuid.uuid4().hex}"
+        
+        # Capturar la zona horaria local solo para nuevos registros
+        if not self.pk and not self.local_timezone:
+            try:
+                import pytz
+                from django.conf import settings
+                # Obtener la zona horaria local del sistema
+                local_tz = pytz.timezone(getattr(settings, 'TIME_ZONE', 'America/Argentina/Buenos_Aires'))
+                # Guardar la zona horaria actual
+                self.local_timezone = str(timezone.now().astimezone(local_tz).tzinfo)
+            except Exception:
+                # Si hay error, usar zona horaria por defecto
+                self.local_timezone = 'America/Argentina/Buenos_Aires'
+        
+        super().save(*args, **kwargs)
+
+    def toJSON(self):
+        item = model_to_dict(self)
+        item['employee'] = self.employee.get_full_name() or self.employee.username
+        # Formatear la fecha sin conversión de zona horaria
+        try:
+            local_dt = timezone.localtime(self.date_joined)
+            item['date_joined'] = local_dt.strftime('%Y-%m-%d %H:%M:%S')
+            item['date_joined_display'] = local_dt.strftime('%d-%m-%Y %H:%M')
+        except Exception:
+            item['date_joined'] = self.date_joined.strftime('%Y-%m-%d %H:%M:%S') if self.date_joined else ''
+            item['date_joined_display'] = self.date_joined.strftime('%d-%m-%Y %H:%M') if self.date_joined else ''
+        
+        if self.paid_date:
+            try:
+                local_paid_dt = timezone.localtime(self.paid_date)
+                item['paid_date'] = local_paid_dt.strftime('%Y-%m-%d %H:%M:%S')
+                item['paid_date_display'] = local_paid_dt.strftime('%d-%m-%Y %H:%M')
+            except Exception:
+                item['paid_date'] = self.paid_date.strftime('%Y-%m-%d %H:%M:%S') if self.paid_date else ''
+                item['paid_date_display'] = self.paid_date.strftime('%d-%m-%Y %H:%M') if self.paid_date else ''
+        else:
+            item['paid_date'] = ''
+            item['paid_date_display'] = ''
+        
+        # Formatear valores monetarios
+        item['subtotal'] = format(self.subtotal, '.2f')
+        item['iva'] = format(self.iva, '.2f')
+        item['total'] = format(self.total, '.2f')
+        item['local_uuid'] = self.local_uuid or ''
+        item['synced_to_server'] = self.synced_to_server
+        item['det'] = [i.toJSON() for i in self.detemployeeaccount_set.all()]
+        return item
+
+    class Meta:
+        verbose_name = 'Venta Cuenta Corriente Empleado'
+        verbose_name_plural = 'Ventas Cuenta Corriente Empleados'
+        ordering = ['-date_joined']
+        permissions = [
+            ("manage_employee_accounts", "Puede gestionar cuentas corrientes de empleados"),
+        ]
+
+
+class DetEmployeeAccount(models.Model):
+    """Detalle de venta por cuenta corriente de empleado"""
+    employee_account = models.ForeignKey(EmployeeAccountSale, on_delete=models.CASCADE)
+    prod = models.ForeignKey(Product, on_delete=models.CASCADE)
+    price = models.DecimalField(default=0.00, max_digits=9, decimal_places=2)
+    cant = models.DecimalField(default=0, max_digits=9, decimal_places=3)
+    subtotal = models.DecimalField(default=0.00, max_digits=9, decimal_places=2)
+    iva_amount = models.DecimalField(default=0.00, max_digits=9, decimal_places=2, verbose_name='Monto IVA')
+
+    def __str__(self):
+        return f"{self.prod.name} - {self.cant}"
+
+    def calculate_iva_amount(self):
+        """Calcular el monto de IVA para este detalle"""
+        if self.prod and self.prod.iva_rate:
+            # Calcular IVA basado en el subtotal
+            iva_rate = Decimal(str(self.prod.iva_rate))
+            # Normalizar rate: si es mayor que 1, tratarlo como porcentaje (21 -> 0.21)
+            if iva_rate > Decimal('1.0'):
+                iva_rate = iva_rate / Decimal('100.0')
+            # Asegurar que subtotal es Decimal para consistencia
+            subtotal_decimal = Decimal(str(self.subtotal))
+            return (subtotal_decimal * iva_rate).quantize(Decimal('0.01'))
+        return Decimal('0.00')
+    
+    def save(self, *args, **kwargs):
+        # Calcular el monto de IVA automáticamente
+        self.iva_amount = self.calculate_iva_amount()
+        super().save(*args, **kwargs)
+
+    def toJSON(self):
+        item = model_to_dict(self, exclude=['employee_account'])
+        item['prod'] = self.prod.toJSON()
+        item['price'] = format(self.price, '.2f') if self.price is not None else '0.00'
+        item['subtotal'] = format(self.subtotal, '.2f') if self.subtotal is not None else '0.00'
+        item['iva_amount'] = format(self.iva_amount, '.2f') if self.iva_amount is not None else '0.00'
+        # Agregar información del IVA del producto
+        item['prod']['iva_rate'] = float(self.prod.iva_rate) if self.prod and self.prod.iva_rate else 0.0
+        item['prod']['pvp_with_iva'] = format(self.prod.pvp_final, '.2f') if self.prod and self.prod.pvp_final else '0.00'
+        return item
+
+    class Meta:
+        verbose_name = 'Detalle Cuenta Corriente Empleado'
+        verbose_name_plural = 'Detalles Cuenta Corriente Empleados'
+        ordering = ['id']

@@ -2,7 +2,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction, connections
 from django.contrib import messages
 from django.utils import timezone
-from core.erp.models import Client, Sale, Product, Category, Supplier, Expense, CashRegister
+from core.erp.models import Client, Sale, Product, Category, Supplier, Expense, CashRegister, EmployeeAccountSale
 from core.user.models import User
 
 class Command(BaseCommand):
@@ -30,6 +30,9 @@ class Command(BaseCommand):
             
             # 5) Sincronizar cierres de caja
             self.sync_cash_registers()
+            
+            # 6) Sincronizar cuentas corrientes de empleados
+            self.sync_employee_accounts()
             
             self.stdout.write(self.style.SUCCESS("Sincronización inteligente completada"))
             
@@ -299,3 +302,58 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.ERROR(f"Error sincronizando cierre {register.id}: {e}"))
         
         self.stdout.write(f"Cierres de caja sincronizados: {synced_count}")
+    
+    def sync_employee_accounts(self):
+        """Sincronizar cuentas corrientes de empleados evitando duplicados"""
+        self.stdout.write("Sincronizando cuentas corrientes de empleados...")
+        
+        local_accounts = EmployeeAccountSale.objects.using('default').all()
+        synced_count = 0
+        
+        for account in local_accounts:
+            try:
+                with transaction.atomic(using='remote'):
+                    # Verificar si ya existe cuenta corriente con misma fecha, monto y empleado
+                    existing = EmployeeAccountSale.objects.using('remote').filter(
+                        date_joined=account.date_joined,
+                        total=account.total,
+                        subtotal=account.subtotal,
+                        employee_id=account.employee_id,
+                        notes=account.notes
+                    ).only(
+                        'id', 'company_id', 'employee_id', 'date_joined', 'subtotal', 
+                        'total', 'notes', 'is_paid', 'paid_date', 'local_timezone'
+                    ).first()
+                    
+                    if existing:
+                        # Ya existe, marcar como sincronizada
+                        account.synced_to_server = True
+                        account.save(using='default')
+                        synced_count += 1
+                        continue
+                    
+                    # Crear cuenta corriente remota
+                    remote_account = EmployeeAccountSale.objects.using('remote').create(
+                        company_id=account.company_id,
+                        employee_id=account.employee_id,
+                        date_joined=account.date_joined,
+                        local_timezone=account.local_timezone,
+                        subtotal=account.subtotal,
+                        iva=account.iva,  # Para empleados, el IVA siempre es 0
+                        total=account.total,
+                        notes=account.notes,
+                        is_paid=account.is_paid,
+                        paid_date=account.paid_date,
+                        related_sale_id=account.related_sale_id,
+                        synced_to_server=True
+                    )
+                    
+                    # Marcar como sincronizada
+                    account.synced_to_server = True
+                    account.save(using='default')
+                    synced_count += 1
+                    
+            except Exception as e:
+                self.stdout.write(self.style.ERROR(f"Error sincronizando cuenta corriente {account.id}: {e}"))
+        
+        self.stdout.write(f"Cuentas corrientes sincronizadas: {synced_count}")

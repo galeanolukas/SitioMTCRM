@@ -103,6 +103,13 @@
     render();
   }
 
+  function clearItems() {
+    items = [];
+    selectedIndex = -1;
+    recalc();
+    $input.val('').focus();
+  }
+
   function render() {
     $tbody.empty();
     items.forEach((it, idx) => {
@@ -178,7 +185,7 @@
     return $.ajax({
       url: window.location.pathname,
       method: 'POST',
-      data,
+      data: { action, ...data },
       headers: { 'X-CSRFToken': csrftoken() },
       dataType: 'json'
     });
@@ -194,7 +201,7 @@
     const term = ($input.val() || '').trim();
     if (term.length < 2) { $suggest.hide().empty(); return; }
     
-    ajaxAction('search_products', { action: 'search_products', term })
+    ajaxAction('search_products', { term })
       .done(list => {
         $suggest.empty();
         if (!Array.isArray(list) || !list.length) { $suggest.hide(); return; }
@@ -225,7 +232,7 @@
       const code = ($input.val() || '').trim();
       if (!code) return;
       $suggest.hide().empty();
-      ajaxAction('product_by_code', { action: 'product_by_code', code })
+      ajaxAction('product_by_code', { code })
         .done(resp => {
           addOrInc(resp);
           $input.val('').focus();
@@ -309,7 +316,7 @@
 
   // Limpiar
   $('#btnClear').on('click', function () {
-    items = []; selectedIndex = -1; recalc(); $input.val('').focus();
+    clearItems();
   });
 
   // Producto genérico: abrir modal
@@ -726,6 +733,12 @@
     
     const remaining = total - firstAmount;
     
+    // Validar que remaining sea un número válido
+    if (isNaN(remaining) || remaining < 0) {
+      showToast('error', 'Error en el cálculo del monto restante');
+      return;
+    }
+    
     // Llenar datos del paso 2
     const wantsInvoice = $('#combinedInvoice').is(':checked');
     const invoiceType = wantsInvoice ? 'Factura' : 'Ticket';
@@ -902,6 +915,208 @@
     if (lastSaleId) {
       const url = '/erp/sale/ticket/' + lastSaleId + '/print/';
       window.open(url, '_blank');
+    }
+  });
+
+  // Funcionalidad para cuenta corriente de empleados
+  let employees = [];
+
+  // Cargar empleados al abrir el modal
+  $(document).on('show.bs.modal', '#employeeAccountModal', function () {
+    loadEmployees();
+    updateEmployeeAccountSummary();
+  });
+
+  function loadEmployees() {
+    $.ajax({
+      url: window.location.pathname,
+      type: 'POST',
+      data: {
+        action: 'get_employees',
+        csrfmiddlewaretoken: csrftoken()
+      },
+      success: function(response) {
+        employees = response;
+        const $select = $('#employeeSelect');
+        $select.empty().append('<option value="">Seleccione un empleado...</option>');
+        employees.forEach(emp => {
+          $select.append(`<option value="${emp.id}">${emp.name}</option>`);
+        });
+      },
+      error: function() {
+        showToast('error', 'Error al cargar empleados');
+      }
+    });
+  }
+
+  function updateEmployeeAccountSummary() {
+    const subtotal = items.reduce((sum, it) => sum + (it.subtotal || 0), 0);
+    // Para empleados, el IVA es 0
+    const iva = 0;
+    const total = subtotal + iva;
+
+    $('#empItems').text(items.length);
+    $('#empSubtotal').text(fmt(subtotal));
+    $('#empIva').text(fmt(iva));
+    $('#empTotal').text(fmt(total));
+  }
+
+  // Actualizar resumen cuando cambian los items
+  const originalRecalc = recalc;
+  recalc = function() {
+    originalRecalc();
+    updateEmployeeAccountSummary();
+  };
+
+  // Botón de cuenta corriente de empleados
+  $('#btnEmployeeAccount').on('click', function() {
+    if (items.length === 0) {
+      showToast('warning', 'Debe agregar productos antes de registrar una cuenta corriente');
+      return;
+    }
+    
+    const modal = new bootstrap.Modal(document.getElementById('employeeAccountModal'));
+    modal.show();
+  });
+
+  // Botón para agregar nuevo empleado
+  $('#btnAddEmployee').on('click', function() {
+    const modal = new bootstrap.Modal(document.getElementById('addEmployeeModal'));
+    modal.show();
+  });
+
+  // Guardar nuevo empleado
+  $('#btnSaveEmployee').on('click', function() {
+    const name = $('#newEmployeeName').val().trim();
+    const email = $('#newEmployeeEmail').val().trim();
+
+    if (!name) {
+      showToast('warning', 'Debe ingresar el nombre del empleado');
+      return;
+    }
+
+    // Prevenir doble clic
+    if ($(this).prop('disabled')) return;
+    $(this).prop('disabled', true);
+
+    $.ajax({
+      url: window.location.pathname,
+      type: 'POST',
+      data: {
+        action: 'add_employee',
+        name: name,
+        email: email,
+        csrfmiddlewaretoken: csrftoken()
+      },
+      success: function(response) {
+        if (response.error) {
+          showToast('error', response.error);
+        } else {
+          showToast('success', 'Empleado agregado correctamente');
+          
+          // Cerrar modal de agregar empleado
+          const addModal = bootstrap.Modal.getInstance(document.getElementById('addEmployeeModal'));
+          if (addModal) addModal.hide();
+          
+          // Limpiar formulario
+          $('#newEmployeeName').val('');
+          $('#newEmployeeEmail').val('');
+          
+          // Recargar lista de empleados
+          loadEmployees();
+          
+          // Seleccionar automáticamente el nuevo empleado
+          setTimeout(() => {
+            $('#employeeSelect').val(response.id);
+          }, 500);
+        }
+      },
+      error: function(jq) {
+        showToast('error', 'Error al agregar empleado: ' + (jq.responseJSON ? jq.responseJSON.error : jq.statusText));
+      },
+      complete: function() {
+        $('#btnSaveEmployee').prop('disabled', false);
+      }
+    });
+  });
+
+  // Confirmar cuenta corriente de empleado
+  $(document).on('click', '#btnConfirmEmployeeAccount', function() {
+    const employeeId = $('#employeeSelect').val();
+    const notes = $('#employeeNotes').val();
+
+    if (!employeeId) {
+      showToast('warning', 'Debe seleccionar un empleado');
+      return;
+    }
+
+    if (items.length === 0) {
+      showToast('warning', 'Debe agregar productos');
+      return;
+    }
+
+    // Prevenir doble clic
+    if ($(this).prop('disabled')) return;
+    $(this).prop('disabled', true);
+
+    const subtotal = items.reduce((sum, it) => sum + (it.subtotal || 0), 0);
+    // Para empleados, el IVA es 0
+    const iva = 0;
+    const total = subtotal + iva;
+
+    const saleData = {
+      employee_id: employeeId,
+      notes: notes,
+      items: items.map(it => ({
+        id: it.id,
+        cant: it.cant,
+        price: it.price,
+        subtotal: it.subtotal
+      })),
+      subtotal: subtotal,
+      iva: iva,
+      total: total
+    };
+
+    // Generar token único para esta venta
+    const saleToken = 'emp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+
+    $.ajax({
+      url: window.location.pathname,
+      type: 'POST',
+      data: {
+        action: 'create_employee_account_sale',
+        sale: JSON.stringify(saleData),
+        sale_token: saleToken,
+        csrfmiddlewaretoken: csrftoken()
+      },
+      success: function(response) {
+        if (response.error) {
+          showToast('error', response.error);
+        } else {
+          showToast('success', response.message || 'Cuenta corriente registrada correctamente');
+          clearItems();
+          const modal = bootstrap.Modal.getInstance(document.getElementById('employeeAccountModal'));
+          if (modal) modal.hide();
+          $('#employeeSelect').val('');
+          $('#employeeNotes').val('');
+          flashSummary();
+        }
+      },
+      error: function(jq) {
+        showToast('error', 'Error al registrar cuenta corriente: ' + (jq.responseJSON ? jq.responseJSON.error : jq.statusText));
+      },
+      complete: function() {
+        $('#btnConfirmEmployeeAccount').prop('disabled', false);
+      }
+    });
+  });
+
+  // Atajo de teclado F3 para cuenta corriente
+  $(document).on('keydown', function(e) {
+    if (e.key === 'F3') {
+      e.preventDefault();
+      $('#btnEmployeeAccount').click();
     }
   });
 

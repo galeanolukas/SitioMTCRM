@@ -68,7 +68,7 @@ if errorlevel 1 (
 REM 4) Configurar Git Portable para actualizaciones automaticas
 echo.
 echo ============================================
-echo  Configurando Git Portable
+echo  Configurando Git Portable (Opcional)
 echo ============================================
 echo.
 
@@ -87,79 +87,53 @@ IF EXIST tools\PortableGit\bin\git.exe (
     goto skip_git_portable
 )
 
+REM Preguntar si desea configurar Git Portable
+echo Git Portable permite actualizaciones automaticas sin instalar Git en Windows.
+echo Si no desea configurarlo ahora, puede hacerlo mas tarde.
+echo.
+set /p git_option="Desea configurar Git Portable ahora? (S/N): "
+if /i not "%git_option%"=="S" (
+    echo Omitiendo configuracion de Git Portable.
+    echo Podra configurarlo mas tarde ejecutando: setup_git_portable.bat
+    goto skip_git_portable
+)
+
 REM Intentar descargar Git Portable automaticamente
-echo Git Portable no encontrado. Intentando descarga automatica...
+echo Intentando descarga automatica de Git Portable...
 echo.
 
 REM Verificar si curl esta disponible
 curl --version >nul 2>&1
 if errorlevel 1 (
-    echo [ADVERTENCIA] curl no esta disponible.
-    echo.
-    echo Opciones para Git Portable:
-    echo 1. Descargar manualmente desde: https://git-scm.com/download/win
-    echo 2. Usar Git instalado en el sistema
-    echo 3. Continuar sin Git Portable (funciones limitadas)
+    echo [INFO] curl no esta disponible. Omitiendo descarga automatica.
     echo.
     echo Para configurar Git Portable manualmente:
-    echo   1. Descargue "Portable Git" desde la web oficial
+    echo   1. Descargue "Portable Git" desde: https://git-scm.com/download/win
     echo   2. Extraiga en: tools\PortableGit\
     echo   3. El sistema lo detectara automaticamente
     echo.
-    echo Sin Git Portable, podra usar:
-    echo - Actualizaciones con Git instalado en el sistema
-    echo - Funciones basicas del sistema
-    echo.
-    set /p git_option="Desea continuar sin Git Portable? (S/N): "
-    if /i not "%git_option%"=="S" (
-        echo Instalacion cancelada.
-        pause
-        exit /b 1
-    )
-    echo.
-    echo Continuando con la instalacion sin Git Portable...
-    echo Podra configurarlo mas tarde ejecutando: setup_git_portable_inline.bat
     goto skip_git_portable
 )
 
-REM Descargar Git Portable
+REM Descargar Git Portable con timeout y reintentos
 echo Descargando Git Portable (esto puede tardar varios minutos)...
 set "GIT_URL=https://github.com/git-for-windows/git/releases/download/v2.45.0.windows.1/PortableGit-2.45.0-64-bit.7z.exe"
 set "GIT_INSTALLER=tools\PortableGit-2.45.0-64-bit.7z.exe"
 
-curl -L -o "%GIT_INSTALLER%" "%GIT_URL%"
-if errorlevel 1 (
-    echo [ERROR] Error al descargar Git Portable.
-    echo Verifique su conexion a internet.
-    echo.
-    echo Opciones:
-    echo 1. Reintentar la descarga
-    echo 2. Continuar sin Git Portable
-    echo 3. Cancelar instalacion
-    echo.
-    set /p download_option="Elija una opcion (1/2/3): "
-    if "%download_option%"=="1" (
-        echo Reintentando descarga...
-        goto download_retry
-    ) else if "%download_option%"=="2" (
-        echo Continuando sin Git Portable.
-        echo Podra configurarlo mas tarde ejecutando: setup_git_portable_inline.bat
-        goto skip_git_portable
-    ) else (
-        echo Instalacion cancelada.
-        pause
-        exit /b 1
-    )
-)
-
+REM Intentar descarga con reintentos limitados
+set retry_count=0
 :download_retry
-echo Reintentando descarga de Git Portable...
-curl -L -o "%GIT_INSTALLER%" "%GIT_URL%"
+set /a retry_count+=1
+curl -L --max-time 300 -o "%GIT_INSTALLER%" "%GIT_URL%" 2>nul
 if errorlevel 1 (
-    echo [ERROR] Error persistente en la descarga.
-    echo.
-    echo Continuando sin Git Portable. Podra configurarlo mas tarde.
-    goto skip_git_portable
+    if %retry_count% lss 3 (
+        echo Reintento %retry_count%/3...
+        goto download_retry
+    ) else (
+        echo [ADVERTENCIA] No se pudo descargar Git Portable despues de 3 intentos.
+        echo Continuando con la instalacion sin Git Portable.
+        goto cleanup_installer
+    )
 )
 
 echo [OK] Git Portable descargado exitosamente.
@@ -197,20 +171,20 @@ IF EXIST tools\PortableGit\bin\git.exe (
     echo Configurando Git Portable...
     
     REM Configurar Git Portable
-    tools\PortableGit\bin\git.exe config --global user.name "POS User"
-    tools\PortableGit\bin\git.exe config --global user.email "pos@multilideres.com"
-    tools\PortableGit\bin\git.exe config --global init.defaultBranch main
-    tools\PortableGit\bin\git.exe config --global pull.rebase false
-    tools\PortableGit\bin\git.exe config --global safe.directory "*"
+    tools\PortableGit\bin\git.exe config --global user.name "POS User" 2>nul
+    tools\PortableGit\bin\git.exe config --global user.email "pos@multilideres.com" 2>nul
+    tools\PortableGit\bin\git.exe config --global init.defaultBranch main 2>nul
+    tools\PortableGit\bin\git.exe config --global pull.rebase false 2>nul
+    tools\PortableGit\bin\git.exe config --global safe.directory "*" 2>nul
     
     echo [OK] Git Portable configurado.
     echo.
     echo Git Portable esta listo para usar en actualizaciones automaticas.
 ) ELSE (
-    echo [ADVERTENCIA] Git Portable no se pudo instalar correctamente.
+    echo [INFO] Git Portable no se pudo instalar correctamente.
     echo.
-    echo Puede configurarlo mas tarde ejecutando:
-    echo   setup_git_portable.bat
+    echo Esto no afecta el funcionamiento del sistema.
+    echo Puede configurarlo mas tarde ejecutando: setup_git_portable.bat
 )
 
 :skip_git_portable
@@ -220,45 +194,85 @@ echo  Git Portable - Configuracion Completa
 echo ============================================
 echo.
 
-REM 5) Migraciones
-echo Creando migraciones si hacen falta (apps user y erp)...
+REM 5) Migraciones - Asegurar creación completa de tablas
+echo.
+echo ============================================
+echo  Creando Base de Datos y Tablas
+echo ============================================
+echo.
+
+REM Limpiar migraciones anteriores solo si existen archivos de migración
+IF EXIST core\erp\migrations\ (
+    echo [1/6] Limpiando migraciones anteriores...
+    del /Q core\erp\migrations\*.py 2>nul
+    del /Q core\user\migrations\*.py 2>nul
+    echo Hecho.
+)
+
+REM Crear directorios de migraciones si no existen
+IF NOT EXIST core\erp\migrations (
+    mkdir core\erp\migrations
+    echo. > core\erp\migrations\__init__.py
+)
+
+IF NOT EXIST core\user\migrations (
+    mkdir core\user\migrations
+    echo. > core\user\migrations\__init__.py
+)
+
+echo [2/6] Creando migraciones iniciales para user...
+python manage.py makemigrations user --empty user --name initial
+if errorlevel 1 (
+    echo Advertencia: No se pudo crear migración inicial para user
+)
+
+echo [3/6] Creando migraciones iniciales para erp...
+python manage.py makemigrations erp --empty erp --name initial
+if errorlevel 1 (
+    echo Advertencia: No se pudo crear migración inicial para erp
+)
+
+echo [4/6] Creando migraciones automáticas...
 python manage.py makemigrations user erp
 if errorlevel 1 (
-    echo Error ejecutando makemigrations.
-    pause
-    exit /b 1
+    echo Error en makemigrations automatico, intentando metodo alternativo...
+    python manage.py makemigrations
 )
 
-echo Ejecutando migraciones de la base de datos...
+echo [5/6] Aplicando migraciones con --fake-initial...
+python manage.py migrate --fake-initial
+if errorlevel 1 (
+    echo Error en --fake-initial, continuando con migrate normal...
+)
+
+echo [6/6] Aplicando todas las migraciones...
 python manage.py migrate
 if errorlevel 1 (
-    echo Error ejecutando migraciones.
+    echo ERROR CRITICO: No se pudieron aplicar las migraciones
+    echo.
+    echo Posibles soluciones:
+    echo 1. Elimine el archivo db.sqlite3 y reintente
+    echo 2. Verifique que no haya programas usando la base de datos
+    echo 3. Ejecute manualmente: python manage.py migrate
+    echo.
     pause
     exit /b 1
 )
 
-REM 6) Crear superusuario si no existe
-echo Creando superusuario por defecto (admin/admin)...
-python manage.py shell -c "
-from django.contrib.auth import get_user_model
-User = get_user_model()
-try:
-    if not User.objects.filter(username='admin').exists():
-        User.objects.create_superuser('admin', 'admin@example.com', 'admin')
-        print('Superusuario admin creado con contrasena: admin')
-    else:
-        print('Superusuario admin ya existe')
-except Exception as e:
-    print(f'Error creando superusuario: {e}')
-    print('Podra crearlo manualmente con: python manage.py createsuperuser')
-"
-if errorlevel 1 (
-    echo [ADVERTENCIA] Error al crear superusuario automaticamente.
-    echo Podra crearlo manualmente despues con:
-    echo   python manage.py createsuperuser
-    echo.
-    echo Continuando con la instalacion...
-)
+REM 6) Omitir creación automática de superusuario
+echo.
+echo ============================================
+echo  Creacion de Superusuario (Manual)
+echo ============================================
+echo.
+echo IMPORTANTE: Por seguridad, no se crea un superusuario automaticamente.
+echo Debe crearlo manualmente despues de la instalacion.
+echo.
+echo Para crear el superusuario, ejecute:
+echo   python manage.py createsuperuser
+echo.
+echo O acceda a la administracion y siga las instrucciones.
+echo.
 
 REM 7) Crear acceso directo en el escritorio
 echo Creando acceso directo en el escritorio...
@@ -277,6 +291,25 @@ if errorlevel 1 (
     echo Continuando con la instalacion...
 )
 
+REM 8) Recolectar archivos estáticos
+echo.
+echo ============================================
+echo  Recolectando Archivos Estaticos
+echo ============================================
+echo.
+
+python manage.py collectstatic --noinput
+if errorlevel 1 (
+    echo [ADVERTENCIA] Error al recolectar archivos estáticos.
+    echo Esto puede afectar la visualizacion de algunos elementos.
+    echo.
+    echo Puede ejecutar manualmente: python manage.py collectstatic --noinput
+    echo.
+    echo Continuando con la instalacion...
+) else (
+    echo [OK] Archivos estáticos recolectados exitosamente.
+)
+
 echo.
 echo ============================================
 echo  INSTALACION COMPLETADA EXITOSAMENTE!
@@ -288,9 +321,12 @@ echo Componentes instalados:
 echo   - Entorno virtual venv
 echo   - Dependencias Python
 echo   - Base de datos SQLite
-echo   - Superusuario: admin / admin
 echo   - Acceso directo en escritorio
 echo   - Git Portable: %IF EXIST tools\PortableGit\bin\git.exe (echo Listo) ELSE (echo No disponible)%
+echo.
+echo PASOS IMPORTANTES ANTES DE USAR:
+echo   1. Cree un superusuario: python manage.py createsuperuser
+echo   2. Inicie el servidor: python manage.py runserver
 echo.
 echo Para iniciar el sistema:
 echo   1. Use el acceso directo en el escritorio
@@ -304,5 +340,18 @@ echo Si Git Portable esta disponible, podra usar:
 echo   - Boton "Actualizar (Portable)" en la web
 echo   - Script: actualizar_pos_portable.bat
 echo.
-echo Presione cualquier tecla para salir...
-pause >nul
+
+REM Preguntar si desea iniciar el programa automáticamente
+set /p start_program="¿Desea iniciar el programa automáticamente? (s/n): "
+if /i "%start_program%"=="s" (
+    echo.
+    echo Iniciando el programa...
+    echo El servidor se iniciará en: http://127.0.0.1:8000/
+    echo Presione Ctrl+C para detener el servidor.
+    echo.
+    python manage.py runserver 0.0.0.0:8000
+) else (
+    echo.
+    echo Presione cualquier tecla para salir...
+    pause >nul
+)

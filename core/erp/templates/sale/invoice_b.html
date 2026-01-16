@@ -69,38 +69,46 @@
     <table class="mb-3">
       <thead>
         <tr>
-          <th style="width: 40%">Producto</th>
-          <th style="width: 20%" class="text-center">Categoría</th>
+          <th style="width: 35%">Producto</th>
+          <th style="width: 15%" class="text-center">Categoría</th>
           <th style="width: 10%" class="text-center">Cantidad</th>
-          <th style="width: 15%" class="text-right">Precio</th>
+          <th style="width: 15%" class="text-right">PVP s/IVA</th>
           <th style="width: 15%" class="text-right">Subtotal</th>
+          <th style="width: 10%" class="text-right">IVA</th>
         </tr>
       </thead>
       <tbody>
         {% for det in items %}
         {% widthratio det.prod.pvp 1 det.cant as sub_neto %}
+        {% if det.prod.iva_rate %}
+            {% widthratio det.prod.iva_rate 100 det.subtotal as det_iva %}
+        {% else %}
+            {% with det_iva=0 %}
+        {% endif %}
         <tr>
           <td>{{ det.prod.name }}</td>
           <td class="text-center">{{ det.prod.cat.name }}</td>
           <td class="text-center">{{ det.cant }}</td>
           <td class="text-right">$ {{ det.prod.pvp }}</td>
           <td class="text-right">$ {{ sub_neto|floatformat:2 }}</td>
+          <td class="text-right">$ {{ det_iva|floatformat:2 }}</td>
         </tr>
+        {% endwith %}
         {% endfor %}
       </tbody>
       <tfoot>
         <tr class="totals">
-          <td colspan="3"></td>
+          <td colspan="4"></td>
           <td class="text-right"><strong>Subtotal</strong></td>
           <td class="text-right">$ {{ sale.subtotal }}</td>
         </tr>
         <tr class="totals">
-          <td colspan="3"></td>
+          <td colspan="4"></td>
           <td class="text-right"><strong>IVA</strong></td>
           <td class="text-right">$ {{ sale.iva }}</td>
         </tr>
         <tr class="totals">
-          <td colspan="3"></td>
+          <td colspan="4"></td>
           <td class="text-right"><strong>Total</strong></td>
           <td class="text-right"><strong>$ {{ sale.total }}</strong></td>
         </tr>

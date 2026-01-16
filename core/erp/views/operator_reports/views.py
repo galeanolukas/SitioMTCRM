@@ -91,6 +91,8 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                 # Calculate totals
                 total_sales = sales.aggregate(
                     total=Sum('total'),
+                    subtotal=Sum('subtotal'),
+                    iva=Sum('iva'),
                     count=Count('id')
                 )
                 
@@ -108,11 +110,15 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                 for method_key, method_name in payment_choices.items():
                     method_total = sales.filter(payment_method=method_key).aggregate(
                         total=Sum('total'),
+                        subtotal=Sum('subtotal'),
+                        iva=Sum('iva'),
                         count=Count('id')
                     )
                     payment_totals[method_key] = {
                         'name': method_name,
                         'total': float(method_total['total'] or 0),
+                        'subtotal': float(method_total['subtotal'] or 0),
+                        'iva': float(method_total['iva'] or 0),
                         'count': method_total['count'] or 0
                     }
                 
@@ -126,17 +132,20 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                         'id': sale.id,
                         'date': sale.date_joined.strftime('%d/%m/%Y %H:%M'),
                         'client': sale.cli.names if sale.cli else 'Anónimo',
-                        'total': float(sale.total),
+                        'subtotal': float(sale.subtotal),  # PVP puro sin IVA
                         'payment_method': sale.payment_method,  # Enviar el código, no el display
                         'payment_details': getattr(sale, 'payment_details', []),  # Enviar detalles si existen
                         'company': sale.company.name if sale.company else 'N/A',
                         'ticket_number': ticket_number
                     })
                 
+                # Calcular totales generales usando subtotal (PVP puro)
+                grand_total = sum(float(sale.subtotal) for sale in sales)
+                
                 data = {
                     'success': True,
                     'sales': sales_data,
-                    'total_amount': float(total_sales['total'] or 0),
+                    'total_amount': grand_total,
                     'total_count': total_sales['count'] or 0,
                     'payment_totals': payment_totals,
                     'period_type': report_type,
@@ -199,7 +208,7 @@ def operator_sales_export(request):
         if export_format == 'pdf':
             if not REPORTLAB_AVAILABLE:
                 return HttpResponse("Error: ReportLab no está instalado. Instale con: pip install reportlab", content_type='text/plain')
-            return generate_pdf_report(sales, start_date, end_date, active_cid, request.user)
+            return generate_pdf_report(sales, start_date, end_date, active_cid, request.user, report_type)
         
         elif export_format == 'csv':
             import csv
@@ -227,74 +236,98 @@ def operator_sales_export(request):
             writer.writerow([f"Fecha de generación: {timezone.now().strftime('%d/%m/%Y %H:%M')}"])
             writer.writerow([])
             
-            writer.writerow(['Fecha', 'Ticket/Factura', 'Cliente', 'Efectivo', 'Transferencia', 'Mercado Pago', 'Total', 'Forma de Pago', 'Empresa'])
+            writer.writerow(['Fecha', 'Ticket/Factura', 'Cliente', 'Efectivo', 'Mercado Pago', 'Transferencias', 'Otros', 'Forma de Pago', 'Empresa'])
             
-            total_amount = 0
             cash_total = 0
-            transfer_total = 0
             mp_total = 0
+            transfer_total = 0
+            other_total = 0
             
             for sale in sales:
                 # Get invoice/ticket number
                 ticket_number = sale.invoice_number if sale.is_invoiced else f"TK-{sale.id:06d}"
                 
-                # Distribute amounts by payment method
+                sale_subtotal = float(sale.subtotal)  # Usar PVP puro sin IVA
+                
+                # Distribute amount by payment method
                 cash_amount = 0
-                transfer_amount = 0
                 mp_amount = 0
+                transfer_amount = 0
+                other_amount = 0
                 
                 if sale.payment_method == 'cash':
-                    cash_amount = float(sale.total)
-                elif sale.payment_method == 'transfer':
-                    transfer_amount = float(sale.total)
+                    cash_amount = sale_subtotal
+                    cash_total += cash_amount
                 elif sale.payment_method == 'mp':
-                    mp_amount = float(sale.total)
+                    mp_amount = sale_subtotal
+                    mp_total += mp_amount
+                elif sale.payment_method == 'transfer':
+                    transfer_amount = sale_subtotal
+                    transfer_total += transfer_amount
+                elif sale.payment_method in ['card', 'check']:
+                    other_amount = sale_subtotal
+                    other_total += other_amount
                 elif sale.payment_method and '+' in sale.payment_method:
-                    # Distribuir pagos combinados
+                    # Combined payments
                     payment_details = getattr(sale, 'payment_details', [])
-                    if payment_details:
+                    if payment_details and isinstance(payment_details, list):
                         for payment in payment_details:
-                            amount = float(payment.get('amount', 0))
-                            if payment.get('method') == 'cash':
-                                cash_amount += amount
-                            elif payment.get('method') == 'transfer':
-                                transfer_amount += amount
-                            elif payment.get('method') == 'mp':
-                                mp_amount += amount
+                            if isinstance(payment, dict):
+                                method = payment.get('method', '')
+                                amount = float(payment.get('amount', 0))
+                                
+                                if method == 'cash':
+                                    cash_amount += amount
+                                    cash_total += amount
+                                elif method == 'mp':
+                                    mp_amount += amount
+                                    mp_total += amount
+                                elif method == 'transfer':
+                                    transfer_amount += amount
+                                    transfer_total += amount
+                                elif method in ['card', 'check']:
+                                    other_amount += amount
+                                    other_total += amount
+                                else:
+                                    # Método no reconocido, agregar a otros
+                                    other_amount += amount
+                                    other_total += amount
                     else:
-                        cash_amount = float(sale.total)
-                
-                cash_total += cash_amount
-                transfer_total += transfer_amount
-                mp_total += mp_amount
+                        # If no details or invalid format, put in others
+                        other_amount = sale_subtotal
+                        other_total += other_amount
+                else:
+                    # Unrecognized method, put in others
+                    other_amount = sale_subtotal
+                    other_total += other_amount
                 
                 writer.writerow([
                     sale.date_joined.strftime('%d/%m/%Y %H:%M'),
                     ticket_number,
                     sale.cli.names if sale.cli else 'Anónimo',
                     cash_amount,
-                    transfer_amount,
                     mp_amount,
-                    float(sale.total),
+                    transfer_amount,
+                    other_amount,
                     sale.get_payment_method_display(),
                     sale.company.name if sale.company else 'N/A'
                 ])
-                total_amount += float(sale.total)
             
             # Add summary
             writer.writerow([])
             writer.writerow(['RESUMEN'])
-            writer.writerow(['Total Ventas', total_amount])
+            writer.writerow(['Efectivo', cash_total])
+            writer.writerow(['Mercado Pago', mp_total])
+            writer.writerow(['Transferencias', transfer_total])
+            writer.writerow(['Otros', other_total])
+            grand_total = cash_total + mp_total + transfer_total + other_total
+            writer.writerow(['Total General', grand_total])
             writer.writerow(['Cantidad de Ventas', len(sales)])
-            writer.writerow(['Promedio por Venta', total_amount / len(sales) if sales else 0])
+            writer.writerow(['Promedio por Venta', grand_total / len(sales) if sales else 0])
             
             # Add payment method breakdown
             writer.writerow([])
             writer.writerow(['DESGLOSE POR MÉTODO DE PAGO'])
-            writer.writerow(['Efectivo', cash_total])
-            writer.writerow(['Transferencia', transfer_total])
-            writer.writerow(['Mercado Pago', mp_total])
-            writer.writerow(['Total Verificado', cash_total + transfer_total + mp_total])
             
             payment_choices = {
                 'cash': 'Efectivo',
@@ -358,7 +391,7 @@ def operator_sales_export(request):
             ws.append([''])
             
             # Headers
-            headers = ['Fecha', 'Ticket/Factura', 'Cliente', 'Total', 'Forma de Pago', 'Empresa']
+            headers = ['Fecha', 'Ticket/Factura', 'Cliente', 'Efectivo', 'Mercado Pago', 'Transferencias', 'Otros', 'Forma de Pago', 'Empresa']
             ws.append(headers)
             
             # Style headers
@@ -383,41 +416,125 @@ def operator_sales_export(request):
                 cell.border = thin_border
             
             # Data
-            total_amount = 0
+            cash_total = 0
+            mp_total = 0
+            transfer_total = 0
+            other_total = 0
             row_num = 10
             for sale in sales:
                 # Get invoice/ticket number
                 ticket_number = sale.invoice_number if sale.is_invoiced else f"TK-{sale.id:06d}"
                 
+                sale_subtotal = float(sale.subtotal)  # Usar PVP puro sin IVA
+                
+                # Distribute amount by payment method
+                cash_amount = 0
+                mp_amount = 0
+                transfer_amount = 0
+                other_amount = 0
+                
+                if sale.payment_method == 'cash':
+                    cash_amount = sale_subtotal
+                    cash_total += cash_amount
+                elif sale.payment_method == 'mp':
+                    mp_amount = sale_subtotal
+                    mp_total += mp_amount
+                elif sale.payment_method == 'transfer':
+                    transfer_amount = sale_subtotal
+                    transfer_total += transfer_amount
+                elif sale.payment_method in ['card', 'check']:
+                    other_amount = sale_subtotal
+                    other_total += other_amount
+                elif sale.payment_method and '+' in sale.payment_method:
+                    # Combined payments
+                    payment_details = getattr(sale, 'payment_details', [])
+                    if payment_details and isinstance(payment_details, list):
+                        for payment in payment_details:
+                            if isinstance(payment, dict):
+                                method = payment.get('method', '')
+                                amount = float(payment.get('amount', 0))
+                                
+                                if method == 'cash':
+                                    cash_amount += amount
+                                    cash_total += amount
+                                elif method == 'mp':
+                                    mp_amount += amount
+                                    mp_total += amount
+                                elif method == 'transfer':
+                                    transfer_amount += amount
+                                    transfer_total += amount
+                                elif method in ['card', 'check']:
+                                    other_amount += amount
+                                    other_total += amount
+                                else:
+                                    # Método no reconocido, agregar a otros
+                                    other_amount += amount
+                                    other_total += amount
+                    else:
+                        # If no details or invalid format, put in others
+                        other_amount = sale_subtotal
+                        other_total += other_amount
+                else:
+                    # Unrecognized method, put in others
+                    other_amount = sale_subtotal
+                    other_total += other_amount
+                
                 ws.append([
                     sale.date_joined.strftime('%d/%m/%Y %H:%M'),
                     ticket_number,
                     sale.cli.names if sale.cli else 'Anónimo',
-                    float(sale.total),
+                    cash_amount,
+                    mp_amount,
+                    transfer_amount,
+                    other_amount,
                     sale.get_payment_method_display(),
                     sale.company.name if sale.company else 'N/A'
                 ])
                 
                 # Style data rows
-                for col_num in range(1, 7):
+                for col_num in range(1, 10):
                     cell = ws.cell(row=row_num, column=col_num)
                     cell.border = thin_border
-                    if col_num == 4:  # Total column
+                    if col_num in [4, 5, 6, 7]:  # Efectivo, MP, Transfer, Otros columns
                         cell.alignment = Alignment(horizontal='right')
                 
-                total_amount += float(sale.total)
                 row_num += 1
             
             # Summary section
             row_num += 2
             ws.append(['RESUMEN'])
-            ws.merge_cells(f'A{row_num}:F{row_num}')
+            ws.merge_cells(f'A{row_num}:I{row_num}')
             ws.cell(row=row_num, column=1).font = Font(bold=True, size=12)
             ws.cell(row=row_num, column=1).alignment = Alignment(horizontal='center')
             ws.cell(row=row_num, column=1).fill = PatternFill(start_color='E2EFDA', end_color='E2EFDA', fill_type='solid')
             
             row_num += 1
-            ws.append(['Total Ventas', total_amount])
+            ws.append(['Efectivo', cash_total])
+            ws.cell(row=row_num, column=1).font = Font(bold=True)
+            ws.cell(row=row_num, column=2).font = Font(bold=True)
+            ws.cell(row=row_num, column=2).alignment = Alignment(horizontal='right')
+            
+            row_num += 1
+            ws.append(['Mercado Pago', mp_total])
+            ws.cell(row=row_num, column=1).font = Font(bold=True)
+            ws.cell(row=row_num, column=2).font = Font(bold=True)
+            ws.cell(row=row_num, column=2).alignment = Alignment(horizontal='right')
+            
+            row_num += 1
+            ws.append(['Transferencias', transfer_total])
+            ws.cell(row=row_num, column=1).font = Font(bold=True)
+            ws.cell(row=row_num, column=2).font = Font(bold=True)
+            ws.cell(row=row_num, column=2).alignment = Alignment(horizontal='right')
+            
+            row_num += 1
+            ws.append(['Otros', other_total])
+            ws.cell(row=row_num, column=1).font = Font(bold=True)
+            ws.cell(row=row_num, column=2).font = Font(bold=True)
+            ws.cell(row=row_num, column=2).alignment = Alignment(horizontal='right')
+            
+            row_num += 1
+            grand_total = cash_total + mp_total + transfer_total + other_total
+            ws.append(['Total General', grand_total])
             ws.cell(row=row_num, column=1).font = Font(bold=True)
             ws.cell(row=row_num, column=2).font = Font(bold=True)
             ws.cell(row=row_num, column=2).alignment = Alignment(horizontal='right')
@@ -427,7 +544,7 @@ def operator_sales_export(request):
             ws.cell(row=row_num, column=1).font = Font(bold=True)
             
             row_num += 1
-            ws.append(['Promedio por Venta', total_amount / len(sales) if sales else 0])
+            ws.append(['Promedio por Venta', grand_total / len(sales) if sales else 0])
             ws.cell(row=row_num, column=1).font = Font(bold=True)
             ws.cell(row=row_num, column=2).font = Font(bold=True)
             ws.cell(row=row_num, column=2).alignment = Alignment(horizontal='right')
@@ -435,7 +552,7 @@ def operator_sales_export(request):
             # Payment method breakdown
             row_num += 2
             ws.append(['DESGLOSE POR MÉTODO DE PAGO'])
-            ws.merge_cells(f'A{row_num}:F{row_num}')
+            ws.merge_cells(f'A{row_num}:H{row_num}')
             ws.cell(row=row_num, column=1).font = Font(bold=True, size=12)
             ws.cell(row=row_num, column=1).alignment = Alignment(horizontal='center')
             ws.cell(row=row_num, column=1).fill = PatternFill(start_color='E2EFDA', end_color='E2EFDA', fill_type='solid')
@@ -462,7 +579,7 @@ def operator_sales_export(request):
                     row_num += 1
             
             # Adjust column widths
-            column_widths = [20, 15, 25, 12, 15, 20]
+            column_widths = [20, 15, 25, 12, 15, 15, 12, 15, 20]
             for col_num, width in enumerate(column_widths, 1):
                 ws.column_dimensions[openpyxl.utils.get_column_letter(col_num)].width = width
             
@@ -478,7 +595,7 @@ def operator_sales_export(request):
         return HttpResponse(f"Error en exportación: {str(e)}", content_type='text/plain')
 
 
-def generate_pdf_report(sales, start_date, end_date, company_id, user):
+def generate_pdf_report(sales, start_date, end_date, company_id, user, report_type='daily'):
     """Generate PDF report matching the exact format from the image"""
     if not REPORTLAB_AVAILABLE:
         from django.http import HttpResponse
@@ -521,8 +638,8 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user):
     response['Content-Disposition'] = f'attachment; filename="planilla_ventas_{start_date}_al_{end_date}.pdf"'
     
     buffer = BytesIO()
-    # Use A4 with margins matching the image format
-    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=50, bottomMargin=50)
+    # Use A4 with optimized margins for better space utilization
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=30, leftMargin=30, topMargin=40, bottomMargin=40)
     
     styles = getSampleStyleSheet()
     
@@ -555,7 +672,7 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user):
     # Header - Company name and Planilla de Ventas
     story.append(Paragraph(company_name, header_style))
     story.append(Paragraph("Planilla de Ventas", date_style))
-    story.append(Spacer(1, 8))  # Reducido de 20 a 8
+    story.append(Spacer(1, 6))  # Reducido de 8 a 6
     
     # Date and Operator section - más compacto
     date_style_small = ParagraphStyle(
@@ -567,56 +684,32 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user):
         textColor=colors.black
     )
     
-    # Fecha y operador en una sola línea
+    # Fecha y operador en una sola línea - mostrar período según tipo de reporte
     operator_name = getattr(user, 'username', 'Operador')
-    story.append(Paragraph(f"Fecha: {start_date.split('-')[0]} | Operador: {operator_name}", date_style_small))
-    story.append(Spacer(1, 12))  # Reducido de 30 a 12
     
-    # Calculate totals by payment method
-    cash_total = 0
-    transfer_total = 0
-    mp_total = 0
-    card_total = 0
-    check_total = 0
-    combined_total = 0
-    grand_total = 0
+    # Función para formatear fecha a formato latinoamericano
+    def format_date_latam(date_str):
+        if not date_str:
+            return ''
+        try:
+            from datetime import datetime
+            date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+            return date_obj.strftime('%d/%m/%Y')
+        except:
+            return date_str
     
-    for sale in sales:
-        sale_total = float(sale.total)
-        grand_total += sale_total
-        
-        # Manejar diferentes métodos de pago
-        if sale.payment_method == 'cash':
-            cash_total += sale_total
-        elif sale.payment_method == 'transfer':
-            transfer_total += sale_total
-        elif sale.payment_method == 'mp':
-            mp_total += sale_total
-        elif sale.payment_method == 'card':
-            card_total += sale_total
-        elif sale.payment_method == 'check':
-            check_total += sale_total
-        elif sale.payment_method and '+' in sale.payment_method:
-            # Para pagos combinados (cualquier método que contenga '+')
-            payment_details = getattr(sale, 'payment_details', [])
-            if payment_details:
-                # Distribuir montos según los detalles guardados
-                for payment in payment_details:
-                    method = payment.get('method', '')
-                    amount = float(payment.get('amount', 0))
-                    if method == 'cash':
-                        cash_total += amount
-                    elif method == 'transfer':
-                        transfer_total += amount
-                    elif method == 'mp':
-                        mp_total += amount
-                    elif method == 'card':
-                        card_total += amount
-                    elif method == 'check':
-                        check_total += amount
-            else:
-                # Si no hay detalles, poner en columna combinada
-                combined_total += sale_total
+    # Determinar el texto del período según el tipo de reporte
+    if report_type == 'daily':
+        period_text = f"Fecha: {format_date_latam(start_date)}"
+    elif report_type == 'weekly':
+        period_text = f"Período: {format_date_latam(start_date)} al {format_date_latam(end_date)}"
+    elif report_type == 'monthly':
+        period_text = f"Período: {format_date_latam(start_date)} al {format_date_latam(end_date)}"
+    else:
+        period_text = f"Período: {format_date_latam(start_date)} al {format_date_latam(end_date)}"
+    
+    story.append(Paragraph(f"{period_text} | Operador: {operator_name}", date_style_small))
+    story.append(Spacer(1, 8))  # Reducido de 12 a 8
     
     # Función para formatear con comas
     def format_currency(amount):
@@ -631,81 +724,105 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user):
         # Para pagos combinados, solo mostrar el monto sin descripción
         return f"${amount:,.2f}"
     
-    # Sales table matching the image format - versión simplificada con abreviaturas
-    headers = ['N° Comprob.', 'Efectivo', 'Transf.', 'MP', 'Otros', 'Total']
+    # Sales table with payment method columns (no Total column)
+    headers = ['N° Comprob.', 'Efectivo', 'Mercado Pago', 'Transferencias', 'Otros']
     
-    # Table data with sales distributed by payment method
+    # Table data with payment distribution
     table_data = [headers]
     
-    # Group sales by payment method and create rows
+    # Initialize totals
+    cash_total = 0
+    mp_total = 0
+    transfer_total = 0
+    other_total = 0
+    
     for sale in sales:
-        sale_total = float(sale.total)
-        cash_amount = 0
-        transfer_amount = 0
-        mp_amount = 0
-        other_amount = 0  # Incluye tarjeta, cheque y combinado
-        other_payment_method = ''  # Para guardar el método de pago
+        sale_subtotal = float(sale.subtotal)  # Usar PVP puro sin IVA
         
-        # Asignar montos según método de pago
-        if sale.payment_method == 'cash':
-            cash_amount = sale_total
-        elif sale.payment_method == 'transfer':
-            transfer_amount = sale_total
-        elif sale.payment_method == 'mp':
-            mp_amount = sale_total
-        elif sale.payment_method and '+' in sale.payment_method:
-            # Para pagos combinados (cualquier método que contenga '+')
-            payment_details = getattr(sale, 'payment_details', [])
-            if payment_details:
-                # Distribuir montos según los detalles guardados
-                for payment in payment_details:
-                    method = payment.get('method', '')
-                    amount = float(payment.get('amount', 0))
-                    if method == 'cash':
-                        cash_amount += amount
-                    elif method == 'transfer':
-                        transfer_amount += amount
-                    elif method == 'mp':
-                        mp_amount += amount
-                    elif method == 'card':
-                        card_amount += amount
-                    elif method == 'check':
-                        check_amount += amount
-                # No poner nada en "Otros" ya que se distribuyó
-                other_amount = 0
-                other_payment_method = ''
-            else:
-                # Si no hay detalles, poner en columna combinada
-                other_amount = sale_total
-                other_payment_method = sale.payment_method
-        else:
-            # Tarjeta, Cheque van en "Otros"
-            other_amount = sale_total
-            other_payment_method = sale.payment_method
-        
+        # Get invoice/ticket number
         ticket_number = sale.invoice_number if sale.is_invoiced else f"TK-{sale.id:06d}"
+        
+        # Distribute amount by payment method
+        cash_amount = 0
+        mp_amount = 0
+        transfer_amount = 0
+        other_amount = 0
+        
+        if sale.payment_method == 'cash':
+            cash_amount = sale_subtotal
+            cash_total += cash_amount
+        elif sale.payment_method == 'mp':
+            mp_amount = sale_subtotal
+            mp_total += mp_amount
+        elif sale.payment_method == 'transfer':
+            transfer_amount = sale_subtotal
+            transfer_total += transfer_amount
+        elif sale.payment_method in ['card', 'check']:
+            other_amount = sale_subtotal
+            other_total += other_amount
+        elif sale.payment_method and '+' in sale.payment_method:
+            # Combined payments
+            payment_details = getattr(sale, 'payment_details', [])
+            if payment_details and isinstance(payment_details, list):
+                for payment in payment_details:
+                    if isinstance(payment, dict):
+                        method = payment.get('method', '')
+                        amount = float(payment.get('amount', 0))
+                        
+                        if method == 'cash':
+                            cash_amount += amount
+                            cash_total += amount
+                        elif method == 'mp':
+                            mp_amount += amount
+                            mp_total += amount
+                        elif method == 'transfer':
+                            transfer_amount += amount
+                            transfer_total += amount
+                        elif method in ['card', 'check']:
+                            other_amount += amount
+                            other_total += amount
+                        else:
+                            # Método no reconocido, agregar a otros
+                            other_amount += amount
+                            other_total += amount
+            else:
+                # If no details or invalid format, put in others
+                other_amount = sale_subtotal
+                other_total += other_amount
+        else:
+            # Unrecognized method, put in others
+            other_amount = sale_subtotal
+            other_total += other_amount
         
         table_data.append([
             ticket_number,
             format_currency(cash_amount),
-            format_currency(transfer_amount),
             format_currency(mp_amount),
-            format_combined_payment(other_amount, other_payment_method),
-            format_currency(sale_total)
+            format_currency(transfer_amount),
+            format_currency(other_amount)
         ])
     
     # Add summary row
     table_data.append([
         'Resumen',
         format_currency(cash_total),
-        format_currency(transfer_total),
         format_currency(mp_total),
-        format_currency(card_total + check_total + combined_total),
-        format_currency(grand_total)
+        format_currency(transfer_total),
+        format_currency(other_total)
     ])
     
-    # Create table with adjusted column widths - más espacio para márgenes
-    sales_table = Table(table_data, colWidths=[1.3*inch, 1.2*inch, 1.1*inch, 1.0*inch, 1.1*inch, 1.3*inch])
+    # Add grand total row - igual que en el template HTML (colspan=4)
+    grand_total = cash_total + mp_total + transfer_total + other_total
+    table_data.append([
+        'Total General',
+        '',  # Efectivo vacío
+        '',  # Mercado Pago vacío
+        '',  # Transferencias vacío
+        format_currency(grand_total)  # Total en la última columna
+    ])
+    
+    # Create table with optimized column widths for A4
+    sales_table = Table(table_data, colWidths=[1.2*inch, 1.3*inch, 1.3*inch, 1.3*inch, 1.3*inch])
     sales_table.setStyle(TableStyle([
         # Header styling
         ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
@@ -718,28 +835,38 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user):
         ('TOPPADDING', (0, 0), (-1, 0), 6),  # Reducido de 8 a 6
         
         # Data rows styling
-        ('BACKGROUND', (0, 1), (-2, -1), colors.white),
-        ('TEXTCOLOR', (0, 1), (-2, -1), colors.black),
+        ('BACKGROUND', (0, 1), (-1, -2), colors.white),
+        ('TEXTCOLOR', (0, 1), (-1, -2), colors.black),
         ('ALIGN', (0, 1), (-1, -2), 'CENTER'),
-        ('FONTNAME', (0, 1), (-2, -1), font_name),
-        ('FONTSIZE', (0, 1), (-2, -1), 9),
-        ('BOTTOMPADDING', (0, 1), (-2, -1), 4),  # Reducido de 6 a 4
-        ('TOPPADDING', (0, 1), (-2, -1), 4),  # Reducido de 6 a 4
+        ('FONTNAME', (0, 1), (-1, -2), font_name),
+        ('FONTSIZE', (0, 1), (-1, -2), 9),
+        ('BOTTOMPADDING', (0, 1), (-1, -2), 4),  # Reducido de 6 a 4
+        ('TOPPADDING', (0, 1), (-1, -2), 4),  # Reducido de 6 a 4
         ('GRID', (0, 0), (-1, -1), 1, colors.black),
         
         # Summary row styling
-        ('BACKGROUND', (-1, -1), (-1, -1), colors.lightgrey),
-        ('TEXTCOLOR', (-1, -1), (-1, -1), colors.black),
-        ('ALIGN', (-1, -1), (-1, -1), 'CENTER'),
-        ('FONTNAME', (-1, -1), (-1, -1), font_name),
-        ('FONTSIZE', (-1, -1), (-1, -1), 10),
-        ('BOLD', (-1, -1), (-1, -1), True),
-        ('BOTTOMPADDING', (-1, -1), (-1, -1), 6),  # Reducido de 8 a 6
-        ('TOPPADDING', (-1, -1), (-1, -1), 6),  # Reducido de 8 a 6
+        ('BACKGROUND', (0, -2), (-1, -2), colors.lightgrey),
+        ('TEXTCOLOR', (0, -2), (-1, -2), colors.black),
+        ('ALIGN', (0, -2), (-1, -2), 'CENTER'),
+        ('FONTNAME', (0, -2), (-1, -2), font_name),
+        ('FONTSIZE', (0, -2), (-1, -2), 10),
+        ('BOLD', (0, -2), (-1, -2), True),
+        ('BOTTOMPADDING', (0, -2), (-1, -2), 6),  # Reducido de 8 a 6
+        ('TOPPADDING', (0, -2), (-1, -2), 6),  # Reducido de 8 a 6
+        
+        # Grand total row styling - fondo blanco, texto negro negrita
+        ('BACKGROUND', (0, -1), (-1, -1), colors.white),
+        ('TEXTCOLOR', (0, -1), (-1, -1), colors.black),
+        ('ALIGN', (0, -1), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, -1), (-1, -1), font_name),
+        ('FONTSIZE', (0, -1), (-1, -1), 11),
+        ('BOLD', (0, -1), (-1, -1), True),
+        ('BOTTOMPADDING', (0, -1), (-1, -1), 8),
+        ('TOPPADDING', (0, -1), (-1, -1), 8)
     ]))
     
     story.append(sales_table)
-    story.append(Spacer(1, 20))  # Reducido de 40 a 20
+    story.append(Spacer(1, 15))  # Reducido de 20 a 15
     
     # Observations section
     obs_style = ParagraphStyle(
@@ -768,6 +895,18 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user):
     story.append(Spacer(1, 30))
     story.append(Paragraph("_________________________", conformity_style))
     story.append(Paragraph("Firma", conformity_style))
+    
+    # Add generation date
+    story.append(Spacer(1, 20))
+    generation_date_style = ParagraphStyle(
+        'GenerationDateStyle',
+        parent=normal_style,
+        fontSize=9,
+        spaceAfter=5,
+        alignment=2,  # Right align
+        textColor=colors.grey
+    )
+    story.append(Paragraph(f"Fecha de generación: {timezone.now().strftime('%d/%m/%Y %H:%M')}", generation_date_style))
     
     # Build PDF
     doc.build(story)

@@ -127,6 +127,14 @@ def run_full_sync():
         except Exception as e:
             logger.error(f"Error en sincronización de cierres de caja: {e}")
             errors.append(f"sync_cash_registers_to_remote: {e}")
+    
+        # Cuentas corrientes de empleados
+        try:
+            call_command("sync_employee_accounts_to_remote")
+            logger.info("Sincronización de cuentas corrientes de empleados completada")
+        except Exception as e:
+            logger.error(f"Error en sincronización de cuentas corrientes: {e}")
+            errors.append(f"sync_employee_accounts_to_remote: {e}")
 
         # Transferencias internas - OMITIDAS (tabla no existe en servidor remoto)
         try:

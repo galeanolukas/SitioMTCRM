@@ -1,0 +1,620 @@
+{% extends 'list.html' %}
+{% load static %}
+{% load currency_filters %}
+
+{% block head %}
+  {{ block.super }}
+  <style>
+    .account-card {
+      transition: all 0.3s ease;
+      border-left: 4px solid #6c757d;
+    }
+    .account-card.paid {
+      border-left-color: #28a745;
+    }
+    .account-card.unpaid {
+      border-left-color: #dc3545;
+    }
+    .account-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .status-badge {
+      font-size: 0.8rem;
+      padding: 0.25rem 0.5rem;
+    }
+    .total-summary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-radius: 0.75rem;
+    }
+    .print-btn {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 1000;
+      border-radius: 50px;
+      padding: 12px 20px;
+      box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+      transition: all 0.3s ease;
+    }
+    .print-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(220, 53, 69, 0.4);
+    }
+    
+    /* Estilos específicos para impresión */
+    @media print {
+      .print-btn, .no-print {
+        display: none !important;
+      }
+      .account-card {
+        break-inside: avoid;
+        page-break-inside: avoid;
+        margin-bottom: 0.5rem;
+        border: 1px solid #dee2e6;
+      }
+      .container-fluid {
+        max-width: 100%;
+        padding: 0.5rem;
+      }
+      body {
+        font-size: 10px;
+        line-height: 1.2;
+      }
+      .card {
+        border: 1px solid #dee2e6;
+        margin-bottom: 0.5rem;
+        page-break-inside: avoid;
+      }
+      .card-header {
+        background-color: #f8f9fa !important;
+        border-bottom: 1px solid #dee2e6 !important;
+        padding: 0.5rem !important;
+      }
+      .card-body {
+        padding: 0.5rem !important;
+      }
+      .row {
+        margin: 0;
+      }
+      .col-lg-6 {
+        width: 50%;
+        float: left;
+        padding: 0.25rem;
+      }
+      .col-xl-4 {
+        width: 33.333%;
+        float: left;
+        padding: 0.25rem;
+      }
+      .text-end {
+        text-align: right;
+      }
+      .badge {
+        border: 1px solid #000;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+      }
+      .bg-success {
+        background-color: #28a745 !important;
+        color: white !important;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+      }
+      .bg-danger {
+        background-color: #dc3545 !important;
+        color: white !important;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+      }
+      .bg-info {
+        background-color: #17a2b8 !important;
+        color: white !important;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+      }
+      .total-summary {
+        background: #667eea !important;
+        color: white !important;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+      }
+      /* Asegurar que las tarjetas no se corten */
+      .account-card {
+        page-break-inside: avoid;
+        orphans: 3;
+        widows: 3;
+      }
+      /* Optimizar espacio en página */
+      @page {
+        margin: 1cm;
+        size: A4;
+      }
+    }
+    
+    .filter-section {
+      background: #f8f9fa;
+      border-radius: 0.75rem;
+    }
+  </style>
+
+{% block content %}
+<div class="container-fluid">
+  <div class="row">
+    <div class="col-12">
+      <!-- Encabezado para impresión -->
+      <div class="text-center mb-4">
+        <h4 class="mb-1">Reporte de Cuentas Corrientes de Empleados</h4>
+        <p class="text-muted mb-0">Fecha: {% now "d/m/Y H:i" %}</p>
+        <p class="text-muted">Empresa: {{ request.user.company|default:"Todas las empresas" }}</p>
+      </div>
+      
+      <h1 class="h3 mb-4 no-print">
+        <i class="fas fa-user-tie me-2"></i>Cuenta Corriente de Empleados
+      </h1>
+    </div>
+  </div>
+
+  <!-- Resumen de totales -->
+  <div class="row mb-4">
+    <div class="col-md-4">
+      <div class="card total-summary">
+        <div class="card-body text-center">
+          <h5 class="card-title">Deuda Total</h5>
+          <h2 class="mb-0">{{ total_debt|currency }}</h2>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card bg-success text-white">
+        <div class="card-body text-center">
+          <h5 class="card-title">Pagado</h5>
+          <h2 class="mb-0">{{ total_paid|currency }}</h2>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card bg-info text-white">
+        <div class="card-body text-center">
+          <h5 class="card-title">General</h5>
+          <h2 class="mb-0">{{ total_general|currency }}</h2>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filtros -->
+  <div class="row mb-4 no-print">
+    <div class="col-12">
+      <div class="card filter-section">
+        <div class="card-body">
+          <form method="GET" class="row g-3">
+            <div class="col-md-3">
+              <label for="employee" class="form-label">Empleado</label>
+              <select name="employee" id="employee" class="form-select">
+                <option value="">Todos los empleados</option>
+                {% for emp in employees %}
+                  <option value="{{ emp.id }}" {% if filters.employee == emp.id|stringformat:"s" %}selected{% endif %}>
+                    {{ emp.get_full_name|default:emp.username }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label for="is_paid" class="form-label">Estado</label>
+              <select name="is_paid" id="is_paid" class="form-select">
+                <option value="">Todos</option>
+                <option value="false" {% if filters.is_paid == 'false' %}selected{% endif %}>Impagos</option>
+                <option value="true" {% if filters.is_paid == 'true' %}selected{% endif %}>Pagados</option>
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label for="date_from" class="form-label">Fecha desde</label>
+              <input type="date" name="date_from" id="date_from" class="form-control" value="{{ filters.date_from }}">
+            </div>
+            <div class="col-md-2">
+              <label for="date_to" class="form-label">Fecha hasta</label>
+              <input type="date" name="date_to" id="date_to" class="form-control" value="{{ filters.date_to }}">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label d-block">&nbsp;</label>
+              <div class="btn-group w-100">
+                <button type="submit" class="btn btn-primary">
+                  <i class="fas fa-filter"></i> Filtrar
+                </button>
+                <a href="{% url 'erp:employee_account_list' %}" class="btn btn-outline-secondary">
+                  <i class="fas fa-times"></i> Limpiar
+                </a>
+                <a href="{% url 'erp:employee_account_pdf' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}" class="btn btn-danger" target="_blank">
+                  <i class="fas fa-file-pdf"></i> PDF
+                </a>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lista de cuentas -->
+  <div class="row">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">
+            <i class="fas fa-list me-2"></i>Registros de Cuenta Corriente
+          </h5>
+          <span class="badge bg-secondary">{{ page_obj.paginator.count }} registros</span>
+        </div>
+        <div class="card-body">
+          {% if object_list %}
+            <div class="row">
+              {% for account in object_list %}
+                <div class="col-lg-6 col-xl-4 mb-3">
+                  <div class="card account-card {% if account.is_paid %}paid{% else %}unpaid{% endif %}">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                      <h6 class="mb-0">
+                        <i class="fas fa-user me-1"></i>{{ account.employee.get_full_name|default:account.employee.username }}
+                      </h6>
+                      <span class="status-badge badge {% if account.is_paid %}bg-success{% else %}bg-danger{% endif %}">
+                        {% if account.is_paid %}Pagado{% else %}Impago{% endif %}
+                      </span>
+                    </div>
+                    <div class="card-body">
+                      <div class="row mb-2">
+                        <div class="col-6">
+                          <small class="text-muted">Fecha:</small><br>
+                          <strong>{{ account.date_joined|date:"d/m/Y H:i" }}</strong>
+                        </div>
+                        <div class="col-6 text-end">
+                          <small class="text-muted">Total:</small><br>
+                          <strong class="{% if not account.is_paid %}text-danger{% endif %}">{{ account.total|currency }}</strong>
+                        </div>
+                      </div>
+                      
+                      {% if account.notes %}
+                        <div class="mb-2">
+                          <small class="text-muted">Notas:</small><br>
+                          <span class="text-muted">{{ account.notes|truncatewords:10 }}</span>
+                        </div>
+                      {% endif %}
+                      
+                      {% if account.is_paid and account.paid_date %}
+                        <div class="mb-2">
+                          <small class="text-muted">Fecha de pago:</small><br>
+                          <span class="text-success">{{ account.paid_date|date:"d/m/Y H:i" }}</span>
+                        </div>
+                      {% endif %}
+                      
+                      {% if account.related_sale_id %}
+                        <div class="mb-2">
+                          <small class="text-muted">Venta generada:</small><br>
+                          <span class="badge bg-success">ID #{{ account.related_sale_id }}</span>
+                        </div>
+                      {% endif %}
+                      
+                      <div class="mb-2">
+                        <small class="text-muted">Productos ({{ account.det.count }}):</small><br>
+                        {% for detail in account.det.all|slice:":3" %}
+                          <span class="badge bg-light text-dark me-1">{{ detail.prod.name }} x{{ detail.cant }}</span>
+                        {% endfor %}
+                        {% if account.det.count > 3 %}
+                          <span class="text-muted">...y {{ account.det.count|add:"-3" }} más</span>
+                        {% endif %}
+                      </div>
+                      
+                      <div class="mb-2">
+                        <small class="text-muted">Resumen de montos:</small><br>
+                        <div class="row">
+                          <div class="col-6">
+                            <small>Subtotal:</small><br>
+                            <strong>{{ account.subtotal|currency }}</strong>
+                          </div>
+                          <div class="col-6 text-end">
+                            <small>IVA:</small><br>
+                            <strong>{{ account.iva|currency }}</strong>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="card-footer no-print">
+                      <div class="btn-group w-100" role="group">
+                        <button type="button" class="btn btn-sm btn-outline-info" onclick="showDetails({{ account.id }})">
+                          <i class="fas fa-eye"></i> Detalles
+                        </button>
+                        {% if not account.is_paid %}
+                          <button type="button" class="btn btn-sm btn-outline-success" onclick="markAsPaid({{ account.id }})">
+                            <i class="fas fa-check"></i> Marcar Pagado
+                          </button>
+                        {% else %}
+                          <button type="button" class="btn btn-sm btn-outline-warning" onclick="markAsUnpaid({{ account.id }})">
+                            <i class="fas fa-undo"></i> Desmarcar
+                          </button>
+                        {% endif %}
+                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteAccount({{ account.id }})">
+                          <i class="fas fa-trash"></i>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+            
+            <!-- Paginación -->
+            {% if is_paginated %}
+              <nav aria-label="Paginación">
+                <ul class="pagination justify-content-center">
+                  {% if page_obj.has_previous %}
+                    <li class="page-item">
+                      <a class="page-link" href="?page=1{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">Primera</a>
+                    </li>
+                    <li class="page-item">
+                      <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">Anterior</a>
+                    </li>
+                  {% endif %}
+                  
+                  <li class="page-item active">
+                    <span class="page-link">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+                  </li>
+                  
+                  {% if page_obj.has_next %}
+                    <li class="page-item">
+                      <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">Siguiente</a>
+                    </li>
+                    <li class="page-item">
+                      <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">Última</a>
+                    </li>
+                  {% endif %}
+                </ul>
+              </nav>
+            {% endif %}
+          {% else %}
+            <div class="text-center py-5">
+              <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+              <h5 class="text-muted">No se encontraron registros</h5>
+              <p class="text-muted">No hay cuentas corrientes que coincidan con los filtros seleccionados.</p>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Botón flotante de impresión -->
+<button class="btn btn-danger print-btn no-print" onclick="window.print()" title="Imprimir reporte">
+  <i class="fas fa-print"></i> Imprimir
+</button>
+
+<!-- Modal de detalles -->
+<div class="modal fade" id="detailsModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Detalles de Cuenta Corriente</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="detailsContent">
+        <!-- El contenido se cargará dinámicamente -->
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function showDetails(accountId) {
+  const modal = new bootstrap.Modal(document.getElementById('detailsModal'));
+  document.getElementById('detailsContent').innerHTML = `
+    <div class="text-center">
+      <div class="spinner-border" role="status">
+        <span class="visually-hidden">Cargando...</span>
+      </div>
+      <p class="mt-2">Cargando detalles...</p>
+    </div>
+  `;
+  modal.show();
+  
+  // Cargar detalles via AJAX
+  fetch('', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-CSRFToken': getCookie('csrftoken')
+    },
+    body: 'action=get_details&account_id=' + accountId
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      const account = data.account;
+      const details = data.details;
+      
+      let detailsHtml = `
+        <div class="row mb-3">
+          <div class="col-md-6">
+            <strong>Empleado:</strong> ${account.employee}<br>
+            <strong>Fecha:</strong> ${account.date_joined}<br>
+            <strong>Estado:</strong> <span class="badge ${account.is_paid ? 'bg-success' : 'bg-danger'}">${account.is_paid ? 'Pagado' : 'Impago'}</span>
+          </div>
+          <div class="col-md-6">
+            <strong>Subtotal:</strong> $${account.subtotal.toLocaleString('es-AR', {minimumFractionDigits: 2})}<br>
+            <strong>IVA:</strong> $${account.iva.toLocaleString('es-AR', {minimumFractionDigits: 2})}<br>
+            <strong>Total:</strong> $${account.total.toLocaleString('es-AR', {minimumFractionDigits: 2})}
+          </div>
+        </div>
+      `;
+      
+      if (account.notes) {
+        detailsHtml += `
+          <div class="mb-3">
+            <strong>Notas:</strong><br>
+            <span class="text-muted">${account.notes}</span>
+          </div>
+        `;
+      }
+      
+      if (account.paid_date) {
+        detailsHtml += `
+          <div class="mb-3">
+            <strong>Fecha de pago:</strong> ${account.paid_date}
+          </div>
+        `;
+      }
+      
+      if (account.related_sale_id) {
+        detailsHtml += `
+          <div class="mb-3">
+            <strong>Venta generada:</strong> <span class="badge bg-success">ID #${account.related_sale_id}</span>
+          </div>
+        `;
+      }
+      
+      detailsHtml += `
+        <h6 class="mt-4 mb-3">Productos Retirados</h6>
+        <div class="table-responsive">
+          <table class="table table-sm table-striped">
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Producto</th>
+                <th>Cantidad</th>
+                <th>Precio Unit.</th>
+                <th>Subtotal</th>
+                <th>IVA</th>
+              </tr>
+            </thead>
+            <tbody>
+      `;
+      
+      details.forEach(detail => {
+        detailsHtml += `
+          <tr>
+            <td><code>${detail.code || 'N/A'}</code></td>
+            <td>${detail.product_name}</td>
+            <td>${detail.quantity} ${detail.unit}</td>
+            <td class="text-end">$${detail.price.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
+            <td class="text-end">$${detail.subtotal.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
+            <td class="text-end">$${detail.iva_amount.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
+          </tr>
+        `;
+      });
+      
+      detailsHtml += `
+            </tbody>
+          </table>
+        </div>
+      `;
+      
+      document.getElementById('detailsContent').innerHTML = detailsHtml;
+    } else {
+      document.getElementById('detailsContent').innerHTML = `
+        <div class="alert alert-danger">
+          <i class="fas fa-exclamation-triangle"></i>
+          Error: ${data.error}
+        </div>
+      `;
+    }
+  })
+  .catch(error => {
+    document.getElementById('detailsContent').innerHTML = `
+      <div class="alert alert-danger">
+        <i class="fas fa-exclamation-triangle"></i>
+        Error de conexión: ${error}
+      </div>
+    `;
+  });
+}
+
+function markAsPaid(accountId) {
+  if (!confirm('¿Está seguro que desea marcar esta cuenta como pagada?')) return;
+  
+  fetch('', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-CSRFToken': getCookie('csrftoken')
+    },
+    body: 'action=mark_as_paid&account_id=' + accountId
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      location.reload();
+    } else {
+      alert('Error: ' + data.error);
+    }
+  })
+  .catch(error => {
+    alert('Error de conexión: ' + error);
+  });
+}
+
+function markAsUnpaid(accountId) {
+  if (!confirm('¿Está seguro que desea desmarcar esta cuenta como pagada?')) return;
+  
+  fetch('', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-CSRFToken': getCookie('csrftoken')
+    },
+    body: 'action=mark_as_unpaid&account_id=' + accountId
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      location.reload();
+    } else {
+      alert('Error: ' + data.error);
+    }
+  })
+  .catch(error => {
+    alert('Error de conexión: ' + error);
+  });
+}
+
+function deleteAccount(accountId) {
+  if (!confirm('¿Está seguro que desea eliminar esta cuenta? El stock será restaurado automáticamente.')) return;
+  
+  fetch('', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-CSRFToken': getCookie('csrftoken')
+    },
+    body: 'action=delete_account&account_id=' + accountId
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      location.reload();
+    } else {
+      alert('Error: ' + data.error);
+    }
+  })
+  .catch(error => {
+    alert('Error de conexión: ' + error);
+  });
+}
+
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+</script>
+{% endblock %}

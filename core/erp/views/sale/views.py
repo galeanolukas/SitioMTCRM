@@ -3,7 +3,8 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.urls import reverse_lazy
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, get_object_or_404
-from core.erp.models import Sale, Product, DetSale, Company, Client, QuickOrder, Category, CashRegister
+from core.erp.models import Sale, Product, DetSale, Company, Client, QuickOrder, Category, CashRegister, EmployeeAccountSale, DetEmployeeAccount
+from django.contrib.auth import get_user_model
 from django.template.loader import get_template
 from django.conf import settings
 from weasyprint import HTML, CSS
@@ -14,10 +15,11 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 import json 
 from django.db import transaction
-from django.db.models import F
-from django.db import models
+from django.db.models import F, Q
 from django.utils import timezone
 import pytz
+import time
+import uuid
 
 @method_decorator(csrf_exempt, name='dispatch')
 class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView):
@@ -34,7 +36,8 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
         qs = Sale.objects.all().select_related('cli')
         if active_cid:
             qs = qs.filter(company_id=active_cid)
-        context['recent_sales'] = qs.annotate(items=models.Sum('detsale__cant')).order_by('-id')[:10]
+        from django.db.models import Sum
+        context['recent_sales'] = qs.annotate(items=Sum('detsale__cant')).order_by('-id')[:10]
         # Estado de caja para el usuario/empresa actual
         cr_qs = CashRegister.objects.filter(user=self.request.user, is_closed=False)
         if active_cid:
@@ -62,7 +65,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 qs = Product.objects.all()
                 if active_cid:
                     qs = qs.filter(company_id=active_cid)
-                prod = qs.filter(models.Q(code__iexact=code) | models.Q(name__icontains=code)).first()
+                prod = qs.filter(Q(code__iexact=code) | Q(name__icontains=code)).first()
                 if not prod:
                     return JsonResponse({'error': 'Producto no encontrado'}, status=404)
                 # Construir respuesta manualmente para asegurar que todos los campos lleguen
@@ -103,7 +106,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     qs = qs.filter(company_id=active_cid)
                 # Búsqueda simple por nombre o código
                 if term:
-                    qs = qs.filter(models.Q(name__icontains=term) | models.Q(code__icontains=term))
+                    qs = qs.filter(Q(name__icontains=term) | Q(code__icontains=term))
                 qs = qs[:10]
                 data = []
                 for p in qs:
@@ -177,6 +180,18 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 # Obtener categorías existentes
                 categories = Category.objects.all().order_by('name')
                 data = [{'id': cat.id, 'name': cat.name, 'desc': cat.desc or ''} for cat in categories]
+            elif action == 'get_employees':
+                # Obtener lista de empleados para cuenta corriente
+                from django.contrib.auth import get_user_model
+                User = get_user_model()
+                employees = User.objects.filter(is_active=True).exclude(is_superuser=True).order_by('first_name', 'last_name')
+                data = []
+                for emp in employees:
+                    data.append({
+                        'id': emp.id,
+                        'name': emp.get_full_name() or emp.username,
+                        'username': emp.username
+                    })
                 
             elif action == 'create_category':
                 name = (request.POST.get('name') or '').strip()
@@ -412,9 +427,141 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     qo.status = 'paid'
                     qo.save(update_fields=['status'])
                     data = {'id': sale.id}
-            else:
-                data['error'] = 'Acción no soportada'
+            elif action == 'create_employee_account_sale':
+                from decimal import Decimal
+                # Prevenir duplicación con token de sesión
+                sale_token = request.POST.get('sale_token')
+                if not sale_token:
+                    return JsonResponse({'error': 'Token de venta requerido'}, status=400)
+                
+                # Verificar si este token ya fue procesado
+                if request.session.get(f'processed_emp_sale_{sale_token}'):
+                    return JsonResponse({'error': 'Venta de cuenta corriente ya procesada', 'duplicate': True}, status=400)
+                
+                # Bloquear registro de ventas para operadores sin caja abierta
+                is_operator = request.user.groups.filter(name='operadores').exists()
+                active_cid = request.session.get('company_id')
+                if not request.user.is_superuser:
+                    active_cid = active_cid or getattr(request.user, 'company_id', None)
+                cr_qs = CashRegister.objects.filter(user=request.user, is_closed=False)
+                if active_cid:
+                    cr_qs = cr_qs.filter(company_id=active_cid)
+                current_cr = cr_qs.order_by('-created_at').first()
+                if is_operator and not current_cr:
+                    return JsonResponse({'error': 'Debe abrir una caja antes de registrar ventas.'}, status=400)
+                    
+                payload = json.loads(request.POST.get('sale') or '{}')
+                employee_id = payload.get('employee_id')
+                if not employee_id:
+                    return JsonResponse({'error': 'Debe seleccionar un empleado'}, status=400)
+                    
+                with transaction.atomic():
+                    items = payload.get('items', [])
+                    # Validar stock con cantidades decimales
+                    for it in items:
+                        prod = Product.objects.select_for_update().get(pk=it['id'])
+                        raw_cant = it.get('cant', 1)
+                        cant = Decimal(str(raw_cant or '1'))
+                        if cant <= 0:
+                            raise Exception("Cantidad inválida")
+                        if getattr(prod, 'track_stock', True) and prod.stock < cant:
+                            raise Exception(f"Stock insuficiente para {prod.name}. Disponible: {format(prod.stock, '.2f')} {prod.get_unit_display()}, requerido: {format(cant, '.2f')} {prod.get_unit_display()}")
+                    
+                    # Crear venta por cuenta corriente
+                    emp_sale = EmployeeAccountSale()
+                    if active_cid:
+                        emp_sale.company_id = active_cid
+                    emp_sale.employee_id = employee_id
+                    emp_sale.subtotal = float(payload.get('subtotal', 0))
+                    emp_sale.iva = float(payload.get('iva', 0))
+                    emp_sale.total = float(payload.get('total', 0))
+                    emp_sale.notes = payload.get('notes', '')
+                    
+                    # Establecer zona horaria local
+                    import pytz
+                    emp_sale.local_timezone = 'America/Argentina/Buenos_Aires'
+                    
+                    emp_sale.save()
+                    
+                    # Marcar token como procesado
+                    request.session[f'processed_emp_sale_{sale_token}'] = True
+                    request.session.save()
+                    
+                    # Crear detalles y descontar stock
+                    for it in items:
+                        raw_cant = it.get('cant', 1)
+                        cant = Decimal(str(raw_cant or '1'))
+                        price = Decimal(str(it.get('price', it.get('pvp', 0))))
+                        subtotal = Decimal(str(it.get('subtotal', 0)))
+                        
+                        # Para empleados, no se calcula IVA
+                        iva_amount = Decimal('0')
+                        
+                        det = DetEmployeeAccount(
+                            employee_account_id=emp_sale.id,
+                            prod_id=int(it['id']),
+                            cant=cant,
+                            price=price,
+                            subtotal=subtotal,
+                            iva_amount=iva_amount
+                        )
+                        det.save()
+                        
+                        # Obtener producto para actualizar stock
+                        prod = Product.objects.get(pk=int(it['id']))
+                        if getattr(prod, 'track_stock', True):
+                            Product.objects.filter(pk=det.prod_id).update(
+                                stock=F('stock') - cant,
+                                synced_to_server=False  # Marcar para sincronizar
+                            )
+                    data = {'id': emp_sale.id, 'message': 'Venta por cuenta corriente registrada correctamente'}
+            elif action == 'add_employee':
+                # Agregar nuevo empleado
+                from django.contrib.auth import get_user_model
+                name = request.POST.get('name', '').strip()
+                email = request.POST.get('email', '').strip()
+                
+                if not name:
+                    data['error'] = 'Debe ingresar el nombre del empleado'
+                    return JsonResponse(data, safe=False)
+                
+                try:
+                    User = get_user_model()
+                    # Verificar si ya existe un usuario con ese email
+                    if email and User.objects.filter(email=email).exists():
+                        data['error'] = 'Ya existe un usuario con ese email'
+                        return JsonResponse(data, safe=False)
+                    
+                    # Crear nuevo usuario/empleado
+                    username = name.lower().replace(' ', '_') + '_' + str(int(time.time()))
+                    user = User.objects.create_user(
+                        username=username,
+                        email=email or '',
+                        first_name=name,
+                        password=User.objects.make_random_password(),  # Contraseña aleatoria
+                        is_active=True
+                    )
+                    
+                    # Asociar el empleado a la empresa activa
+                    active_cid = request.session.get('company_id')
+                    if not request.user.is_superuser:
+                        active_cid = active_cid or getattr(request.user, 'company_id', None)
+                    
+                    if active_cid:
+                        user.company_id = active_cid
+                        user.save()
+                    
+                    data = {
+                        'id': user.id,
+                        'name': name,
+                        'message': 'Empleado agregado correctamente'
+                    }
+                except Exception as e:
+                    data['error'] = f'Error al crear empleado: {str(e)}'
         except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error en POST de POS: {str(e)}", exc_info=True)
             data['error'] = str(e)
         return JsonResponse(data, safe=False)
 
@@ -1106,3 +1253,640 @@ def sync_sales_api(request):
 
     status = 207 if errors else 200
     return JsonResponse({'synced': synced, 'errors': errors}, status=status)
+
+
+class EmployeeAccountListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView):
+    model = EmployeeAccountSale
+    template_name = 'sale/employee_account_list.html'
+    permission_required = 'erp.manage_employee_accounts'
+    ordering = ['-date_joined']
+
+    @method_decorator(csrf_exempt)
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        active_cid = self.request.session.get('company_id')
+        if not self.request.user.is_superuser:
+            active_cid = active_cid or getattr(self.request.user, 'company_id', None)
+        if active_cid:
+            queryset = queryset.filter(company_id=active_cid)
+        
+        # Filtros
+        employee_id = self.request.GET.get('employee')
+        if employee_id:
+            queryset = queryset.filter(employee_id=employee_id)
+        
+        is_paid = self.request.GET.get('is_paid')
+        if is_paid == 'true':
+            queryset = queryset.filter(is_paid=True)
+        elif is_paid == 'false':
+            queryset = queryset.filter(is_paid=False)
+        
+        date_from = self.request.GET.get('date_from')
+        date_to = self.request.GET.get('date_to')
+        if date_from:
+            queryset = queryset.filter(date_joined__date__gte=date_from)
+        if date_to:
+            queryset = queryset.filter(date_joined__date__lte=date_to)
+        
+        return queryset.select_related('employee')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Cuenta Corriente de Empleados'
+        context['entity'] = 'Cuenta Corriente'
+        
+        # Obtener empleados para el filtro
+        User = get_user_model()
+        employees = User.objects.filter(is_active=True).exclude(is_superuser=True).order_by('first_name', 'last_name')
+        context['employees'] = employees
+        
+        # Calcular totales
+        queryset = self.get_queryset()
+        from django.db.models import Sum
+        context['total_debt'] = queryset.filter(is_paid=False).aggregate(
+            total=Sum('total')
+        )['total'] or 0
+        context['total_paid'] = queryset.filter(is_paid=True).aggregate(
+            total=Sum('total')
+        )['total'] or 0
+        context['total_general'] = queryset.aggregate(
+            total=Sum('total')
+        )['total'] or 0
+        
+        # Mantener filtros en el contexto
+        context['filters'] = {
+            'employee': self.request.GET.get('employee', ''),
+            'is_paid': self.request.GET.get('is_paid', ''),
+            'date_from': self.request.GET.get('date_from', ''),
+            'date_to': self.request.GET.get('date_to', ''),
+        }
+        
+        return context
+
+    def post(self, request, *args, **kwargs):
+        try:
+            action = request.POST.get('action')
+            
+            if action == 'get_details':
+                account_id = request.POST.get('account_id')
+                account = EmployeeAccountSale.objects.get(id=account_id)
+                
+                # Obtener detalles completos
+                details = []
+                for detail in account.detemployeeaccount_set.all().select_related('prod'):
+                    details.append({
+                        'product_name': detail.prod.name,
+                        'code': detail.prod.code,
+                        'quantity': detail.cant,
+                        'unit': detail.prod.get_unit_display(),
+                        'price': float(detail.price),
+                        'subtotal': float(detail.subtotal),
+                        'iva_amount': float(detail.iva_amount),
+                    })
+                
+                return JsonResponse({
+                    'success': True,
+                    'account': {
+                        'id': account.id,
+                        'employee': account.employee.get_full_name() or account.employee.username,
+                        'date_joined': account.date_joined.strftime('%d/%m/%Y %H:%M'),
+                        'total': float(account.total),
+                        'subtotal': float(account.subtotal),
+                        'iva': float(account.iva),
+                        'notes': account.notes,
+                        'is_paid': account.is_paid,
+                        'paid_date': account.paid_date.strftime('%d/%m/%Y %H:%M') if account.paid_date else None,
+                        'related_sale_id': account.related_sale_id,
+                    },
+                    'details': details
+                })
+            
+            elif action == 'mark_as_paid':
+                account_id = request.POST.get('account_id')
+                account = EmployeeAccountSale.objects.get(id=account_id)
+                
+                # Verificar permisos
+                if not request.user.has_perm('erp.manage_employee_accounts'):
+                    return JsonResponse({'error': 'No tiene permisos para realizar esta acción'}, status=403)
+                
+                # Crear venta normal cuando se paga la cuenta corriente
+                try:
+                    with transaction.atomic():
+                        # Obtener empresa activa
+                        active_cid = request.session.get('company_id')
+                        if not request.user.is_superuser:
+                            active_cid = active_cid or getattr(request.user, 'company_id', None)
+                        
+                        # Crear venta normal
+                        sale = Sale.objects.create(
+                            company_id=active_cid,
+                            cli_id=None,  # Cliente anónimo para ventas a empleados
+                            subtotal=account.total,
+                            iva=0,  # Sin IVA para empleados
+                            total=account.total,
+                            payment_method='cash',  # Asumir pago en efectivo
+                            is_invoiced=False,
+                            date_joined=timezone.now(),
+                            local_uuid=str(uuid.uuid4()),
+                            synced_to_server=False,
+                            notes=f"Venta generada por pago de cuenta corriente - Empleado: {account.employee.get_full_name()|default:account.employee.username}"
+                        )
+                        
+                        # Crear detalles de la venta
+                        for detail in account.det.all():
+                            DetSale.objects.create(
+                                sale_id=sale.id,
+                                prod_id=detail.prod_id,
+                                cant=detail.cant,
+                                price=detail.price,
+                                subtotal=detail.subtotal,
+                                iva_amount=0,  # Sin IVA
+                                iva_rate=0
+                            )
+                        
+                        # Marcar cuenta corriente como pagada
+                        account.is_paid = True
+                        account.paid_date = timezone.now()
+                        account.related_sale_id = sale.id  # Referencia a la venta generada
+                        account.save()
+                        
+                        return JsonResponse({
+                            'success': True, 
+                            'message': 'Cuenta marcada como pagada y venta registrada correctamente',
+                            'sale_id': sale.id
+                        })
+                        
+                except Exception as e:
+                    return JsonResponse({'error': f'Error al crear venta: {str(e)}'}, status=500)
+            
+            elif action == 'mark_as_unpaid':
+                account_id = request.POST.get('account_id')
+                account = EmployeeAccountSale.objects.get(id=account_id)
+                
+                # Verificar permisos
+                if not request.user.has_perm('erp.manage_employee_accounts'):
+                    return JsonResponse({'error': 'No tiene permisos para realizar esta acción'}, status=403)
+                
+                try:
+                    with transaction.atomic():
+                        # Si hay una venta relacionada, eliminarla
+                        if account.related_sale_id:
+                            try:
+                                sale = Sale.objects.get(id=account.related_sale_id)
+                                # Restaurar stock de los detalles de la venta
+                                for detail in sale.detsale_set.all():
+                                    Product.objects.filter(pk=detail.prod_id).update(
+                                        stock=F('stock') + detail.cant,
+                                        synced_to_server=False
+                                    )
+                                # Eliminar la venta y sus detalles
+                                sale.delete()
+                            except Sale.DoesNotExist:
+                                pass  # La venta ya no existe, continuar
+                        
+                        # Desmarcar cuenta corriente como pagada
+                        account.is_paid = False
+                        account.paid_date = None
+                        account.related_sale_id = None
+                        account.save()
+                        
+                        return JsonResponse({
+                            'success': True, 
+                            'message': 'Cuenta desmarcada como pagada y venta eliminada correctamente'
+                        })
+                        
+                except Exception as e:
+                    return JsonResponse({'error': f'Error al eliminar venta: {str(e)}'}, status=500)
+            
+            elif action == 'delete_account':
+                account_id = request.POST.get('account_id')
+                account = EmployeeAccountSale.objects.get(id=account_id)
+                
+                # Verificar permisos
+                if not request.user.has_perm('erp.manage_employee_accounts'):
+                    return JsonResponse({'error': 'No tiene permisos para realizar esta acción'}, status=403)
+                
+                # Restaurar stock antes de eliminar
+                with transaction.atomic():
+                    for detail in account.detemployeeaccount_set.all():
+                        Product.objects.filter(pk=detail.prod_id).update(
+                            stock=F('stock') + detail.cant,
+                            synced_to_server=False
+                        )
+                    account.delete()
+                
+                return JsonResponse({'success': True, 'message': 'Cuenta eliminada y stock restaurado'})
+            
+            else:
+                return JsonResponse({'error': 'Acción no soportada'}, status=400)
+                
+        except EmployeeAccountSale.DoesNotExist:
+            return JsonResponse({'error': 'Cuenta no encontrada'}, status=404)
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+
+
+def employee_account_pdf_export(request):
+    """Exportar cuentas corrientes a PDF"""
+    if not request.user.has_perm('erp.manage_employee_accounts'):
+        from django.core.exceptions import PermissionDenied
+        raise PermissionDenied
+    
+    try:
+        # Obtener parámetros de filtro
+        employee_id = request.GET.get('employee')
+        is_paid = request.GET.get('is_paid')
+        date_from = request.GET.get('date_from')
+        date_to = request.GET.get('date_to')
+        
+        # Construir queryset
+        queryset = EmployeeAccountSale.objects.all()
+        active_cid = request.session.get('company_id')
+        if not request.user.is_superuser:
+            active_cid = active_cid or getattr(request.user, 'company_id', None)
+        if active_cid:
+            queryset = queryset.filter(company_id=active_cid)
+        
+        # Aplicar filtros
+        if employee_id:
+            queryset = queryset.filter(employee_id=employee_id)
+        if is_paid == 'true':
+            queryset = queryset.filter(is_paid=True)
+        elif is_paid == 'false':
+            queryset = queryset.filter(is_paid=False)
+        if date_from:
+            queryset = queryset.filter(date_joined__date__gte=date_from)
+        if date_to:
+            queryset = queryset.filter(date_joined__date__lte=date_to)
+        
+        queryset = queryset.select_related('employee').prefetch_related('detemployeeaccount_set__prod')
+        
+        # Generar PDF
+        from django.http import HttpResponse
+        from reportlab.lib.pagesizes import letter, A4
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import inch
+        from reportlab.lib import colors
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+        from io import BytesIO
+        from core.erp.models import Company
+        
+        # Obtener nombre de la empresa
+        company_name = "Empresa"
+        try:
+            if active_cid:
+                company = Company.objects.get(id=active_cid)
+                company_name = company.name
+            else:
+                company = Company.objects.filter(is_active=True).first()
+                if company:
+                    company_name = company.name
+        except:
+            pass
+        
+        # Registrar fuentes
+        try:
+            pdfmetrics.registerFont(TTFont('Arial', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'))
+            font_name = 'Arial'
+        except:
+            font_name = 'Helvetica'
+        
+        response = HttpResponse(content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="cuentas_corrientes_{timezone.now().strftime("%d%m%Y")}.pdf"'
+        
+        buffer = BytesIO()
+        # Configuración explícita para formato A4
+        doc = SimpleDocTemplate(
+            buffer, 
+            pagesize=A4,  # Formato A4 estándar (210mm x 297mm)
+            rightMargin=20, 
+            leftMargin=20, 
+            topMargin=40, 
+            bottomMargin=40
+        )
+        
+        styles = getSampleStyleSheet()
+        
+        # Estilos personalizados
+        header_style = ParagraphStyle(
+            'HeaderStyle',
+            parent=styles['Heading1'],
+            fontSize=16,
+            spaceAfter=12,
+            alignment=1,  # Center
+            textColor=colors.black,
+            bold=True
+        )
+        
+        title_style = ParagraphStyle(
+            'TitleStyle',
+            parent=styles['Heading2'],
+            fontSize=14,
+            spaceAfter=20,
+            alignment=1,  # Center
+            textColor=colors.black,
+            bold=True
+        )
+        
+        normal_style = styles['Normal']
+        
+        # Construir contenido
+        story = []
+        
+        # Encabezado
+        story.append(Paragraph(company_name, header_style))
+        story.append(Paragraph("Reporte de Cuentas Corrientes de Empleados", title_style))
+        story.append(Spacer(1, 8))  # Reducido de 12 a 8
+        
+        # Información del reporte
+        info_style = ParagraphStyle(
+            'InfoStyle',
+            parent=normal_style,
+            fontSize=10,
+            spaceAfter=6
+        )
+        
+        story.append(Paragraph(f"Fecha: {timezone.now().strftime('%d/%m/%Y %H:%M')}", info_style))
+        story.append(Paragraph(f"Generado por: {request.user.get_full_name() or request.user.username}", info_style))
+        
+        # Filtros aplicados
+        filters = []
+        if employee_id:
+            from core.user.models import User
+            employee = User.objects.get(id=employee_id)
+            filters.append(f"Empleado: {employee.get_full_name() or employee.username}")
+        if is_paid == 'true':
+            filters.append("Estado: Pagados")
+        elif is_paid == 'false':
+            filters.append("Estado: Impagos")
+        if date_from and date_to:
+            filters.append(f"Período: {date_from} al {date_to}")
+        elif date_from:
+            filters.append(f"Desde: {date_from}")
+        elif date_to:
+            filters.append(f"Hasta: {date_to}")
+        
+        if filters:
+            story.append(Paragraph(f"Filtros: {', '.join(filters)}", info_style))
+        
+        story.append(Spacer(1, 15))  # Reducido de 20 a 15
+        
+        # Tabla de cuentas corrientes
+        if queryset.exists():
+            # Cabecera de la tabla (sin columna IVA)
+            headers = ['Empleado', 'Fecha', 'Productos', 'Subtotal', 'Total', 'Estado']
+            table_data = [headers]
+            
+            total_general = 0
+            total_debt = 0
+            total_paid = 0
+            
+            for account in queryset:
+                # Formatear productos
+                productos = []
+                for detail in account.detemployeeaccount_set.all()[:3]:  # Limitar a 3 productos
+                    productos.append(f"{detail.prod.name} x{detail.cant}")
+                
+                if account.detemployeeaccount_set.count() > 3:
+                    productos.append(f"...+{account.detemployeeaccount_set.count() - 3} más")
+                
+                productos_str = '\n'.join(productos)
+                
+                # Calcular totales (sin mostrar IVA)
+                subtotal = float(account.subtotal)
+                total = float(account.total)
+                total_general += total
+                
+                if account.is_paid:
+                    total_paid += total
+                    estado = 'Pagado'
+                else:
+                    total_debt += total
+                    estado = 'Impago'
+                
+                table_data.append([
+                    account.employee.get_full_name() or account.employee.username,
+                    account.date_joined.strftime('%d/%m/%Y'),
+                    productos_str,
+                    f"${subtotal:,.2f}",
+                    f"${total:,.2f}",
+                    estado
+                ])
+            
+            # Tabla resumen (sin columna IVA)
+            table_data.append([
+                'RESUMEN', '', '', '', '', ''
+            ])
+            
+            # Tabla resumen (sin columna IVA)
+            table_data.append([
+                'RESUMEN', '', '', '', '', ''
+            ])
+            table_data.append([
+                'Deuda Total:', '', '', '', f"${total_debt:,.2f}", ''
+            ])
+            table_data.append([
+                'Pagado:', '', '', '', f"${total_paid:,.2f}", ''
+            ])
+            table_data.append([
+                'Total General:', '', '', '', f"${total_general:,.2f}", ''
+            ])
+            
+            # Crear tabla con anchos ultra-ajustados para formato A4
+            table = Table(table_data, colWidths=[1.3*inch, 0.7*inch, 3.5*inch, 0.7*inch, 0.7*inch, 0.7*inch, 0.7*inch])
+            
+            table_style = TableStyle([
+                # Cabecera
+                ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+                ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), font_name),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('BOLD', (0, 0), (-1, 0), True),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+                ('TOPPADDING', (0, 0), (-1, 0), 6),
+                
+                # Datos
+                ('BACKGROUND', (0, 1), (-1, -5), colors.white),
+                ('TEXTCOLOR', (0, 1), (-1, -5), colors.black),
+                ('ALIGN', (0, 1), (-1, -5), 'CENTER'),
+                ('ALIGN', (1, 1), (-1, -5), 'CENTER'),
+                ('ALIGN', (2, 1), (-1, -5), 'LEFT'),
+                ('ALIGN', (3, 1), (-1, -5), 'LEFT'),
+                ('ALIGN', (4, 1), (-1, -5), 'RIGHT'),
+                ('ALIGN', (5, 1), (-1, -5), 'RIGHT'),
+                ('FONTNAME', (0, 1), (-1, -5), font_name),
+                ('FONTSIZE', (0, 1), (-1, -5), 9),
+                ('VALIGN', (0, 1), (-1, -5), 'TOP'),
+                ('LEFTPADDING', (0, 1), (-1, -5), 8),
+                ('RIGHTPADDING', (0, 1), (-1, -5), 8),
+                ('BOTTOMPADDING', (0, 1), (-1, -5), 8),
+                ('TOPPADDING', (0, 1), (-1, -5), 8),
+                ('GRID', (0, 1), (-1, -5), 1, colors.black),
+                ('WORDWRAP', (2, 2), (2, -5), 'WORD'),
+                
+                # Resumen
+                ('BACKGROUND', (0, -2), (-1, -1), colors.lightgrey),
+                ('TEXTCOLOR', (0, -2), (-1, -1), colors.black),
+                ('ALIGN', (0, -2), (3, -1), 'RIGHT'),
+                ('ALIGN', (1, -2), (1, -1), 'RIGHT'),
+                ('ALIGN', (2, -2), (1, -1), 'RIGHT'),
+                ('ALIGN', (3, -2), (1, -1), 'RIGHT'),
+                ('ALIGN', (4, -2), (4, -1), 'RIGHT'),
+                ('ALIGN', (5, -2), (5, -1), 'RIGHT'),
+                ('FONTNAME', (0, -2), (-1, -1), font_name),
+                ('FONTSIZE', (0, -2), (-1, -1), 10),
+                ('BOLD', (0, -2), (-1, -1), True),
+                ('BOTTOMPADDING', (0, -2), (-1, -1), 6),
+                ('TOPPADDING', (0, -2), (-1, -1), 6),
+                ('GRID', (0, -2), (-1, -1), 1, colors.black),
+                
+                # Total general
+                ('BACKGROUND', (0, -1), (-1, -1), colors.white),
+                ('TEXTCOLOR', (0, -1), (-1, -1), colors.black),
+                ('ALIGN', (0, -1), (0, -1), 'CENTER'),
+                ('FONTNAME', (0, -1), (-1, -1), font_name),
+                ('FONTSIZE', (0, -1), (-1, -1), 11),
+                ('BOLD', (0, -1), (-1, -1), True),
+                ('BOTTOMPADDING', (0, -1), (-1, -1), 6),
+                ('TOPPADDING', (0, -1), (-1, -1), 6),
+                ('LINEABOVE', (0, -2), (-1, -1), 1, colors.black),
+                ('LINEBELOW', (0, -2), (-1, -1), 1, colors.black),
+                ('GRID', (0, -2), (-1, -1), 1, colors.black),
+            ])
+            
+            styles = getSampleStyleSheet()
+            
+            # Estilos personalizados
+            header_style = ParagraphStyle(
+                'HeaderStyle',
+                parent=styles['Heading1'],
+                fontSize=16,
+                spaceAfter=12,
+                alignment=1,  # Center
+                textColor=colors.black,
+                bold=True
+            )
+            
+            title_style = ParagraphStyle(
+                'TitleStyle',
+                parent=styles['Heading2'],
+                fontSize=14,
+                spaceAfter=20,
+                alignment=1,  # Center
+                textColor=colors.black,
+                bold=True
+            )
+            
+            normal_style = styles['Normal']
+            
+            # Construir contenido
+            story = []
+            
+            # Encabezado
+            story.append(Paragraph(company_name, header_style))
+            story.append(Paragraph("Reporte de Cuentas Corrientes de Empleados", title_style))
+            story.append(Spacer(1, 8))  # Reducido de 12 a 8
+            
+            # Información del reporte
+            info_style = ParagraphStyle(
+                'InfoStyle',
+                parent=normal_style,
+                fontSize=10,
+                spaceAfter=6
+            )
+            
+            story.append(Paragraph(f"Fecha: {timezone.now().strftime('%d/%m/%Y %H:%M')}", info_style))
+            story.append(Paragraph(f"Generado por: {request.user.get_full_name() or request.user.username}", info_style))
+            
+            # Filtros aplicados
+            filters = []
+            if employee_id:
+                from core.user.models import User
+                employee = User.objects.get(id=employee_id)
+                filters.append(f"Empleado: {employee.get_full_name() or employee.username}")
+            if is_paid == 'true':
+                filters.append("Estado: Pagados")
+            elif is_paid == 'false':
+                filters.append("Estado: Impagos")
+            if date_from and date_to:
+                filters.append(f"Período: {date_from} al {date_to}")
+            elif date_from:
+                filters.append(f"Desde: {date_from}")
+            elif date_to:
+                filters.append(f"Hasta: {date_to}")
+            
+            if filters:
+                story.append(Paragraph(f"Filtros: {', '.join(filters)}", info_style))
+                
+                # Datos
+                ('BACKGROUND', (0, 1), (-1, -5), colors.white),
+                ('TEXTCOLOR', (0, 1), (-1, -5), colors.black),
+                ('ALIGN', (0, 1), (-1, -5), 'CENTER'),
+                ('ALIGN', (1, 1), (-1, -5), 'CENTER'),
+                ('ALIGN', (2, 1), (-1, -5), 'LEFT'),
+                ('ALIGN', (3, 1), (-1, -5), 'LEFT'),
+                ('ALIGN', (4, 1), (-1, -5), 'RIGHT'),
+                ('ALIGN', (5, 1), (-1, -5), 'RIGHT'),
+                ('FONTNAME', (0, 1), (-1, -5), font_name),
+                ('FONTSIZE', (0, 1), (-1, -5), 9),
+                ('VALIGN', (0, 1), (-1, -5), 'TOP'),
+                ('LEFTPADDING', (0, 1), (-1, -5), 8),
+                ('RIGHTPADDING', (0, 1), (-1, -5), 8),
+                ('BOTTOMPADDING', (0, 1), (-1, -5), 8),
+                ('TOPPADDING', (0, 1), (-1, -5), 8),
+                ('GRID', (0, 1), (-1, -5), 1, colors.black),
+                ('WORDWRAP', (2, 2), (2, -5), 'WORD'),
+                
+                # Resumen
+                ('BACKGROUND', (0, -2), (-1, -1), colors.lightgrey),
+                ('TEXTCOLOR', (0, -2), (-1, -1), colors.black),
+                ('ALIGN', (0, -2), (3, -1), 'RIGHT'),
+                ('ALIGN', (1, -2), (1, -1), 'RIGHT'),
+                ('ALIGN', (2, -2), (1, -1), 'RIGHT'),
+                ('ALIGN', (3, -2), (1, -1), 'RIGHT'),
+                ('ALIGN', (4, -2), (4, -1), 'RIGHT'),
+                ('ALIGN', (5, -2), (5, -1), 'RIGHT'),
+                ('FONTNAME', (0, -2), (-1, -1), font_name),
+                ('FONTSIZE', (0, -2), (-1, -1), 10),
+                ('BOLD', (0, -2), (-1, -1), True),
+                ('BOTTOMPADDING', (0, -2), (-1, -1), 6),
+                ('TOPPADDING', (0, -2), (-1, -1), 6),
+                
+                # Total general
+                ('BACKGROUND', (0, -1), (-1, -1), colors.white),
+                ('TEXTCOLOR', (0, -1), (-1, -1), colors.black),
+                ('ALIGN', (0, -1), (0, -1), 'CENTER'),
+                ('FONTNAME', (0, -1), (-1, -1), font_name),
+                ('FONTSIZE', (0, -1), (-1, -1), 11),
+                ('BOLD', (0, -1), (-1, -1), True),
+        
+        # Agregar tabla al contenido
+        story.append(table)
+        
+        # Observaciones
+        story.append(Spacer(1, 20))  # Reducido de 30 a 20
+        story.append(Paragraph("Observaciones:", normal_style))
+        story.append(Spacer(1, 30))  # Reducido de 50 a 30
+        
+        # Conformidad
+        story.append(Paragraph("Conformidad:", normal_style))
+        story.append(Spacer(1, 20))  # Reducido de 30 a 20
+        story.append(Paragraph("_________________________", normal_style))
+        story.append(Paragraph("Firma", normal_style))
+        
+        # Generar PDF
+        doc.build(story)
+        buffer.seek(0)
+        response.write(buffer.getvalue())
+        buffer.close()
+        
+        return response
+        
+    except Exception as e:
+        return HttpResponse(f"Error al generar PDF: {str(e)}", content_type='text/plain')

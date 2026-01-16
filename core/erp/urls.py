@@ -2,7 +2,7 @@ from django.urls import path, include
 from core.erp.views.category.views import *
 from core.erp.views.product.views import *
 from core.erp.views.client.views import ClientListView, ClientCreateView, ClientUpdateView, ClientDeleteView
-from core.erp.views.sale.views import SaleListView, SaleCreateView, SaleUpdateView, SaleDeleteView, ticket_print, POSView, InvoiceListView, InvoiceCreateView, invoice_pdf, sync_sales_api
+from core.erp.views.sale.views import SaleListView, SaleCreateView, SaleUpdateView, SaleDeleteView, ticket_print, POSView, InvoiceListView, InvoiceCreateView, invoice_pdf, sync_sales_api, EmployeeAccountListView, employee_account_pdf_export
 from core.erp.views.transfer.views import TransferListView, TransferCreateView, TransferDetailView, TransferReceiveView, TransferSearchView, TransferProductSearchView
 from core.erp.views.operator_reports.views import OperatorSalesReportView, operator_sales_export
 from core.erp.views.sync.views import SyncToggleView, SyncStatusView
@@ -111,6 +111,9 @@ urlpatterns = [
     path('profit-report-list/', ProfitReportListView.as_view(), name='profit_report_list'),
     # pos
     path('pos/', POSView.as_view(), name='pos'),
+    # employee account
+    path('employee-account/', EmployeeAccountListView.as_view(), name='employee_account_list'),
+    path('employee-account/pdf/', employee_account_pdf_export, name='employee_account_pdf'),
     # company
     path('company/', CompanyUpdateView.as_view(), name='company'),
     path('company/list/', CompanyView.as_view(), name='company_list'),

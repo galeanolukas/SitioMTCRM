@@ -82,6 +82,16 @@
                                 </div>
                             </div>
                         </div>
+                        {% if request.user.is_superuser or perms.erp.manage_employee_accounts %}
+                        <div class="col-md-2">
+                            <div class="form-group">
+                                <label>&nbsp;</label>
+                                <a href="{% url 'erp:employee_account_list' %}" class="btn btn-warning w-100" title="Cuentas Corrientes de Empleados">
+                                    <i class="fas fa-user-clock"></i> Cta. Corriente
+                                </a>
+                            </div>
+                        </div>
+                        {% endif %}
                     </div>
                 </form>
             </div>
@@ -112,9 +122,9 @@
                             <tr>
                                 <th>N° Comprob.</th>
                                 <th>Efectivo</th>
-                                <th>Transferencia</th>
                                 <th>Mercado Pago</th>
-                                <th>Total</th>
+                                <th>Transferencias</th>
+                                <th>Otros</th>
                             </tr>
                         </thead>
                         <tbody id="sales-tbody">
@@ -123,9 +133,13 @@
                             <tr class="font-weight-bold">
                                 <td>Resumen</td>
                                 <td id="cash-total">$0.00</td>
-                                <td id="transfer-total">$0.00</td>
                                 <td id="mp-total">$0.00</td>
-                                <td id="grand-total">$0.00</td>
+                                <td id="transfer-total">$0.00</td>
+                                <td id="other-total">$0.00</td>
+                            </tr>
+                            <tr class="font-weight-bold bg-primary text-white">
+                                <td>Total General</td>
+                                <td id="grand-total" colspan="4">$0.00</td>
                             </tr>
                         </tfoot>
                     </table>
@@ -178,10 +192,42 @@ $(document).ready(function() {
     // Handle report type change
     $('#report_type').on('change', function() {
         const reportType = $(this).val();
+        const today = new Date();
+        
         if (reportType === 'custom') {
             $('#start_date, #end_date').prop('disabled', false);
         } else {
             $('#start_date, #end_date').prop('disabled', true);
+            
+            // Calculate dates based on report type
+            let startDate, endDate;
+            
+            if (reportType === 'daily') {
+                // Diario: hoy
+                startDate = new Date(today);
+                endDate = new Date(today);
+            } else if (reportType === 'weekly') {
+                // Semanal: últimos 7 días
+                endDate = new Date(today);
+                startDate = new Date(today);
+                startDate.setDate(startDate.getDate() - 6); // Restar 6 días para incluir hoy
+            } else if (reportType === 'monthly') {
+                // Mensual: últimos 30 días
+                endDate = new Date(today);
+                startDate = new Date(today);
+                startDate.setDate(startDate.getDate() - 29); // Restar 29 días para incluir hoy
+            }
+            
+            // Format dates as YYYY-MM-DD
+            const formatDate = (date) => {
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            };
+            
+            $('#start_date').val(formatDate(startDate));
+            $('#end_date').val(formatDate(endDate));
         }
     });
     
@@ -218,71 +264,99 @@ function getReport() {
 }
 
 function displayReport(data) {
-    // Update table with sales format
+    // Update table with payment method distribution
     const tbody = $('#sales-tbody');
     tbody.empty();
     
     let cashTotal = 0;
-    let transferTotal = 0;
     let mpTotal = 0;
-    let grandTotal = 0;
+    let transferTotal = 0;
+    let otherTotal = 0;
     
     if (data.sales.length === 0) {
         $('#empty-state').show();
         $('#report-table').hide();
     } else {
         data.sales.forEach(function(sale) {
-            let cashAmount = 0;
-            let transferAmount = 0;
-            let mpAmount = 0;
+            const subtotal = parseFloat(sale.subtotal) || 0;  // Usar PVP puro sin IVA
             
-            // Distribute amounts by payment method
+            // Distribuir el monto según método de pago
+            let cashAmount = 0;
+            let mpAmount = 0;
+            let transferAmount = 0;
+            let otherAmount = 0;
+            
             if (sale.payment_method === 'cash') {
-                cashAmount = parseFloat(sale.total) || 0;
-            } else if (sale.payment_method === 'transfer') {
-                transferAmount = parseFloat(sale.total) || 0;
+                cashAmount = subtotal;
+                cashTotal += cashAmount;
             } else if (sale.payment_method === 'mp') {
-                mpAmount = parseFloat(sale.total) || 0;
+                mpAmount = subtotal;
+                mpTotal += mpAmount;
+            } else if (sale.payment_method === 'transfer') {
+                transferAmount = subtotal;
+                transferTotal += transferAmount;
+            } else if (sale.payment_method === 'card') {
+                otherAmount = subtotal;
+                otherTotal += otherAmount;
+            } else if (sale.payment_method === 'check') {
+                otherAmount = subtotal;
+                otherTotal += otherAmount;
             } else if (sale.payment_method && sale.payment_method.includes('+')) {
-                // Distribuir pagos combinados (cualquier método que contenga '+')
-                if (sale.payment_details && Array.isArray(sale.payment_details)) {
+                // Pagos combinados
+                if (sale.payment_details && Array.isArray(sale.payment_details) && sale.payment_details.length > 0) {
                     sale.payment_details.forEach(function(payment) {
                         const amount = parseFloat(payment.amount) || 0;
-                        if (payment.method === 'cash') {
+                        const method = payment.method || '';
+                        
+                        if (method === 'cash') {
                             cashAmount += amount;
-                        } else if (payment.method === 'transfer') {
-                            transferAmount += amount;
-                        } else if (payment.method === 'mp') {
+                            cashTotal += amount;
+                        } else if (method === 'mp') {
                             mpAmount += amount;
+                            mpTotal += amount;
+                        } else if (method === 'transfer') {
+                            transferAmount += amount;
+                            transferTotal += amount;
+                        } else if (method === 'card' || method === 'check') {
+                            otherAmount += amount;
+                            otherTotal += amount;
+                        } else {
+                            // Método no reconocido, agregar a otros
+                            otherAmount += amount;
+                            otherTotal += amount;
                         }
                     });
                 } else {
-                    // Si no hay detalles, mostrar el total en una columna (fallback)
-                    cashAmount = parseFloat(sale.total) || 0;
+                    // Si no hay detalles o no es array, poner en otros
+                    otherAmount = subtotal;
+                    otherTotal += otherAmount;
                 }
+            } else {
+                // Método no reconocido, poner en otros
+                otherAmount = subtotal;
+                otherTotal += otherAmount;
             }
-            
-            cashTotal += cashAmount;
-            transferTotal += transferAmount;
-            mpTotal += mpAmount;
-            grandTotal += parseFloat(sale.total) || 0;
             
             const row = `
                 <tr>
                     <td><code>${sale.ticket_number || sale.id}</code></td>
                     <td class="text-right">$${cashAmount.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                    <td class="text-right">$${transferAmount.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                     <td class="text-right">$${mpAmount.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                    <td class="font-weight-bold text-right">$${(parseFloat(sale.total) || 0).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td class="text-right">$${transferAmount.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td class="text-right">$${otherAmount.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                 </tr>
             `;
             tbody.append(row);
         });
         
+        // Calculate grand total
+        const grandTotal = cashTotal + mpTotal + transferTotal + otherTotal;
+        
         // Update totals
         $('#cash-total').text('$' + cashTotal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
-        $('#transfer-total').text('$' + transferTotal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
         $('#mp-total').text('$' + mpTotal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+        $('#transfer-total').text('$' + transferTotal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+        $('#other-total').text('$' + otherTotal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
         $('#grand-total').text('$' + grandTotal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
         
         $('#empty-state').hide();

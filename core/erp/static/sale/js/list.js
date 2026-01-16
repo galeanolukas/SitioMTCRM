@@ -6,17 +6,21 @@ function format(d) {
     html += '<tr><th scope="col">Producto</th>';
     html += '<th scope="col">Categoría</th>';
     html += '<th scope="col">PVP</th>';
+    html += '<th scope="col">PVP c/IVA</th>';
     html += '<th scope="col">Cantidad</th>';
     html += '<th scope="col">Subtotal</th>';
+    html += '<th scope="col">IVA</th>';
     html += '</thead>';
     html += '<tbody>';
     $.each(d.det, function (key, value) {
         html += '<tr>';
         html += '<td>' + value.prod.name + '</td>';
         html += '<td>' + value.prod.cat.name + '</td>';
-        html += '<td>' + value.price + '</td>';
+        html += '<td>$' + (parseFloat(value.prod.pvp) || 0).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</td>';
+        html += '<td>$' + (parseFloat(value.prod.pvp_with_iva) || 0).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</td>';
         html += '<td>' + value.cant + '</td>';
-        html += '<td>' + (parseFloat(value.subtotal) || 0).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</td>';
+        html += '<td>$' + (parseFloat(value.subtotal) || 0).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</td>';
+        html += '<td>$' + (parseFloat(value.iva_amount) || 0).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</td>';
         html += '</tr>';
     });
     html += '</tbody>';
@@ -254,9 +258,34 @@ $(function () {
                 columns: [
                     { "data": "prod.name" },
                     { "data": "prod.cat.name" },
-                    { "data": "price" },
-                    { "data": "cant" },
-                    { "data": "subtotal" },
+                    { 
+                        "data": "prod.pvp",
+                        "render": function(data, type, row) {
+                            return '$' + (parseFloat(data) || 0).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                        }
+                    },
+                    { 
+                        "data": "prod.pvp_with_iva",
+                        "render": function(data, type, row) {
+                            return '$' + (parseFloat(data) || 0).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                        }
+                    },
+                    { 
+                        "data": "cant",
+                        "class": "text-center"
+                    },
+                    { 
+                        "data": "subtotal",
+                        "render": function(data, type, row) {
+                            return '$' + (parseFloat(data) || 0).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                        }
+                    },
+                    { 
+                        "data": "iva_amount",
+                        "render": function(data, type, row) {
+                            return '$' + (parseFloat(data) || 0).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                        }
+                    },
                 ],
                 columnDefs: [
                     {

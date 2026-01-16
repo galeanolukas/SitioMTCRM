@@ -124,6 +124,14 @@
           </a>
         </li>
         {% endif %}
+        {% if request.user.is_superuser or perms.erp.manage_employee_accounts %}
+        <li class="nav-item">
+          <a href="{% url 'erp:employee_account_list' %}" class="nav-link">
+            <i class="fas fa-user-clock nav-icon"></i>
+            <p>Cta. Corriente Empleados</p>
+          </a>
+        </li>
+        {% endif %}
         {% if request.user.is_superuser %}
         <li class="nav-item">
           <a href="{% url 'erp:company_list' %}" class="nav-link">

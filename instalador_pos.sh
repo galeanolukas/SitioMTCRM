@@ -112,6 +112,24 @@ echo "  2) Ejecute: ./actualizar_pos.sh"
 echo "  3) Vuelva a iniciar con ./lanzar_pos.sh"
 echo "============================================"
 
+# Preguntar si desea iniciar el programa automáticamente
+read -p "¿Desea iniciar el programa automáticamente? (s/n): " start_program
+
+if [[ $start_program =~ ^[Ss]$ ]]; then
+    echo
+    echo "Iniciando el programa..."
+    echo "El servidor se iniciará en: http://127.0.0.1:8000/"
+    echo "Presione Ctrl+C para detener el servidor."
+    echo
+    python manage.py runserver 0.0.0.0:8000
+else
+    echo
+    echo "Para iniciar manualmente:"
+    echo "  source DJENV/bin/activate"
+    echo "  python manage.py runserver 0.0.0.0:8000"
+    echo "y luego abra: http://localhost:8000/erp/sale/pos/"
+fi
+
 # Crear acceso directo (launcher) en el escritorio para el POS local
 LAUNCHER_TARGET="$(pwd)/lanzar_pos.sh"
 DESKTOP_DIR="$HOME/Desktop"
@@ -156,5 +174,37 @@ else
 fi
 
 echo
-echo "Presione Enter para continuar..."
-read
+echo "============================================"
+echo "Instalación completada exitosamente."
+echo "============================================"
+echo
+echo "El sistema ha sido instalado y configurado."
+echo
+echo "Componentes instalados:"
+echo "  - Entorno virtual DJENV"
+echo "  - Dependencias Python"
+echo "  - Base de datos SQLite"
+echo "  - Acceso directo en escritorio"
+echo
+
+# Preguntar si desea iniciar el programa automáticamente
+read -p "¿Desea iniciar el programa automáticamente? (s/n): " start_program
+
+if [[ $start_program =~ ^[Ss]$ ]]; then
+    echo
+    echo "Iniciando el programa..."
+    echo "El servidor se iniciará en: http://127.0.0.1:8000/"
+    echo "Presione Ctrl+C para detener el servidor."
+    echo
+    source DJENV/bin/activate
+    python manage.py runserver 0.0.0.0:8000
+else
+    echo
+    echo "Para iniciar manualmente:"
+    echo "  source DJENV/bin/activate"
+    echo "  python manage.py runserver 0.0.0.0:8000"
+    echo "y luego abra: http://localhost:8000/erp/sale/pos/"
+    echo
+    echo "Presione Enter para continuar..."
+    read
+fi

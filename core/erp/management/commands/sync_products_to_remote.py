@@ -60,16 +60,31 @@ class Command(BaseCommand):
                         if Supplier.objects.using('remote').filter(pk=prod.supplier_id).exists():
                             remote_supplier = Supplier.objects.using('remote').get(pk=prod.supplier_id)
 
-                    # Usar code como clave natural si existe, si no, name
-                    lookup = {}
+                    # Lógica mejorada de búsqueda:
+                    # 1) Si tiene código, buscar por código primero
+                    # 2) Si no encuentra por código, buscar por nombre
+                    # 3) Si no tiene código, buscar por nombre directamente
+                    remote_prod = None
                     if prod.code:
-                        lookup['code'] = prod.code
+                        # Intentar encontrar por código
+                        try:
+                            remote_prod = Product.objects.using('remote').get(code=prod.code)
+                        except Product.DoesNotExist:
+                            # Si no encuentra por código, intentar por nombre
+                            try:
+                                remote_prod = Product.objects.using('remote').get(name=prod.name)
+                            except Product.DoesNotExist:
+                                pass
                     else:
-                        lookup['name'] = prod.name
+                        # Si no tiene código, buscar por nombre
+                        try:
+                            remote_prod = Product.objects.using('remote').get(name=prod.name)
+                        except Product.DoesNotExist:
+                            pass
 
-                    remote_prod, created = Product.objects.using('remote').get_or_create(
-                        **lookup,
-                        defaults={
+                    # Si no se encontró, crear nuevo
+                    if not remote_prod:
+                        defaults = {
                             'company_id': remote_company.id if remote_company else None,
                             'name': prod.name,
                             'cat': remote_cat,
@@ -80,12 +95,24 @@ class Command(BaseCommand):
                             'pvp_final': prod.pvp_final,
                             'unit': prod.unit,
                             'stock': prod.stock,
-                        },
-                    )
+                        }
+                        
+                        # Incluir código solo si existe
+                        if prod.code:
+                            defaults['code'] = prod.code
+
+                        remote_prod = Product.objects.using('remote').create(**defaults)
+                        created = True
+                    else:
+                        # Actualizar producto existente
+                        created = False
                     if not created:
                         if remote_company:
                             remote_prod.company_id = remote_company.id
                         remote_prod.name = prod.name
+                        # Actualizar código si existe localmente pero no remotamente
+                        if prod.code and not remote_prod.code:
+                            remote_prod.code = prod.code
                         if remote_cat:
                             remote_prod.cat = remote_cat
                         remote_prod.supplier = remote_supplier

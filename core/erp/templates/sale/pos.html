@@ -243,6 +243,9 @@
             <button id="btnCheckout" class="btn btn-success btn-lg" {% if pos_locked_by_cash %}disabled{% endif %}>
               <i class="fas fa-save"></i> Registrar Venta (F2)
             </button>
+            <button id="btnEmployeeAccount" class="btn btn-warning btn-lg" {% if pos_locked_by_cash %}disabled{% endif %}>
+              <i class="fas fa-user-tie"></i> Cuenta Corriente Empleado (F3)
+            </button>
           </div>
           {% if pos_locked_by_cash %}
           <div class="alert alert-warning py-2 mt-3 mb-1 small">
@@ -465,8 +468,10 @@
         </div>
         
         <script>
-          // Establecer el segundo pago con el restante
-          const secondPaymentValue = remaining.toFixed(2);
+          // Este script se ejecuta cuando el modal se muestra
+          // Obtener el valor restante del elemento en lugar de una variable no definida
+          const remainingValue = parseFloat($('#combinedRemaining').text().replace('$', '').replace(/,/g, '')) || 0;
+          const secondPaymentValue = remainingValue.toFixed(2);
           $('#secondPaymentAmount').val(secondPaymentValue);
           $('#secondPaymentMethod').val('cash');
           
@@ -487,6 +492,101 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" id="btnCombinedPaymentBack">Volver</button>
         <button type="button" class="btn btn-primary" id="btnCombinedPaymentConfirm">Confirmar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal para cuenta corriente de empleados -->
+<div class="modal fade" id="employeeAccountModal" tabindex="-1" aria-labelledby="employeeAccountLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="employeeAccountLabel">
+          <i class="fas fa-user-tie"></i> Cuenta Corriente de Empleado
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-info">
+          <i class="fas fa-info-circle"></i> Esta opción descuenta del stock pero <strong>NO suma</strong> al total de ventas del día. El producto queda registrado como deuda del empleado.
+        </div>
+        <div class="mb-3">
+          <label for="employeeSelect" class="form-label">Empleado</label>
+          <div class="input-group">
+            <select class="form-select" id="employeeSelect" required>
+              <option value="">Seleccione un empleado...</option>
+            </select>
+            <button class="btn btn-outline-secondary" type="button" id="btnAddEmployee" title="Agregar nuevo empleado">
+              <i class="fas fa-plus"></i>
+            </button>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label for="employeeNotes" class="form-label">Notas (opcional)</label>
+          <textarea id="employeeNotes" class="form-control" rows="2" placeholder="Notas adicionales sobre esta retira..."></textarea>
+        </div>
+        <div class="mb-3">
+          <div class="card">
+            <div class="card-header">
+              <h6 class="mb-0">Resumen de la retira (Sin IVA)</h6>
+            </div>
+            <div class="card-body">
+              <div class="row">
+                <div class="col-6">
+                  <strong>Items:</strong> <span id="empItems">0</span>
+                </div>
+                <div class="col-6 text-end">
+                  <strong>Subtotal:</strong> <span id="empSubtotal">$0.00</span>
+                </div>
+              </div>
+              <div class="row mt-2">
+                <div class="col-6">
+                  <strong>IVA:</strong> <span id="empIva">$0.00</span> <small class="text-muted">(Sin IVA para empleados)</small>
+                </div>
+                <div class="col-6 text-end">
+                  <strong>Total:</strong> <span id="empTotal" class="text-primary">$0.00</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-warning" id="btnConfirmEmployeeAccount">
+          <i class="fas fa-user-tie"></i> Confirmar Cuenta Corriente
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal para agregar nuevo empleado -->
+<div class="modal fade" id="addEmployeeModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fas fa-user-plus"></i> Agregar Nuevo Empleado
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <form id="addEmployeeForm">
+          <div class="mb-3">
+            <label for="newEmployeeName" class="form-label">Nombre del Empleado</label>
+            <input type="text" class="form-control" id="newEmployeeName" required placeholder="Ingrese el nombre del empleado">
+          </div>
+          <div class="mb-3">
+            <label for="newEmployeeEmail" class="form-label">Email (opcional)</label>
+            <input type="email" class="form-control" id="newEmployeeEmail" placeholder="email@ejemplo.com">
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btnSaveEmployee">Guardar Empleado</button>
       </div>
     </div>
   </div>
