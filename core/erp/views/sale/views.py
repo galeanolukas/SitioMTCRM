@@ -1308,9 +1308,18 @@ class EmployeeAccountListView(LoginRequiredMixin, ValidatePermissionRequiredMixi
         context['title'] = 'Cuenta Corriente de Empleados'
         context['entity'] = 'Cuenta Corriente'
         
-        # Obtener empleados para el filtro
+        # Obtener empleados para el filtro (solo de la misma empresa)
         User = get_user_model()
-        employees = User.objects.filter(is_active=True).exclude(is_superuser=True).order_by('first_name', 'last_name')
+        employees = User.objects.filter(is_active=True).exclude(is_superuser=True)
+        
+        # Filtrar por empresa del usuario
+        active_cid = self.request.session.get('company_id')
+        if not self.request.user.is_superuser:
+            active_cid = active_cid or getattr(self.request.user, 'company_id', None)
+        if active_cid:
+            employees = employees.filter(company_id=active_cid)
+        
+        employees = employees.order_by('first_name', 'last_name')
         context['employees'] = employees
         
         # Calcular totales
@@ -1500,7 +1509,7 @@ class EmployeeAccountListView(LoginRequiredMixin, ValidatePermissionRequiredMixi
 
 
 def employee_account_pdf_export(request):
-    """Exportar cuentas corrientes a PDF"""
+    """Exportar cuentas corrientes a PDF con formato optimizado A4"""
     if not request.user.has_perm('erp.manage_employee_accounts'):
         from django.core.exceptions import PermissionDenied
         raise PermissionDenied
@@ -1536,10 +1545,10 @@ def employee_account_pdf_export(request):
         
         # Generar PDF
         from django.http import HttpResponse
-        from reportlab.lib.pagesizes import letter, A4
+        from reportlab.lib.pagesizes import A4
         from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-        from reportlab.lib.units import inch
+        from reportlab.lib.units import inch, mm
         from reportlab.lib import colors
         from reportlab.pdfbase import pdfmetrics
         from reportlab.pdfbase.ttfonts import TTFont
@@ -1570,24 +1579,24 @@ def employee_account_pdf_export(request):
         response['Content-Disposition'] = f'attachment; filename="cuentas_corrientes_{timezone.now().strftime("%d%m%Y")}.pdf"'
         
         buffer = BytesIO()
-        # Configuración explícita para formato A4
+        # Configuración optimizada para A4 con márgenes profesionales
         doc = SimpleDocTemplate(
             buffer, 
-            pagesize=A4,  # Formato A4 estándar (210mm x 297mm)
-            rightMargin=20, 
-            leftMargin=20, 
-            topMargin=40, 
-            bottomMargin=40
+            pagesize=A4,
+            rightMargin=15*mm,   # 15mm derecho
+            leftMargin=15*mm,    # 15mm izquierdo
+            topMargin=20*mm,     # 20mm superior
+            bottomMargin=20*mm    # 20mm inferior
         )
         
         styles = getSampleStyleSheet()
         
-        # Estilos personalizados
+        # Estilos personalizados optimizados
         header_style = ParagraphStyle(
             'HeaderStyle',
             parent=styles['Heading1'],
-            fontSize=16,
-            spaceAfter=12,
+            fontSize=18,
+            spaceAfter=15,
             alignment=1,  # Center
             textColor=colors.black,
             bold=True
@@ -1597,13 +1606,20 @@ def employee_account_pdf_export(request):
             'TitleStyle',
             parent=styles['Heading2'],
             fontSize=14,
-            spaceAfter=20,
+            spaceAfter=12,
             alignment=1,  # Center
             textColor=colors.black,
             bold=True
         )
         
-        normal_style = styles['Normal']
+        info_style = ParagraphStyle(
+            'InfoStyle',
+            parent=styles['Normal'],
+            fontSize=9,
+            spaceAfter=8,
+            alignment=0,  # Left
+            textColor=colors.black
+        )
         
         # Construir contenido
         story = []
@@ -1611,16 +1627,9 @@ def employee_account_pdf_export(request):
         # Encabezado
         story.append(Paragraph(company_name, header_style))
         story.append(Paragraph("Reporte de Cuentas Corrientes de Empleados", title_style))
-        story.append(Spacer(1, 8))  # Reducido de 12 a 8
+        story.append(Spacer(1, 12))
         
         # Información del reporte
-        info_style = ParagraphStyle(
-            'InfoStyle',
-            parent=normal_style,
-            fontSize=10,
-            spaceAfter=6
-        )
-        
         story.append(Paragraph(f"Fecha: {timezone.now().strftime('%d/%m/%Y %H:%M')}", info_style))
         story.append(Paragraph(f"Generado por: {request.user.get_full_name() or request.user.username}", info_style))
         
@@ -1644,11 +1653,11 @@ def employee_account_pdf_export(request):
         if filters:
             story.append(Paragraph(f"Filtros: {', '.join(filters)}", info_style))
         
-        story.append(Spacer(1, 15))  # Reducido de 20 a 15
+        story.append(Spacer(1, 10))
         
         # Tabla de cuentas corrientes
         if queryset.exists():
-            # Cabecera de la tabla (sin columna IVA)
+            # Cabecera de la tabla
             headers = ['Empleado', 'Fecha', 'Productos', 'Subtotal', 'Total', 'Estado']
             table_data = [headers]
             
@@ -1667,7 +1676,7 @@ def employee_account_pdf_export(request):
                 
                 productos_str = '\n'.join(productos)
                 
-                # Calcular totales (sin mostrar IVA)
+                # Calcular totales
                 subtotal = float(account.subtotal)
                 total = float(account.total)
                 total_general += total
@@ -1688,28 +1697,11 @@ def employee_account_pdf_export(request):
                     estado
                 ])
             
-            # Tabla resumen (sin columna IVA)
-            table_data.append([
-                'RESUMEN', '', '', '', '', ''
-            ])
+            # Crear tabla con anchos ajustados para A4 (210mm ancho - 30mm márgenes = 180mm usable)
+            # Distribución: Empleado(40mm), Fecha(30mm), Productos(55mm), Subtotal(25mm), Total(25mm), Estado(15mm) = 190mm total
+            table = Table(table_data, colWidths=[1.6*inch, 1.2*inch, 2.2*inch, 1.0*inch, 1.0*inch, 0.8*inch])
             
-            # Tabla resumen (sin columna IVA)
-            table_data.append([
-                'RESUMEN', '', '', '', '', ''
-            ])
-            table_data.append([
-                'Deuda Total:', '', '', '', f"${total_debt:,.2f}", ''
-            ])
-            table_data.append([
-                'Pagado:', '', '', '', f"${total_paid:,.2f}", ''
-            ])
-            table_data.append([
-                'Total General:', '', '', '', f"${total_general:,.2f}", ''
-            ])
-            
-            # Crear tabla con anchos ultra-ajustados para formato A4
-            table = Table(table_data, colWidths=[1.3*inch, 0.7*inch, 3.5*inch, 0.7*inch, 0.7*inch, 0.7*inch, 0.7*inch])
-            
+            # Estilo de tabla mejorado
             table_style = TableStyle([
                 # Cabecera
                 ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
@@ -1718,184 +1710,59 @@ def employee_account_pdf_export(request):
                 ('FONTNAME', (0, 0), (-1, 0), font_name),
                 ('FONTSIZE', (0, 0), (-1, 0), 10),
                 ('BOLD', (0, 0), (-1, 0), True),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
-                ('TOPPADDING', (0, 0), (-1, 0), 6),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                ('TOPPADDING', (0, 0), (-1, 0), 8),
                 
-                # Datos
-                ('BACKGROUND', (0, 1), (-1, -5), colors.white),
-                ('TEXTCOLOR', (0, 1), (-1, -5), colors.black),
-                ('ALIGN', (0, 1), (-1, -5), 'CENTER'),
-                ('ALIGN', (1, 1), (-1, -5), 'CENTER'),
-                ('ALIGN', (2, 1), (-1, -5), 'LEFT'),
-                ('ALIGN', (3, 1), (-1, -5), 'LEFT'),
-                ('ALIGN', (4, 1), (-1, -5), 'RIGHT'),
-                ('ALIGN', (5, 1), (-1, -5), 'RIGHT'),
-                ('FONTNAME', (0, 1), (-1, -5), font_name),
-                ('FONTSIZE', (0, 1), (-1, -5), 9),
-                ('VALIGN', (0, 1), (-1, -5), 'TOP'),
-                ('LEFTPADDING', (0, 1), (-1, -5), 8),
-                ('RIGHTPADDING', (0, 1), (-1, -5), 8),
-                ('BOTTOMPADDING', (0, 1), (-1, -5), 8),
-                ('TOPPADDING', (0, 1), (-1, -5), 8),
-                ('GRID', (0, 1), (-1, -5), 1, colors.black),
-                ('WORDWRAP', (2, 2), (2, -5), 'WORD'),
+                # Datos - todas las celdas
+                ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+                ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+                ('FONTNAME', (0, 1), (-1, -1), font_name),
+                ('FONTSIZE', (0, 1), (-1, -1), 9),
+                ('VALIGN', (0, 1), (-1, -1), 'TOP'),
+                ('LEFTPADDING', (0, 1), (-1, -1), 6),
+                ('RIGHTPADDING', (0, 1), (-1, -1), 6),
+                ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
+                ('TOPPADDING', (0, 1), (-1, -1), 6),
                 
-                # Resumen
-                ('BACKGROUND', (0, -2), (-1, -1), colors.lightgrey),
-                ('TEXTCOLOR', (0, -2), (-1, -1), colors.black),
-                ('ALIGN', (0, -2), (3, -1), 'RIGHT'),
-                ('ALIGN', (1, -2), (1, -1), 'RIGHT'),
-                ('ALIGN', (2, -2), (1, -1), 'RIGHT'),
-                ('ALIGN', (3, -2), (1, -1), 'RIGHT'),
-                ('ALIGN', (4, -2), (4, -1), 'RIGHT'),
-                ('ALIGN', (5, -2), (5, -1), 'RIGHT'),
-                ('FONTNAME', (0, -2), (-1, -1), font_name),
-                ('FONTSIZE', (0, -2), (-1, -1), 10),
-                ('BOLD', (0, -2), (-1, -1), True),
-                ('BOTTOMPADDING', (0, -2), (-1, -1), 6),
-                ('TOPPADDING', (0, -2), (-1, -1), 6),
-                ('GRID', (0, -2), (-1, -1), 1, colors.black),
+                # Alineaciones específicas por columna
+                ('ALIGN', (0, 1), (-1, -1), 'LEFT'),    # Empleado
+                ('ALIGN', (1, 1), (-1, -1), 'CENTER'),  # Fecha
+                ('ALIGN', (2, 1), (-1, -1), 'LEFT'),    # Productos
+                ('ALIGN', (3, 1), (-1, -1), 'RIGHT'),   # Subtotal
+                ('ALIGN', (4, 1), (-1, -1), 'RIGHT'),   # Total
+                ('ALIGN', (5, 1), (-1, -1), 'CENTER'),  # Estado
                 
-                # Total general
-                ('BACKGROUND', (0, -1), (-1, -1), colors.white),
-                ('TEXTCOLOR', (0, -1), (-1, -1), colors.black),
-                ('ALIGN', (0, -1), (0, -1), 'CENTER'),
-                ('FONTNAME', (0, -1), (-1, -1), font_name),
-                ('FONTSIZE', (0, -1), (-1, -1), 11),
-                ('BOLD', (0, -1), (-1, -1), True),
-                ('BOTTOMPADDING', (0, -1), (-1, -1), 6),
-                ('TOPPADDING', (0, -1), (-1, -1), 6),
-                ('LINEABOVE', (0, -2), (-1, -1), 1, colors.black),
-                ('LINEBELOW', (0, -2), (-1, -1), 1, colors.black),
-                ('GRID', (0, -2), (-1, -1), 1, colors.black),
+                # Grid para todas las filas de datos
+                ('GRID', (0, 1), (-1, -1), 1, colors.black),
             ])
             
-            styles = getSampleStyleSheet()
+            table.setStyle(table_style)
+            story.append(table)
+            story.append(Spacer(1, 15))
             
-            # Estilos personalizados
-            header_style = ParagraphStyle(
-                'HeaderStyle',
-                parent=styles['Heading1'],
-                fontSize=16,
-                spaceAfter=12,
-                alignment=1,  # Center
-                textColor=colors.black,
-                bold=True
-            )
-            
-            title_style = ParagraphStyle(
-                'TitleStyle',
-                parent=styles['Heading2'],
-                fontSize=14,
-                spaceAfter=20,
-                alignment=1,  # Center
-                textColor=colors.black,
-                bold=True
-            )
-            
-            normal_style = styles['Normal']
-            
-            # Construir contenido
-            story = []
-            
-            # Encabezado
-            story.append(Paragraph(company_name, header_style))
-            story.append(Paragraph("Reporte de Cuentas Corrientes de Empleados", title_style))
-            story.append(Spacer(1, 8))  # Reducido de 12 a 8
-            
-            # Información del reporte
-            info_style = ParagraphStyle(
-                'InfoStyle',
-                parent=normal_style,
+            # Resumen
+            summary_style = ParagraphStyle(
+                'SummaryStyle',
+                parent=styles['Normal'],
                 fontSize=10,
-                spaceAfter=6
+                spaceAfter=6,
+                alignment=2,  # Right
+                textColor=colors.black,
+                bold=True
             )
             
-            story.append(Paragraph(f"Fecha: {timezone.now().strftime('%d/%m/%Y %H:%M')}", info_style))
-            story.append(Paragraph(f"Generado por: {request.user.get_full_name() or request.user.username}", info_style))
-            
-            # Filtros aplicados
-            filters = []
-            if employee_id:
-                from core.user.models import User
-                employee = User.objects.get(id=employee_id)
-                filters.append(f"Empleado: {employee.get_full_name() or employee.username}")
-            if is_paid == 'true':
-                filters.append("Estado: Pagados")
-            elif is_paid == 'false':
-                filters.append("Estado: Impagos")
-            if date_from and date_to:
-                filters.append(f"Período: {date_from} al {date_to}")
-            elif date_from:
-                filters.append(f"Desde: {date_from}")
-            elif date_to:
-                filters.append(f"Hasta: {date_to}")
-            
-            if filters:
-                story.append(Paragraph(f"Filtros: {', '.join(filters)}", info_style))
-                
-                # Datos
-                ('BACKGROUND', (0, 1), (-1, -5), colors.white),
-                ('TEXTCOLOR', (0, 1), (-1, -5), colors.black),
-                ('ALIGN', (0, 1), (-1, -5), 'CENTER'),
-                ('ALIGN', (1, 1), (-1, -5), 'CENTER'),
-                ('ALIGN', (2, 1), (-1, -5), 'LEFT'),
-                ('ALIGN', (3, 1), (-1, -5), 'LEFT'),
-                ('ALIGN', (4, 1), (-1, -5), 'RIGHT'),
-                ('ALIGN', (5, 1), (-1, -5), 'RIGHT'),
-                ('FONTNAME', (0, 1), (-1, -5), font_name),
-                ('FONTSIZE', (0, 1), (-1, -5), 9),
-                ('VALIGN', (0, 1), (-1, -5), 'TOP'),
-                ('LEFTPADDING', (0, 1), (-1, -5), 8),
-                ('RIGHTPADDING', (0, 1), (-1, -5), 8),
-                ('BOTTOMPADDING', (0, 1), (-1, -5), 8),
-                ('TOPPADDING', (0, 1), (-1, -5), 8),
-                ('GRID', (0, 1), (-1, -5), 1, colors.black),
-                ('WORDWRAP', (2, 2), (2, -5), 'WORD'),
-                
-                # Resumen
-                ('BACKGROUND', (0, -2), (-1, -1), colors.lightgrey),
-                ('TEXTCOLOR', (0, -2), (-1, -1), colors.black),
-                ('ALIGN', (0, -2), (3, -1), 'RIGHT'),
-                ('ALIGN', (1, -2), (1, -1), 'RIGHT'),
-                ('ALIGN', (2, -2), (1, -1), 'RIGHT'),
-                ('ALIGN', (3, -2), (1, -1), 'RIGHT'),
-                ('ALIGN', (4, -2), (4, -1), 'RIGHT'),
-                ('ALIGN', (5, -2), (5, -1), 'RIGHT'),
-                ('FONTNAME', (0, -2), (-1, -1), font_name),
-                ('FONTSIZE', (0, -2), (-1, -1), 10),
-                ('BOLD', (0, -2), (-1, -1), True),
-                ('BOTTOMPADDING', (0, -2), (-1, -1), 6),
-                ('TOPPADDING', (0, -2), (-1, -1), 6),
-                
-                # Total general
-                ('BACKGROUND', (0, -1), (-1, -1), colors.white),
-                ('TEXTCOLOR', (0, -1), (-1, -1), colors.black),
-                ('ALIGN', (0, -1), (0, -1), 'CENTER'),
-                ('FONTNAME', (0, -1), (-1, -1), font_name),
-                ('FONTSIZE', (0, -1), (-1, -1), 11),
-                ('BOLD', (0, -1), (-1, -1), True),
+            story.append(Paragraph(f"Deuda Total: ${total_debt:,.2f}", summary_style))
+            story.append(Paragraph(f"Pagado: ${total_paid:,.2f}", summary_style))
+            story.append(Paragraph(f"Total General: ${total_general:,.2f}", summary_style))
         
-        # Agregar tabla al contenido
-        story.append(table)
-        
-        # Observaciones
-        story.append(Spacer(1, 20))  # Reducido de 30 a 20
-        story.append(Paragraph("Observaciones:", normal_style))
-        story.append(Spacer(1, 30))  # Reducido de 50 a 30
-        
-        # Conformidad
-        story.append(Paragraph("Conformidad:", normal_style))
-        story.append(Spacer(1, 20))  # Reducido de 30 a 20
-        story.append(Paragraph("_________________________", normal_style))
-        story.append(Paragraph("Firma", normal_style))
+        else:
+            story.append(Paragraph("No se encontraron cuentas corrientes con los filtros especificados.", info_style))
         
         # Generar PDF
         doc.build(story)
-        buffer.seek(0)
-        response.write(buffer.getvalue())
+        pdf_value = buffer.getvalue()
         buffer.close()
-        
+        response.write(pdf_value)
         return response
         
     except Exception as e:
