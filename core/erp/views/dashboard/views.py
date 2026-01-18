@@ -378,6 +378,8 @@ class UpdatesView(TemplateView):
     def dispatch(self, request, *args, **kwargs):
         if request.path == '/erp/backup-to-server/':
             return self.backup_to_server(request)
+        elif request.path == '/erp/updates/' and request.method == 'POST':
+            return self.execute_update(request)
         return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
@@ -397,8 +399,95 @@ class UpdatesView(TemplateView):
         system_os = platform.system().lower()  # 'windows', 'linux', 'darwin'
         ctx['is_windows'] = system_os == 'windows'
         ctx['is_linux'] = system_os == 'linux'
+        ctx['is_mac'] = system_os == 'darwin'  # macOS
+        
+        # Verificar estado del sistema de actualización
+        try:
+            import subprocess
+            import os
+            base_dir = getattr(settings, 'BASE_DIR', os.getcwd())
+            script_path = os.path.join(base_dir, 'update_system.py')
+            
+            if os.path.exists(script_path):
+                result = subprocess.run([
+                    'python3' if system_os == 'linux' else 'python', 
+                    script_path, '--status', '--json'
+                ], cwd=base_dir, capture_output=True, text=True)
+                
+                if result.returncode == 0:
+                    import json
+                    status = json.loads(result.stdout)
+                    ctx.update({
+                        'update_status': status,
+                        'can_update': status.get('git_available') and status.get('git_repo'),
+                        'has_changes': status.get('has_changes', False)
+                    })
+        except:
+            pass
         
         return ctx
+    
+    def execute_update(self, request):
+        """Ejecuta el script de actualización según el SO detectado."""
+        import platform
+        import subprocess
+        import os
+        from django.contrib import messages
+        
+        system_os = platform.system().lower()
+        base_dir = getattr(settings, 'BASE_DIR', os.getcwd())
+        
+        # Verificar si se debe forzar la actualización
+        force = request.POST.get('force', 'false').lower() == 'true'
+        
+        try:
+            # Script Python unificado
+            script_path = os.path.join(base_dir, 'update_system.py')
+            
+            if not os.path.exists(script_path):
+                messages.error(request, "No se encuentra el script de actualización")
+                return redirect('erp:updates')
+            
+            # Construir comando según el sistema operativo
+            if system_os == 'windows':
+                command = ['actualizar_pos_simple.bat']
+                if force:
+                    command.append('--force')
+            elif system_os == 'darwin':  # macOS
+                command = ['python3', 'update_system.py']
+                if force:
+                    command.append('--force')
+            elif system_os == 'linux':
+                command = ['python3', 'update_system.py']
+                if force:
+                    command.append('--force')
+            else:
+                messages.error(request, f"Sistema operativo no soportado: {system_os}")
+                return redirect('erp:updates')
+            
+            # Ejecutar el script en segundo plano
+            if system_os == 'windows':
+                subprocess.Popen(
+                    command,
+                    shell=True,
+                    cwd=base_dir,
+                    creationflags=subprocess.CREATE_NEW_CONSOLE
+                )
+            else:
+                subprocess.Popen(
+                    command,
+                    cwd=base_dir,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    start_new_session=True
+                )
+            
+            messages.success(request, "Actualización iniciada en segundo plano")
+            
+        except Exception as e:
+            messages.error(request, f"Error al iniciar la actualización: {str(e)}")
+        
+        return redirect('erp:updates')
     
     def backup_to_server(self, request):
         """Vista para hacer backup al servidor."""

@@ -280,6 +280,10 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     import pytz
                     sale.local_timezone = 'America/Argentina/Buenos_Aires'
                     
+                    # Agregar UUID único para identificar esta venta en sincronización
+                    import uuid
+                    sale.local_uuid = str(uuid.uuid4())
+                    
                     sale.save()
                     
                     # Marcar token como procesado

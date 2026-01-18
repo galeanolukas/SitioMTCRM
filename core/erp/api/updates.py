@@ -64,7 +64,7 @@ def refresh_version_info(request):
 @login_required
 def execute_update_script(request):
     """
-    Ejecuta el script de actualización según el sistema operativo.
+    Ejecuta el script de actualización simplificado.
     """
     try:
         import platform
@@ -73,50 +73,12 @@ def execute_update_script(request):
         # Obtener el directorio base del proyecto
         base_dir = getattr(settings, 'BASE_DIR', os.getcwd())
         
-        # Obtener el tipo de actualización desde el request
+        # Obtener parámetros del request
         data = json.loads(request.body) if request.body else {}
-        update_type = data.get('type', 'auto')  # auto, portable
+        force = data.get('force', False)
         
-        if system_os == 'windows':
-            if update_type == 'portable':
-                script_path = os.path.join(base_dir, 'actualizar_pos_portable.bat')
-                # Verificar si Git Portable está configurado
-                git_portable_path = os.path.join(base_dir, 'tools', 'PortableGit', 'bin', 'git.exe')
-                if not os.path.exists(git_portable_path):
-                    # Ejecutar setup primero
-                    setup_script = os.path.join(base_dir, 'setup_git_portable.bat')
-                    if os.path.exists(setup_script):
-                        process = subprocess.Popen(
-                            ['start', 'cmd', '/c', setup_script],
-                            shell=True,
-                            cwd=base_dir,
-                            creationflags=subprocess.CREATE_NEW_CONSOLE
-                        )
-                        return JsonResponse({
-                            'success': True,
-                            'message': 'Configurando Git Portable...',
-                            'data': {
-                                'script': setup_script,
-                                'pid': process.pid if hasattr(process, 'pid') else None,
-                                'os': system_os,
-                                'setup_required': True
-                            }
-                        })
-                
-                command = ['start', 'cmd', '/c', script_path]
-            else:
-                script_path = os.path.join(base_dir, 'actualizar_pos.bat')
-                command = ['start', 'cmd', '/c', script_path]
-        elif system_os == 'linux':
-            script_path = os.path.join(base_dir, 'actualizar_pos.sh')
-            # Hacer el script ejecutable
-            os.chmod(script_path, 0o755)
-            command = ['bash', script_path]
-        else:
-            return JsonResponse({
-                'success': False,
-                'error': f'Sistema operativo no soportado: {system_os}'
-            }, status=400)
+        # Script Python unificado
+        script_path = os.path.join(base_dir, 'update_system.py')
         
         # Verificar que el script existe
         if not os.path.exists(script_path):
@@ -125,9 +87,26 @@ def execute_update_script(request):
                 'error': f'No se encuentra el script de actualización: {script_path}'
             }, status=404)
         
+        # Construir comando según el sistema operativo
+        if system_os == 'windows':
+            # En Windows, usar el script .bat que llama al Python
+            bat_script = os.path.join(base_dir, 'actualizar_pos_simple.bat')
+            command = ['start', 'cmd', '/c', bat_script]
+            if force:
+                command.append('--force')
+        elif system_os == 'linux':
+            # En Linux, ejecutar directamente el script Python
+            command = ['python3', script_path]
+            if force:
+                command.append('--force')
+        else:
+            return JsonResponse({
+                'success': False,
+                'error': f'Sistema operativo no soportado: {system_os}'
+            }, status=400)
+        
         # Ejecutar el script en segundo plano
         try:
-            # En Windows, usar START para abrir en nueva ventana
             if system_os == 'windows':
                 process = subprocess.Popen(
                     command,
@@ -147,12 +126,12 @@ def execute_update_script(request):
             
             return JsonResponse({
                 'success': True,
-                'message': 'Script de actualización iniciado',
+                'message': 'Actualización iniciada en segundo plano',
                 'data': {
                     'script': script_path,
                     'pid': process.pid if hasattr(process, 'pid') else None,
                     'os': system_os,
-                    'type': update_type
+                    'force': force
                 }
             })
             
@@ -186,6 +165,79 @@ def check_git_portable(request):
             'success': True,
             'git_portable_ready': git_portable_ready,
             'git_portable_path': git_portable_path
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+@login_required
+def check_update_status(request):
+    """
+    Verifica el estado del sistema para actualización.
+    """
+    try:
+        import sys
+        import platform
+        
+        # Obtener el directorio base del proyecto
+        base_dir = getattr(settings, 'BASE_DIR', os.getcwd())
+        script_path = os.path.join(base_dir, 'update_system.py')
+        
+        # Ejecutar script para obtener estado
+        if os.path.exists(script_path):
+            result = subprocess.run([
+                sys.executable, script_path, '--status', '--json'
+            ], cwd=base_dir, capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                import json
+                status = json.loads(result.stdout)
+                return JsonResponse({
+                    'success': True,
+                    'status': status
+                })
+        
+        # Fallback: verificación manual
+        status = {
+            'script_available': os.path.exists(script_path),
+            'git_available': False,
+            'git_repo': False,
+            'has_changes': False,
+            'system_os': platform.system().lower(),
+            'base_dir': base_dir
+        }
+        
+        # Verificar Git
+        try:
+            subprocess.run(['git', '--version'], capture_output=True, check=True)
+            status['git_available'] = True
+        except:
+            pass
+        
+        # Verificar repositorio
+        if os.path.exists(os.path.join(base_dir, '.git')):
+            status['git_repo'] = True
+            
+            # Verificar cambios
+            try:
+                result = subprocess.run(
+                    ['git', 'diff-index', '--quiet', 'HEAD', '--'],
+                    cwd=base_dir,
+                    capture_output=True
+                )
+                status['has_changes'] = result.returncode != 0
+            except:
+                pass
+        
+        return JsonResponse({
+            'success': True,
+            'status': status
         })
         
     except Exception as e:

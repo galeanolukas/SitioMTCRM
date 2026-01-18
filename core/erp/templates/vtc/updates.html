@@ -11,14 +11,28 @@
         <div class="card-body">
           <p class="text-muted">Aquí podés ver la versión instalada en este POS y la última versión publicada en GitHub.</p>
           
-          <!-- Mensaje destacado de nueva versión -->
+          <!-- Estado del sistema de actualización -->
+          {% if update_status %}
           <div class="alert alert-info alert-dismissible fade show" role="alert">
-            <h6 class="alert-heading"><i class="fas fa-info-circle me-2"></i>Versión Actual</h6>
-            <p class="mb-2">Estás utilizando la versión <strong>1.0.1</strong> con el sistema de transferencias entre empresas.</p>
-            <hr>
-            <p class="mb-0">Esta es la versión más reciente y estable del sistema.</p>
+            <h6 class="alert-heading"><i class="fas fa-info-circle me-2"></i>Estado del Sistema</h6>
+            <div class="row">
+              <div class="col-md-6">
+                <ul class="mb-0">
+                  <li>Git disponible: <span class="badge {% if update_status.git_available %}bg-success{% else %}bg-danger{% endif %}">{% if update_status.git_available %}Sí{% else %}No{% endif %}</span></li>
+                  <li>Repositorio Git: <span class="badge {% if update_status.git_repo %}bg-success{% else %}bg-danger{% endif %}">{% if update_status.git_repo %}Sí{% else %}No{% endif %}</span></li>
+                  <li>Cambios locales: <span class="badge {% if update_status.has_changes %}bg-warning{% else %}bg-success{% endif %}">{% if update_status.has_changes %}Sí{% else %}No{% endif %}</span></li>
+                </ul>
+              </div>
+              <div class="col-md-6">
+                <ul class="mb-0">
+                  <li>Sistema: <span class="badge bg-info">{{ update_status.system_os|title }}</span></li>
+                  <li>Script disponible: <span class="badge {% if update_status.script_available %}bg-success{% else %}bg-danger{% endif %}">{% if update_status.script_available %}Sí{% else %}No{% endif %}</span></li>
+                </ul>
+              </div>
+            </div>
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
           </div>
+          {% endif %}
 
           <div class="row mb-3">
             <div class="col-12 col-md-6 mb-2">
@@ -46,83 +60,234 @@
 
           <hr>
 
-          <h5>Cómo actualizar este POS</h5>
-          <ol class="mb-3">
-            <li>Cerrar todas las ventanas del POS (navegador y servidor local si aplica).</li>
-            <li>En esta PC, ir a la carpeta del proyecto (donde estén <code>lanzar_pos.bat</code> y <code>actualizar_pos.bat</code>).</li>
-            <li>Ejecutar <code>actualizar_pos.bat</code> y seguir los mensajes en pantalla.</li>
-            <li>Cuando finalice, volver a iniciar el POS con <code>lanzar_pos.bat</code> y entrar de nuevo al sistema.</li>
-          </ol>
-
-          {% if update_available %}
+          <h5>Actualización Automática</h5>
+          <p class="text-muted">Usa el nuevo sistema de actualización simplificado. Detecta automáticamente tu SO y ejecuta la actualización correspondiente.</p>
+          
+          {% if can_update %}
+          <div class="row">
+            <div class="col-12">
+              <form method="post" action="{% url 'erp:updates' %}" id="updateForm">
+                {% csrf_token %}
+                {% if has_changes %}
+                <div class="alert alert-warning mb-3">
+                  <i class="fas fa-exclamation-triangle me-2"></i>
+                  <strong>Advertencia:</strong> Se detectaron cambios locales sin commitear. Estos cambios se perderán si actualizas desde GitHub.
+                  <div class="form-check mt-2">
+                    <input class="form-check-input" type="checkbox" name="force" id="forceUpdate">
+                    <label class="form-check-label" for="forceUpdate">
+                      Forzar actualización (sobreescribir cambios locales)
+                    </label>
+                  </div>
+                </div>
+                {% endif %}
+                
+                <div class="d-flex gap-2">
+                  <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-download me-2"></i>Actualizar Sistema
+                  </button>
+                  <button type="button" class="btn btn-secondary" onclick="checkStatus()">
+                    <i class="fas fa-sync me-2"></i>Verificar Estado
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+          {% else %}
           <div class="alert alert-warning">
-            <h6><i class="fas fa-exclamation-triangle me-2"></i>Actualización disponible</h6>
-            <p class="mb-2">Hay una nueva versión disponible. Puede actualizar automáticamente:</p>
-            
-            <!-- Windows -->
-            {% if is_windows %}
-              <div class="btn-group" role="group">
-                <button class="btn btn-warning" onclick="launchUpdater('actualizar_pos.bat', 'development')">
-                  <i class="fas fa-download me-2"></i>Actualizar POS (Desarrollo)
-                </button>
-                <button class="btn btn-danger" onclick="launchUpdater('actualizar_production.bat', 'production')">
-                  <i class="fas fa-server me-2"></i>Actualizar Producción
-                </button>
-              </div>
-              <div class="mt-2">
-                <small class="text-muted">
-                  <strong>POS (Desarrollo):</strong> Para entornos locales de desarrollo<br>
-                  <strong>Producción:</strong> Para servidor Windows con IIS/Apache
-                </small>
-              </div>
-            
-            <!-- Linux -->
-            {% elif is_linux %}
-              <div class="btn-group" role="group">
-                <button class="btn btn-warning" onclick="launchUpdater('./actualizar_pos.sh', 'development')">
-                  <i class="fas fa-download me-2"></i>Actualizar POS (Desarrollo)
-                </button>
-                <button class="btn btn-danger" onclick="launchUpdater('./actualizar_production.sh', 'production')">
-                  <i class="fas fa-server me-2"></i>Actualizar Producción
-                </button>
-              </div>
-              <div class="mt-2">
-                <small class="text-muted">
-                  <strong>POS (Desarrollo):</strong> Para entornos locales de desarrollo<br>
-                  <strong>Producción:</strong> Para servidor VPS con uwsgi + lighttpd
-                </small>
-              </div>
-            
-            <!-- macOS -->
-            {% elif is_mac %}
-              <div class="btn-group" role="group">
-                <button class="btn btn-warning" onclick="launchUpdater('./actualizar_pos.sh', 'development')">
-                  <i class="fas fa-download me-2"></i>Actualizar POS (Desarrollo)
-                </button>
-                <button class="btn btn-danger" onclick="launchUpdater('./actualizar_production.sh', 'production')">
-                  <i class="fas fa-server me-2"></i>Actualizar Producción
-                </button>
-              </div>
-              <div class="mt-2">
-                <small class="text-muted">
-                  <strong>POS (Desarrollo):</strong> Para entornos locales de desarrollo<br>
-                  <strong>Producción:</strong> Para servidor macOS
-                </small>
-              </div>
-            
-            <!-- Sistema no detectado -->
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <strong>No se puede actualizar:</strong> 
+            {% if not update_status %}
+              No se pudo verificar el estado del sistema. Asegúrate de tener Git instalado y que el proyecto sea un repositorio Git.
             {% else %}
-              <div class="text-muted">
-                <small>Sistema no detectado. Actualice manualmente según las instrucciones anteriores.</small>
-              </div>
+              {% if not update_status.git_available %}
+                <div class="mb-3">
+                  <p class="mb-2"><strong>Git no está instalado.</strong> Para actualizar el sistema automáticamente, necesitas instalar Git primero.</p>
+                  
+                  <div class="row">
+                    {% if is_windows %}
+                    <div class="col-md-6 mb-2">
+                      <div class="card border-info">
+                        <div class="card-body text-center">
+                          <h6 class="card-title">
+                            <i class="fab fa-windows me-2"></i>Git para Windows
+                          </h6>
+                          <p class="card-text small text-muted">Descarga e instala Git para Windows</p>
+                          <a href="https://git-scm.com/download/win" target="_blank" class="btn btn-info btn-sm">
+                            <i class="fas fa-download me-1"></i>Descargar Git
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                    {% elif is_linux %}
+                    <div class="col-md-6 mb-2">
+                      <div class="card border-warning">
+                        <div class="card-body text-center">
+                          <h6 class="card-title">
+                            <i class="fab fa-linux me-2"></i>Git para Linux
+                          </h6>
+                          <p class="card-text small text-muted">Instala Git usando tu gestor de paquetes</p>
+                          <div class="mt-2">
+                            <small class="d-block mb-1"><strong>Debian/Ubuntu:</strong></small>
+                            <code class="bg-light p-1 rounded d-block mb-2">sudo apt-get install git</code>
+                            
+                            <small class="d-block mb-1"><strong>CentOS/RHEL:</strong></small>
+                            <code class="bg-light p-1 rounded d-block mb-2">sudo yum install git</code>
+                            
+                            <small class="d-block mb-1"><strong>Fedora:</strong></small>
+                            <code class="bg-light p-1 rounded d-block">sudo dnf install git</code>
+                          </div>
+                          <a href="https://git-scm.com/download/linux" target="_blank" class="btn btn-warning btn-sm mt-2">
+                            <i class="fas fa-external-link-alt me-1"></i>Más opciones
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                    {% elif is_mac %}
+                    <div class="col-md-6 mb-2">
+                      <div class="card border-success">
+                        <div class="card-body text-center">
+                          <h6 class="card-title">
+                            <i class="fab fa-apple me-2"></i>Git para macOS
+                          </h6>
+                          <p class="card-text small text-muted">Instala Git en tu Mac</p>
+                          <div class="mt-2">
+                            <small class="d-block mb-2"><strong>Opción 1: Homebrew (recomendado)</strong></small>
+                            <code class="bg-light p-1 rounded d-block mb-2">brew install git</code>
+                            
+                            <small class="d-block mb-2"><strong>Opción 2: Descarga directa</strong></small>
+                          </div>
+                          <a href="https://git-scm.com/download/mac" target="_blank" class="btn btn-success btn-sm">
+                            <i class="fas fa-download me-1"></i>Descargar para macOS
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="col-md-6 mb-2">
+                      <div class="card border-secondary">
+                        <div class="card-body text-center">
+                          <h6 class="card-title">
+                            <i class="fas fa-book me-2"></i>Documentación
+                          </h6>
+                          <p class="card-text small text-muted">Guía de instalación de Git</p>
+                          <a href="https://git-scm.com/book/en/v2/Getting-Started-Installing-Git" target="_blank" class="btn btn-secondary btn-sm">
+                            <i class="fas fa-question-circle me-1"></i>Ayuda
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div class="mt-3 p-2 bg-light rounded">
+                    <small class="text-muted">
+                      <strong>Después de instalar Git:</strong><br>
+                      1. Reinicia esta página web<br>
+                      2. Verifica que Git esté disponible<br>
+                      3. Podrás usar las funciones de actualización automática
+                    </small>
+                  </div>
+                </div>
+              {% endif %}
+              {% if not update_status.git_repo %}El proyecto no es un repositorio Git. {% endif %}
             {% endif %}
-            
-            <hr class="my-2">
-            <small class="text-muted">
-              <strong>Importante:</strong> El actualizador cerrará esta aplicación. Guarde su trabajo antes de continuar.
-            </small>
           </div>
           {% endif %}
+
+          <hr>
+
+          <!-- Botones de actualización manual (alternativa) -->
+          <h6>Actualización Manual (Alternativa)</h6>
+          <p class="small mb-2">Si la actualización automática no funciona, puedes usar los scripts manuales:</p>
+          
+          <!-- Windows -->
+          {% if is_windows %}
+          <div class="btn-group" role="group">
+            <button class="btn btn-outline-primary" onclick="launchUpdater('actualizar_pos_simple.bat')">
+              <i class="fas fa-download me-2"></i>Actualizar (Nuevo Script)
+            </button>
+            <button class="btn btn-outline-secondary" onclick="launchUpdater('actualizar_pos.bat')">
+              <i class="fas fa-download me-2"></i>Actualizar (Script Antiguo)
+            </button>
+          </div>
+          
+          <!-- Linux -->
+          {% elif is_linux %}
+          <div class="btn-group" role="group">
+            <button class="btn btn-outline-primary" onclick="launchUpdater('./actualizar_pos_simple.sh')">
+              <i class="fas fa-download me-2"></i>Actualizar (Nuevo Script)
+            </button>
+            <button class="btn btn-outline-secondary" onclick="launchUpdater('./actualizar_pos.sh')">
+              <i class="fas fa-download me-2"></i>Actualizar (Script Antiguo)
+            </button>
+          </div>
+          {% elif is_mac %}
+          <div class="btn-group" role="group">
+            <button class="btn btn-outline-success" onclick="launchUpdater('./actualizar_pos_simple.sh')">
+              <i class="fas fa-download me-2"></i>Actualizar (Nuevo Script)
+            </button>
+            <button class="btn btn-outline-secondary" onclick="launchUpdater('./actualizar_pos.sh')">
+              <i class="fas fa-download me-2"></i>Actualizar (Script Antiguo)
+            </button>
+          </div>
+          {% endif %}
+
+          <div class="mt-2">
+            <small class="text-muted">
+              <strong>Nuevo Script:</strong> Simplificado, unificado, con mejor manejo de errores<br>
+              <strong>Script Antiguo:</strong> Sistema tradicional (mantenido por compatibilidad)
+            </small>
+          </div>
+
+          <hr>
+
+          <!-- Herramienta de Release Automático -->
+          <div class="mt-3">
+            <div class="card card-outline card-success">
+              <div class="card-header">
+                <h6 class="card-title mb-0">
+                  <i class="fas fa-rocket me-2"></i>Release Automático
+                </h6>
+              </div>
+              <div class="card-body">
+                <p class="card-text text-muted mb-3">
+                  Herramienta para crear una nueva versión, subir cambios a Git y generar release automático.
+                </p>
+                
+                <div class="row mb-3">
+                  <div class="col-md-6">
+                    <label class="form-label">Tipo de Release:</label>
+                    <select class="form-select" id="releaseType">
+                      <option value="patch">🔧 Patch (1.0.0 → 1.0.1) - Corrección de errores</option>
+                      <option value="minor">⭐ Minor (1.0.1 → 1.1.0) - Nuevas características</option>
+                      <option value="major">🚀 Major (1.1.0 → 2.0.0) - Cambios importantes</option>
+                    </select>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label">Mensaje del Commit (opcional):</label>
+                    <input type="text" class="form-control" id="commitMessage" placeholder="Dejar en blanco para automático">
+                  </div>
+                </div>
+                
+                <div class="d-flex gap-2">
+                  <button type="button" class="btn btn-success" onclick="executeRelease()">
+                    <i class="fas fa-rocket me-2"></i>Ejecutar Release
+                  </button>
+                  <button type="button" class="btn btn-outline-info" onclick="showReleaseHelp()">
+                    <i class="fas fa-question-circle me-2"></i>Ayuda
+                  </button>
+                </div>
+                
+                <div id="releaseProgress" class="mt-3" style="display: none;">
+                  <div class="alert alert-info">
+                    <h6><i class="fas fa-spinner fa-spin me-2"></i>Ejecutando Release...</h6>
+                    <div id="releaseLog" class="mt-2" style="font-family: monospace; font-size: 12px; max-height: 300px; overflow-y: auto; background: #f8f9fa; padding: 10px; border-radius: 4px;">
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
           <div class="mt-3">
             <div class="card card-outline card-info">
@@ -152,7 +317,7 @@
           </ul>
 
           <p class="small text-muted mb-0">
-            Nota: este módulo solo informa la disponibilidad de una nueva versión y documenta el procedimiento recomendado de actualización. La ejecución de scripts o comandos sigue siendo manual para mantener el control en cada local.
+            Nota: este módulo informa la disponibilidad de actualizaciones y proporciona métodos automáticos y manuales para mantener el sistema actualizado.
           </p>
         </div>
       </div>
@@ -161,75 +326,201 @@
 </div>
 
 <script>
-function launchUpdater(scriptName, mode) {
-  // Mensaje de confirmación específico según el modo
-  let modeMessage = mode === 'production' ? 
-    'Este es el actualizador de PRODUCCIÓN.\n\nSe actualizará el servidor de producción.\n\n' :
-    'Este es el actualizador de POS (Desarrollo).\n\nSe actualizará el entorno local de desarrollo.\n\n';
+// Función para actualizar con el nuevo sistema
+document.getElementById('updateForm').addEventListener('submit', function(e) {
+  e.preventDefault();
   
-  if (!confirm(modeMessage + '¿Está seguro de iniciar el actualizador?\n\nEsta aplicación se cerrará y se iniciará el proceso de actualización.\n\nGuarde su trabajo antes de continuar.')) {
+  const forceUpdate = document.getElementById('forceUpdate');
+  const force = forceUpdate ? forceUpdate.checked : false;
+  
+  let message = '¿Estás seguro de iniciar la actualización del sistema?\n\n';
+  if (force) {
+    message += '⚠️ Se sobreescribirán los cambios locales.\n\n';
+  }
+  message += 'Esta aplicación se cerrará y se iniciará el proceso de actualización.\n\nGuarde su trabajo antes de continuar.';
+  
+  if (!confirm(message)) {
+    return;
+  }
+  
+  // Enviar formulario
+  this.submit();
+});
+
+// Función para verificar estado
+function checkStatus() {
+  fetch('/api/updates/status/')
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        alert('Estado del sistema:\n\n' + 
+              'Git disponible: ' + (data.status.git_available ? 'Sí' : 'No') + '\n' +
+              'Repositorio Git: ' + (data.status.git_repo ? 'Sí' : 'No') + '\n' +
+              'Cambios locales: ' + (data.status.has_changes ? 'Sí' : 'No') + '\n' +
+              'Sistema: ' + data.status.system_os);
+      } else {
+        alert('Error al verificar estado: ' + data.error);
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      alert('Error al verificar el estado del sistema');
+    });
+}
+
+// Función para lanzar actualizador manual (scripts antiguos)
+function executeRelease() {
+  const releaseType = document.getElementById('releaseType').value;
+  const commitMessage = document.getElementById('commitMessage').value;
+  const progressDiv = document.getElementById('releaseProgress');
+  const logDiv = document.getElementById('releaseLog');
+  
+  // Confirmar ejecución
+  const typeNames = {
+    'patch': 'Patch (corrección de errores)',
+    'minor': 'Minor (nuevas características)',
+    'major': 'Major (cambios importantes)'
+  };
+  
+  const confirmMessage = `¿Está seguro de ejecutar un release tipo "${typeNames[releaseType]}"?\n\n` +
+    `Esto realizará:\n` +
+    `1. Actualizar el sistema\n` +
+    `2. Incrementar la versión\n` +
+    `3. Subir cambios a Git\n` +
+    `4. Crear tag de versión\n` +
+    `5. Generar notas de release\n\n` +
+    `¿Desea continuar?`;
+  
+  if (!confirm(confirmMessage)) {
+    return;
+  }
+  
+  // Mostrar progreso
+  progressDiv.style.display = 'block';
+  logDiv.innerHTML = 'Iniciando proceso de release...\n';
+  
+  // Construir comando
+  let command = `python3 release_manager.py ${releaseType}`;
+  if (commitMessage.trim()) {
+    command += ` "${commitMessage}"`;
+  }
+  
+  // Ejecutar vía fetch (simulado)
+  fetch('/api/execute-release/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCookie('csrftoken')
+    },
+    body: JSON.stringify({
+      command: command,
+      release_type: releaseType,
+      commit_message: commitMessage
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      logDiv.innerHTML = `<div class="text-success">✅ ${data.message}</div>`;
+      setTimeout(() => {
+        progressDiv.style.display = 'none';
+        alert('✅ Release completado exitosamente');
+      }, 2000);
+    } else {
+      logDiv.innerHTML = `<div class="text-danger">❌ Error: ${data.error}</div>`;
+    }
+  })
+  .catch(error => {
+    logDiv.innerHTML = `<div class="text-danger">❌ Error de comunicación: ${error}</div>`;
+  });
+}
+
+function showReleaseHelp() {
+  const helpText = `📖 AYUDA - RELEASE AUTOMÁTICO
+
+🔧 TIPOS DE RELEASE:
+• Patch (1.0.0 → 1.0.1): Corrección de errores críticos
+• Minor (1.0.1 → 1.1.0): Nuevas características y mejoras
+• Major (1.1.0 → 2.0.0): Cambios importantes o breaking changes
+
+🚀 PROCESO AUTOMÁTICO:
+1. Ejecuta actualización del sistema
+2. Incrementa versión según tipo seleccionado
+3. Realiza commit de cambios
+4. Crea tag en Git (v1.0.1)
+5. Sube cambios y tags al repositorio
+6. Genera notas de release
+
+📋 REQUISITOS:
+• Git instalado y configurado
+• Python3 disponible
+• Archivo VERSION en el proyecto
+• Conexión a repositorio remoto
+
+💡 MENSAJE DE COMMIT:
+• Personalizado: Usa tu mensaje específico
+• Automático: "Release v1.0.1 - YYYY-MM-DD HH:MM"
+
+⚠️ NOTAS:
+• El proceso puede tardar varios minutos
+• Asegúrate de no tener cambios sin commitear
+• Verifica la conexión a Internet antes de iniciar`;
+
+  alert(helpText);
+}
+
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+
+function launchUpdater(scriptName) {
+  if (!confirm('¿Está seguro de iniciar el actualizador manual?\n\nEsta aplicación se cerrará y se iniciará el proceso de actualización.\n\nGuarde su trabajo antes de continuar.')) {
     return;
   }
   
   try {
-    // Detectar sistema operativo más precisamente
     const userAgent = navigator.userAgent;
     const platform = navigator.platform;
     
-    let isWindows = false;
-    let isLinux = false;
-    let isMac = false;
-    
-    // Detección mejorada de SO
-    if (userAgent.includes('Windows') || platform.includes('Win')) {
-      isWindows = true;
-    } else if (userAgent.includes('Linux') || platform.includes('Linux')) {
-      isLinux = true;
-    } else if (userAgent.includes('Mac') || platform.includes('Mac')) {
-      isMac = true;
-    }
+    let isWindows = userAgent.includes('Windows') || platform.includes('Win');
+    let isLinux = userAgent.includes('Linux') || platform.includes('Linux');
+    let isMac = userAgent.includes('Mac') || platform.includes('Mac');
     
     if (isWindows) {
-      // Windows: usar WScript.Shell si está disponible (IE/Edge)
       try {
         if (window.ActiveXObject || "ActiveXObject" in window) {
           var shell = new ActiveXObject('WScript.Shell');
           shell.Run(scriptName, 1, false);
-          
-          // Esperar y cerrar
-          setTimeout(function() {
-            window.close();
-          }, 2000);
+          setTimeout(function() { window.close(); }, 2000);
         } else {
-          // Chrome/Firefox en Windows: mostrar instrucciones manuales
           showManualInstructions('Windows', scriptName);
         }
       } catch (e) {
         showManualInstructions('Windows', scriptName);
       }
     } else if (isLinux || isMac) {
-      // Linux/Mac: intentar diferentes métodos
-      if (scriptName.includes('.sh')) {
-        // Intentar ejecutar el script directamente
-        try {
-          // Método 1: Usar location.href para descargar/ejecutar
-          window.location.href = scriptName;
-          
-          // Mostrar instrucciones mientras tanto
-          setTimeout(function() {
-            showManualInstructions(isLinux ? 'Linux' : 'macOS', scriptName);
-          }, 1000);
-        } catch (e) {
+      try {
+        window.location.href = scriptName;
+        setTimeout(function() {
           showManualInstructions(isLinux ? 'Linux' : 'macOS', scriptName);
-        }
-      } else {
+        }, 1000);
+      } catch (e) {
         showManualInstructions(isLinux ? 'Linux' : 'macOS', scriptName);
       }
     } else {
-      // Sistema no detectado
       showManualInstructions('desconocido', scriptName);
     }
-    
   } catch (e) {
     console.error('Error al ejecutar actualizador:', e);
     showManualInstructions('desconocido', scriptName);

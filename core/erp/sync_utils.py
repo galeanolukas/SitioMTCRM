@@ -127,14 +127,14 @@ def run_full_sync():
         except Exception as e:
             logger.error(f"Error en sincronización de cierres de caja: {e}")
             errors.append(f"sync_cash_registers_to_remote: {e}")
-    
-        # Cuentas corrientes de empleados
-        try:
-            call_command("sync_employee_accounts_to_remote")
-            logger.info("Sincronización de cuentas corrientes de empleados completada")
-        except Exception as e:
-            logger.error(f"Error en sincronización de cuentas corrientes: {e}")
-            errors.append(f"sync_employee_accounts_to_remote: {e}")
+
+        # Cuentas corrientes de empleados - TEMPORALMENTE DESHABILITADO
+        # try:
+        #     call_command("sync_employee_accounts_to_remote")
+        #     logger.info("Sincronización de cuentas corrientes de empleados completada")
+        # except Exception as e:
+        #     logger.error(f"Error en sincronización de cuentas corrientes: {e}")
+        #     errors.append(f"sync_employee_accounts_to_remote: {e}")
 
         # Transferencias internas - OMITIDAS (tabla no existe en servidor remoto)
         try:
@@ -157,13 +157,6 @@ def run_full_sync():
         msg = "Sin conexión a la base de datos remota; se omite sincronización de empresas, categorias, productos, ventas, clientes, proveedores, gastos y transferencias."
         logger.warning(msg)
         errors.append(msg)
-
-    # 2) Sincronizar usuarios (si el comando existe). Depende de que ya haya empresas locales.
-    # COMENTADO: La sincronización de usuarios en el launcher está causando problemas de sesión
-    # try:
-    #     call_command("sync_users")
-    # except Exception as e:
-    #     errors.append(f"sync_users: {e}")
 
     ok = (len(errors) == 0)
     

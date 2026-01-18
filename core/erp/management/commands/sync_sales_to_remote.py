@@ -46,27 +46,39 @@ class Command(BaseCommand):
                     continue
 
                 with transaction.atomic(using='remote'):
-                    # Verificar si ya existe venta duplicada usando múltiples criterios
-                    # Buscar por fecha, monto, cliente y método de pago
-                    existing_sale = Sale.objects.using('remote').filter(
-                        date_joined__year=sale.date_joined.year,
-                        date_joined__month=sale.date_joined.month,
-                        date_joined__day=sale.date_joined.day,
-                        total=sale.total,
-                        subtotal=sale.subtotal,
-                        payment_method=sale.payment_method,
-                        cli_id=sale.cli_id
-                    ).only(
-                        'id', 'company_id', 'cli_id', 'date_joined', 'subtotal', 
-                        'total', 'payment_method', 'is_invoiced', 'invoice_number',
-                        'invoice_pos', 'invoice_type', 'local_timezone'
-                    ).first()
+                    # Verificar si ya existe venta duplicada usando múltiples criterios mejorados
+                    # Buscar por UUID local si existe, o por combinación única de campos
+                    existing_sale = None
+                    
+                    # 1) Buscar por UUID local si existe
+                    if hasattr(sale, 'local_uuid') and sale.local_uuid:
+                        existing_sale = Sale.objects.using('remote').filter(
+                            local_uuid=sale.local_uuid
+                        ).first()
+                    
+                    # 2) Si no hay UUID o no se encontró, buscar por criterios estrictos
+                    if not existing_sale:
+                        # Buscar por fecha exacta (+/- 2 segundos), monto, cliente y método de pago
+                        # Esto evita falsos positivos por ventas similares en momentos diferentes
+                        existing_sale = Sale.objects.using('remote').filter(
+                            date_joined__gte=sale.date_joined - timezone.timedelta(seconds=2),
+                            date_joined__lte=sale.date_joined + timezone.timedelta(seconds=2),
+                            total=sale.total,
+                            subtotal=sale.subtotal,
+                            payment_method=sale.payment_method,
+                            cli_id=sale.cli_id,
+                            company_id=remote_company.id if remote_company else None
+                        ).only(
+                            'id', 'company_id', 'cli_id', 'date_joined', 'subtotal', 
+                            'total', 'payment_method', 'is_invoiced', 'invoice_number',
+                            'invoice_pos', 'invoice_type', 'local_timezone', 'local_uuid'
+                        ).first()
                     
                     if existing_sale:
                         # Ya existe una venta muy similar, verificar si es la misma
-                        # Comparar timestamp exacto (diferencia de menos de 5 segundos = misma venta)
+                        # Comparar timestamp exacto (diferencia de menos de 3 segundos = misma venta)
                         time_diff = abs((existing_sale.date_joined - sale.date_joined).total_seconds())
-                        if time_diff < 5:  # Si la diferencia es menor a 5 segundos, es la misma venta
+                        if time_diff < 3:  # Reducido de 5 a 3 segundos para mayor precisión
                             # Ya existe, marcar como sincronizada y continuar
                             Sale.objects.using('default').filter(pk=sale.pk).update(synced_to_server=True)
                             synced += 1
