@@ -26,3 +26,6 @@ openpyxl
 # Manejo de versiones semánticas
 packaging
 requests
+
+# Manejo de zonas horarias
+pytz==2024.1

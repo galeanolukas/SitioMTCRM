@@ -12,6 +12,7 @@
   let items = [];
   let selectedIndex = -1;
   let lastSaleId = null; // ID de la última venta registrada (para ticket)
+  let pendingWeightProduct = null; // Producto pendiente de ingresar peso
 
   function csrftoken() {
     const name = 'csrftoken';
@@ -113,13 +114,26 @@
   function render() {
     $tbody.empty();
     items.forEach((it, idx) => {
+      // Formatear la cantidad según la unidad
+      let displayCant = it.cant;
+      let cantStep = "1";
+      let cantMin = "1";
+      
+      if (it.unit === 'kg') {
+        displayCant = parseFloat(it.cant).toFixed(3);
+        cantStep = "0.001";
+        cantMin = "0.001";
+      } else {
+        displayCant = Math.round(it.cant);
+      }
+      
       const tr = $(`
         <tr data-idx="${idx}" class="${idx===selectedIndex ? 'table-primary' : ''}">
-          <td>${it.name}</td>
+          <td>${it.name}${it.unit === 'kg' ? ' <small class="text-muted">(kg)</small>' : ''}</td>
           <td class="text-center">
             <div class="input-group input-group-sm">
               <button class="btn btn-outline-secondary btnMinus">-</button>
-              <input type="number" class="form-control text-center inpCant" value="${it.cant}" min="0.01" step="0.01" style="max-width: 72px">
+              <input type="number" class="form-control text-center inpCant" value="${displayCant}" min="${cantMin}" step="${cantStep}" style="max-width: 72px">
               <button class="btn btn-outline-secondary btnPlus">+</button>
             </div>
           </td>
@@ -138,7 +152,15 @@
 
   function findById(id) { return items.find(x => x.id === id); }
 
-  function addOrInc(prod) {
+  function showWeightModal(product) {
+    pendingWeightProduct = product;
+    $('#weightProductName').text(product.name);
+    $('#weightInput').val('').focus();
+    const modal = new bootstrap.Modal(document.getElementById('weightModal'));
+    modal.show();
+  }
+
+  function addOrInc(prod, quantity = null) {
     // Validar que el producto tenga un ID válido
     if (!prod || !prod.id) {
       console.error("Invalid product data:", prod);
@@ -159,18 +181,40 @@
     
     let it = findById(prod.id);
     
+    // Determinar la cantidad a agregar
+    let addQuantity = 1;
+    if (quantity !== null) {
+      addQuantity = parseFloat(quantity) || 1;
+    }
+    
     if (it) {
-      it.cant = (parseFloat(it.cant) || 0) + 1;
+      // Si el producto es por kg, sumar el peso
+      if (prod.unit === 'kg') {
+        it.cant = (parseFloat(it.cant) || 0) + addQuantity;
+      } else {
+        it.cant = (parseFloat(it.cant) || 0) + 1;
+      }
     } else {
+      // Calcular precio según unidad
+      let finalPrice = parseFloat(prod.pvp || prod.price || 0);
+      let displayQuantity = 1;
+      
+      if (prod.unit === 'kg') {
+        // Si es por kg y se especifica cantidad, usar esa cantidad
+        displayQuantity = addQuantity;
+        // El precio ya es por kg, solo se multiplicará por la cantidad en recalc()
+      }
+      
       // price = pvp neto; pvp_final se usará solo al facturar
       it = {
         id: prod.id,
         name: prod.name || 'Producto sin nombre',
-        price: parseFloat(prod.pvp || prod.price || 0),
+        price: finalPrice,
         pvp_final: parseFloat(prod.pvp_final || 0),
         iva_rate: (typeof prod.iva_rate !== 'undefined' && !isNaN(parseFloat(prod.iva_rate))) ? parseFloat(prod.iva_rate) : getIvaRate(),
-        cant: 1,
+        cant: displayQuantity,
         subtotal: 0,
+        unit: prod.unit || 'unit',
         prod_data: prod // Guardar datos completos del producto para validación de stock
       };
       items.push(it);
@@ -210,7 +254,11 @@
           const item = $(`<button type="button" class="list-group-item list-group-item-action">${p.name} <span class='text-muted small'>${p.code || ''}</span> <span class='float-end'>$${parseFloat(p.pvp).toFixed(2)}</span></button>`);
           item.on('click', function(e) {
             e.preventDefault();
-            addOrInc(p);
+            if (p.unit === 'kg') {
+              showWeightModal(p);
+            } else {
+              addOrInc(p);
+            }
             $suggest.hide().empty();
             $input.val('').focus();
           });
@@ -234,7 +282,11 @@
       $suggest.hide().empty();
       ajaxAction('product_by_code', { code })
         .done(resp => {
-          addOrInc(resp);
+          if (resp.unit === 'kg') {
+            showWeightModal(resp);
+          } else {
+            addOrInc(resp);
+          }
           $input.val('').focus();
         })
         .fail((jqXHR, textStatus, errorThrown) => {
@@ -256,12 +308,20 @@
   $tbody.on('click', '.btnPlus', function () {
     const idx = $(this).closest('tr').data('idx');
     const current = parseFloat(items[idx].cant || 0);
-    const newCant = current + 1;
+    
+    // Determinar el incremento según la unidad
+    let increment = 1;
+    if (items[idx].unit === 'kg') {
+      increment = 0.1; // Incrementar por 100g para productos por kg
+    }
+    
+    const newCant = current + increment;
     
     // Validación simple de stock
     const productStock = parseFloat(items[idx].prod_data?.stock || 0);
     if (newCant > productStock && productStock > 0) {
-      showToast('error', `Stock insuficiente. Disponible: ${productStock} unidades`);
+      const unit = items[idx].unit === 'kg' ? 'kg' : 'unidades';
+      showToast('error', `Stock insuficiente. Disponible: ${productStock} ${unit}`);
       return;
     }
     
@@ -271,18 +331,35 @@
   $tbody.on('click', '.btnMinus', function () {
     const idx = $(this).closest('tr').data('idx');
     const current = parseFloat(items[idx].cant || 0);
-    items[idx].cant = Math.max(0.01, (current || 0) - 1);
+    
+    // Determinar el decremento según la unidad
+    let decrement = 1;
+    let minVal = 1;
+    if (items[idx].unit === 'kg') {
+      decrement = 0.1; // Decrementar por 100g para productos por kg
+      minVal = 0.001; // Mínimo 1 gramo
+    }
+    
+    items[idx].cant = Math.max(minVal, (current || 0) - decrement);
     selectedIndex = idx; recalc();
   });
   $tbody.on('change', '.inpCant', function () {
     const idx = $(this).closest('tr').data('idx');
     const v = parseFloat($(this).val() || 0);
-    const newCant = Math.max(0.01, v || 0);
+    
+    // Determinar el mínimo según la unidad
+    let minVal = 1;
+    if (items[idx].unit === 'kg') {
+      minVal = 0.001; // Mínimo 1 gramo para productos por kg
+    }
+    
+    const newCant = Math.max(minVal, v || 0);
     
     // Validación simple de stock
     const productStock = parseFloat(items[idx].prod_data?.stock || 0);
     if (newCant > productStock && productStock > 0) {
-      showToast('error', `Stock insuficiente. Disponible: ${productStock} unidades`);
+      const unit = items[idx].unit === 'kg' ? 'kg' : 'unidades';
+      showToast('error', `Stock insuficiente. Disponible: ${productStock} ${unit}`);
       $(this).val(items[idx].cant); // Restaurar valor anterior
       return;
     }
@@ -1041,6 +1118,39 @@
         $('#btnSaveEmployee').prop('disabled', false);
       }
     });
+  });
+
+  // Confirmar peso de producto
+  $(document).on('click', '#btnConfirmWeight', function() {
+    const weight = parseFloat($('#weightInput').val() || 0);
+    
+    if (weight <= 0) {
+      showToast('error', 'Debe ingresar un peso válido');
+      return;
+    }
+    
+    if (pendingWeightProduct) {
+      addOrInc(pendingWeightProduct, weight);
+      pendingWeightProduct = null;
+      
+      // Cerrar modal
+      const modal = bootstrap.Modal.getInstance(document.getElementById('weightModal'));
+      modal.hide();
+      
+      // Limpiar input
+      $('#weightInput').val('');
+      
+      // Enfocar input principal
+      $input.focus();
+    }
+  });
+
+  // Permitir Enter en el input de peso
+  $(document).on('keydown', '#weightInput', function(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      $('#btnConfirmWeight').click();
+    }
   });
 
   // Confirmar cuenta corriente de empleado

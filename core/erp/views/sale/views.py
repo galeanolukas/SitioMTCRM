@@ -80,6 +80,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     'track_stock': prod.track_stock,
                     'is_out_of_stock': prod.is_out_of_stock(),
                     'has_low_stock': prod.has_low_stock(),
+                    'unit': prod.unit,
                     'unit_display': prod.get_unit_display()
                 }
                 
@@ -118,6 +119,8 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         'stock': float(p.stock),
                         'code': p.code or '',
                         'iva_rate': float(getattr(p, 'iva_rate', 0) or 0),
+                        'unit': p.unit,
+                        'unit_display': p.get_unit_display()
                     }
                     data.append(item)
             elif action == 'quick_create_product':
@@ -382,10 +385,12 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                             subtotal=float(it.get('subtotal', 0)),
                         )
                         det.save()
-                        Product.objects.filter(pk=det.prod_id).update(
-                            stock=F('stock') - cant,
-                            synced_to_server=False  # Marcar para sincronizar
-                        )
+                        prod = Product.objects.filter(pk=det.prod_id).first()
+                        if prod and getattr(prod, 'track_stock', True):
+                            Product.objects.filter(pk=det.prod_id).update(
+                                stock=F('stock') - cant,
+                                synced_to_server=False  # Marcar para sincronizar
+                            )
                     data = {'id': sale.id, 'invoice_url': reverse_lazy('erp:invoice_pdf', kwargs={'pk': sale.id})}
             elif action == 'import_quickorder':
                 qo_id = request.POST.get('quickorder_id') or ''
@@ -420,7 +425,13 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         if not prod_id:
                             continue
                         prod = Product.objects.select_for_update().get(pk=prod_id)
-                        cant = int(it.get('quantity', 1) or 1)
+                        
+                        # Determinar la cantidad según la unidad del producto
+                        if prod.unit == 'kg':
+                            cant = float(it.get('quantity', 1) or 1)
+                        else:
+                            cant = int(it.get('quantity', 1) or 1)
+                            
                         if getattr(prod, 'track_stock', True) and prod.stock < cant:
                             raise Exception(f"Stock insuficiente para {prod.name}. Disponible: {format(prod.stock, '.2f')} {prod.get_unit_display()}, requerido: {format(cant, '.2f')} {prod.get_unit_display()}")
                         price = float(it.get('unit_price', 0))
@@ -644,7 +655,13 @@ class SaleCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Create
                     # Validación de stock suficiente
                     for i in vents['products']:
                         prod = Product.objects.select_for_update().get(pk=i['id'])
-                        cant = int(i['cant'])
+                        
+                        # Determinar la cantidad según la unidad del producto
+                        if prod.unit == 'kg':
+                            cant = float(i['cant'])
+                        else:
+                            cant = int(i['cant'])
+                            
                         if prod.stock < cant:
                             raise Exception(f"Stock insuficiente para {prod.name}. Disponible: {format(prod.stock, '.2f')}, requerido: {cant}")
 
@@ -668,10 +685,18 @@ class SaleCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Create
                     sale.save()
 
                     for i in vents['products']:
+                        prod = Product.objects.get(pk=i['id'])
+                        
+                        # Determinar la cantidad según la unidad del producto
+                        if prod.unit == 'kg':
+                            cant = float(i['cant'])
+                        else:
+                            cant = int(i['cant'])
+                            
                         det = DetSale()
                         det.sale_id = sale.id
                         det.prod_id = i['id']
-                        det.cant = int(i['cant'])
+                        det.cant = cant
                         det.price = float(i['pvp'])
                         det.subtotal = float(i['subtotal'])
                         det.save()
@@ -1053,7 +1078,13 @@ class InvoiceCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Cre
                     # Validación de stock suficiente
                     for i in vents['products']:
                         prod = Product.objects.select_for_update().get(pk=i['id'])
-                        cant = int(i['cant'])
+                        
+                        # Determinar la cantidad según la unidad del producto
+                        if prod.unit == 'kg':
+                            cant = float(i['cant'])
+                        else:
+                            cant = int(i['cant'])
+                            
                         if prod.stock < cant:
                             raise Exception(f"Stock insuficiente para {prod.name}. Disponible: {format(prod.stock, '.2f')}, requerido: {cant}")
 
@@ -1063,7 +1094,13 @@ class InvoiceCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Cre
                     detalles = []
                     for i in vents['products']:
                         prod = Product.objects.get(pk=i['id'])
-                        cant = int(i['cant'])
+                        
+                        # Determinar la cantidad según la unidad del producto
+                        if prod.unit == 'kg':
+                            cant = float(i['cant'])
+                        else:
+                            cant = int(i['cant'])
+                            
                         net = float(prod.pvp or 0)
                         rate = float(getattr(prod, 'iva_rate', 0) or 0)
                         final = float(getattr(prod, 'pvp_final', net * (1 + rate)) or (net * (1 + rate)))
@@ -1414,20 +1451,18 @@ class EmployeeAccountListView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                             is_invoiced=False,
                             date_joined=timezone.now(),
                             local_uuid=str(uuid.uuid4()),
-                            synced_to_server=False,
-                            notes=f"Venta generada por pago de cuenta corriente - Empleado: {account.employee.get_full_name()|default:account.employee.username}"
+                            synced_to_server=False
                         )
                         
                         # Crear detalles de la venta
-                        for detail in account.det.all():
+                        for detail in account.detemployeeaccount_set.all():
                             DetSale.objects.create(
                                 sale_id=sale.id,
                                 prod_id=detail.prod_id,
                                 cant=detail.cant,
                                 price=detail.price,
                                 subtotal=detail.subtotal,
-                                iva_amount=0,  # Sin IVA
-                                iva_rate=0
+                                iva_amount=0  # Sin IVA
                             )
                         
                         # Marcar cuenta corriente como pagada

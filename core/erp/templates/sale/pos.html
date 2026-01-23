@@ -592,6 +592,39 @@
   </div>
 </div>
 
+<!-- Modal para ingresar peso de producto -->
+<div class="modal fade" id="weightModal" tabindex="-1" aria-labelledby="weightModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="weightModalLabel">
+          <i class="fas fa-weight"></i> Ingresar Peso
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-info">
+          <i class="fas fa-info-circle"></i> <span id="weightProductName"></span> se vende por kilogramo. Ingrese el peso deseado:
+        </div>
+        <div class="mb-3">
+          <label for="weightInput" class="form-label">Peso (kg)</label>
+          <div class="input-group">
+            <input type="number" id="weightInput" class="form-control" placeholder="1.400" step="0.001" min="0.001" autocomplete="off">
+            <span class="input-group-text">kg</span>
+          </div>
+          <small class="form-text text-muted">Ejemplo: 1.400 para 1.4 kg (1400 gramos)</small>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btnConfirmWeight">
+          <i class="fas fa-check"></i> Confirmar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1080;">
   <div id="posToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="4000">
     <div class="toast-header">
