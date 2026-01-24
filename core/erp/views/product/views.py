@@ -10,8 +10,12 @@ import json
 
 try:
     import pandas as pd
-except Exception:
+except ImportError as e:
     pd = None
+    print(f"ERROR: No se pudo importar pandas: {e}")
+except Exception as e:
+    pd = None
+    print(f"ERROR inesperado al importar pandas: {e}")
 
 from core.erp.forms import ProductForm
 from core.erp.models import Product, Category, Company
@@ -321,7 +325,17 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
 
     def post(self, request, *args, **kwargs):
         if pd is None:
-            messages.error(request, 'Pandas no está instalado. Ejecuta: pip install pandas openpyxl')
+            error_msg = """
+            ERROR: Las librerías para importación de Excel/CSV no están instaladas.
+            
+            Solución:
+            1. Abre una terminal o símbolo del sistema
+            2. Activa el entorno virtual: venv\\Scripts\\activate
+            3. Instala las librerías: pip install pandas openpyxl
+            
+            Si el problema persiste, ejecuta el instalador: instalador_pos_bat.bat
+            """
+            messages.error(request, error_msg)
             return self.get(request, *args, **kwargs)
         action = request.POST.get('action')
         # Paso 1: analizar columnas y mostrar mapeo (archivo "limpio")
@@ -357,7 +371,17 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                 messages.error(request, 'Debe seleccionar un archivo CSV o Excel')
                 return self.get(request, *args, **kwargs)
             if pd is None:
-                messages.error(request, 'Pandas no está instalado. Ejecuta: pip install pandas openpyxl')
+                error_msg = """
+                ERROR: Las librerías para importación de Excel/CSV no están instaladas.
+                
+                Solución:
+                1. Abre una terminal o símbolo del sistema
+                2. Activa el entorno virtual: venv\\Scripts\\activate
+                3. Instala las librerías: pip install pandas openpyxl
+                
+                Si el problema persiste, ejecuta el instalador: instalador_pos_bat.bat
+                """
+                messages.error(request, error_msg)
                 return self.get(request, *args, **kwargs)
             try:
                 if file.name.lower().endswith(('.xlsx', '.xls')):
@@ -623,6 +647,7 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                         )
                         if iva_rate is not None:
                             prod.iva_rate = iva_rate
+                        # Solo asignar pvp_final si se proporcionó un valor
                         if pvp_final is not None:
                             prod.pvp_final = pvp_final
                         prod.save()
@@ -636,6 +661,7 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                         prod.pvp = pvp
                         if iva_rate is not None:
                             prod.iva_rate = iva_rate
+                        # Solo actualizar pvp_final si se proporcionó un valor
                         if pvp_final is not None:
                             prod.pvp_final = pvp_final
                         prod.unit = unit

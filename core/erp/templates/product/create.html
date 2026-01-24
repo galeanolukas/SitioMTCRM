@@ -52,6 +52,49 @@
   </style>
 {% endblock %}
 
+{% block content %}
+  <form method="post" action="." enctype="multipart/form-data">
+    <div class="card card-default">
+      <div class="card-header">
+        <h3 class="card-title">
+          {% if action == 'add' %}
+            <i class="fas fa-plus"></i>
+          {% else %}
+            <i class="fas fa-edit"></i>
+          {% endif %}
+
+          {{ title }}
+        </h3>
+      </div>
+      <div class="card-body">
+        {% csrf_token %}
+
+        <input type="hidden" name="action" value="{{ action }}" />
+
+        <div id="error-block"></div>
+        <div id="success-block"></div>
+
+        {% include 'product/form_fields.html' %}
+      </div>
+      <div class="card-footer">
+        <button type="submit" class="btn btn-primary btn-flat"><i class="fas fa-save"></i> Guardar registro</button>
+
+        <a href="{{ list_url }}" class="btn btn-danger btn-flat"><i class="fas fa-times"></i> Cancelar</a>
+      </div>
+    </div>
+  </form>
+  <script>
+    $('form').on('submit', function (e) {
+      e.preventDefault()
+      //var parameters = $(this).serializeArray();
+      var parameters = new FormData(this)
+      submit_with_ajax(window.location.pathname, 'Alerta!', '¿Estas seguro de realizar la siguiente acción?', parameters, function () {
+        location.href = '{{ list_url }}'
+      })
+    })
+  </script>
+{% endblock %}
+
 {% block javascript %}
   <script type="text/javascript">
     $(function () {
@@ -60,6 +103,57 @@
         theme: 'bootstrap-5',
         language: 'es'
       });
+
+      // Calcular automáticamente pvp_final cuando cambia pvp o iva_rate
+      function calcularPrecioFinal() {
+        const pvp = parseFloat($('#id_pvp').val()) || 0;
+        const ivaRate = parseFloat($('#id_iva_rate').val()) || 0;
+        const pvpFinal = $('#id_pvp_final').val();
+        
+        // Solo calcular si pvp_final está vacío o es 0
+        if (!pvpFinal || parseFloat(pvpFinal) === 0) {
+          // Normalizar iva_rate: si es mayor que 1, tratarlo como porcentaje (21 -> 0.21)
+          let rate = ivaRate;
+          if (rate > 1) {
+            rate = rate / 100;
+          }
+          
+          const precioFinal = (pvp * (1 + rate)).toFixed(2);
+          $('#id_pvp_final').val(precioFinal);
+        }
+      }
+      
+      // Event listeners para cálculo automático
+      $('#id_pvp, #id_iva_rate').on('input change', function() {
+        calcularPrecioFinal();
+      });
+      
+      // Si el usuario modifica pvp_final manualmente, no volver a calcular automáticamente
+      $('#id_pvp_final').on('input', function() {
+        $(this).data('manual-modified', true);
+      });
+      
+      // Modificar la función de cálculo para respetar la modificación manual
+      function calcularPrecioFinal() {
+        const pvp = parseFloat($('#id_pvp').val()) || 0;
+        const ivaRate = parseFloat($('#id_iva_rate').val()) || 0;
+        const pvpFinalField = $('#id_pvp_final');
+        
+        // Solo calcular si no ha sido modificado manualmente o está vacío/0
+        if (!pvpFinalField.data('manual-modified') || !pvpFinalField.val() || parseFloat(pvpFinalField.val()) === 0) {
+          // Normalizar iva_rate: si es mayor que 1, tratarlo como porcentaje (21 -> 0.21)
+          let rate = ivaRate;
+          if (rate > 1) {
+            rate = rate / 100;
+          }
+          
+          const precioFinal = (pvp * (1 + rate)).toFixed(2);
+          pvpFinalField.val(precioFinal);
+        }
+      }
+      
+      // Calcular al cargar la página si pvp_final está vacío
+      calcularPrecioFinal();
 
       // Agregar botón de escáner al campo de código
       const codeField = $('#id_code').parent();

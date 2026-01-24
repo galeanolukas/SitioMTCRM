@@ -143,7 +143,7 @@ class Product(models.Model):
         # Generar token QR si no existe
         if not self.qr_token:
             self.qr_token = uuid.uuid4().hex
-        # Calcular precio final con IVA
+        # Calcular precio final con IVA solo si pvp_final está vacío o es 0
         try:
             pvp = Decimal(self.pvp or 0)
             rate = Decimal(self.iva_rate or 0)
@@ -151,9 +151,14 @@ class Product(models.Model):
             if rate > Decimal('1.0'):
                 rate = rate / Decimal('100.0')
             self.iva_rate = rate  # Guardar el valor normalizado
-            self.pvp_final = (pvp * (Decimal('1.0') + rate)).quantize(Decimal('0.01'))
+            
+            # Solo calcular pvp_final si está vacío, es 0, o no se ha modificado manualmente
+            if not self.pvp_final or self.pvp_final == Decimal('0.00'):
+                self.pvp_final = (pvp * (Decimal('1.0') + rate)).quantize(Decimal('0.01'))
         except Exception:
-            self.pvp_final = Decimal('0.00')
+            # Solo asignar 0 si pvp_final está vacío
+            if not self.pvp_final or self.pvp_final == Decimal('0.00'):
+                self.pvp_final = Decimal('0.00')
         
         # Marcar para sincronizar si el producto ya existe y hay cambios
         if self.pk:

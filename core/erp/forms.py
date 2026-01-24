@@ -155,6 +155,19 @@ class ProductForm(ModelForm):
                 raise ValidationError('Ingrese un valor numérico válido para el precio neto.')
         return pvp
 
+    def clean_pvp_final(self):
+        pvp_final = self.cleaned_data.get('pvp_final')
+        if pvp_final is not None and pvp_final != '':
+            try:
+                from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+                price = Decimal(str(pvp_final).replace(',', '.'))
+                # Redondear a 2 decimales
+                rounded_price = price.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                return rounded_price
+            except (ValueError, TypeError, InvalidOperation) as e:
+                raise ValidationError('Ingrese un valor numérico válido para el precio final.')
+        return pvp_final
+
     def clean_stock(self):
         stock = self.cleaned_data.get('stock')
         if stock is not None and stock != '':
