@@ -1,0 +1,277 @@
+{% extends "base.html" %}
+
+{% block title %}{% if action == 'add' %}Nueva{% else %}Editar{% endif %} Regla de Descuento{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-tags"></i> 
+                {% if action == 'add' %}Nueva{% else %}Editar{% endif %} Regla de Descuento
+            </h3>
+            <div class="card-tools">
+                <a href="{{ list_url }}" class="btn btn-default btn-sm">
+                    <i class="fas fa-arrow-left"></i> Volver
+                </a>
+            </div>
+        </div>
+        <div class="card-body">
+            <form method="post" id="discountForm">
+                {% csrf_token %}
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="{{ form.name.id_for_label }}">Nombre de la oferta <span class="text-danger">*</span></label>
+                            {{ form.name }}
+                            {% if form.name.errors %}
+                            <div class="text-danger">{{ form.name.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="{{ form.discount_type.id_for_label }}">Tipo de descuento <span class="text-danger">*</span></label>
+                            {{ form.discount_type }}
+                            {% if form.discount_type.errors %}
+                            <div class="text-danger">{{ form.discount_type.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="{{ form.description.id_for_label }}">Descripción</label>
+                    {{ form.description }}
+                    {% if form.description.errors %}
+                    <div class="text-danger">{{ form.description.errors.0 }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="{{ form.product.id_for_label }}">Producto específico</label>
+                            {{ form.product }}
+                            {% if form.product.errors %}
+                            <div class="text-danger">{{ form.product.errors.0 }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">Deje en blanco para aplicar a una categoría o todos los productos</small>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="{{ form.category.id_for_label }}">Categoría</label>
+                            {{ form.category }}
+                            {% if form.category.errors %}
+                            <div class="text-danger">{{ form.category.errors.0 }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">Deje en blanco para aplicar a un producto o todos los productos</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label for="{{ form.min_quantity.id_for_label }}">Cantidad mínima <span class="text-danger">*</span></label>
+                            {{ form.min_quantity }}
+                            {% if form.min_quantity.errors %}
+                            <div class="text-danger">{{ form.min_quantity.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label for="{{ form.max_quantity.id_for_label }}">Cantidad máxima</label>
+                            {{ form.max_quantity }}
+                            {% if form.max_quantity.errors %}
+                            <div class="text-danger">{{ form.max_quantity.errors.0 }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">Opcional</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label for="{{ form.priority.id_for_label }}">Prioridad</label>
+                            {{ form.priority }}
+                            {% if form.priority.errors %}
+                            <div class="text-danger">{{ form.priority.errors.0 }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">Mayor número = mayor prioridad</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label for="{{ form.max_uses.id_for_label }}">Uso máximo</label>
+                            {{ form.max_uses }}
+                            {% if form.max_uses.errors %}
+                            <div class="text-danger">{{ form.max_uses.errors.0 }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">Opcional</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Campos específicos por tipo de descuento -->
+                <div id="discountFields">
+                    <!-- Campos para porcentaje y monto fijo -->
+                    <div class="row" id="valueField">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="{{ form.discount_value.id_for_label }}" id="valueLabel">Valor del descuento <span class="text-danger">*</span></label>
+                                {{ form.discount_value }}
+                                {% if form.discount_value.errors %}
+                                <div class="text-danger">{{ form.discount_value.errors.0 }}</div>
+                                {% endif %}
+                                <small class="form-text text-muted" id="valueHelp">Ingrese el valor del descuento</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Campos para Lleva X Paga Y -->
+                    <div class="row" id="bxyFields" style="display: none;">
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="{{ form.buy_quantity.id_for_label }}">Lleva cantidad <span class="text-danger">*</span></label>
+                                {{ form.buy_quantity }}
+                                {% if form.buy_quantity.errors %}
+                                <div class="text-danger">{{ form.buy_quantity.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="{{ form.pay_quantity.id_for_label }}">Paga cantidad <span class="text-danger">*</span></label>
+                                {{ form.pay_quantity }}
+                                {% if form.pay_quantity.errors %}
+                                <div class="text-danger">{{ form.pay_quantity.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="{{ form.start_date.id_for_label }}">Fecha de inicio</label>
+                            {{ form.start_date }}
+                            {% if form.start_date.errors %}
+                            <div class="text-danger">{{ form.start_date.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="{{ form.end_date.id_for_label }}">Fecha de fin</label>
+                            {{ form.end_date }}
+                            {% if form.end_date.errors %}
+                            <div class="text-danger">{{ form.end_date.errors.0 }}</div>
+                            {% endif %}
+                            <small class="form-text text-muted">Opcional</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-check">
+                            {{ form.is_active }}
+                            <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                                Activa
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-check">
+                            {{ form.is_cumulative }}
+                            <label class="form-check-label" for="{{ form.is_cumulative.id_for_label }}">
+                                Acumulable con otras ofertas
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> {% if action == 'add' %}Crear{% else %}Actualizar{% endif %}
+                        </button>
+                        <a href="{{ list_url }}" class="btn btn-default">
+                            <i class="fas fa-times"></i> Cancelar
+                        </a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% block javascript %}
+<script>
+$(document).ready(function() {
+    // Manejar cambio de tipo de descuento
+    $('#{{ form.discount_type.id_for_label }}').change(function() {
+        var type = $(this).val();
+        
+        // Ocultar todos los campos específicos
+        $('#valueField, #bxyFields').hide();
+        
+        if (type === 'bxgy') {
+            // Mostrar campos para Lleva X Paga Y
+            $('#bxyFields').show();
+            $('#{{ form.discount_value.id_for_label }}').prop('required', false);
+            $('#{{ form.buy_quantity.id_for_label }}').prop('required', true);
+            $('#{{ form.pay_quantity.id_for_label }}').prop('required', true);
+        } else {
+            // Mostrar campo de valor
+            $('#valueField').show();
+            $('#{{ form.discount_value.id_for_label }}').prop('required', true);
+            $('#{{ form.buy_quantity.id_for_label }}').prop('required', false);
+            $('#{{ form.pay_quantity.id_for_label }}').prop('required', false);
+            
+            // Actualizar etiqueta y ayuda según el tipo
+            if (type === 'percentage') {
+                $('#valueLabel').text('Porcentaje de descuento *');
+                $('#valueHelp').text('Ingrese el porcentaje (0-100)');
+                $('#{{ form.discount_value.id_for_label }}').attr('max', '100');
+            } else if (type === 'fixed') {
+                $('#valueLabel').text('Monto fijo de descuento *');
+                $('#valueHelp').text('Ingrese el monto a descontar por unidad');
+                $('#{{ form.discount_value.id_for_label }}').removeAttr('max');
+            } else if (type === 'special_price') {
+                $('#valueLabel').text('Precio especial *');
+                $('#valueHelp').text('Ingrese el precio especial por unidad');
+                $('#{{ form.discount_value.id_for_label }}').removeAttr('max');
+            }
+        }
+    });
+    
+    // Disparar el cambio al cargar
+    $('#{{ form.discount_type.id_for_label }}').trigger('change');
+    
+    // Prevenir selección simultánea de producto y categoría
+    $('#{{ form.product.id_for_label }}').change(function() {
+        if ($(this).val()) {
+            $('#{{ form.category.id_for_label }}').val('').trigger('change');
+        }
+    });
+    
+    $('#{{ form.category.id_for_label }}').change(function() {
+        if ($(this).val()) {
+            $('#{{ form.product.id_for_label }}').val('').trigger('change');
+        }
+    });
+    
+    // Inicializar selects
+    $('#{{ form.product.id_for_label }}, #{{ form.category.id_for_label }}').select2({
+        theme: 'bootstrap4',
+        allowClear: true,
+        placeholder: $(this).data('placeholder')
+    });
+});
+</script>
+{% endblock %}
+{% endblock %}

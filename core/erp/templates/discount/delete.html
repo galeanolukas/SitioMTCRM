@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}Eliminar Regla de Descuento{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-trash"></i> Eliminar Regla de Descuento
+            </h3>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle"></i>
+                <strong>¿Está seguro que desea eliminar esta regla de descuento?</strong>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-12">
+                    <table class="table table-bordered">
+                        <tr>
+                            <th width="150">Nombre:</th>
+                            <td>{{ object.name }}</td>
+                        </tr>
+                        <tr>
+                            <th>Tipo:</th>
+                            <td>{{ object.get_discount_type_display }}</td>
+                        </tr>
+                        <tr>
+                            <th>Aplica a:</th>
+                            <td>
+                                {% if object.product %}
+                                Producto: {{ object.product.name }}
+                                {% elif object.category %}
+                                Categoría: {{ object.category.name }}
+                                {% else %}
+                                Todos los productos
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Condición:</th>
+                            <td>
+                                Desde {{ object.min_quantity }} unidades
+                                {% if object.max_quantity %}
+                                hasta {{ object.max_quantity }} unidades
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Valor:</th>
+                            <td>
+                                {% if object.discount_type == 'percentage' %}
+                                {{ object.discount_value }}%
+                                {% elif object.discount_type == 'bxgy' %}
+                                Lleva {{ object.buy_quantity }} Paga {{ object.pay_quantity }}
+                                {% else %}
+                                ${{ object.discount_value }}
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% if object.description %}
+                        <tr>
+                            <th>Descripción:</th>
+                            <td>{{ object.description }}</td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+            
+            <form method="post">
+                {% csrf_token %}
+                <div class="row">
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-trash"></i> Confirmar Eliminación
+                        </button>
+                        <a href="{{ list_url }}" class="btn btn-default">
+                            <i class="fas fa-times"></i> Cancelar
+                        </a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

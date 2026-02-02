@@ -18,6 +18,60 @@
     </tr>
 {% endblock %}
 
-{% block javascript %}
+{% block buttons_list %}
+    <a href="{{ create_url }}" class="btn btn-primary btn-flat btnTest"><i class="fas fa-plus"></i> Nuevo registro</a>
+    <a href="{{ list_url }}" class="btn btn-success btn-flat"><i class="fas fa-sync"></i> Actualizar</a>
+    <button type="button" class="btn btn-danger btn-flat" id="btn-delete-all">
+        <i class="fas fa-trash-alt"></i> Eliminar todos
+    </button>
+{% endblock %}
 
+{% block javascript %}
+<script type="application/javascript">
+$(function () {
+    // Función para eliminar todos los productos
+    $('#btn-delete-all').on('click', function () {
+        if (confirm('¿Está seguro que desea eliminar TODOS los productos de esta empresa?\\n\\nEsta acción no se puede deshacer.')) {
+            $.ajax({
+                url: window.location.pathname,
+                type: 'POST',
+                data: {
+                    'action': 'delete_all'
+                },
+                dataType: 'json',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken'),
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            }).done(function (data) {
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                } else if (data.success) {
+                    alert(data.success);
+                    // Recargar la tabla
+                    $('#data').DataTable().ajax.reload();
+                }
+            }).fail(function (jqXHR, textStatus, errorThrown) {
+                alert('Error: ' + textStatus + ': ' + errorThrown);
+            });
+        }
+    });
+
+    // Function to get CSRF token (reutilizada del list.js)
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+});
+</script>
 {% endblock %}

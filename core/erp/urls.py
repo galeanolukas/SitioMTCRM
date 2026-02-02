@@ -5,7 +5,7 @@ from core.erp.views.client.views import ClientListView, ClientCreateView, Client
 from core.erp.views.sale.views import SaleListView, SaleCreateView, SaleUpdateView, SaleDeleteView, ticket_print, POSView, InvoiceListView, InvoiceCreateView, invoice_pdf, sync_sales_api, EmployeeAccountListView, employee_account_pdf_export
 from core.erp.views.transfer.views import TransferListView, TransferCreateView, TransferDetailView, TransferReceiveView, TransferSearchView, TransferProductSearchView
 from core.erp.views.operator_reports.views import OperatorSalesReportView, operator_sales_export
-from core.erp.views.sync.views import SyncToggleView, SyncStatusView
+from core.erp.views.sync.views import SyncToggleView, SyncStatusView, ProductSyncView
 from core.erp.views.tests.views import *
 from core.erp.views.activity_log import ActivityLogView, ActivityLogDashboardView
 from core.erp.api.updates import check_updates_api, refresh_version_info, execute_update_script, check_git_portable, version_diagnostics, check_update_status
@@ -145,6 +145,8 @@ urlpatterns = [
     path('sync/toggle/', SyncToggleView.as_view(), name='sync_toggle'),
     # sync status (public for all authenticated users)
     path('sync/status/', SyncStatusView.as_view(), name='sync_status'),
+    # product sync (solo superusuarios)
+    path('sync/products/', ProductSyncView.as_view(), name='sync_products'),
     # activity log (solo superusuarios)
     path('activity/log/', ActivityLogView.as_view(), name='activity_log'),
     path('activity/dashboard/', ActivityLogDashboardView.as_view(), name='activity_dashboard'),

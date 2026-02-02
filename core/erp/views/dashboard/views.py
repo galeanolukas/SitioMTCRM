@@ -42,7 +42,12 @@ class LauncherView(LoginRequiredMixin, TemplateView):
         return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
+        import os
         ctx = super().get_context_data(**kwargs)
+        
+        # Agregar información del entorno
+        ctx['environment'] = os.getenv('ENVIRONMENT', 'development')
+        
         # Obtener último registro de sincronización, priorizando la BD remota si existe
         last_log = None
         try:

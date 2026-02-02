@@ -4,6 +4,37 @@
 <div class="container py-5">
   <div class="row justify-content-center">
     <div class="col-12 col-md-8 col-lg-6">
+      <!-- Indicador de Modo Servidor/POS Local -->
+      <div class="mb-3">
+        {% if environment == 'production' %}
+          <div class="alert alert-success d-flex align-items-center" role="alert">
+            <div class="flex-shrink-0">
+              <i class="fas fa-server me-2"></i>
+            </div>
+            <div class="flex-grow-1 ms-2">
+              <strong>MODO SERVIDOR</strong>
+              <div class="small">Sistema central activado - Sincronización disponible</div>
+            </div>
+            <div class="flex-shrink-0">
+              <span class="badge bg-success">ONLINE</span>
+            </div>
+          </div>
+        {% else %}
+          <div class="alert alert-info d-flex align-items-center" role="alert">
+            <div class="flex-shrink-0">
+              <i class="fas fa-laptop me-2"></i>
+            </div>
+            <div class="flex-grow-1 ms-2">
+              <strong>POS LOCAL</strong>
+              <div class="small">Modo standalone - Sin sincronización</div>
+            </div>
+            <div class="flex-shrink-0">
+              <span class="badge bg-info">LOCAL</span>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+
       <div class="card card-outline card-primary">
         <div class="card-header text-center">
           <h3 class="card-title">Bienvenido</h3>
@@ -42,6 +73,11 @@
 
           {% if user.is_superuser %}
           <div class="d-grid gap-2 mt-2">
+            {% if environment == 'production' %}
+            <button type="button" class="btn btn-outline-success btn-sm" onclick="window.location.href='{% url 'erp:sync_products' %}'">
+              <i class="fas fa-sync me-1"></i> Sincronizar Productos
+            </button>
+            {% endif %}
             <button id="btn-sync-manual" type="button" class="btn btn-outline-secondary btn-sm">
               <i class="fas fa-sync-alt me-1"></i> Sincronizar ahora
             </button>
@@ -57,9 +93,32 @@
             </a>
           </div>
         </div>
-        <div class="card-footer text-muted small text-center d-flex justify-content-between align-items-center">
-          <span>Accesos rápidos</span>
-          <span>Versión {{ app_version }}</span>
+        <div class="card-footer text-muted small text-center">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span>Accesos rápidos</span>
+            <span>Versión {{ app_version }}</span>
+          </div>
+          
+          <!-- Información del entorno -->
+          <div class="border-top pt-2">
+            {% if environment == 'production' %}
+              <div class="d-flex justify-content-between align-items-center">
+                <span class="text-success">
+                  <i class="fas fa-server me-1"></i>
+                  <strong>Servidor Central</strong>
+                </span>
+                <small class="text-muted">Sincronización activa</small>
+              </div>
+            {% else %}
+              <div class="d-flex justify-content-between align-items-center">
+                <span class="text-info">
+                  <i class="fas fa-laptop me-1"></i>
+                  <strong>POS Local</strong>
+                </span>
+                <small class="text-muted">Modo independiente</small>
+              </div>
+            {% endif %}
+          </div>
         </div>
       </div>
     </div>

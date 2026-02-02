@@ -73,6 +73,14 @@ def run_full_sync():
             logger.error(f"Error en sincronización de empresas: {e}")
             errors.append(f"sync_companies_from_remote_to_local: {e}")
             
+        # 1.b) Productos: el servidor es la fuente de verdad, bajamos al POS
+        try:
+            call_command("sync_products_from_remote_to_local")
+            logger.info("Sincronización de productos desde servidor completada")
+        except Exception as e:
+            logger.error(f"Error en sincronización de productos desde servidor: {e}")
+            errors.append(f"sync_products_from_remote_to_local: {e}")
+            
         # Categorias
         try:
             call_command("sync_categories_to_remote")
@@ -81,7 +89,7 @@ def run_full_sync():
             logger.error(f"Error en sincronización de categorías: {e}")
             errors.append(f"sync_categories_to_remote: {e}")
             
-        # Productos (maestro + stock)
+        # Productos (maestro + stock) - Sincronización local al servidor
         try:
             call_command("sync_products_to_remote")
             logger.info("Sincronización de productos completada")

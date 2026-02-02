@@ -19,13 +19,14 @@ class CategoryListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, List
     model = Category
     template_name = "category/list.html"
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["title"] = "Listado de Categorías"
-        context["create_url"] = reverse_lazy("erp:category_create")
-        context["list_url"] = reverse_lazy("erp:category_list")
-        context["entity"] = "Categorias"
-        return context
+    def get_queryset(self):
+        # Filtrar categorías por empresa del usuario
+        qs = super().get_queryset()
+        if not self.request.user.is_superuser:
+            active_cid = self.request.session.get('company_id') or getattr(self.request.user, 'company_id', None)
+            if active_cid:
+                qs = qs.filter(company_id=active_cid)
+        return qs
 
     def post(self, request, *args, **kwargs):
         data = {}
@@ -33,7 +34,8 @@ class CategoryListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, List
             action = request.POST["action"]
             if action == "searchdata":
                 data = []
-                for i in Category.objects.all():
+                qs = self.get_queryset()
+                for i in qs:
                     data.append(i.toJSON())
             else:
                 data["error"] = "Ha ocurrido un error"
@@ -57,6 +59,11 @@ class CategoryCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Cr
     success_url = reverse_lazy('erp:category_list')
     permission_required = (('erp.add_category'),)
     url_redirect = success_url
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['request'] = self.request
+        return kwargs
 
     def dispatch(self, request, *args, **kwargs):
         return super().dispatch(request, *args, **kwargs)
@@ -90,6 +97,11 @@ class CategoryUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Up
     success_url = reverse_lazy("erp:category_list")
     permission_required = 'erp.change_category'
     url_redirect = success_url
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['request'] = self.request
+        return kwargs
 
     def dispatch(self, request, *args, **kwargs):
         self.object = self.get_object()

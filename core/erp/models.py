@@ -80,11 +80,14 @@ class PosTerminal(models.Model):
 
 
 class Category(BaseModel):
-    name = models.CharField(max_length=150, verbose_name='Nombre', unique=True)
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa', null=True, blank=True)
+    name = models.CharField(max_length=150, verbose_name='Nombre')
     desc = models.CharField(max_length=500, null=True, blank=True, verbose_name='Descripción')
+    synced_to_server = models.BooleanField(default=False, verbose_name='Sincronizado con servidor')
 
     def __str__(self):
-        return self.name
+        company_name = f"({self.company.name})" if self.company else ""
+        return f"{self.name} {company_name}"
 
     # def save(self, force_insert=False, force_update=False, using=None,
     #          update_fields=None):
@@ -96,6 +99,14 @@ class Category(BaseModel):
     #             self.user_updated = user
     #     super(Category, self).save()
 
+    def save(self, *args, **kwargs):
+        # Asignar empresa automáticamente si no tiene
+        if not self.company_id:
+            user = get_current_user()
+            if user and not user.is_anonymous:
+                self.company_id = getattr(user, 'company_id', None)
+        super().save(*args, **kwargs)
+
     def toJSON(self):
         item = model_to_dict(self)  #(self, exclude=['user_creation', 'user_updated'])
         return item
@@ -103,7 +114,8 @@ class Category(BaseModel):
     class Meta:
         verbose_name = 'Categoria'
         verbose_name_plural = 'Categorias'
-        ordering = ['id']
+        ordering = ['company', 'name']
+        unique_together = [['company', 'name']]  # Mismo nombre permitido en diferentes empresas
 
 
 class Product(models.Model):
@@ -129,6 +141,9 @@ class Product(models.Model):
     stock = models.DecimalField(default=0.00, max_digits=12, decimal_places=2, verbose_name='Stock')
     min_stock = models.DecimalField(default=5.00, max_digits=12, decimal_places=2, verbose_name='Stock mínimo alerta')
     synced_to_server = models.BooleanField(default=False, verbose_name='Sincronizado con servidor')
+    synced_from_server = models.BooleanField(default=False, verbose_name='Sincronizado desde servidor')
+    server_product_id = models.PositiveIntegerField(blank=True, null=True, verbose_name='ID de producto en servidor', help_text='ID del producto en la base de datos del servidor')
+    last_server_sync = models.DateTimeField(blank=True, null=True, verbose_name='Última sincronización desde servidor')
     track_stock = models.BooleanField(default=True, verbose_name='Controlar stock')
 
     def __str__(self):
@@ -531,6 +546,10 @@ class Expense(models.Model):
     payer = models.CharField(max_length=150, verbose_name='Pagado por', blank=True, null=True)
     receipt = models.FileField(upload_to='expenses/%Y/%m/%d', null=True, blank=True, verbose_name='Comprobante (PDF/Imagen)')
     synced_to_server = models.BooleanField(default=False, verbose_name='Sincronizado con servidor')
+    local_uuid = models.CharField(max_length=64, blank=True, null=True, unique=True, verbose_name='UUID local', help_text='UUID único para evitar duplicados en sincronización')
+    local_expense_id = models.PositiveIntegerField(blank=True, null=True, verbose_name='ID de gasto local', help_text='ID del gasto en la base de datos local para evitar duplicados')
+    source = models.CharField(max_length=20, blank=True, null=True, verbose_name='Origen', help_text='Origen del gasto (local_pos, web, etc.)')
+    synced_at = models.DateTimeField(blank=True, null=True, verbose_name='Fecha de sincronización')
     is_active = models.BooleanField(default=True, verbose_name='Activo')
 
     def __str__(self):
@@ -542,6 +561,13 @@ class Expense(models.Model):
             user = get_current_user()
             if user and not user.is_anonymous:
                 self.company_id = getattr(user, 'company_id', None)
+        
+        # Generar local_uuid para nuevos gastos locales
+        if not self.pk and not self.local_uuid:
+            import uuid
+            self.local_uuid = f"expense_{uuid.uuid4().hex}"
+            self.source = 'local_pos'
+        
         super().save(*args, **kwargs)
 
     def get_receipt_url(self):

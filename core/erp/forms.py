@@ -9,11 +9,24 @@ from django.contrib.auth.forms import AuthenticationForm
 
 class CategoryForm(ModelForm):
     def __init__(self, *args, **kwargs):
+        self.request = kwargs.pop('request', None)
         super().__init__(*args, **kwargs)
         for form in self.visible_fields():
-            form.field.widget.attrs["class"] = "form-control"
-            form.field.widget.attrs["autocomplete"] = "off"
+            if form.name != 'company':
+                form.field.widget.attrs["class"] = "form-control"
+                form.field.widget.attrs["autocomplete"] = "off"
         self.fields["name"].widget.attrs["autofocus"] = True
+        
+        # Manejar campo company según usuario
+        if 'company' in self.fields and self.request and hasattr(self.request, 'user') and not getattr(self.request.user, 'is_superuser', False):
+            if getattr(self.request.user, 'company_id', None):
+                self.fields['company'].queryset = Company.objects.filter(pk=self.request.user.company_id, is_active=True)
+                self.fields['company'].initial = self.request.user.company
+                self.fields['company'].widget = HiddenInput()
+                self.fields['company'].required = False
+        elif 'company' in self.fields:
+            # Para superusuarios, mostrar solo empresas activas
+            self.fields['company'].queryset = Company.objects.filter(is_active=True)
 
     class Meta:
         model = Category
@@ -35,7 +48,14 @@ class CategoryForm(ModelForm):
         form = super()
         try:
             if form.is_valid():
-                form.save()
+                obj = form.save(commit=False)
+                # Asignar empresa automáticamente si no tiene
+                if self.request and hasattr(self.request, 'user') and not getattr(self.request.user, 'is_superuser', False):
+                    if getattr(self.request.user, 'company_id', None) and not getattr(obj, 'company_id', None):
+                        obj.company_id = self.request.user.company_id
+                if commit:
+                    obj.save()
+                data = obj.toJSON() if hasattr(obj, 'toJSON') else {}
             else:
                 data["error"] = form.errors
         except Exception as e:
@@ -62,6 +82,19 @@ class ProductForm(ModelForm):
         if 'supplier' in self.fields:
             self.fields['supplier'].required = False
             self.fields['supplier'].empty_label = '--- Sin proveedor ---'
+        
+        # Filtrar categorías por empresa
+        if 'cat' in self.fields:
+            if self.request and hasattr(self.request, 'user') and not getattr(self.request.user, 'is_superuser', False):
+                active_cid = self.request.session.get('company_id') or getattr(self.request.user, 'company_id', None)
+                if active_cid:
+                    self.fields['cat'].queryset = Category.objects.filter(company_id=active_cid)
+                else:
+                    self.fields['cat'].queryset = Category.objects.none()
+            else:
+                # Para superusuarios, mostrar todas las categorías
+                self.fields['cat'].queryset = Category.objects.all()
+        
         if 'company' in self.fields and self.request and hasattr(self.request, 'user') and not getattr(self.request.user, 'is_superuser', False):
             if getattr(self.request.user, 'company_id', None):
                 self.fields['company'].queryset = Company.objects.filter(pk=self.request.user.company_id, is_active=True)

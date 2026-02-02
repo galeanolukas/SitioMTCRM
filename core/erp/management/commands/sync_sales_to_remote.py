@@ -47,44 +47,65 @@ class Command(BaseCommand):
 
                 with transaction.atomic(using='remote'):
                     # Verificar si ya existe venta duplicada usando múltiples criterios mejorados
-                    # Buscar por UUID local si existe, o por combinación única de campos
+                    # PRIORIDAD 1: Buscar por local_uuid (método más confiable)
                     existing_sale = None
                     
-                    # 1) Buscar por UUID local si existe
                     if hasattr(sale, 'local_uuid') and sale.local_uuid:
                         existing_sale = Sale.objects.using('remote').filter(
                             local_uuid=sale.local_uuid
                         ).first()
-                    
-                    # 2) Si no hay UUID o no se encontró, buscar por criterios estrictos
-                    if not existing_sale:
-                        # Buscar por fecha exacta (+/- 2 segundos), monto, cliente y método de pago
-                        # Esto evita falsos positivos por ventas similares en momentos diferentes
-                        existing_sale = Sale.objects.using('remote').filter(
-                            date_joined__gte=sale.date_joined - timezone.timedelta(seconds=2),
-                            date_joined__lte=sale.date_joined + timezone.timedelta(seconds=2),
-                            total=sale.total,
-                            subtotal=sale.subtotal,
-                            payment_method=sale.payment_method,
-                            cli_id=sale.cli_id,
-                            company_id=remote_company.id if remote_company else None
-                        ).only(
-                            'id', 'company_id', 'cli_id', 'date_joined', 'subtotal', 
-                            'total', 'payment_method', 'is_invoiced', 'invoice_number',
-                            'invoice_pos', 'invoice_type', 'local_timezone', 'local_uuid'
-                        ).first()
-                    
-                    if existing_sale:
-                        # Ya existe una venta muy similar, verificar si es la misma
-                        # Comparar timestamp exacto (diferencia de menos de 3 segundos = misma venta)
-                        time_diff = abs((existing_sale.date_joined - sale.date_joined).total_seconds())
-                        if time_diff < 3:  # Reducido de 5 a 3 segundos para mayor precisión
-                            # Ya existe, marcar como sincronizada y continuar
+                        
+                        if existing_sale:
+                            self.stdout.write(
+                                self.style.WARNING(f"Venta {sale.id} ya existe por UUID (ID: {existing_sale.id}), omitiendo...")
+                            )
+                            # Marcar como sincronizada y continuar
                             Sale.objects.using('default').filter(pk=sale.pk).update(synced_to_server=True)
                             synced += 1
+                            continue
+                    
+                    # PRIORIDAD 2: Buscar por local_sale_id (método secundario)
+                    if hasattr(sale, 'local_sale_id') and sale.local_sale_id:
+                        existing_sale = Sale.objects.using('remote').filter(
+                            local_sale_id=sale.local_sale_id,
+                            company_id=remote_company.id if remote_company else None
+                        ).first()
+                        
+                        if existing_sale:
                             self.stdout.write(
-                                self.style.WARNING(f"Venta {sale.id} ya existe en servidor remoto (ID: {existing_sale.id}), omitiendo...")
+                                self.style.WARNING(f"Venta {sale.id} ya existe por local_sale_id (ID: {existing_sale.id}), omitiendo...")
                             )
+                            # Marcar como sincronizada y continuar
+                            Sale.objects.using('default').filter(pk=sale.pk).update(synced_to_server=True)
+                            synced += 1
+                            continue
+                    
+                    # PRIORIDAD 3: Búsqueda estricta por tiempo y campos (último recurso)
+                    # Reducir ventana de tiempo a ±1 segundo para mayor precisión
+                    existing_sale = Sale.objects.using('remote').filter(
+                        date_joined__gte=sale.date_joined - timezone.timedelta(seconds=1),
+                        date_joined__lte=sale.date_joined + timezone.timedelta(seconds=1),
+                        total=sale.total,
+                        payment_method=sale.payment_method,
+                        company_id=remote_company.id if remote_company else None
+                    )
+                    
+                    # Si hay cliente, agregarlo a la búsqueda
+                    if sale.cli_id:
+                        existing_sale = existing_sale.filter(cli_id=sale.cli_id)
+                    
+                    existing_sale = existing_sale.first()
+                    
+                    if existing_sale:
+                        # Verificación final: comparar timestamp exacto
+                        time_diff = abs((existing_sale.date_joined - sale.date_joined).total_seconds())
+                        if time_diff < 2:  # Solo si la diferencia es menor a 2 segundos
+                            self.stdout.write(
+                                self.style.WARNING(f"Venta {sale.id} duplicada por tiempo (ID: {existing_sale.id}), omitiendo...")
+                            )
+                            # Marcar como sincronizada y continuar
+                            Sale.objects.using('default').filter(pk=sale.pk).update(synced_to_server=True)
+                            synced += 1
                             continue
                     
                     # Crear cabecera de venta en remoto
@@ -108,6 +129,9 @@ class Command(BaseCommand):
                         invoice_type=sale.invoice_type,
                         is_invoiced=sale.is_invoiced,
                         synced_to_server=True,  # Marcar como sincronizada en servidor
+                        local_uuid=sale.local_uuid,  # Importante: mantener UUID local
+                        local_sale_id=sale.id,  # Importante: mantener ID local
+                        source=getattr(sale, 'source', 'local_pos'),  # Mantener origen
                     )
 
                     # Crear detalles en remoto
