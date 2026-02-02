@@ -61,4 +61,10 @@ Thumbs.db
 
 ### Archivos de configuración locales ###
 local_settings.py
-settings_local.py
+settings_local.pyDJENV/
+.env.server
+instalar_modo_servidor.md
+plan_transicion_servidor.md
+migration_server_safe.py
+sync_service_compatible.py
+activar_servidor.py
