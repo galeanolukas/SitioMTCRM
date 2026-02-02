@@ -1,0 +1,279 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Sincronización de Productos{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-sync"></i> Sincronización de Productos
+                    </h3>
+                </div>
+                <div class="card-body">
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }} alert-dismissible">
+                                <button type="button" class="close" data-dismiss="alert">&times;</button>
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+
+                    <div id="sync-alert" class="alert" style="display: none;"></div>
+
+                    <!-- Estado del servidor -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="info-box">
+                                <span class="info-box-icon bg-info"><i class="fas fa-server"></i></span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">Modo Servidor</span>
+                                    <span class="info-box-number" id="server-mode-status">
+                                        <span class="badge badge-secondary">Verificando...</span>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="info-box">
+                                <span class="info-box-icon bg-success"><i class="fas fa-sync-alt"></i></span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">Estado de Sincronización</span>
+                                    <span class="info-box-number" id="sync-status">
+                                        <span class="badge badge-secondary">Verificando...</span>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Lista de empresas -->
+                    <div id="companies-section" style="display: none;">
+                        <h4>Empresas con Productos</h4>
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-striped" id="companies-table">
+                                <thead>
+                                    <tr>
+                                        <th>Empresa</th>
+                                        <th>Total Productos</th>
+                                        <th>Sincronizados</th>
+                                        <th>Pendientes</th>
+                                        <th>Progreso</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="companies-tbody">
+                                    <!-- Se llenará dinámicamente -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Mensaje de no servidor -->
+                    <div id="no-server-message" class="alert alert-warning" style="display: none;">
+                        <h5><i class="fas fa-exclamation-triangle"></i> Modo Servidor No Disponible</h5>
+                        <p>Esta función solo está disponible cuando el sistema está configurado como servidor.</p>
+                        <p>Para activar el modo servidor, asegúrese de que la configuración <code>IS_SERVER=True</code> esté establecida.</p>
+                    </div>
+
+                    <!-- Botón de recargar -->
+                    <div class="text-center mt-4">
+                        <button type="button" class="btn btn-primary" id="refresh-btn">
+                            <i class="fas fa-refresh"></i> Recargar Estado
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de confirmación de sincronización -->
+<div class="modal fade" id="syncModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirmar Sincronización</h5>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>¿Está seguro de que desea sincronizar los productos de <strong id="modal-company-name"></strong>?</p>
+                <p class="text-info">Se sincronizarán <span id="modal-pending-count"></span> productos pendientes.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="confirm-sync-btn">
+                    <i class="fas fa-sync"></i> Sincronizar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    let currentCompanyId = null;
+
+    // Cargar estado inicial
+    loadSyncStatus();
+
+    // Botón de recargar
+    $('#refresh-btn').click(function() {
+        $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Recargando...');
+        loadSyncStatus();
+    });
+
+    // Confirmar sincronización
+    $('#confirm-sync-btn').click(function() {
+        if (currentCompanyId) {
+            syncProducts(currentCompanyId);
+            $('#syncModal').modal('hide');
+        }
+    });
+
+    function loadSyncStatus() {
+        $.ajax({
+            url: '{% url "sync_products" %}',
+            method: 'GET',
+            success: function(response) {
+                $('#refresh-btn').prop('disabled', false).html('<i class="fas fa-refresh"></i> Recargar Estado');
+                
+                if (response.success) {
+                    if (response.is_server_mode) {
+                        showServerMode();
+                        renderCompanies(response.companies);
+                    } else {
+                        showNoServerMode();
+                    }
+                } else {
+                    showAlert('error', response.error || 'Error al cargar el estado');
+                }
+            },
+            error: function(xhr) {
+                $('#refresh-btn').prop('disabled', false).html('<i class="fas fa-refresh"></i> Recargar Estado');
+                if (xhr.status === 403) {
+                    showAlert('error', 'No tienes permisos para acceder a esta función');
+                } else {
+                    showAlert('error', 'Error de conexión al cargar el estado');
+                }
+            }
+        });
+    }
+
+    function showServerMode() {
+        $('#server-mode-status').html('<span class="badge badge-success">Activo</span>');
+        $('#companies-section').show();
+        $('#no-server-message').hide();
+    }
+
+    function showNoServerMode() {
+        $('#server-mode-status').html('<span class="badge badge-danger">Inactivo</span>');
+        $('#companies-section').hide();
+        $('#no-server-message').show();
+    }
+
+    function renderCompanies(companies) {
+        const tbody = $('#companies-tbody');
+        tbody.empty();
+
+        if (companies.length === 0) {
+            tbody.append('<tr><td colspan="6" class="text-center">No hay empresas con productos</td></tr>');
+            return;
+        }
+
+        companies.forEach(function(company) {
+            const progressPercent = company.total_products > 0 ? 
+                Math.round((company.synced_products / company.total_products) * 100) : 0;
+            
+            const progressClass = progressPercent === 100 ? 'success' : 
+                                 progressPercent >= 50 ? 'warning' : 'danger';
+            
+            const row = `
+                <tr>
+                    <td>${company.name}</td>
+                    <td>${company.total_products}</td>
+                    <td>${company.synced_products}</td>
+                    <td>${company.pending_sync}</td>
+                    <td>
+                        <div class="progress">
+                            <div class="progress-bar bg-${progressClass}" style="width: ${progressPercent}%">
+                                ${progressPercent}%
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-primary sync-btn" 
+                                data-company-id="${company.id}" 
+                                data-company-name="${company.name}"
+                                data-pending-count="${company.pending_sync}"
+                                ${company.pending_sync === 0 ? 'disabled' : ''}>
+                            <i class="fas fa-sync"></i> Sincronizar
+                        </button>
+                    </td>
+                </tr>
+            `;
+            tbody.append(row);
+        });
+
+        // Event handlers para botones de sincronización
+        $('.sync-btn').click(function() {
+            currentCompanyId = $(this).data('company-id');
+            const companyName = $(this).data('company-name');
+            const pendingCount = $(this).data('pending-count');
+            
+            $('#modal-company-name').text(companyName);
+            $('#modal-pending-count').text(pendingCount);
+            $('#syncModal').modal('show');
+        });
+    }
+
+    function syncProducts(companyId) {
+        showAlert('info', 'Iniciando sincronización...');
+        
+        $.ajax({
+            url: '{% url "sync_products" %}',
+            method: 'POST',
+            data: JSON.stringify({ company_id: companyId }),
+            contentType: 'application/json',
+            beforeSend: function(xhr) {
+                xhr.setRequestHeader('X-CSRFToken', '{{ csrf_token }}');
+            },
+            success: function(response) {
+                if (response.success) {
+                    showAlert('success', response.message || 'Sincronización completada exitosamente');
+                    loadSyncStatus(); // Recargar estado
+                } else {
+                    showAlert('error', response.error || 'Error durante la sincronización');
+                }
+            },
+            error: function(xhr) {
+                if (xhr.status === 403) {
+                    showAlert('error', 'No tienes permisos para realizar esta acción');
+                } else {
+                    showAlert('error', 'Error de conexión durante la sincronización');
+                }
+            }
+        });
+    }
+
+    function showAlert(type, message) {
+        const alert = $('#sync-alert');
+        alert.removeClass('alert-success alert-danger alert-warning alert-info')
+             .addClass('alert-' + type)
+             .html(message)
+             .show();
+        
+        // Auto ocultar después de 5 segundos
+        setTimeout(function() {
+            alert.fadeOut();
+        }, 5000);
+    }
+});
+</script>
+{% endblock %}

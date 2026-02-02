@@ -52,6 +52,11 @@ from core.erp.views.cash_register.views import (
     CashMovementDeleteView,
 )
 
+# Importar vistas de descuentos (comentado temporalmente para evitar errores de importación)
+# from core.erp.views.discount.views import (
+#     DiscountListView, DiscountCreateView, DiscountUpdateView, DiscountDeleteView
+# )
+
 app_name = 'erp'
 
 urlpatterns = [
@@ -158,4 +163,9 @@ urlpatterns = [
     path('api/updates/check-git-portable/', check_git_portable, name='api_check_git_portable'),
     path('api/updates/diagnostics/', version_diagnostics, name='api_version_diagnostics'),
     path('api/execute-release/', execute_release, name='api_execute_release'),
+    # Descuentos y Ofertas (comentado temporalmente para evitar errores de importación)
+    # path('discounts/', DiscountListView.as_view(), name='discount_list'),
+    # path('discounts/add/', DiscountCreateView.as_view(), name='discount_create'),
+    # path('discounts/update/<int:pk>/', DiscountUpdateView.as_view(), name='discount_update'),
+    # path('discounts/delete/<int:pk>/', DiscountDeleteView.as_view(), name='discount_delete'),
 ]

@@ -56,13 +56,17 @@ if errorlevel 1 (
     exit /b 1
 )
 
-REM Verificacion rapida de pandas y openpyxl en este entorno virtual
-python -c "import pandas, openpyxl; print('pandas:', pandas.__version__)" >nul 2>&1
+REM Verificacion rapida de numpy, pandas y openpyxl en este entorno virtual
+python -c "import numpy, pandas, openpyxl; print('numpy:', numpy.__version__, 'pandas:', pandas.__version__, 'openpyxl:', openpyxl.__version__)" >nul 2>&1
 if errorlevel 1 (
-    echo [ADVERTENCIA] No se pudo importar pandas u openpyxl en el entorno virtual venv.
-    echo Verifique la instalacion manualmente con:
+    echo [ADVERTENCIA] No se pudieron importar numpy, pandas u openpyxl en el entorno virtual venv.
+    echo.
+    echo Si ve un error de "circular import" en numpy, ejecute:
+    echo   fix_numpy_circular_import.bat
+    echo.
+    echo O verifique la instalacion manualmente con:
     echo   call venv\Scripts\activate
-    echo   pip install pandas openpyxl
+    echo   pip install "numpy<2.0.0" "pandas<2.2.0" "openpyxl<3.2.0"
 )
 
 REM 4) Configurar Git Portable para actualizaciones automaticas
@@ -194,69 +198,128 @@ echo  Git Portable - Configuracion Completa
 echo ============================================
 echo.
 
-REM 5) Migraciones - Asegurar creación completa de tablas
+REM 5) Migraciones - Método mejorado con verificación de company_id
 echo.
 echo ============================================
 echo  Creando Base de Datos y Tablas
 echo ============================================
 echo.
 
-REM Limpiar migraciones anteriores solo si existen archivos de migración
-IF EXIST core\erp\migrations\ (
-    echo [1/6] Limpiando migraciones anteriores...
-    del /Q core\erp\migrations\*.py 2>nul
-    del /Q core\user\migrations\*.py 2>nul
-    echo Hecho.
-)
-
-REM Crear directorios de migraciones si no existen
-IF NOT EXIST core\erp\migrations (
-    mkdir core\erp\migrations
-    echo. > core\erp\migrations\__init__.py
-)
-
-IF NOT EXIST core\user\migrations (
-    mkdir core\user\migrations
-    echo. > core\user\migrations\__init__.py
-)
-
-echo [2/6] Creando migraciones iniciales para user...
-python manage.py makemigrations user --empty user --name initial
-if errorlevel 1 (
-    echo Advertencia: No se pudo crear migración inicial para user
-)
-
-echo [3/6] Creando migraciones iniciales para erp...
-python manage.py makemigrations erp --empty erp --name initial
-if errorlevel 1 (
-    echo Advertencia: No se pudo crear migración inicial para erp
-)
-
-echo [4/6] Creando migraciones automáticas...
-python manage.py makemigrations user erp
-if errorlevel 1 (
-    echo Error en makemigrations automatico, intentando metodo alternativo...
-    python manage.py makemigrations
-)
-
-echo [5/6] Aplicando migraciones con --fake-initial...
-python manage.py migrate --fake-initial
-if errorlevel 1 (
-    echo Error en --fake-initial, continuando con migrate normal...
-)
-
-echo [6/6] Aplicando todas las migraciones...
-python manage.py migrate
-if errorlevel 1 (
-    echo ERROR CRITICO: No se pudieron aplicar las migraciones
+REM Opcional: Limpiar base de datos existente
+IF EXIST db.sqlite3 (
+    echo ADVERTENCIA: Se encontró una base de datos existente (db.sqlite3)
+    set /p clean_db="¿Desea eliminarla y crear una nueva? (s/n): "
+    if /i "%clean_db%"=="s" (
+        echo Eliminando base de datos existente...
+        del db.sqlite3
+        echo Base de datos eliminada.
+    ) else (
+        echo Manteniendo base de datos existente.
+    )
     echo.
-    echo Posibles soluciones:
-    echo 1. Elimine el archivo db.sqlite3 y reintente
-    echo 2. Verifique que no haya programas usando la base de datos
-    echo 3. Ejecute manualmente: python manage.py migrate
-    echo.
-    pause
-    exit /b 1
+)
+
+REM Verificar configuración de Django
+echo [1/5] Verificando configuración de Django...
+python manage.py check --deploy 2>nul
+if errorlevel 1 (
+    echo Advertencia: Hay problemas con la configuración, continuando...
+)
+
+REM Crear migraciones automáticamente
+echo [2/5] Creando migraciones automáticas...
+python manage.py makemigrations --noinput
+if errorlevel 1 (
+    echo Error en makemigrations, intentando método específico...
+    python manage.py makemigrations user erp --noinput
+    if errorlevel 1 (
+        echo Advertencia: No se pudieron crear migraciones automáticas
+        echo Intentando crear migraciones vacías...
+        python manage.py makemigrations --empty --name initial
+    )
+)
+
+REM Aplicar migraciones
+echo [3/5] Aplicando migraciones...
+python manage.py migrate --noinput
+if errorlevel 1 (
+    echo ERROR en migrate normal, intentando --fake-initial...
+    python manage.py migrate --fake-initial --noinput
+    if errorlevel 1 (
+        echo ERROR CRITICO: No se pudieron aplicar las migraciones
+        echo.
+        echo SOLUCIONES:
+        echo 1. Elimine db.sqlite3 y reinicie el instalador
+        echo 2. Verifique que no haya programas usando la base de datos
+        echo 3. Ejecute manualmente: python manage.py migrate --run-syncdb
+        echo.
+        pause
+        exit /b 1
+    )
+)
+
+REM Verificar y crear company_id si falta (evita el error del servidor)
+echo [4/5] Verificando estructura de tablas críticas...
+python manage.py shell -c "
+from django.db import connection
+try:
+    with connection.cursor() as cursor:
+        # Verificar si erp_category tiene company_id
+        cursor.execute('PRAGMA table_info(erp_category)')
+        columns = [row[1] for row in cursor.fetchall()]
+        if 'company_id' not in columns:
+            print('Agregando company_id a erp_category...')
+            cursor.execute('ALTER TABLE erp_category ADD COLUMN company_id INTEGER')
+            print('✓ company_id agregado a erp_category')
+        
+        # Verificar si erp_product tiene company_id
+        cursor.execute('PRAGMA table_info(erp_product)')
+        columns = [row[1] for row in cursor.fetchall()]
+        if 'company_id' not in columns:
+            print('Agregando company_id a erp_product...')
+            cursor.execute('ALTER TABLE erp_product ADD COLUMN company_id INTEGER')
+            print('✓ company_id agregado a erp_product')
+        
+        # Verificar si erp_company existe
+        cursor.execute(\"SELECT name FROM sqlite_master WHERE type='table' AND name='erp_company'\")
+        if not cursor.fetchone():
+            print('Creando tabla erp_company...')
+            cursor.execute('''
+                CREATE TABLE erp_company (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name VARCHAR(200) NOT NULL,
+                    ruc VARCHAR(20),
+                    address TEXT,
+                    phone VARCHAR(50),
+                    email VARCHAR(100),
+                    is_active BOOLEAN DEFAULT 1,
+                    date_joined TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    date_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            print('✓ Tabla erp_company creada')
+            
+            # Insertar empresa por defecto
+            cursor.execute('INSERT INTO erp_company (name, ruc) VALUES (?, ?)', ['Mi Empresa', ''])
+            print('✓ Empresa por defecto creada')
+        
+        # Asignar company_id por defecto si es NULL
+        cursor.execute('UPDATE erp_category SET company_id = 1 WHERE company_id IS NULL')
+        cursor.execute('UPDATE erp_product SET company_id = 1 WHERE company_id IS NULL')
+        print('✓ company_id asignado por defecto donde faltaba')
+        
+        print('✓ Estructura de tablas verificada y corregida')
+except Exception as e:
+    print(f'Error verificando tablas: {e}')
+" 2>nul
+
+REM Verificar estado final
+echo [5/5] Verificando estado de las migraciones...
+python manage.py showmigrations 2>nul
+if errorlevel 1 (
+    echo Advertencia: No se puede verificar el estado de las migraciones
+) else (
+    echo [OK] Migraciones aplicadas correctamente.
 )
 
 REM 6) Omitir creación automática de superusuario
@@ -275,20 +338,42 @@ echo O acceda a la administracion y siga las instrucciones.
 echo.
 
 REM 7) Crear acceso directo en el escritorio
-echo Creando acceso directo en el escritorio...
+echo.
+echo ============================================
+echo  Creando Acceso Directo en Escritorio
+echo ============================================
+echo.
+
+REM Rutas para el acceso directo directamente en el escritorio
 set "SHORTCUT=%USERPROFILE%\Desktop\MultilideresCRM POS.lnk"
 set "TARGET=%~dp0lanzar_pos.bat"
+set "ICON_PATH=%~dp0icon.ico"
 
-powershell -Command "$WshShell = New-Object -comObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('%SHORTCUT%'); $Shortcut.TargetPath = '%TARGET%'; $Shortcut.Save()" 2>nul
+echo Creando acceso directo en: %SHORTCUT%
+echo Target: %TARGET%
+echo Icon: %ICON_PATH%
+
+REM Crear acceso directo usando PowerShell
+powershell -Command "$WshShell = New-Object -comObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('%SHORTCUT%'); $Shortcut.TargetPath = '%TARGET%'; $Shortcut.WorkingDirectory = '%~dp0'; $Shortcut.IconLocation = '%ICON_PATH%'; $Shortcut.Description = 'Sistema POS MultilideresCRM'; $Shortcut.Save()" 2>nul
+
 if errorlevel 1 (
-    echo [ADVERTENCIA] No se pudo crear el acceso directo automaticamente.
-    echo Puede crearlo manualmente:
-    echo   1. Boton derecho en el escritorio
-    echo   2. Nuevo - Acceso directo
-    echo   3. Destino: "%TARGET%"
-    echo   4. Nombre: MultilideresCRM POS
+    echo [ADVERTENCIA] No se pudo crear el acceso directo automáticamente.
     echo.
-    echo Continuando con la instalacion...
+    echo Puede crearlo manualmente:
+    echo   1. Boton derecho en el escritorio - Nuevo - Acceso directo
+    echo   2. Destino: "%TARGET%"
+    echo   3. Directorio de inicio: "%~dp0"
+    echo   4. Icono: "%ICON_PATH%"
+    echo   5. Nombre: MultilideresCRM POS
+    echo.
+    echo O copie este script al escritorio como acceso directo.
+) else (
+    echo [OK] Acceso directo creado exitosamente en:
+    echo   %SHORTCUT%
+    echo.
+    echo El acceso directo incluye:
+    echo   - Icono personalizado del sistema
+    echo   - Directorio de trabajo correcto
 )
 
 REM 8) Recolectar archivos estáticos
@@ -324,12 +409,17 @@ echo   - Base de datos SQLite
 echo   - Acceso directo en escritorio
 echo   - Git Portable: %IF EXIST tools\PortableGit\bin\git.exe (echo Listo) ELSE (echo No disponible)%
 echo.
+echo ACCESO DIRECTO:
+echo   Ubicación: %USERPROFILE%\Desktop\MultilideresCRM POS.lnk
+echo   Icono: Personalizado del sistema
+echo   Directorio de trabajo: Configurado automáticamente
+echo.
 echo PASOS IMPORTANTES ANTES DE USAR:
 echo   1. Cree un superusuario: python manage.py createsuperuser
 echo   2. Inicie el servidor: python manage.py runserver
 echo.
 echo Para iniciar el sistema:
-echo   1. Use el acceso directo en el escritorio
+echo   1. Use el acceso directo: Escritorio > MultilideresCRM POS
 echo   2. O ejecute: lanzar_pos.bat
 echo.
 echo Para actualizaciones futuras:

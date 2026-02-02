@@ -88,7 +88,6 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "[6/6] Aplicando todas las migraciones..."
-# Forzar aplicación de migraciones eliminando el registro de migraciones aplicadas
 python manage.py migrate --verbosity=2 --run-syncdb
 if [ $? -ne 0 ]; then
     echo "ERROR CRITICO: No se pudieron aplicar las migraciones"
@@ -124,6 +123,61 @@ except Exception as e:
         exit 1
     fi
 fi
+
+# Verificar y crear company_id si falta (evita el error del servidor)
+echo "Verificando estructura de tablas críticas..."
+python manage.py shell -c "
+from django.db import connection
+try:
+    with connection.cursor() as cursor:
+        # Verificar si erp_category tiene company_id
+        cursor.execute('PRAGMA table_info(erp_category)')
+        columns = [row[1] for row in cursor.fetchall()]
+        if 'company_id' not in columns:
+            print('Agregando company_id a erp_category...')
+            cursor.execute('ALTER TABLE erp_category ADD COLUMN company_id INTEGER')
+            print('✓ company_id agregado a erp_category')
+        
+        # Verificar si erp_product tiene company_id
+        cursor.execute('PRAGMA table_info(erp_product)')
+        columns = [row[1] for row in cursor.fetchall()]
+        if 'company_id' not in columns:
+            print('Agregando company_id a erp_product...')
+            cursor.execute('ALTER TABLE erp_product ADD COLUMN company_id INTEGER')
+            print('✓ company_id agregado a erp_product')
+        
+        # Verificar si erp_company existe
+        cursor.execute(\"SELECT name FROM sqlite_master WHERE type='table' AND name='erp_company'\")
+        if not cursor.fetchone():
+            print('Creando tabla erp_company...')
+            cursor.execute('''
+                CREATE TABLE erp_company (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name VARCHAR(200) NOT NULL,
+                    ruc VARCHAR(20),
+                    address TEXT,
+                    phone VARCHAR(50),
+                    email VARCHAR(100),
+                    is_active BOOLEAN DEFAULT 1,
+                    date_joined TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    date_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            print('✓ Tabla erp_company creada')
+            
+            # Insertar empresa por defecto
+            cursor.execute('INSERT INTO erp_company (name, ruc) VALUES (?, ?)', ['Mi Empresa', ''])
+            print('✓ Empresa por defecto creada')
+        
+        # Asignar company_id por defecto si es NULL
+        cursor.execute('UPDATE erp_category SET company_id = 1 WHERE company_id IS NULL')
+        cursor.execute('UPDATE erp_product SET company_id = 1 WHERE company_id IS NULL')
+        print('✓ company_id asignado por defecto donde faltaba')
+        
+        print('✓ Estructura de tablas verificada y corregida')
+except Exception as e:
+    print(f'Error verificando tablas: {e}')
+" 2>/dev/null
 
 # Verificar que las tablas se hayan creado correctamente
 echo

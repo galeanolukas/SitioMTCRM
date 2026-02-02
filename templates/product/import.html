@@ -15,9 +15,12 @@
       </div>
       <div class="mb-3">
         <small class="text-muted">
-          Puedes usar un archivo de ejemplo como referencia para armar tu plantilla:
-          <a href="/media/sample_products_import.csv" target="_blank">Descargar ejemplo CSV</a>.
-          Columnas sugeridas: code, name, cat (opcional), pvp, unit, stock, company (opcional).
+          Puedes usar archivos de ejemplo como referencia para armar tu plantilla:
+          <a href="/media/sample_products_import.csv" target="_blank">Descargar ejemplo básico CSV</a> |
+          <a href="/media/sample_products_import_complete.csv" target="_blank">Descargar ejemplo completo CSV</a>
+          <br>
+          <strong>Columnas básicas:</strong> code, name, categoria, pvp, unit, stock<br>
+          <strong>Columnas completas:</strong> code, name, categoria, pvp, iva_rate, pvp_final, unit, stock, company
         </small>
       </div>
       <div class="mb-3">
@@ -41,19 +44,29 @@
     {% if columns %}
     <hr>
     <h5>Mapear columnas</h5>
+    <div class="alert alert-info">
+      <h6><i class="fas fa-info-circle"></i> Información importante:</h6>
+      <ul class="mb-0">
+        <li><strong>Campos obligatorios (*)</strong>: Código, Nombre, Precio y Stock deben estar mapeados</li>
+        <li><strong>Comportamiento con duplicados</strong>: Si un producto con el mismo <strong>código</strong> ya existe, se <strong>actualizará</strong>. Si no existe, se <strong>creará</strong> uno nuevo</li>
+        <li><strong>Campos opcionales</strong>: Categoría, IVA, Precio Final, Unidad y Empresa son opcionales</li>
+        <li><strong>Precio Final</strong>: Si se deja vacío, se calculará automáticamente como: Precio × (1 + IVA)</li>
+      </ul>
+    </div>
     <form method="post">
       {% csrf_token %}
       <input type="hidden" name="action" value="import">
       <div class="row">
         <div class="col-md-4">
-          <label>Código (code)</label>
-          <select name="map_code" class="form-control">
+          <label>Código (code) <span class="text-danger">*</span></label>
+          <select name="map_code" class="form-control" required>
             {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
           </select>
+          <small class="text-muted">Usado como identificador único</small>
         </div>
         <div class="col-md-4">
-          <label>Nombre (name)</label>
-          <select name="map_name" class="form-control">
+          <label>Nombre (name) <span class="text-danger">*</span></label>
+          <select name="map_name" class="form-control" required>
             {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
           </select>
         </div>
@@ -63,13 +76,31 @@
             <option value="">-- Ninguna --</option>
             {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
           </select>
+          <small class="text-muted">Si no existe, se creará automáticamente</small>
         </div>
         <div class="col-md-4">
-          <label>Precio (pvp)</label>
-          <select name="map_pvp" class="form-control">
+          <label>Precio neto (pvp) <span class="text-danger">*</span></label>
+          <select name="map_pvp" class="form-control" required>
             <option value="">-- Ninguna --</option>
             {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
           </select>
+          <small class="text-muted">Precio sin IVA</small>
+        </div>
+        <div class="col-md-4 mt-2">
+          <label>IVA (%)</label>
+          <select name="map_iva_rate" class="form-control">
+            <option value="">-- Ninguna --</option>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+          <small class="text-muted">Ej: 0.21 o 21 para 21%</small>
+        </div>
+        <div class="col-md-4 mt-2">
+          <label>Precio final con IVA</label>
+          <select name="map_pvp_final" class="form-control">
+            <option value="">-- Ninguna --</option>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+          <small class="text-muted">Opcional. Si se omite, se calcula automáticamente</small>
         </div>
         <div class="col-md-4 mt-2">
           <label>Unidad (unit)</label>
@@ -80,8 +111,8 @@
           <small class="text-muted">Valores válidos: {{ unit_choices|join:', ' }}</small>
         </div>
         <div class="col-md-4 mt-2">
-          <label>Stock</label>
-          <select name="map_stock" class="form-control">
+          <label>Stock <span class="text-danger">*</span></label>
+          <select name="map_stock" class="form-control" required>
             <option value="">-- Ninguna --</option>
             {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
           </select>
@@ -92,10 +123,12 @@
             <option value="">-- Ninguna --</option>
             {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
           </select>
+          <small class="text-muted">Solo para superusuarios</small>
         </div>
       </div>
       <div class="mt-3">
-        <button class="btn btn-success">Importar</button>
+        <button class="btn btn-success"><i class="fas fa-upload"></i> Importar productos</button>
+        <small class="text-muted ml-2">Se crearán nuevos productos o actualizarán los existentes según el código</small>
       </div>
     </form>
     {% endif %}
@@ -103,16 +136,61 @@
     {% if result %}
     <hr>
     <div class="alert alert-info">
-      <div>Creados: {{ created }}</div>
-      <div>Actualizados: {{ updated }}</div>
+      <h5><i class="fas fa-check-circle"></i> Resultados de la importación</h5>
+      <div class="row">
+        <div class="col-md-3">
+          <div class="card bg-success text-white">
+            <div class="card-body text-center">
+              <h4>{{ created }}</h4>
+              <small>Productos creados</small>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card bg-warning text-white">
+            <div class="card-body text-center">
+              <h4>{{ updated }}</h4>
+              <small>Productos actualizados</small>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card bg-info text-white">
+            <div class="card-body text-center">
+              <h4>{{ created|add:updated }}</h4>
+              <small>Total procesados</small>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card {% if errors and errors|length %}bg-danger{% else %}bg-secondary{% endif %} text-white">
+            <div class="card-body text-center">
+              <h4>{{ errors|length }}</h4>
+              <small>Errores</small>
+            </div>
+          </div>
+        </div>
+      </div>
+      
       {% if errors and errors|length %}
-      <div class="mt-2">
-        <strong>Errores:</strong>
-        <ul class="mb-0">
-          {% for e in errors %}<li>{{ e }}</li>{% endfor %}
-        </ul>
+      <div class="mt-3">
+        <h6><i class="fas fa-exclamation-triangle"></i> Errores encontrados:</h6>
+        <div style="max-height: 200px; overflow-y: auto;">
+          <ul class="mb-0">
+            {% for e in errors %}<li>{{ e }}</li>{% endfor %}
+          </ul>
+        </div>
       </div>
       {% endif %}
+      
+      <div class="mt-3">
+        <small class="text-muted">
+          <i class="fas fa-info-circle"></i> 
+          Los productos se identifican por su <strong>código</strong>. 
+          Si el código ya existía, el producto fue <strong>actualizado</strong>. 
+          Si no existía, fue <strong>creado</strong> como nuevo.
+        </small>
+      </div>
     </div>
     {% endif %}
   </div>
