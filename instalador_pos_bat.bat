@@ -19,21 +19,22 @@ if errorlevel 1 (
     echo.
 )
 
-REM 1) Crear entorno virtual venv si no existe
-IF NOT EXIST venv (
-    echo Creando entorno virtual venv...
-    python -m venv venv
+REM 1) Crear entorno virtual DJENV si no existe
+if not exist "DJENV" (
+    echo Creando entorno virtual DJENV...
+    python -m venv DJENV
     if errorlevel 1 (
-        echo Error al crear el entorno virtual venv. Verifica que Python este instalado y en el PATH.
+        echo Error al crear el entorno virtual DJENV.
         pause
         exit /b 1
     )
-) ELSE (
-    echo Entorno virtual venv ya existe.
+) else (
+    echo Entorno virtual DJENV ya existe.
 )
 
-REM 2) Activar entorno virtual venv
-call venv\Scripts\activate
+REM 2) Activar entorno virtual DJENV
+echo Activando entorno virtual...
+call DJENV\Scripts\activate
 if errorlevel 1 (
     echo No se pudo activar el entorno virtual.
     pause
@@ -59,14 +60,14 @@ if errorlevel 1 (
 REM Verificacion rapida de numpy, pandas y openpyxl en este entorno virtual
 python -c "import numpy, pandas, openpyxl; print('numpy:', numpy.__version__, 'pandas:', pandas.__version__, 'openpyxl:', openpyxl.__version__)" >nul 2>&1
 if errorlevel 1 (
-    echo [ADVERTENCIA] No se pudieron importar numpy, pandas u openpyxl en el entorno virtual venv.
+    echo [ADVERTENCIA] No se pudieron importar numpy, pandas u openpyxl en el entorno virtual DJENV.
     echo.
     echo Si ve un error de "circular import" en numpy, ejecute:
     echo   fix_numpy_circular_import.bat
     echo.
     echo O verifique la instalacion manualmente con:
-    echo   call venv\Scripts\activate
-    echo   pip install "numpy<2.0.0" "pandas<2.2.0" "openpyxl<3.2.0"
+    echo   call DJENV\Scripts\activate
+    echo   pip install numpy pandas openpyxl
 )
 
 REM 4) Configurar Git Portable para actualizaciones automaticas
@@ -208,6 +209,7 @@ echo.
 REM Opcional: Limpiar base de datos existente
 IF EXIST db.sqlite3 (
     echo ADVERTENCIA: Se encontró una base de datos existente (db.sqlite3)
+    echo Esta acción podría eliminar todos los datos existentes (ventas, productos, clientes, etc.)
     set /p clean_db="¿Desea eliminarla y crear una nueva? (s/n): "
     if /i "%clean_db%"=="s" (
         echo Eliminando base de datos existente...
@@ -215,7 +217,11 @@ IF EXIST db.sqlite3 (
         echo Base de datos eliminada.
     ) else (
         echo Manteniendo base de datos existente.
+        echo Se intentará aplicar migraciones sobre la base de datos actual.
     )
+    echo.
+) ELSE (
+    echo No se encontró base de datos existente. Se creará una nueva.
     echo.
 )
 
@@ -239,79 +245,227 @@ if errorlevel 1 (
     )
 )
 
-REM Aplicar migraciones
-echo [3/5] Aplicando migraciones...
-python manage.py migrate --noinput
-if errorlevel 1 (
-    echo ERROR en migrate normal, intentando --fake-initial...
-    python manage.py migrate --fake-initial --noinput
+REM MIGRACIONES COMPLETAS - Usando script mejorado
+echo ============================================
+echo   EJECUTANDO MIGRACIONES COMPLETAS
+echo ============================================
+echo.
+
+REM Verificar si el script de migraciones existe
+if exist "migraciones_completas.bat" (
+    echo Ejecutando script de migraciones mejorado...
+    call migraciones_completas.bat
     if errorlevel 1 (
-        echo ERROR CRITICO: No se pudieron aplicar las migraciones
-        echo.
-        echo SOLUCIONES:
-        echo 1. Elimine db.sqlite3 y reinicie el instalador
-        echo 2. Verifique que no haya programas usando la base de datos
-        echo 3. Ejecute manualmente: python manage.py migrate --run-syncdb
-        echo.
-        pause
-        exit /b 1
+        echo Error en las migraciones. Intentando metodo alternativo...
+        echo Creando migraciones si hacen falta...
+        python manage.py makemigrations user erp core.erp core.user core.homepage --no-input
+        echo Ejecutando migraciones...
+        python manage.py migrate --no-input
     )
+) else (
+    echo Script de migraciones no encontrado. Usando metodo estandar...
+    echo Creando migraciones si hacen falta...
+    python manage.py makemigrations user erp core.erp core.user core.homepage --no-input
+    echo Ejecutando migraciones...
+    python manage.py migrate --no-input
 )
 
-REM Verificar y crear company_id si falta (evita el error del servidor)
+if errorlevel 1 (
+    echo ERROR CRITICO: No se pudieron aplicar las migraciones
+    echo.
+    echo SOLUCIONES:
+    echo 1. Elimine db.sqlite3 y reinicie el instalador
+    echo 2. Verifique que no haya programas usando la base de datos
+    echo 3. Ejecute manualmente: python manage.py migrate --run-syncdb
+    echo.
+    pause
+    exit /b 1
+)
+
+echo ✅ Migraciones completadas exitosamente
+echo.
+
+REM Verificación y creación de tablas críticas (para actualizaciones)
 echo [4/5] Verificando estructura de tablas críticas...
 python manage.py shell -c "
 from django.db import connection
 try:
     with connection.cursor() as cursor:
-        # Verificar si erp_category tiene company_id
-        cursor.execute('PRAGMA table_info(erp_category)')
-        columns = [row[1] for row in cursor.fetchall()]
-        if 'company_id' not in columns:
-            print('Agregando company_id a erp_category...')
-            cursor.execute('ALTER TABLE erp_category ADD COLUMN company_id INTEGER')
-            print('✓ company_id agregado a erp_category')
+        print('Verificando y creando tablas que falten...')
         
-        # Verificar si erp_product tiene company_id
-        cursor.execute('PRAGMA table_info(erp_product)')
-        columns = [row[1] for row in cursor.fetchall()]
-        if 'company_id' not in columns:
-            print('Agregando company_id a erp_product...')
-            cursor.execute('ALTER TABLE erp_product ADD COLUMN company_id INTEGER')
-            print('✓ company_id agregado a erp_product')
-        
-        # Verificar si erp_company existe
-        cursor.execute(\"SELECT name FROM sqlite_master WHERE type='table' AND name='erp_company'\")
-        if not cursor.fetchone():
-            print('Creando tabla erp_company...')
-            cursor.execute('''
-                CREATE TABLE erp_company (
+        # Lista de tablas críticas con sus estructuras básicas
+        tablas_criticas = {
+            'erp_company': '''
+                CREATE TABLE IF NOT EXISTS erp_company (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name VARCHAR(200) NOT NULL,
                     ruc VARCHAR(20),
+                    cuit VARCHAR(20),
                     address TEXT,
                     phone VARCHAR(50),
                     email VARCHAR(100),
+                    iibb VARCHAR(50),
+                    pos VARCHAR(10),
+                    start DATE,
+                    logo VARCHAR(255),
                     is_active BOOLEAN DEFAULT 1,
                     date_joined TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     date_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            ''')
-            print('✓ Tabla erp_company creada')
-            
-            # Insertar empresa por defecto
-            cursor.execute('INSERT INTO erp_company (name, ruc) VALUES (?, ?)', ['Mi Empresa', ''])
+            ''',
+            'erp_category': '''
+                CREATE TABLE IF NOT EXISTS erp_category (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name VARCHAR(150) NOT NULL,
+                    desc VARCHAR(500),
+                    user_creation_id INTEGER,
+                    date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    user_updated_id INTEGER,
+                    date_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    company_id INTEGER,
+                    synced_to_server BOOLEAN DEFAULT 0
+                )
+            ''',
+            'erp_product': '''
+                CREATE TABLE IF NOT EXISTS erp_product (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name VARCHAR(150) NOT NULL,
+                    desc TEXT,
+                    code VARCHAR(50),
+                    barcode VARCHAR(50),
+                    pvp DECIMAL(10,2),
+                    cost DECIMAL(10,2),
+                    stock DECIMAL(10,2),
+                    iva_rate DECIMAL(5,2) DEFAULT 21.0,
+                    user_creation_id INTEGER,
+                    date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    user_updated_id INTEGER,
+                    date_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    company_id INTEGER,
+                    cat_id INTEGER,
+                    synced_to_server BOOLEAN DEFAULT 0,
+                    synced_from_server BOOLEAN DEFAULT 0,
+                    server_product_id INTEGER,
+                    last_server_sync TIMESTAMP
+                )
+            ''',
+            'erp_client': '''
+                CREATE TABLE IF NOT EXISTS erp_client (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    names VARCHAR(200) NOT NULL,
+                    surnames VARCHAR(200),
+                    dni VARCHAR(20),
+                    ruc VARCHAR(20),
+                    address TEXT,
+                    phone VARCHAR(50),
+                    email VARCHAR(100),
+                    user_creation_id INTEGER,
+                    date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    user_updated_id INTEGER,
+                    date_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    company_id INTEGER
+                )
+            ''',
+            'erp_sale': '''
+                CREATE TABLE IF NOT EXISTS erp_sale (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    cli_id INTEGER,
+                    date_joined TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    subtotal DECIMAL(10,2),
+                    iva DECIMAL(10,2),
+                    total DECIMAL(10,2),
+                    is_invoiced BOOLEAN DEFAULT 0,
+                    invoice_number VARCHAR(50),
+                    invoice_pos VARCHAR(10),
+                    invoice_type VARCHAR(10),
+                    observations TEXT,
+                    user_creation_id INTEGER,
+                    company_id INTEGER,
+                    synced_to_server BOOLEAN DEFAULT 0
+                )
+            ''',
+            'erp_detsale': '''
+                CREATE TABLE IF NOT EXISTS erp_detsale (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    sale_id INTEGER,
+                    prod_id INTEGER,
+                    cant DECIMAL(10,2),
+                    price DECIMAL(10,2),
+                    subtotal DECIMAL(10,2),
+                    iva_amount DECIMAL(10,2),
+                    user_creation_id INTEGER,
+                    date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            '''
+        }
+        
+        tablas_creadas = 0
+        for nombre_tabla, sql_create in tablas_criticas.items():
+            # Verificar si la tabla existe
+            cursor.execute(\"SELECT name FROM sqlite_master WHERE type='table' AND name='%s'\" % nombre_tabla)
+            if not cursor.fetchone():
+                print(f'Creando tabla: {nombre_tabla}')
+                cursor.execute(sql_create)
+                tablas_creadas += 1
+                print(f'✓ Tabla {nombre_tabla} creada')
+            else:
+                print(f'✓ Tabla {nombre_tabla} ya existe')
+        
+        # Verificar y agregar columnas que falten
+        print('\\nVerificando columnas que falten...')
+        
+        # Columnas para erp_category
+        cursor.execute('PRAGMA table_info(erp_category)')
+        columns_category = [row[1] for row in cursor.fetchall()]
+        if 'company_id' not in columns_category:
+            cursor.execute('ALTER TABLE erp_category ADD COLUMN company_id INTEGER')
+            print('✓ company_id agregado a erp_category')
+        if 'synced_to_server' not in columns_category:
+            cursor.execute('ALTER TABLE erp_category ADD COLUMN synced_to_server BOOLEAN DEFAULT 0')
+            print('✓ synced_to_server agregado a erp_category')
+        
+        # Columnas para erp_product
+        cursor.execute('PRAGMA table_info(erp_product)')
+        columns_product = [row[1] for row in cursor.fetchall()]
+        if 'company_id' not in columns_product:
+            cursor.execute('ALTER TABLE erp_product ADD COLUMN company_id INTEGER')
+            print('✓ company_id agregado a erp_product')
+        if 'synced_to_server' not in columns_product:
+            cursor.execute('ALTER TABLE erp_product ADD COLUMN synced_to_server BOOLEAN DEFAULT 0')
+            print('✓ synced_to_server agregado a erp_product')
+        if 'synced_from_server' not in columns_product:
+            cursor.execute('ALTER TABLE erp_product ADD COLUMN synced_from_server BOOLEAN DEFAULT 0')
+            print('✓ synced_from_server agregado a erp_product')
+        if 'server_product_id' not in columns_product:
+            cursor.execute('ALTER TABLE erp_product ADD COLUMN server_product_id INTEGER')
+            print('✓ server_product_id agregado a erp_product')
+        if 'last_server_sync' not in columns_product:
+            cursor.execute('ALTER TABLE erp_product ADD COLUMN last_server_sync TIMESTAMP')
+            print('✓ last_server_sync agregado a erp_product')
+        
+        # Insertar empresa por defecto si no existe
+        cursor.execute('SELECT COUNT(*) FROM erp_company')
+        if cursor.fetchone()[0] == 0:
+            cursor.execute('INSERT INTO erp_company (name, ruc, cuit) VALUES (?, ?, ?)', ['Mi Empresa', '', ''])
             print('✓ Empresa por defecto creada')
         
         # Asignar company_id por defecto si es NULL
         cursor.execute('UPDATE erp_category SET company_id = 1 WHERE company_id IS NULL')
         cursor.execute('UPDATE erp_product SET company_id = 1 WHERE company_id IS NULL')
+        cursor.execute('UPDATE erp_client SET company_id = 1 WHERE company_id IS NULL')
+        cursor.execute('UPDATE erp_sale SET company_id = 1 WHERE company_id IS NULL')
         print('✓ company_id asignado por defecto donde faltaba')
         
-        print('✓ Estructura de tablas verificada y corregida')
+        print(f'\\n✓ Estructura verificada: {tablas_creadas} tablas nuevas creadas')
+        print('✓ Columnas verificadas y agregadas si faltaban')
+        
 except Exception as e:
     print(f'Error verificando tablas: {e}')
+    import traceback
+    traceback.print_exc()
 " 2>nul
+
+echo.
 
 REM Verificar estado final
 echo [5/5] Verificando estado de las migraciones...
@@ -431,17 +585,59 @@ echo   - Boton "Actualizar (Portable)" en la web
 echo   - Script: actualizar_pos_portable.bat
 echo.
 
-REM Preguntar si desea iniciar el programa automáticamente
-set /p start_program="¿Desea iniciar el programa automáticamente? (s/n): "
+REM 9) Crear superusuario automáticamente si no existe
+echo.
+echo ============================================
+echo  Configuración de Usuario
+echo ============================================
+echo.
+
+echo Verificando si existe superusuario...
+python manage.py shell -c "
+from django.contrib.auth.models import User
+if not User.objects.filter(is_superuser=True).exists():
+    print('No se encontró superusuario. Creando uno por defecto...')
+    from django.contrib.auth.models import User
+    User.objects.create_superuser('admin', 'admin@example.com', 'admin123')
+    print('✓ Superusuario creado: admin / admin123')
+    print('¡IMPORTANTE! Cambie la contraseña después del primer inicio.')
+else:
+    print('✓ Ya existe superusuario en el sistema')
+" 2>nul
+
+REM 10) Preguntar si desea iniciar el programa automáticamente
+set /p start_program="¿Desea iniciar el programa ahora? (s/n): "
 if /i "%start_program%"=="s" (
     echo.
-    echo Iniciando el programa...
-    echo El servidor se iniciará en: http://127.0.0.1:8000/
-    echo Presione Ctrl+C para detener el servidor.
+    echo Iniciando servidor en nueva ventana...
+    echo Se abrirá automáticamente el navegador
     echo.
-    python manage.py runserver 0.0.0.0:8000
+    REM Iniciar el servidor en una nueva ventana (como en lanzar_pos.bat)
+    start "POS_Local_Django" cmd /c "cd /d \"%~dp0\" && call venv\Scripts\activate && python manage.py runserver 0.0.0.0:8000"
+    
+    REM Esperar a que inicie el servidor
+    echo Esperando a que inicie el servidor...
+    timeout /t 10 /nobreak >nul
+    
+    REM Abrir navegador
+    echo Abriendo navegador...
+    start "" "http://localhost:8000/erp/launcher/"
+    
+    echo.
+    echo El servidor está corriendo en una ventana separada.
+    echo Puede cerrar esta ventana de instalación.
+    echo.
+    pause
 ) else (
     echo.
-    echo Presione cualquier tecla para salir...
-    pause >nul
+    echo Para iniciar manualmente:
+    echo   1. Use el acceso directo del escritorio
+    echo   2. O ejecute: lanzar_pos.bat
+    echo.
+    echo DATOS DE ACCESO:
+    echo   Usuario: admin
+    echo   Contraseña: admin123
+    echo   URL: http://localhost:8000/erp/launcher/
+    echo.
+    pause
 )

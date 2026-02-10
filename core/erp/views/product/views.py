@@ -15,7 +15,6 @@ from datetime import datetime
 try:
     import numpy
     NUMPY_AVAILABLE = True
-    print("INFO: numpy importado correctamente")
 except ImportError as e:
     numpy = None
     NUMPY_AVAILABLE = False
@@ -29,7 +28,6 @@ except Exception as e:
 try:
     import pandas as pd
     PANDAS_AVAILABLE = True
-    print("INFO: pandas importado correctamente")
 except ImportError as e:
     pd = None
     PANDAS_AVAILABLE = False
@@ -43,7 +41,6 @@ except Exception as e:
 try:
     import openpyxl
     OPENPYXL_AVAILABLE = True
-    print("INFO: openpyxl importado correctamente")
 except ImportError as e:
     openpyxl = None
     OPENPYXL_AVAILABLE = False
@@ -102,8 +99,7 @@ except Exception:
     mercadopago = None
 
 
-@method_decorator(csrf_exempt, name='dispatch')
-class ProductListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView):
+class ProductListView(ValidatePermissionRequiredMixin, LoginRequiredMixin, ListView):
     model = Product
     template_name = 'product/list.html'
     permission_required = 'erp.view_product'
@@ -458,6 +454,15 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
             messages.error(request, error_msg)
             return self.get(request, *args, **kwargs)
         action = request.POST.get('action')
+        
+        # Nueva acción: Importar desde servidor
+        if action == 'import_from_server':
+            return self.import_from_server(request)
+        
+        # Nueva acción: Clonar productos seleccionados
+        if action == 'clone_server_products':
+            return self.clone_server_products(request)
+        
         # Paso 1: analizar columnas y mostrar mapeo (archivo "limpio")
         if action == 'analyze':
             file = request.FILES.get('file')
@@ -1402,8 +1407,166 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                 request.session.pop(k, None)
             return self.render_to_response(ctx)
 
-        return HttpResponse(status=400)
+    def import_from_server(self, request):
+        """Importar productos desde el servidor remoto usando sync_products_safe"""
+        from django.core.management import call_command
+        from core.erp.models import Product, Company
+        import io
+        import sys
+        from contextlib import redirect_stdout
+        
+        try:
+            # Obtener empresa del usuario
+            user = request.user
+            if not hasattr(user, 'company') or not user.company:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'El usuario no tiene una empresa asignada'
+                })
+            
+            company = user.company
+            
+            # Obtener conteo antes de sincronizar
+            local_count_before = Product.objects.filter(company=company).count()
+            
+            # Ejecutar sync_products_safe con parámetro de empresa
+            captured_output = io.StringIO()
+            with redirect_stdout(captured_output):
+                call_command("sync_products_safe", "--company-id", str(company.id))
+            
+            output = captured_output.getvalue()
+            
+            # Obtener conteo después de sincronizar
+            local_count_after = Product.objects.filter(company=company).count()
+            new_products = local_count_after - local_count_before
+            
+            # Obtener productos recién importados (con server_product_id)
+            imported_products = Product.objects.filter(
+                company=company,
+                server_product_id__isnull=False
+            ).values('id', 'name', 'code', 'pvp', 'stock', 'unit')
+            
+            products_list = []
+            for product in imported_products:
+                products_list.append({
+                    'server_id': product['id'],
+                    'name': product['name'],
+                    'code': product['code'] or '',
+                    'pvp': float(product['pvp']),
+                    'stock': float(product['stock']),
+                    'unit': product['unit']
+                })
+            
+            return JsonResponse({
+                'success': True,
+                'products': products_list,
+                'message': f'Sincronización completada para {company.name}. {new_products} productos nuevos importados.',
+                'output': output,
+                'stats': {
+                    'before': local_count_before,
+                    'after': local_count_after,
+                    'new': new_products,
+                    'company': company.name
+                }
+            })
+            
+        except Exception as e:
+            # Log detallado del error
+            import traceback
+            error_details = f"Error: {str(e)}\nTipo: {type(e).__name__}\nTraceback: {traceback.format_exc()}"
+            print(f"ERROR IMPORT FROM SERVER: {error_details}")
+            
+            return JsonResponse({
+                'success': False,
+                'message': f'Error al sincronizar productos: {str(e)}',
+                'error_type': type(e).__name__,
+                'debug_info': error_details if settings.DEBUG else None
+            })
 
+    def clone_server_products(self, request):
+        """Clonar productos seleccionados del servidor"""
+        from django.db import connections, transaction
+        from core.erp.models import Product, Category, Company
+        import json
+        
+        try:
+            data = json.loads(request.body)
+            selected_products = data.get('products', [])
+            
+            if not selected_products:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'No se seleccionaron productos'
+                })
+            
+            user = request.user
+            company = user.company
+            
+            created_count = 0
+            errors = []
+            
+            with transaction.atomic():
+                for product_id in selected_products:
+                    try:
+                        # Obtener producto del servidor
+                        with connections['remote'].cursor() as cursor:
+                            cursor.execute("""
+                                SELECT id, name, code, pvp, pvp_final, cost_price, unit, stock, 
+                                       min_stock, iva_rate, cat_id
+                                FROM erp_product 
+                                WHERE id = %s AND company_id = %s
+                            """, [product_id, company.id])
+                            server_product = cursor.fetchone()
+                        
+                        if not server_product:
+                            errors.append(f'Producto ID {product_id} no encontrado en servidor')
+                            continue
+                        
+                        # Obtener o crear categoría
+                        cat = None
+                        if server_product[10]:  # cat_id
+                            cat, created = Category.objects.get_or_create(
+                                id=server_product[10],
+                                company=company,
+                                defaults={'name': f'Categoría {server_product[10]}'}
+                            )
+                        
+                        # Crear producto local
+                        Product.objects.create(
+                            company=company,
+                            cat=cat,
+                            name=server_product[1],
+                            code=server_product[2] or '',
+                            pvp=server_product[3],
+                            pvp_final=server_product[4],
+                            cost_price=server_product[5] or 0,
+                            unit=server_product[6],
+                            stock=server_product[7],
+                            min_stock=server_product[8] or 5,
+                            iva_rate=server_product[9],
+                            server_product_id=server_product[0],
+                            synced_from_server=True,
+                            synced_to_server=True,  # Marcar como sincronizado para no volver a subirlo
+                            track_stock=True
+                        )
+                        
+                        created_count += 1
+                        
+                    except Exception as e:
+                        errors.append(f'Error al crear producto ID {product_id}: {str(e)}')
+            
+            return JsonResponse({
+                'success': True,
+                'created': created_count,
+                'errors': errors,
+                'message': f'Se importaron {created_count} productos correctamente'
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'message': f'Error al importar productos: {str(e)}'
+            })
 
 
 class ProductDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin, DeleteView):

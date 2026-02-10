@@ -65,7 +65,18 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 qs = Product.objects.all()
                 if active_cid:
                     qs = qs.filter(company_id=active_cid)
-                prod = qs.filter(Q(code__iexact=code) | Q(name__icontains=code)).first()
+                
+                # Priorizar búsqueda por código exacto primero
+                prod = qs.filter(code__iexact=code).first()
+                
+                # Si no encuentra por código, buscar por nombre exacto
+                if not prod:
+                    prod = qs.filter(name__iexact=code).first()
+                
+                # Si aún no encuentra, buscar por nombre que contenga el término
+                if not prod:
+                    prod = qs.filter(name__icontains=code).first()
+                
                 if not prod:
                     return JsonResponse({'error': 'Producto no encontrado'}, status=404)
                 # Construir respuesta manualmente para asegurar que todos los campos lleguen
@@ -165,7 +176,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         cat=cat,
                         pvp=price,
                         iva_rate=iva_rate,
-                        track_stock=False,
+                        track_stock=True,  # Activar control de stock por defecto
                     )
                     if active_cid:
                         prod.company_id = active_cid
@@ -174,7 +185,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     prod.code = code or prod.code
                     prod.pvp = price
                     prod.iva_rate = iva_rate
-                    prod.track_stock = False
+                    # No modificar track_stock al editar producto existente
                     prod.synced_to_server = False  # Marcar para sincronizar
                 prod.save()
                 data = prod.toJSON()
@@ -187,7 +198,19 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 # Obtener lista de empleados para cuenta corriente
                 from django.contrib.auth import get_user_model
                 User = get_user_model()
-                employees = User.objects.filter(is_active=True).exclude(is_superuser=True).order_by('first_name', 'last_name')
+                
+                # Filtrar por empresa actual
+                active_cid = request.session.get('company_id')
+                if not request.user.is_superuser:
+                    active_cid = active_cid or getattr(request.user, 'company_id', None)
+                
+                employees = User.objects.filter(is_active=True).exclude(is_superuser=True)
+                
+                # Filtrar por empresa si está definida
+                if active_cid:
+                    employees = employees.filter(company_id=active_cid)
+                
+                employees = employees.order_by('first_name', 'last_name')
                 data = []
                 for emp in employees:
                     data.append({
@@ -701,8 +724,10 @@ class SaleCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Create
                         det.subtotal = float(i['subtotal'])
                         det.save()
                         # Descontar stock
+                        from django.utils import timezone
                         Product.objects.filter(pk=det.prod_id).update(
                             stock=F('stock') - det.cant,
+                            stock_modified_locally=timezone.now(),  # Marcar modificación local
                             synced_to_server=False  # Marcar para sincronizar
                         )
                 
@@ -843,9 +868,11 @@ class SaleDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Delete
         data = {}
         try:
             # Restaurar stock antes de eliminar
+            from django.utils import timezone
             for d in self.object.detsale_set.all():
                 Product.objects.filter(pk=d.prod_id).update(
                     stock=F('stock') + d.cant,
+                    stock_modified_locally=timezone.now(),  # Marcar modificación local
                     synced_to_server=False  # Marcar para sincronizar
                 )
             self.object.delete()

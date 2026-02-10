@@ -1,15 +1,16 @@
-Django==4.2.5
+# Django Framework - Versión estable LTS
+Django==4.2.16
 
 # Middleware para usuario actual en modelos
 django-crum==0.7.9
 
-# Imágenes
+# Imágenes - Versión estable
 Pillow==10.4.0
 
 # PostgreSQL (servidor central / producción)
 psycopg2-binary==2.9.9
 
-# Reportes y PDF
+# Reportes y PDF - Versiones compatibles
 reportlab==4.2.2
 weasyprint==67.0
 
@@ -19,14 +20,18 @@ mercadopago==2.2.0
 # Carga de variables desde .env
 python-dotenv==1.0.1
 
-# Manejo de datos en Excel (versiones compatibles para evitar circular import)
-numpy<2.0.0
-pandas<2.2.0
-openpyxl<3.2.0
+# Manejo de datos en Excel - Versiones compatibles y estables
+numpy==1.26.4
+pandas==2.2.3
+openpyxl==3.1.5
 
 # Manejo de versiones semánticas
-packaging
-requests
+packaging==24.2
+requests==2.32.3
 
 # Manejo de zonas horarias
-pytz==2024.1
+pytz==2024.2
+
+# Utilidades adicionales
+python-dateutil==2.9.0.post0
+six==1.17.0
