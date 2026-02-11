@@ -74,9 +74,9 @@
           {% if user.is_superuser %}
           <div class="d-grid gap-2 mt-2">
             {% if environment == 'production' %}
-            <button type="button" class="btn btn-outline-success btn-sm" onclick="window.location.href='{% url 'erp:sync_products' %}'">
+            <a href="{% url 'erp:sync_products' %}" class="btn btn-outline-success btn-sm">
               <i class="fas fa-sync me-1"></i> Sincronizar Productos
-            </button>
+            </a>
             {% endif %}
             <button id="btn-sync-manual" type="button" class="btn btn-outline-secondary btn-sm">
               <i class="fas fa-sync-alt me-1"></i> Sincronizar ahora
@@ -91,11 +91,6 @@
             <a href="{% url 'erp:pos' %}" class="btn btn-success btn-lg">
               <i class="fas fa-cash-register me-2"></i> API de Ventas (POS)
             </a>
-            <!-- Botón de ofertas temporalmente comentado hasta resolver imports
-            <a href="{% url 'erp:discount_list' %}" class="btn btn-warning btn-lg">
-              <i class="fas fa-tags me-2"></i> Ofertas y Descuentos
-            </a>
-            -->
           </div>
         </div>
         <div class="card-footer text-muted small text-center">

@@ -117,7 +117,14 @@ class ActivityLogMiddleware:
                     sensitive_fields = ['password', 'csrfmiddlewaretoken', 'secret']
                     for field in sensitive_fields:
                         data.pop(field, None)
-                    return f"{request.method} {request.path} - Datos: {json.dumps(data, default=str)[:200]}..."
+                    # Manejar datos no serializables de forma segura
+                    try:
+                        json_data = json.dumps(data, default=str, ensure_ascii=False)
+                        return f"{request.method} {request.path} - Datos: {json_data[:200]}..."
+                    except (TypeError, ValueError):
+                        # Si hay error de serialización, usar representación simple
+                        data_str = {k: str(v)[:100] for k, v in data.items()}
+                        return f"{request.method} {request.path} - Datos: {str(data_str)[:200]}..."
                 else:
                     return f"{request.method} {request.path}"
             else:

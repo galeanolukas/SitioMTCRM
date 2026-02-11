@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Acceso Denegado{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        Acceso Denegado
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-danger" role="alert">
+                        <i class="fas fa-lock"></i>
+                        <strong>No tiene los permisos necesarios</strong> para acceder a esta página.
+                    </div>
+                    
+                    <div class="mt-3">
+                        <h6>Información del permiso requerido:</h6>
+                        <ul class="list-unstyled">
+                            {% for perm in required_perms %}
+                            <li><i class="fas fa-key text-muted"></i> {{ perm }}</li>
+                            {% empty %}
+                                <li class="text-muted">No se especificaron permisos requeridos</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    
+                    <div class="mt-3">
+                        <h6>Sus permisos actuales:</h6>
+                        <div class="bg-light p-3 rounded" style="max-height: 200px; overflow-y: auto;">
+                            {% if user_perms %}
+                                <small class="text-muted">
+                                    {% for perm in user_perms|slice:":10" %}
+                                        <div>• {{ perm }}</div>
+                                    {% endfor %}
+                                    {% if user_perms|length > 10 %}
+                                        <div class="text-muted">... y {{ user_perms|length|add:"-10" }} permisos más</div>
+                                    {% endif %}
+                                </small>
+                            {% else %}
+                                <small class="text-muted">No tiene permisos asignados</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4 text-center">
+                        <a href="{% url 'erp:launcher' %}" class="btn btn-primary">
+                            <i class="fas fa-home"></i>
+                            Volver al Panel Principal
+                        </a>
+                        
+                        {% if user.is_staff %}
+                            <a href="{% url 'logout' %}" class="btn btn-outline-secondary ml-2">
+                                <i class="fas fa-sign-out-alt"></i>
+                                Cerrar Sesión
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.card {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    border: none;
+}
+
+.card-header {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+}
+
+.bg-danger {
+    background-color: #dc3545 !important;
+}
+
+.text-muted {
+    color: #6c757d !important;
+}
+
+.list-unstyled {
+    padding-left: 20px;
+}
+
+.list-unstyled li {
+    margin-bottom: 5px;
+}
+</style>
+{% endblock %}

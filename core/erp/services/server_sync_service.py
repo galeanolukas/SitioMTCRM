@@ -218,3 +218,34 @@ class ServerSyncService:
         except Exception as e:
             logger.error(f"Error obteniendo productos remotos para empresa {company_id}: {e}")
             return []
+    
+    @staticmethod
+    def get_remote_users():
+        """Obtener usuarios desde la base de datos remota."""
+        if not ServerSyncService.is_server_mode():
+            logger.info("No estamos en modo servidor, no hay usuarios remotos")
+            return []
+        
+        try:
+            remote_conn = connections['remote']  # Usar la conexión remota
+            
+            with remote_conn.cursor() as cursor:
+                cursor.execute("""
+                    SELECT u.id, u.username, u.email, u.first_name, u.last_name, 
+                           u.is_superuser, u.is_staff, u.is_active, u.company_id
+                    FROM user_user u
+                    ORDER BY u.username
+                """)
+                
+                columns = [col[0] for col in cursor.description]
+                users = []
+                
+                for row in cursor.fetchall():
+                    user_dict = dict(zip(columns, row))
+                    users.append(user_dict)
+                
+                return users
+                
+        except Exception as e:
+            logger.error(f"Error obteniendo usuarios remotos: {e}")
+            return []

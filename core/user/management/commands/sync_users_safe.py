@@ -15,6 +15,12 @@ class Command(BaseCommand):
             return
 
         try:
+            # PRIMERO: Sincronizar empresas con sus IDs correctos
+            self.stdout.write("Sincronizando empresas desde servidor...")
+            self.sync_companies_from_remote()
+            
+            # LUEGO: Sincronizar usuarios
+            self.stdout.write("Sincronizando usuarios desde servidor...")
             # Sincronizar TODOS los usuarios (operadores y superusuarios)
             remote_users = User.objects.using('remote').filter(is_active=True)
             synced_count = 0
@@ -64,13 +70,15 @@ class Command(BaseCommand):
                             local_user.password = remote_user.password
                         # else: Hay sesiones activas, no actualizar password
                 
-                # Asignar empresa si tiene
+                # Asignar empresa si tiene (ahora con ID correcto)
                 if hasattr(remote_user, 'company') and remote_user.company:
                     try:
-                        local_company = Company.objects.using('default').get(name=remote_user.company.name)
+                        # Buscar empresa por ID (que ahora debería coincidir)
+                        local_company = Company.objects.using('default').get(id=remote_user.company.id)
                         local_user.company = local_company
+                        self.stdout.write(f'  Usuario {remote_user.username} asignado a empresa {local_company.name} (ID: {local_company.id})')
                     except Company.DoesNotExist:
-                        pass
+                        self.stdout.write(self.style.WARNING(f'  Empresa ID {remote_user.company.id} no encontrada para usuario {remote_user.username}'))
                 
                 # NO asignar password - mantener el existente para no afectar sesión
                 
@@ -123,3 +131,42 @@ class Command(BaseCommand):
             
         except Exception as e:
             self.stdout.write(self.style.ERROR(f'Error: {e}'))
+
+    def sync_companies_from_remote(self):
+        """Sincroniza empresas desde el servidor remoto manteniendo los IDs"""
+        from django.db import connections
+        
+        with connections['remote'].cursor() as cursor:
+            cursor.execute('SELECT id, name, address, cuit, iibb, start, pos, phone, email, logo, is_active FROM erp_company')
+            remote_companies = cursor.fetchall()
+            
+            for company_data in remote_companies:
+                company_id, name, address, cuit, iibb, start, pos, phone, email, logo, is_active = company_data
+                
+                # Usar SQL directo para insertar con ID específico
+                with transaction.atomic(using='default'):
+                    from django.db import connection
+                    cursor_local = connection.cursor()
+                    
+                    try:
+                        # Intentar actualizar
+                        cursor_local.execute('''
+                            UPDATE erp_company 
+                            SET name = %s, address = %s, cuit = %s, iibb = %s, 
+                                start = %s, pos = %s, phone = %s, email = %s, 
+                                logo = %s, is_active = %s
+                            WHERE id = %s
+                        ''', [name, address, cuit, iibb, start, pos, phone, email, logo, is_active, company_id])
+                        
+                        if cursor_local.rowcount == 0:
+                            # Si no actualizó nada, insertar nuevo
+                            cursor_local.execute('''
+                                INSERT INTO erp_company 
+                                (id, name, address, cuit, iibb, start, pos, phone, email, logo, is_active, synced_to_server)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0)
+                            ''', [company_id, name, address, cuit, iibb, start, pos, phone, email, logo, is_active])
+                        
+                        self.stdout.write(f'  Empresa {name} sincronizada (ID: {company_id})')
+                        
+                    except Exception as e:
+                        self.stdout.write(self.style.ERROR(f'  Error sincronizando empresa {name}: {e}'))

@@ -3,120 +3,190 @@
 
 {% block content %}
 <div class="card">
-    <div class="card-header">
-        <h3 class="card-title">Detalle de Cierre - {{ object.date|date:"d/m/Y" }} {% if object.is_closed %}{{ object.updated_at|date:"H:i" }}{% endif %}</h3>
-        <div class="card-tools">
-            {% if not object.is_closed and perms.erp.add_cashmovement %}
-            <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#movementModal">
-                <i class="fas fa-plus"></i> Agregar Movimiento
-            </button>
-            {% endif %}
+    <div class="card-header bg-primary text-white">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <h3 class="card-title mb-0">
+                    <i class="fas fa-cash-register"></i> 
+                    Cierre de Caja - {{ object.date|date:"d/m/Y" }}
+                    {% if object.is_closed %}
+                        <span class="badge badge-success ml-2">Cerrado</span>
+                    {% else %}
+                        <span class="badge badge-warning ml-2">Abierto</span>
+                    {% endif %}
+                </h3>
+                <small class="text-white-50">
+                    {% if object.is_closed %}Cerrado a las {{ object.updated_at|date:"H:i" }}{% endif %}
+                </small>
+            </div>
+            <div class="col-md-4 text-right">
+                {% if not object.is_closed and perms.erp.add_cashmovement %}
+                <button type="button" class="btn btn-light" data-toggle="modal" data-target="#movementModal">
+                    <i class="fas fa-plus"></i> Agregar Movimiento
+                </button>
+                {% endif %}
+            </div>
         </div>
     </div>
     <div class="card-body">
+        <!-- Tarjetas de Resumen -->
         <div class="row mb-4">
-            <div class="col-md-6">
-                <h5>Resumen</h5>
-                <table class="table table-bordered">
-                    <tr>
-                        <th>Empresa</th>
-                        <td>{{ object.company.name }}</td>
-                    </tr>
-                    <tr>
-                        <th>Usuario</th>
-                        <td>{{ object.user.get_full_name|default:object.user.username }}</td>
-                    </tr>
-                    <tr>
-                        <th>Fecha</th>
-                        <td>{{ object.date|date:"d/m/Y" }}{% if object.is_closed %} - Cerrado a las {{ object.updated_at|date:"H:i" }}{% endif %}</td>
-                    </tr>
-                    <tr>
-                        <th>Saldo Inicial</th>
-                        <td class="text-right">${{ object.opening_balance|floatformat:2 }}</td>
-                    </tr>
-                    <tr>
-                        <th>Ventas en Efectivo</th>
-                        <td class="text-right">
-                            {% if object.is_closed %}
-                                ${{ object.cash_sales|floatformat:2 }}
-                            {% else %}
-                                ${{ dynamic_cash_sales|floatformat:2 }}
-                            {% endif %}
-                        </td>
-                    </tr>
-                    <tr>
-                        <th>Ventas con Tarjeta</th>
-                        <td class="text-right">
-                            {% if object.is_closed %}
-                                ${{ object.card_sales|floatformat:2 }}
-                            {% else %}
-                                ${{ dynamic_card_sales|floatformat:2 }}
-                            {% endif %}
-                        </td>
-                    </tr>
-                    <tr>
-                        <th>Ventas por Transferencia</th>
-                        <td class="text-right">
-                            {% if object.is_closed %}
-                                ${{ object.transfer_sales|floatformat:2 }}
-                            {% else %}
-                                ${{ dynamic_transfer_sales|floatformat:2 }}
-                            {% endif %}
-                        </td>
-                    </tr>
-                    <tr>
-                        <th>Ventas por Mercado Pago</th>
-                        <td class="text-right">
-                            {% if object.is_closed %}
-                                ${{ object.mp_sales|floatformat:2 }}
-                            {% else %}
-                                ${{ dynamic_mp_sales|floatformat:2 }}
-                            {% endif %}
-                        </td>
-                    </tr>
-                    <tr>
-                        <th>Total Ventas</th>
-                        <th class="text-right">
+            <div class="col-md-3">
+                <div class="card bg-info text-white">
+                    <div class="card-body">
+                        <h6 class="card-title">Saldo Inicial</h6>
+                        <h3 class="mb-0">${{ object.opening_balance|floatformat:2 }}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-success text-white">
+                    <div class="card-body">
+                        <h6 class="card-title">Total Ventas</h6>
+                        <h3 class="mb-0">
                             {% if object.is_closed %}
                                 ${{ object.total_sales|floatformat:2 }}
                             {% else %}
                                 ${{ dynamic_total_sales|floatformat:2 }}
                             {% endif %}
-                        </th>
-                    </tr>
-                    <tr>
-                        <th>Gastos</th>
-                        <td class="text-right">
+                        </h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-warning text-white">
+                    <div class="card-body">
+                        <h6 class="card-title">Gastos</h6>
+                        <h3 class="mb-0">
                             {% if object.is_closed %}
                                 ${{ object.expenses|floatformat:2 }}
                             {% else %}
                                 ${{ dynamic_expenses|floatformat:2 }}
                             {% endif %}
-                        </td>
-                    </tr>
-                    <tr>
-                        <th>Saldo Esperado</th>
-                        <th class="text-right">
+                        </h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card {% if object.is_closed %}{% if object.difference > 0 %}bg-success{% elif object.difference < 0 %}bg-danger{% else %}bg-secondary{% endif %}{% else %}bg-primary{% endif %} text-white">
+                    <div class="card-body">
+                        <h6 class="card-title">
+                            {% if object.is_closed %}Saldo Final{% else %}Saldo Esperado{% endif %}
+                        </h6>
+                        <h3 class="mb-0">
                             {% if object.is_closed %}
-                                ${{ object.calculated_balance|floatformat:2 }}
+                                ${{ object.closing_balance|floatformat:2 }}
                             {% else %}
                                 ${{ dynamic_calculated_balance|floatformat:2 }}
                             {% endif %}
-                        </th>
-                    </tr>
-                    {% if object.is_closed %}
-                    <tr>
-                        <th>Saldo Final</th>
-                        <th class="text-right">${{ object.closing_balance|floatformat:2 }}</th>
-                    </tr>
-                    <tr>
-                        <th>Diferencia</th>
-                        <th class="text-right {% if object.difference > 0 %}text-success{% elif object.difference < 0 %}text-danger{% endif %}">
-                            ${{ object.difference|floatformat:2 }}
-                        </th>
-                    </tr>
-                    {% endif %}
-                </table>
+                        </h3>
+                        {% if object.is_closed and object.difference != 0 %}
+                        <small>Diferencia: ${{ object.difference|floatformat:2 }}</small>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Información General -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-info-circle"></i> Información General</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <strong>Empresa:</strong><br>
+                                <span class="text-muted">{{ object.company.name }}</span>
+                            </div>
+                            <div class="col-md-3">
+                                <strong>Usuario:</strong><br>
+                                <span class="text-muted">{{ object.user.get_full_name|default:object.user.username }}</span>
+                            </div>
+                            <div class="col-md-3">
+                                <strong>Fecha:</strong><br>
+                                <span class="text-muted">{{ object.date|date:"d/m/Y" }}</span>
+                            </div>
+                            <div class="col-md-3">
+                                <strong>Estado:</strong><br>
+                                {% if object.is_closed %}
+                                    <span class="badge badge-success">Cerrado a las {{ object.updated_at|date:"H:i" }}</span>
+                                {% else %}
+                                    <span class="badge badge-warning">Abierto</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Detalle de Ventas por Método de Pago -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-credit-card"></i> Ventas por Método de Pago</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <i class="fas fa-money-bill-wave fa-2x text-success mb-2"></i>
+                                    <h6>Efectivo</h6>
+                                    <h4 class="text-success">
+                                        {% if object.is_closed %}
+                                            ${{ object.cash_sales|floatformat:2 }}
+                                        {% else %}
+                                            ${{ dynamic_cash_sales|floatformat:2 }}
+                                        {% endif %}
+                                    </h4>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <i class="fas fa-credit-card fa-2x text-info mb-2"></i>
+                                    <h6>Tarjeta</h6>
+                                    <h4 class="text-info">
+                                        {% if object.is_closed %}
+                                            ${{ object.card_sales|floatformat:2 }}
+                                        {% else %}
+                                            ${{ dynamic_card_sales|floatformat:2 }}
+                                        {% endif %}
+                                    </h4>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <i class="fas fa-exchange-alt fa-2x text-warning mb-2"></i>
+                                    <h6>Transferencia</h6>
+                                    <h4 class="text-warning">
+                                        {% if object.is_closed %}
+                                            ${{ object.transfer_sales|floatformat:2 }}
+                                        {% else %}
+                                            ${{ dynamic_transfer_sales|floatformat:2 }}
+                                        {% endif %}
+                                    </h4>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <i class="fab fa-mercadopago fa-2x text-primary mb-2"></i>
+                                    <h6>Mercado Pago</h6>
+                                    <h4 class="text-primary">
+                                        {% if object.is_closed %}
+                                            ${{ object.mp_sales|floatformat:2 }}
+                                        {% else %}
+                                            ${{ dynamic_mp_sales|floatformat:2 }}
+                                        {% endif %}
+                                    </h4>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 

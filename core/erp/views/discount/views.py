@@ -8,13 +8,8 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 
 from core.erp.mixins import ValidatePermissionRequiredMixin
+from core.erp.models import DiscountRule, SaleDiscount
 from core.erp.forms.discounts import DiscountRuleForm
-
-# Importar modelos directamente para evitar circular imports
-import sys
-import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'models'))
-from discounts import DiscountRule, SaleDiscount
 
 
 class DiscountRuleListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView):

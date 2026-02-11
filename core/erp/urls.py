@@ -54,7 +54,7 @@ from core.erp.views.cash_register.views import (
 
 # Importar vistas de descuentos (comentado temporalmente para evitar errores de importación)
 # from core.erp.views.discount.views import (
-#     DiscountListView, DiscountCreateView, DiscountUpdateView, DiscountDeleteView
+#     DiscountRuleListView, DiscountRuleCreateView, DiscountRuleUpdateView, DiscountRuleDeleteView
 # )
 
 app_name = 'erp'
@@ -164,8 +164,8 @@ urlpatterns = [
     path('api/updates/diagnostics/', version_diagnostics, name='api_version_diagnostics'),
     path('api/execute-release/', execute_release, name='api_execute_release'),
     # Descuentos y Ofertas (comentado temporalmente para evitar errores de importación)
-    # path('discounts/', DiscountListView.as_view(), name='discount_list'),
-    # path('discounts/add/', DiscountCreateView.as_view(), name='discount_create'),
-    # path('discounts/update/<int:pk>/', DiscountUpdateView.as_view(), name='discount_update'),
-    # path('discounts/delete/<int:pk>/', DiscountDeleteView.as_view(), name='discount_delete'),
+    # path('discounts/', DiscountRuleListView.as_view(), name='discount_list'),
+    # path('discounts/add/', DiscountRuleCreateView.as_view(), name='discount_create'),
+    # path('discounts/update/<int:pk>/', DiscountRuleUpdateView.as_view(), name='discount_update'),
+    # path('discounts/delete/<int:pk>/', DiscountRuleDeleteView.as_view(), name='discount_delete'),
 ]

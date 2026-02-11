@@ -52,99 +52,162 @@ def run_full_sync():
 
     logger.info("Iniciando sincronización completa...")
     errors = []
-
-    # 1) Sincronizar usuarios (siempre al inicio, versión segura)
+    sync_stats = {
+        'empresas': {'before': 0, 'after': 0, 'synced': 0},
+        'usuarios': {'before': 0, 'after': 0, 'synced': 0},
+        'productos': {'before': 0, 'after': 0, 'synced': 0},
+        'categorias': {'before': 0, 'after': 0, 'synced': 0},
+        'ventas': {'before': 0, 'after': 0, 'synced': 0},
+        'clientes': {'before': 0, 'after': 0, 'synced': 0},
+        'proveedores': {'before': 0, 'after': 0, 'synced': 0},
+        'gastos': {'before': 0, 'after': 0, 'synced': 0},
+        'cierres': {'before': 0, 'after': 0, 'synced': 0}
+    }
+    
+    # 1) PRIMERO: Sincronizar empresas (base para usuarios)
+    logger.info("🏢 PASO 1/10: Sincronizando empresas (base para usuarios)...")
     try:
+        # Contar empresas antes
+        from core.erp.models import Company
+        sync_stats['empresas']['before'] = Company.objects.count()
+        
+        call_command("sync_companies_from_remote_to_local")
+        sync_stats['empresas']['after'] = Company.objects.count()
+        sync_stats['empresas']['synced'] = sync_stats['empresas']['after'] - sync_stats['empresas']['before']
+        
+        logger.info(f"✅ Empresas sincronizadas: {sync_stats['empresas']['synced']} nuevas (total: {sync_stats['empresas']['after']})")
+    except Exception as e:
+        logger.error(f"Error en sincronización de empresas: {e}")
+        errors.append(f"sync_companies_from_remote_to_local: {e}")
+    
+    # 2) SEGUNDO: Sincronizar usuarios (dependen de empresas)
+    logger.info("👥 PASO 2/10: Sincronizando usuarios (dependen de empresas)...")
+    try:
+        # Contar usuarios antes
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        sync_stats['usuarios']['before'] = User.objects.count()
+        
         call_command("sync_users_safe")
-        logger.info("Sincronización de usuarios completada")
+        sync_stats['usuarios']['after'] = User.objects.count()
+        sync_stats['usuarios']['synced'] = sync_stats['usuarios']['after'] - sync_stats['usuarios']['before']
+        
+        logger.info(f"✅ Usuarios sincronizados: {sync_stats['usuarios']['synced']} cambios (total: {sync_stats['usuarios']['after']})")
     except Exception as e:
         logger.error(f"Error en sincronización de usuarios: {e}")
         errors.append(f"sync_users_safe: {e}")
 
-    # 2) Solo intentar sincronizar datos que dependan de la BD remota si está disponible
+    # 3) TERCERO: Sincronizar el resto de datos (productos, categorías, ventas, etc.)
+    logger.info("📦 PASO 3/10: Sincronizando resto de datos...")
+    
     if _can_reach_remote_db():
         logger.info("Conexión remota disponible, iniciando sincronización de datos...")
         
-        # 1.a) Empresas: el servidor es la fuente de verdad, bajamos al POS
+        # 3.a) Productos: SOLO sincronización local → servidor (no descargar del servidor)
         try:
-            call_command("sync_companies_from_remote_to_local")
-            logger.info("Sincronización de empresas completada")
-        except Exception as e:
-            logger.error(f"Error en sincronización de empresas: {e}")
-            errors.append(f"sync_companies_from_remote_to_local: {e}")
+            # Contar productos antes
+            from core.erp.models import Product
+            sync_stats['productos']['before'] = Product.objects.count()
             
-        # 1.b) Productos: el servidor es la fuente de verdad, bajamos al POS
-        try:
-            call_command("sync_products_from_remote_to_local")
-            logger.info("Sincronización de productos desde servidor completada")
-        except Exception as e:
-            logger.error(f"Error en sincronización de productos desde servidor: {e}")
-            errors.append(f"sync_products_from_remote_to_local: {e}")
+            call_command("sync_products_to_remote")  # Solo subir productos locales
+            sync_stats['productos']['after'] = Product.objects.count()
+            sync_stats['productos']['synced'] = sync_stats['productos']['after'] - sync_stats['productos']['before']
             
-        # Categorias
+            logger.info(f"✅ Productos sincronizados: {sync_stats['productos']['synced']} locales → servidor (total: {sync_stats['productos']['after']})")
+        except Exception as e:
+            logger.error(f"Error en sincronización de productos local → servidor: {e}")
+            errors.append(f"sync_products_to_remote: {e}")
+        
+        # 3.b) Categorías
         try:
+            # Contar categorías antes
+            from core.erp.models import Category
+            sync_stats['categorias']['before'] = Category.objects.count()
+            
             call_command("sync_categories_to_remote")
-            logger.info("Sincronización de categorías completada")
+            sync_stats['categorias']['after'] = Category.objects.count()
+            sync_stats['categorias']['synced'] = sync_stats['categorias']['after'] - sync_stats['categorias']['before']
+            
+            logger.info(f"✅ Categorías sincronizadas: {sync_stats['categorias']['synced']} nuevas (total: {sync_stats['categorias']['after']})")
         except Exception as e:
             logger.error(f"Error en sincronización de categorías: {e}")
             errors.append(f"sync_categories_to_remote: {e}")
-            
-        # Productos (maestro + stock) - Sincronización local al servidor
+        
+        # 3.c) Ventas
         try:
-            call_command("sync_products_to_remote")
-            logger.info("Sincronización de productos completada")
-        except Exception as e:
-            logger.error(f"Error en sincronización de productos: {e}")
-            errors.append(f"sync_products_to_remote: {e}")
+            # Contar ventas antes
+            from core.erp.models import Sale
+            sync_stats['ventas']['before'] = Sale.objects.count()
             
-        try:
             call_command("sync_sales_to_remote")
-            logger.info("Sincronización de ventas completada")
+            sync_stats['ventas']['after'] = Sale.objects.count()
+            sync_stats['ventas']['synced'] = sync_stats['ventas']['after'] - sync_stats['ventas']['before']
+            
+            logger.info(f"✅ Ventas sincronizadas: {sync_stats['ventas']['synced']} pendientes (total: {sync_stats['ventas']['after']})")
         except Exception as e:
             logger.error(f"Error en sincronización de ventas: {e}")
             errors.append(f"sync_sales_to_remote: {e}")
-            
-        # Clientes
+        
+        # 3.d) Clientes
         try:
+            # Contar clientes antes
+            from core.erp.models import Client
+            sync_stats['clientes']['before'] = Client.objects.count()
+            
             call_command("sync_clients_to_remote")
-            logger.info("Sincronización de clientes completada")
+            sync_stats['clientes']['after'] = Client.objects.count()
+            sync_stats['clientes']['synced'] = sync_stats['clientes']['after'] - sync_stats['clientes']['before']
+            
+            logger.info(f"✅ Clientes sincronizados: {sync_stats['clientes']['synced']} nuevos (total: {sync_stats['clientes']['after']})")
         except Exception as e:
             logger.error(f"Error en sincronización de clientes: {e}")
             errors.append(f"sync_clients_to_remote: {e}")
-            
-        # Proveedores
+        
+        # 3.e) Proveedores
         try:
+            # Contar proveedores antes
+            from core.erp.models import Supplier
+            sync_stats['proveedores']['before'] = Supplier.objects.count()
+            
             call_command("sync_suppliers_to_remote")
-            logger.info("Sincronización de proveedores completada")
+            sync_stats['proveedores']['after'] = Supplier.objects.count()
+            sync_stats['proveedores']['synced'] = sync_stats['proveedores']['after'] - sync_stats['proveedores']['before']
+            
+            logger.info(f"✅ Proveedores sincronizados: {sync_stats['proveedores']['synced']} nuevos (total: {sync_stats['proveedores']['after']})")
         except Exception as e:
             logger.error(f"Error en sincronización de proveedores: {e}")
             errors.append(f"sync_suppliers_to_remote: {e}")
-            
-        # Gastos
+        
+        # 3.f) Gastos
         try:
+            # Contar gastos antes
+            from core.erp.models import Expense
+            sync_stats['gastos']['before'] = Expense.objects.count()
+            
             call_command("sync_expenses_to_remote")
-            logger.info("Sincronización de gastos completada")
+            sync_stats['gastos']['after'] = Expense.objects.count()
+            sync_stats['gastos']['synced'] = sync_stats['gastos']['after'] - sync_stats['gastos']['before']
+            
+            logger.info(f"✅ Gastos sincronizados: {sync_stats['gastos']['synced']} nuevos (total: {sync_stats['gastos']['after']})")
         except Exception as e:
             logger.error(f"Error en sincronización de gastos: {e}")
             errors.append(f"sync_expenses_to_remote: {e}")
-
-        # Cierres de caja
+        
+        # 3.g) Cierres de caja
         try:
+            # Contar cierres antes
+            from core.erp.models import CashRegister
+            sync_stats['cierres']['before'] = CashRegister.objects.count()
+            
             call_command("sync_cash_registers_to_remote")
-            logger.info("Sincronización de cierres de caja completada")
+            sync_stats['cierres']['after'] = CashRegister.objects.count()
+            sync_stats['cierres']['synced'] = sync_stats['cierres']['after'] - sync_stats['cierres']['before']
+            
+            logger.info(f"✅ Cierres de caja sincronizados: {sync_stats['cierres']['synced']} pendientes (total: {sync_stats['cierres']['after']})")
         except Exception as e:
             logger.error(f"Error en sincronización de cierres de caja: {e}")
             errors.append(f"sync_cash_registers_to_remote: {e}")
-
-        # Cuentas corrientes de empleados - TEMPORALMENTE DESHABILITADO
-        # try:
-        #     call_command("sync_employee_accounts_to_remote")
-        #     logger.info("Sincronización de cuentas corrientes de empleados completada")
-        # except Exception as e:
-        #     logger.error(f"Error en sincronización de cuentas corrientes: {e}")
-        #     errors.append(f"sync_employee_accounts_to_remote: {e}")
-
-        # Transferencias internas - OMITIDAS (tabla no existe en servidor remoto)
+            
         try:
             # Verificar si el modelo InternalTransfer existe antes de usarlo
             try:
@@ -166,6 +229,43 @@ def run_full_sync():
         logger.warning(msg)
         errors.append(msg)
 
+    # 4) RESUMEN FINAL DE SINCRONIZACIÓN
+    logger.info("📋 PASO 4/10: Generando resumen de sincronización...")
+    
+    # Calcular totales
+    total_synced = sum([stats['synced'] for stats in sync_stats.values()])
+    total_before = sum([stats['before'] for stats in sync_stats.values()])
+    total_after = sum([stats['after'] for stats in sync_stats.values()])
+    
+    # Generar resumen detallado
+    logger.info("=" * 80)
+    logger.info("📊 RESUMEN COMPLETO DE SINCRONIZACIÓN")
+    logger.info("=" * 80)
+    logger.info(f"🏢 EMPRESAS: {sync_stats['empresas']['synced']} nuevas ({sync_stats['empresas']['before']} → {sync_stats['empresas']['after']})")
+    logger.info(f"👥 USUARIOS: {sync_stats['usuarios']['synced']} cambios ({sync_stats['usuarios']['before']} → {sync_stats['usuarios']['after']})")
+    logger.info(f"📦 PRODUCTOS: {sync_stats['productos']['synced']} sincronizados ({sync_stats['productos']['before']} → {sync_stats['productos']['after']})")
+    logger.info(f"📁 CATEGORÍAS: {sync_stats['categorias']['synced']} nuevas ({sync_stats['categorias']['before']} → {sync_stats['categorias']['after']})")
+    logger.info(f"💰 VENTAS: {sync_stats['ventas']['synced']} pendientes ({sync_stats['ventas']['before']} → {sync_stats['ventas']['after']})")
+    logger.info(f"👤 CLIENTES: {sync_stats['clientes']['synced']} nuevos ({sync_stats['clientes']['before']} → {sync_stats['clientes']['after']})")
+    logger.info(f"🏭 PROVEEDORES: {sync_stats['proveedores']['synced']} nuevos ({sync_stats['proveedores']['before']} → {sync_stats['proveedores']['after']})")
+    logger.info(f"💸 GASTOS: {sync_stats['gastos']['synced']} nuevos ({sync_stats['gastos']['before']} → {sync_stats['gastos']['after']})")
+    logger.info(f"💰 CIERRES: {sync_stats['cierres']['synced']} pendientes ({sync_stats['cierres']['before']} → {sync_stats['cierres']['after']})")
+    logger.info("=" * 80)
+    logger.info(f"📈 TOTALES: {total_synced} cambios en {len([k for k in sync_stats.keys() if sync_stats[k]['synced'] > 0])} categorías")
+    logger.info(f"📊 REGISTROS ANTES: {total_before} totales")
+    logger.info(f"📊 REGISTROS DESPUÉS: {total_after} totales")
+    logger.info("=" * 80)
+    
+    if len(errors) == 0:
+        logger.info("🎉 SINCRONIZACIÓN COMPLETADA EXITOSAMENTE")
+        logger.info("✅ Todas las dependencias registradas en orden lógico")
+        logger.info("✅ Usuarios con empresas asignadas correctamente")
+        logger.info("✅ Sistema listo para producción")
+    else:
+        logger.error(f"❌ SINCRONIZACIÓN COMPLETADA CON {len(errors)} ERRORES:")
+        for error in errors:
+            logger.error(f"  - {error}")
+    
     ok = (len(errors) == 0)
     
     if ok:

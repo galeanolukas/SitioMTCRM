@@ -83,38 +83,49 @@ class Command(BaseCommand):
 
         for cat in local_qs:
             try:
-                with transaction.atomic(using='remote'):
-                    # Determinar company_id para sincronización
-                    company_id = getattr(cat, 'company_id', None) or active_company.id
-                    
-                    # Buscar categoría existente por nombre Y empresa
+                # Determinar company_id para sincronización
+                company_id = getattr(cat, 'company_id', None) or active_company.id
+                
+                # Buscar categoría existente por nombre (sin importar empresa)
+                remote_cat = Category.objects.using('remote').filter(name=cat.name).first()
+                
+                created = False
+                if remote_cat:
+                    # La categoría ya existe, reutilizarla
+                    action = "reutilizada (ya existía)"
+                    if remote_cat.company_id != company_id:
+                        self.stdout.write(f"⚠️ Categoría '{cat.name}' ya existía (Empresa {remote_cat.company_id}), reutilizando para Empresa {company_id}")
+                    else:
+                        self.stdout.write(f"✅ Categoría '{cat.name}' encontrada (Empresa {company_id})")
+                else:
+                    # Crear nueva categoría con empresa
                     try:
-                        remote_cat = Category.objects.using('remote').get(
-                            name=cat.name, 
-                            company_id=company_id
-                        )
-                        # Actualizar descripción si cambió
-                        if remote_cat.desc != cat.desc:
-                            remote_cat.desc = cat.desc
-                            remote_cat.save()
-                        created = False
-                    except Category.DoesNotExist:
-                        # Crear nueva categoría con empresa
-                        remote_cat = Category.objects.using('remote').create(
-                            name=cat.name,
-                            desc=cat.desc,
-                            company_id=company_id
-                        )
+                        with transaction.atomic(using='remote'):
+                            remote_cat = Category.objects.using('remote').create(
+                                name=cat.name,
+                                desc=cat.desc,
+                                company_id=company_id
+                            )
                         created = True
-                    
-                    # Logging detallado
-                    action = "creada" if created else "actualizada"
-                    self.stdout.write(f"✅ Categoría '{cat.name}' {action} (Empresa: {company_id})")
-                    
-                    # Marcar como sincronizada localmente
-                    cat.synced_to_server = True
-                    cat.save(using='default')
-                    
+                        action = "creada"
+                        self.stdout.write(f"✅ Categoría '{cat.name}' creada (Empresa: {company_id})")
+                    except Exception as create_error:
+                        # Si hay error de duplicado, buscar la categoría existente
+                        if "duplicate key" in str(create_error) and "name" in str(create_error):
+                            remote_cat = Category.objects.using('remote').filter(name=cat.name).first()
+                            if remote_cat:
+                                created = False
+                                action = "reutilizada (error duplicado)"
+                                self.stdout.write(f"⚠️ Categoría '{cat.name}' ya existía, reutilizando")
+                            else:
+                                raise create_error
+                        else:
+                            raise create_error
+                
+                # Marcar como sincronizada localmente
+                cat.synced_to_server = True
+                cat.save(using='default')
+                
                 synced += 1
             except Exception as e:
                 errors += 1

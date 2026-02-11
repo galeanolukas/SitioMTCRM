@@ -1,9 +1,33 @@
 from django.core.management.base import BaseCommand
-from django.db import transaction
+from django.db import transaction, DatabaseError
 from django.contrib.auth import get_user_model
 from crum import get_current_user
+import time
+import random
 
 from core.erp.models import Product, Category, Company
+
+
+def retry_on_database_lock(max_retries=3, base_delay=0.1):
+    """
+    Decorador para reintentar operaciones de base de datos cuando hay bloqueos
+    """
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            for attempt in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except DatabaseError as e:
+                    if 'database is locked' in str(e).lower() and attempt < max_retries - 1:
+                        # Backoff exponencial con jitter aleatorio
+                        delay = base_delay * (2 ** attempt) + random.uniform(0, 0.1)
+                        time.sleep(delay)
+                        continue
+                    else:
+                        raise e
+            return None
+        return wrapper
+    return decorator
 
 
 class Command(BaseCommand):
@@ -70,90 +94,33 @@ class Command(BaseCommand):
         synced = 0
         updated = 0
         errors = 0
+        lock_errors = 0
 
         for remote_prod in remote_qs:
             try:
-                with transaction.atomic(using='default'):
-                    # Buscar producto local por código (método más confiable)
-                    local_prod = None
+                # Usar el decorador de reintento para manejar bloqueos
+                self._sync_single_product(remote_prod, active_company)
+                
+                if remote_prod.id in getattr(self, '_created_products', set()):
+                    synced += 1
+                else:
+                    updated += 1
                     
-                    if remote_prod.code:
-                        local_prod = Product.objects.using('default').filter(
-                            code=remote_prod.code,
-                            company_id=active_company.id
-                        ).first()
-                    
-                    # Si no encuentra por código, buscar por nombre
-                    if not local_prod and remote_prod.name:
-                        local_prod = Product.objects.using('default').filter(
-                            name=remote_prod.name,
-                            company_id=active_company.id
-                        ).first()
-
-                    # Sincronizar categoría primero si existe
-                    local_cat = None
-                    if remote_prod.cat_id:
-                        # Buscar categoría local equivalente
-                        local_cat = Category.objects.using('default').filter(
-                            name=remote_prod.cat.name,
-                            company_id=active_company.id
-                        ).first()
-                        
-                        if not local_cat:
-                            # Crear categoría local si no existe
-                            local_cat = Category.objects.using('default').create(
-                                name=remote_prod.cat.name,
-                                desc=getattr(remote_prod.cat, 'desc', ''),
-                                company_id=active_company.id,
-                                synced_to_server=True  # Viene del servidor
-                            )
-                            self.stdout.write(f"✅ Categoría '{remote_prod.cat.name}' creada localmente")
-
-                    if local_prod is None:
-                        # Crear nuevo producto local
-                        local_prod = Product.objects.using('default').create(
-                            company_id=active_company.id,
-                            cat=local_cat,
-                            code=remote_prod.code,
-                            name=remote_prod.name,
-                            pvp=remote_prod.pvp,
-                            pvp_final=remote_prod.pvp_final,
-                            cost_price=getattr(remote_prod, 'cost_price', 0),
-                            unit=remote_prod.unit,
-                            stock=remote_prod.stock,
-                            min_stock=getattr(remote_prod, 'min_stock', 5),
-                            iva_rate=remote_prod.iva_rate,
-                            # Campos de sincronización
-                            synced_from_server=True,
-                            server_product_id=remote_prod.id,
-                            synced_to_server=True,  # Ya está sincronizado
-                        )
-                        synced += 1
-                        self.stdout.write(f"✅ Producto '{remote_prod.name}' creado localmente")
-                    else:
-                        # Actualizar producto existente
-                        update_fields = ['name', 'pvp', 'pvp_final', 'cost_price', 'unit', 'stock', 
-                                       'min_stock', 'iva_rate']
-                        
-                        for field in update_fields:
-                            if hasattr(remote_prod, field):
-                                setattr(local_prod, field, getattr(remote_prod, field))
-                        
-                        if local_cat:
-                            local_prod.cat = local_cat
-                        
-                        # Actualizar campos de sincronización
-                        local_prod.synced_from_server = True
-                        local_prod.server_product_id = remote_prod.id
-                        local_prod.synced_to_server = True
-                        
-                        local_prod.save()
-                        updated += 1
-                        self.stdout.write(f"🔄 Producto '{remote_prod.name}' actualizado localmente")
-
+            except DatabaseError as e:
+                if 'database is locked' in str(e).lower():
+                    lock_errors += 1
+                    self.stderr.write(f"🔒 Error de bloqueo en producto {remote_prod.id}: {e}")
+                    # Pequeña pausa para permitir que se libere el bloqueo
+                    time.sleep(0.2)
+                else:
+                    errors += 1
+                    self.stderr.write(f"❌ Error de base de datos en producto {remote_prod.id}: {e}")
             except Exception as e:
                 errors += 1
                 self.stderr.write(f"❌ Error sincronizando producto {remote_prod.id}: {e}")
+        
+        if lock_errors > 0:
+            self.stdout.write(self.style.WARNING(f"Se encontraron {lock_errors} errores de bloqueo de base de datos"))
 
         self.stdout.write(self.style.SUCCESS(
             f"Sincronización de productos (remoto → local) finalizada.\n"
@@ -163,3 +130,100 @@ class Command(BaseCommand):
             f"Errores: {errors}\n"
             f"Total procesados: {total}"
         ))
+
+    @retry_on_database_lock(max_retries=3, base_delay=0.1)
+    def _sync_single_product(self, remote_prod, active_company):
+        """
+        Sincroniza un producto individual con manejo de reintentos para bloqueos
+        """
+        with transaction.atomic(using='default'):
+            # Buscar producto local por código (método más confiable)
+            local_prod = None
+            
+            if remote_prod.code:
+                local_prod = Product.objects.using('default').filter(
+                    code=remote_prod.code,
+                    company_id=active_company.id
+                ).first()
+            
+            # Si no encuentra por código, buscar por nombre
+            if not local_prod and remote_prod.name:
+                local_prod = Product.objects.using('default').filter(
+                    name=remote_prod.name,
+                    company_id=active_company.id
+                ).first()
+
+            # Sincronizar categoría primero si existe
+            local_cat = None
+            if remote_prod.cat_id:
+                # Buscar categoría local equivalente por nombre Y empresa
+                local_cat = Category.objects.using('default').filter(
+                    name=remote_prod.cat.name,
+                    company_id=active_company.id
+                ).first()
+                
+                if not local_cat:
+                    # Verificar si ya existe una categoría con ese nombre para otra empresa
+                    existing_cat_other_company = Category.objects.using('default').filter(
+                        name=remote_prod.cat.name
+                    ).first()
+                    
+                    if existing_cat_other_company:
+                        # Usar la categoría existente pero mostrar advertencia
+                        local_cat = existing_cat_other_company
+                        self.stdout.write(f"⚠️ Categoría '{remote_prod.cat.name}' ya existe (Empresa: {existing_cat_other_company.company_id}), reutilizando")
+                    else:
+                        # Crear categoría local si no existe
+                        local_cat = Category.objects.using('default').create(
+                            name=remote_prod.cat.name,
+                            desc=getattr(remote_prod.cat, 'desc', ''),
+                            company_id=active_company.id,
+                            synced_to_server=True  # Viene del servidor
+                        )
+                        self.stdout.write(f"✅ Categoría '{remote_prod.cat.name}' creada localmente")
+
+            if local_prod is None:
+                # Crear nuevo producto local
+                local_prod = Product.objects.using('default').create(
+                    company_id=active_company.id,
+                    cat=local_cat,
+                    code=remote_prod.code,
+                    name=remote_prod.name,
+                    pvp=remote_prod.pvp,
+                    pvp_final=remote_prod.pvp_final,
+                    cost_price=getattr(remote_prod, 'cost_price', 0),
+                    unit=remote_prod.unit,
+                    stock=remote_prod.stock,
+                    min_stock=getattr(remote_prod, 'min_stock', 5),
+                    iva_rate=remote_prod.iva_rate,
+                    # Campos de sincronización
+                    synced_from_server=True,
+                    server_product_id=remote_prod.id,
+                    synced_to_server=True,  # Ya está sincronizado
+                )
+                
+                # Registrar producto creado
+                if not hasattr(self, '_created_products'):
+                    self._created_products = set()
+                self._created_products.add(remote_prod.id)
+                
+                self.stdout.write(f"✅ Producto '{remote_prod.name}' creado localmente")
+            else:
+                # Actualizar producto existente
+                update_fields = ['name', 'pvp', 'pvp_final', 'cost_price', 'unit', 'stock', 
+                               'min_stock', 'iva_rate']
+                
+                for field in update_fields:
+                    if hasattr(remote_prod, field):
+                        setattr(local_prod, field, getattr(remote_prod, field))
+                
+                if local_cat:
+                    local_prod.cat = local_cat
+                
+                # Actualizar campos de sincronización
+                local_prod.synced_from_server = True
+                local_prod.server_product_id = remote_prod.id
+                local_prod.synced_to_server = True
+                
+                local_prod.save()
+                self.stdout.write(f"🔄 Producto '{remote_prod.name}' actualizado localmente")

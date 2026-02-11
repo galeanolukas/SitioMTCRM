@@ -129,6 +129,9 @@ class CashRegisterCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin
                     if existing and not existing.is_closed:
                         data['error'] = f'Ya existe una caja abierta para {existing.user.get_full_name() or existing.user.username} en la fecha {today}. Debe cerrarla antes de abrir una nueva.'
                     else:
+                        # Establecer la fecha explícitamente antes de guardar
+                        from django.utils import timezone
+                        cash_register.date = timezone.now().date()
                         cash_register.save()
                         messages.success(request, 'Caja abierta correctamente')
                         data['success'] = True

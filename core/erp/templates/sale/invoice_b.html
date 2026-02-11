@@ -2,127 +2,150 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <title>Factura {{ sale.invoice_type }} - {{ sale.invoice_number|default:sale.id }}</title>
-  <link rel="stylesheet" href="{% static 'sale/invoice.css' %}">
-  <style>
-    @page { size: A4; margin: 18mm 15mm 18mm 15mm; }
-    body { font-family: 'Helvetica', Arial, sans-serif; font-size: 12px; color: #222; }
-    .row { display: flex; flex-wrap: nowrap; }
-    .col { flex: 1 0 0; }
-    .text-right { text-align: right; }
-    .text-center { text-align: center; }
-    .mb-2 { margin-bottom: 8px; }
-    .mb-3 { margin-bottom: 12px; }
-    .mb-4 { margin-bottom: 16px; }
-    .border { border: 1px solid #ddd; }
-    .rounded { border-radius: 6px; }
-    .p-2 { padding: 8px; }
-    .h1 { font-size: 22px; font-weight: 700; letter-spacing: .5px; }
-    .h2 { font-size: 16px; font-weight: 700; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: 8px; border-bottom: 1px solid #eaeaea; }
-    thead th { background: #f6f6f6; border-top: 1px solid #eaeaea; }
-    tfoot td { border-top: 1px solid #ccc; }
-    .totals td { padding: 6px 8px; }
-    .muted { color: #666; }
-    .badge { display: inline-block; border: 1px solid #333; padding: 4px 8px; border-radius: 4px; font-weight: 700; }
-  </style>
+    <meta charset="UTF-8">
+    <title>Factura {{ sale.invoice_type }} - {{ sale.invoice_number|default:sale.id }}</title>
+    <link rel="stylesheet" href="{% static 'sale/invoice.css' %}">
 </head>
 <body>
-  <header class="mb-4">
-    <div class="row mb-2">
-      <div class="col">
-        {% if company.logo %}
-  <img src="{{ company.logo }}" alt="Logo" style="height: 40px; margin-bottom: 6px;">
-{% endif %}
-        <div class="h1">{{ company.name }}</div>
-        <div>{{ company.address }}</div>
-        <div>CUIT: {{ company.cuit }} — IIBB: {{ company.iibb }}</div>
-        <div>Inicio de actividades: {{ company.start }}</div>
-      </div>
-      <div class="col text-right">
-        <div class="badge">Factura {{ sale.invoice_type }}</div>
-        <div class="h2">N° {{ sale.invoice_number|default:'—' }}</div>
-        <div class="muted">Pto. Venta: {{ company.pos }}</div>
-        <div>Fecha: {{ sale.date_joined|date:"d/m/Y H:i" }}</div>
-      </div>
-    </div>
-    <div class="border rounded p-2">
-      <div class="row">
-        <div class="col">
-          <strong>Cliente</strong>
-          <div>{{ sale.cli.names }}</div>
-          <div class="muted">DNI/CUIT: {{ sale.cli.dni|default:'—' }}</div>
-          <div class="muted">Dirección: {{ sale.cli.address|default:'—' }}</div>
+    <!-- Encabezado de la factura -->
+    <header class="invoice-header clearfix">
+        <div class="company-info">
+            {% if company.logo %}
+                <img src="{{ company.logo }}" alt="Logo" class="company-logo">
+            {% endif %}
+            <div class="company-name">{{ company.name }}</div>
+            <div class="company-details">
+                <div>{{ company.address }}</div>
+                <div>CUIT: {{ company.cuit }}</div>
+                {% if company.iibb %}<div>IIBB: {{ company.iibb }}</div>{% endif %}
+                {% if company.start %}<div>Inicio de Actividades: {{ company.start }}</div>{% endif %}
+                {% if company.phone %}<div>Teléfono: {{ company.phone }}</div>{% endif %}
+                {% if company.email %}<div>Email: {{ company.email }}</div>{% endif %}
+            </div>
         </div>
-        <div class="col text-right">
-          <strong>Condición IVA</strong>
-          <div>Consumidor Final</div>
-          <div class="muted">Condición de venta: Contado</div>
+        
+        <div class="invoice-info">
+            <div class="invoice-type">{{ sale.invoice_type|default:"FACTURA" }}</div>
+            <div class="invoice-number">N° {{ sale.invoice_number|default:sale.id|stringformat:"06d" }}</div>
+            <div class="invoice-date">Fecha: {{ sale.date_joined|date:"d/m/Y" }}</div>
+            <div class="invoice-date">Hora: {{ sale.date_joined|date:"H:i" }}</div>
+            {% if company.pos %}
+            <div class="invoice-date">Pto. Venta: {{ company.pos }}</div>
+            {% endif %}
         </div>
-      </div>
-    </div>
-  </header>
+    </header>
 
-  <main>
-    <table class="mb-3">
-      <thead>
-        <tr>
-          <th style="width: 35%">Producto</th>
-          <th style="width: 15%" class="text-center">Categoría</th>
-          <th style="width: 10%" class="text-center">Cantidad</th>
-          <th style="width: 15%" class="text-right">PVP s/IVA</th>
-          <th style="width: 15%" class="text-right">Subtotal</th>
-          <th style="width: 10%" class="text-right">IVA</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for det in items %}
-        {% widthratio det.prod.pvp 1 det.cant as sub_neto %}
-        {% if det.prod.iva_rate %}
-            {% widthratio det.prod.iva_rate 100 det.subtotal as det_iva %}
-        {% else %}
-            {% with det_iva=0 %}
+    <!-- Datos del cliente -->
+    <section class="client-section">
+        <div class="section-title">Datos del Cliente</div>
+        <div class="client-data">
+            <div class="client-column">
+                <div class="client-field">
+                    <span class="client-label">Razón Social:</span> 
+                    {{ sale.cli.names|default:"Consumidor Final" }}
+                </div>
+                {% if sale.cli.dni %}
+                <div class="client-field">
+                    <span class="client-label">DNI/CUIT:</span> 
+                    {{ sale.cli.dni }}
+                </div>
+                {% endif %}
+                {% if sale.cli.address %}
+                <div class="client-field">
+                    <span class="client-label">Domicilio:</span> 
+                    {{ sale.cli.address }}
+                </div>
+                {% endif %}
+            </div>
+            <div class="client-column">
+                <div class="client-field">
+                    <span class="client-label">Condición IVA:</span> 
+                    Consumidor Final
+                </div>
+                <div class="client-field">
+                    <span class="client-label">Condición Venta:</span> 
+                    Contado
+                </div>
+                {% if sale.cli.phone %}
+                <div class="client-field">
+                    <span class="client-label">Teléfono:</span> 
+                    {{ sale.cli.phone }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+
+    <!-- Tabla de productos -->
+    <main>
+        <table class="products-table">
+            <thead>
+                <tr>
+                    <th style="width: 8%">Código</th>
+                    <th style="width: 35%">Descripción</th>
+                    <th style="width: 8%">Categoría</th>
+                    <th style="width: 8%">Cantidad</th>
+                    <th style="width: 12%">Precio Unit.</th>
+                    <th style="width: 12%">Subtotal</th>
+                    <th style="width: 8%">IVA</th>
+                    <th style="width: 9%">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for det in items %}
+                <tr>
+                    <td class="product-code">{{ det.prod.code|default:"—" }}</td>
+                    <td class="product-description">{{ det.prod.name }}</td>
+                    <td class="text-center">{{ det.prod.cat.name|default:"—" }}</td>
+                    <td class="product-quantity">{{ det.cant|floatformat:2 }}</td>
+                    <td class="product-price">$ {{ det.prod.pvp|floatformat:2 }}</td>
+                    <td class="product-price">$ {{ det.subtotal|floatformat:2 }}</td>
+                    <td class="text-center">
+                        {% if det.prod.iva_rate %}
+                            {{ det.prod.iva_rate|floatformat:0 }}%
+                        {% else %}
+                            0%
+                        {% endif %}
+                    </td>
+                    <td class="product-subtotal">$ {{ det.subtotal|floatformat:2 }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- Totales -->
+        <div class="totals-section">
+            <table class="totals-table">
+                <tr>
+                    <td class="totals-label">Subtotal:</td>
+                    <td class="totals-value">$ {{ sale.subtotal|floatformat:2 }}</td>
+                </tr>
+                <tr>
+                    <td class="totals-label">IVA (21%):</td>
+                    <td class="totals-value">$ {{ sale.iva|floatformat:2 }}</td>
+                </tr>
+                <tr class="total-row">
+                    <td class="totals-label">TOTAL:</td>
+                    <td class="totals-value">$ {{ sale.total|floatformat:2 }}</td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- Observaciones -->
+        {% if sale.observations %}
+        <div class="observations">
+            <strong>Observaciones:</strong> {{ sale.observations }}
+        </div>
         {% endif %}
-        <tr>
-          <td>{{ det.prod.name }}</td>
-          <td class="text-center">{{ det.prod.cat.name }}</td>
-          <td class="text-center">{{ det.cant }}</td>
-          <td class="text-right">$ {{ det.prod.pvp }}</td>
-          <td class="text-right">$ {{ sub_neto|floatformat:2 }}</td>
-          <td class="text-right">$ {{ det_iva|floatformat:2 }}</td>
-        </tr>
-        {% endwith %}
-        {% endfor %}
-      </tbody>
-      <tfoot>
-        <tr class="totals">
-          <td colspan="4"></td>
-          <td class="text-right"><strong>Subtotal</strong></td>
-          <td class="text-right">$ {{ sale.subtotal }}</td>
-        </tr>
-        <tr class="totals">
-          <td colspan="4"></td>
-          <td class="text-right"><strong>IVA</strong></td>
-          <td class="text-right">$ {{ sale.iva }}</td>
-        </tr>
-        <tr class="totals">
-          <td colspan="4"></td>
-          <td class="text-right"><strong>Total</strong></td>
-          <td class="text-right"><strong>$ {{ sale.total }}</strong></td>
-        </tr>
-      </tfoot>
-    </table>
+    </main>
 
-    <div class="muted">
-      <div>Comprobante no válido como crédito fiscal (Factura {{ sale.invoice_type }}).</div>
-      <div>Gracias por su compra.</div>
-    </div>
-  </main>
-
-  <footer class="text-center" style="position: fixed; bottom: 10mm; left: 0; right: 0;">
-    <span class="muted">Generado por MultilideresTech CRM</span>
-  </footer>
+    <!-- Pie de página -->
+    <footer class="invoice-footer">
+        <div class="observations">
+            <strong>Comprobante no válido como crédito fiscal (Factura {{ sale.invoice_type|default:"B" }}).</strong>
+        </div>
+        <div>Gracias por su compra.</div>
+        <div class="mt-15">Generado por MultilideresTech CRM - {{ sale.date_joined|date:"d/m/Y H:i" }}</div>
+    </footer>
 </body>
 </html>

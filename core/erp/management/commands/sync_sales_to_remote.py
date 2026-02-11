@@ -108,6 +108,22 @@ class Command(BaseCommand):
                             synced += 1
                             continue
                     
+                    # ANTES DE CREAR: Verificación final de UUID para evitar duplicados
+                    if hasattr(sale, 'local_uuid') and sale.local_uuid:
+                        # Verificar si el UUID ya existe en el servidor (doble verificación)
+                        uuid_check = Sale.objects.using('remote').filter(
+                            local_uuid=sale.local_uuid
+                        ).exists()
+                        
+                        if uuid_check:
+                            self.stdout.write(
+                                self.style.WARNING(f"Venta {sale.id}: UUID {sale.local_uuid} ya existe en servidor, omitiendo...")
+                            )
+                            # Marcar como sincronizada y continuar
+                            Sale.objects.using('default').filter(pk=sale.pk).update(synced_to_server=True)
+                            synced += 1
+                            continue
+                    
                     # Crear cabecera de venta en remoto
                     # Si no es factura facturada, el IVA debe ser 0
                     iva_amount = sale.iva if sale.is_invoiced else 0
@@ -160,6 +176,20 @@ class Command(BaseCommand):
                             price=det.price,
                             cant=det.cant,
                             subtotal=det.subtotal,
+                        )
+                        
+                        # ACTUALIZAR STOCK DEL PRODUCTO EN SERVIDOR
+                        current_stock = remote_prod.stock or 0
+                        new_stock = current_stock - det.cant
+                        Product.objects.using('remote').filter(pk=remote_prod.id).update(
+                            stock=new_stock
+                        )
+                        
+                        self.stdout.write(
+                            self.style.SUCCESS(
+                                f"  Stock actualizado - Producto: {remote_prod.name}, "
+                                f"Anterior: {current_stock}, Vendido: {det.cant}, Nuevo: {new_stock}"
+                            )
                         )
 
                 # Marcar venta local como sincronizada

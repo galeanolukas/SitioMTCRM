@@ -768,19 +768,24 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
             total_value_with_iva = 0
             for product in data:
                 row += 1
-                product_value = float(product.stock * product.pvp_final)
-                product_value_with_iva = float(product.stock * product.pvp_final)  # pvp_final ya incluye IVA
+                # Manejar valores nulos para evitar error de conversión a float
+                stock_value = float(product.stock) if product.stock is not None else 0.0
+                pvp_final_value = float(product.pvp_final) if product.pvp_final is not None else 0.0
+                cost_price_value = float(product.cost_price) if product.cost_price is not None else 0.0
+                
+                product_value = stock_value * pvp_final_value
+                product_value_with_iva = stock_value * pvp_final_value  # pvp_final ya incluye IVA
                 ws.append([
                     product.name,
                     product.code or '',
                     product.cat.name if product.cat else '',
-                    float(product.stock),
-                    float(product.cost_price),
-                    float(product.pvp_final),
+                    stock_value,
+                    cost_price_value,
+                    pvp_final_value,
                     product_value,
                     product_value_with_iva
                 ])
-                total_stock += float(product.stock)
+                total_stock += stock_value
                 total_value += product_value
                 total_value_with_iva += product_value_with_iva
             

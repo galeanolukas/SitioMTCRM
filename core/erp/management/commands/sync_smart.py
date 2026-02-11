@@ -32,7 +32,7 @@ class Command(BaseCommand):
             self.sync_cash_registers()
             
             # 6) Sincronizar cuentas corrientes de empleados
-            # self.sync_employee_accounts()  # Temporalmente deshabilitado
+            self.sync_employee_accounts()
             
             self.stdout.write(self.style.SUCCESS("Sincronización inteligente completada"))
             

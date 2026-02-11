@@ -144,6 +144,8 @@ class Product(models.Model):
     synced_from_server = models.BooleanField(default=False, verbose_name='Sincronizado desde servidor')
     server_product_id = models.PositiveIntegerField(blank=True, null=True, verbose_name='ID de producto en servidor', help_text='ID del producto en la base de datos del servidor')
     last_server_sync = models.DateTimeField(blank=True, null=True, verbose_name='Última sincronización desde servidor')
+    last_stock_sync = models.DateTimeField(blank=True, null=True, verbose_name='Última sincronización de stock')
+    stock_modified_locally = models.DateTimeField(blank=True, null=True, verbose_name='Última modificación local de stock')
     track_stock = models.BooleanField(default=True, verbose_name='Controlar stock')
 
     def __str__(self):
@@ -336,7 +338,7 @@ class Sale(models.Model):
     is_invoiced = models.BooleanField(default=False)
     synced_to_server = models.BooleanField(default=False, verbose_name='Sincronizado con servidor')
     local_sale_id = models.PositiveIntegerField(blank=True, null=True, verbose_name='ID de venta local', help_text='ID de la venta en la base de datos local para evitar duplicados')
-    local_uuid = models.CharField(max_length=64, blank=True, null=True, unique=True, verbose_name='UUID local', help_text='UUID único para evitar duplicados en sincronización')
+    local_uuid = models.CharField(max_length=64, blank=True, null=True, db_index=True, verbose_name='UUID local', help_text='UUID para sincronización (índice para búsquedas rápidas)')
     source = models.CharField(max_length=20, blank=True, null=True, verbose_name='Origen', help_text='Origen de la venta (local_pos, web, etc.)')
     synced_at = models.DateTimeField(blank=True, null=True, verbose_name='Fecha de sincronización')
 
@@ -546,7 +548,7 @@ class Expense(models.Model):
     payer = models.CharField(max_length=150, verbose_name='Pagado por', blank=True, null=True)
     receipt = models.FileField(upload_to='expenses/%Y/%m/%d', null=True, blank=True, verbose_name='Comprobante (PDF/Imagen)')
     synced_to_server = models.BooleanField(default=False, verbose_name='Sincronizado con servidor')
-    local_uuid = models.CharField(max_length=64, blank=True, null=True, unique=True, verbose_name='UUID local', help_text='UUID único para evitar duplicados en sincronización')
+    local_uuid = models.CharField(max_length=64, blank=True, null=True, db_index=True, verbose_name='UUID local', help_text='UUID para sincronización (índice para búsquedas rápidas)')
     local_expense_id = models.PositiveIntegerField(blank=True, null=True, verbose_name='ID de gasto local', help_text='ID del gasto en la base de datos local para evitar duplicados')
     source = models.CharField(max_length=20, blank=True, null=True, verbose_name='Origen', help_text='Origen del gasto (local_pos, web, etc.)')
     synced_at = models.DateTimeField(blank=True, null=True, verbose_name='Fecha de sincronización')
@@ -639,7 +641,7 @@ class CashRegister(models.Model):
 
     company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa')
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, verbose_name='Usuario')
-    date = models.DateField(verbose_name='Fecha', auto_now_add=True)
+    date = models.DateField(verbose_name='Fecha')
     opening_balance = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Saldo inicial')
     closing_balance = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Saldo final')
     cash_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Ventas en efectivo')
@@ -998,7 +1000,7 @@ class EmployeeAccountSale(models.Model):
     paid_date = models.DateTimeField(null=True, blank=True, verbose_name='Fecha de pago')
     related_sale_id = models.IntegerField(null=True, blank=True, verbose_name='ID de venta relacionada')
     synced_to_server = models.BooleanField(default=False, verbose_name='Sincronizado con servidor')
-    local_uuid = models.CharField(max_length=64, blank=True, null=True, unique=True, verbose_name='UUID local')
+    local_uuid = models.CharField(max_length=64, blank=True, null=True, db_index=True, verbose_name='UUID local', help_text='UUID para sincronización (índice para búsquedas rápidas)')
 
     def __str__(self):
         return f"Cta. Cte. {self.employee.get_full_name()} - {self.date_joined.strftime('%d/%m/%Y')}"
