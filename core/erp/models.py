@@ -136,6 +136,7 @@ class Product(models.Model):
     cost_price = models.DecimalField(default=0.00, max_digits=12, decimal_places=2, null=True, blank=True, verbose_name='Precio de costo (sin IVA)')
     pvp = models.DecimalField(default=0.00, max_digits=9, decimal_places=2, verbose_name='Precio neto (sin IVA)')
     iva_rate = models.DecimalField(default=0.21, max_digits=5, decimal_places=2, verbose_name='IVA (%)')
+    margin_percentage = models.DecimalField(default=0.00, max_digits=5, decimal_places=2, verbose_name='Margen de ganancia (%)')
     pvp_final = models.DecimalField(default=0.00, max_digits=9, decimal_places=2, verbose_name='Precio final (con IVA)')
     unit = models.CharField(max_length=10, choices=UNIT_CHOICES, default='unit', verbose_name='Unidad de medida')
     stock = models.DecimalField(default=0.00, max_digits=12, decimal_places=2, verbose_name='Stock')
@@ -233,6 +234,7 @@ class Product(models.Model):
         item['pvp'] = format(self.pvp, '.2f') if self.pvp is not None else '0.00'
         item['cost_price'] = format(self.cost_price, '.2f') if self.cost_price is not None else '0.00'
         item['iva_rate'] = float(self.iva_rate) if self.iva_rate is not None else 0.0
+        item['margin_percentage'] = float(self.margin_percentage) if self.margin_percentage is not None else 0.0
         item['pvp_final'] = format(self.pvp_final, '.2f') if self.pvp_final is not None else '0.00'
         item['unit'] = self.unit
         item['unit_display'] = self.get_unit_display()
@@ -373,21 +375,52 @@ class Sale(models.Model):
         super().save(*args, **kwargs)
 
     def next_sequential_for_pos_type(self):
-        # Filtrar por empresa, punto de venta y tipo para evitar conflictos entre múltiples POS
-        last = Sale.objects.filter(
-            company_id=self.company_id,
-            invoice_pos=self.invoice_pos, 
-            invoice_type=self.invoice_type, 
-            invoice_number__isnull=False
-        ).order_by('-id').first()
-        if last and last.invoice_number:
-            try:
-                seq = int(last.invoice_number.split('-')[-1]) + 1
-            except Exception:
+        """
+        Genera número de factura secuencial consultando primero el servidor
+        para mantener numeración unificada entre todos los POS.
+        Usa MAX() para obtener el número más alto real, no el último registro.
+        """
+        try:
+            # Intentar obtener el número MÁXIMO del servidor primero
+            from django.db import connections
+            with connections['remote'].cursor() as cursor:
+                cursor.execute('''
+                    SELECT MAX(invoice_number) 
+                    FROM erp_sale 
+                    WHERE company_id = %s AND invoice_pos = %s AND invoice_type = %s AND invoice_number IS NOT NULL
+                ''', [self.company_id, self.invoice_pos, self.invoice_type])
+                
+                result = cursor.fetchone()
+                max_server_number = result[0] if result and result[0] else None
+                
+                if max_server_number:
+                    try:
+                        seq = int(max_server_number.split('-')[-1]) + 1
+                    except Exception:
+                        seq = 1
+                else:
+                    seq = 1
+                    
+                return f"{self.invoice_pos}-{self.invoice_type}-{seq:08d}"
+                
+        except Exception:
+            # Fallback a lógica actual local si hay error de conexión
+            last = Sale.objects.filter(
+                company_id=self.company_id,
+                invoice_pos=self.invoice_pos, 
+                invoice_type=self.invoice_type, 
+                invoice_number__isnull=False
+            ).order_by('-id').first()
+            
+            if last and last.invoice_number:
+                try:
+                    seq = int(last.invoice_number.split('-')[-1]) + 1
+                except Exception:
+                    seq = 1
+            else:
                 seq = 1
-        else:
-            seq = 1
-        return f"{self.invoice_pos}-{self.invoice_type}-{seq:08d}"
+                
+            return f"{self.invoice_pos}-{self.invoice_type}-{seq:08d}"
 
     def toJSON(self):
         item = model_to_dict(self)
