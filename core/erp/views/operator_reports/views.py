@@ -126,7 +126,14 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                 sales_data = []
                 for sale in sales:
                     # Get invoice/ticket number
-                    ticket_number = sale.invoice_number if sale.is_invoiced else f"TK-{sale.id:06d}"
+                    if sale.is_invoiced:
+                        ticket_number = sale.invoice_number
+                    else:
+                        # Usar siempre el ID local para mantener consistencia
+                        if hasattr(sale, 'local_sale_id') and sale.local_sale_id:
+                            ticket_number = f"TK-{sale.local_sale_id:06d}"
+                        else:
+                            ticket_number = f"TK-{sale.id:06d}"
                     
                     sales_data.append({
                         'id': sale.id,
@@ -245,7 +252,14 @@ def operator_sales_export(request):
             
             for sale in sales:
                 # Get invoice/ticket number
-                ticket_number = sale.invoice_number if sale.is_invoiced else f"TK-{sale.id:06d}"
+                if sale.is_invoiced:
+                    ticket_number = sale.invoice_number
+                else:
+                    # Usar siempre el ID local para mantener consistencia
+                    if hasattr(sale, 'local_sale_id') and sale.local_sale_id:
+                        ticket_number = f"TK-{sale.local_sale_id:06d}"
+                    else:
+                        ticket_number = f"TK-{sale.id:06d}"
                 
                 sale_subtotal = float(sale.subtotal)  # Usar PVP puro sin IVA
                 
@@ -423,7 +437,14 @@ def operator_sales_export(request):
             row_num = 10
             for sale in sales:
                 # Get invoice/ticket number
-                ticket_number = sale.invoice_number if sale.is_invoiced else f"TK-{sale.id:06d}"
+                if sale.is_invoiced:
+                    ticket_number = sale.invoice_number
+                else:
+                    # Usar siempre el ID local para mantener consistencia
+                    if hasattr(sale, 'local_sale_id') and sale.local_sale_id:
+                        ticket_number = f"TK-{sale.local_sale_id:06d}"
+                    else:
+                        ticket_number = f"TK-{sale.id:06d}"
                 
                 sale_subtotal = float(sale.subtotal)  # Usar PVP puro sin IVA
                 

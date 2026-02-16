@@ -46,8 +46,17 @@ def invoice_pdf_reportlab(request, sale):
         ]
     
     # Datos de la factura
+    if sale.is_invoiced:
+        invoice_display = sale.invoice_number
+    else:
+        # Usar siempre el ID local para mantener consistencia
+        if hasattr(sale, 'local_sale_id') and sale.local_sale_id:
+            invoice_display = f'TK-{sale.local_sale_id:06d}'
+        else:
+            invoice_display = f'TK-{sale.id:06d}'
+    
     invoice_data = [
-        ['Factura N°:', sale.invoice_number or f'TK-{sale.id:06d}'],
+        ['Factura N°:', invoice_display],
         ['Fecha:', sale.date_joined.strftime('%d/%m/%Y %H:%M')],
         ['Tipo:', 'Factura' if sale.is_invoiced else 'Ticket'],
         ['Cliente:', sale.cli.names if sale.cli else 'Anónimo'],
