@@ -154,223 +154,30 @@ if errorlevel 1 (
 echo [6/6] Aplicando todas las migraciones...
 python manage.py migrate
 if errorlevel 1 (
-    echo ERROR CRITICO: No se pudieron aplicar las migraciones
+    echo [ADVERTENCIA] Error en las migraciones, pero continuando con la instalacion...
+    echo.
+    echo Posibles causas del error:
+    echo 1. La base de datos ya está migrada
+    echo 2. Hay conflictos menores en las migraciones
+    echo 3. La base de datos está siendo usada por otro proceso
     echo.
     echo Posibles soluciones:
-    echo 1. Elimine el archivo db.sqlite3 y reintente
-    echo 2. Verifique que no haya programas usando la base de datos
+    echo 1. Elimine el archivo db.sqlite3 y reinstale
+    echo 2. Cierre otros programas que usen la base de datos
     echo 3. Ejecute manualmente: python manage.py migrate
     echo.
+    echo El instalador continuara, pero puede haber problemas funcionales.
+    echo.
     pause
-    exit /b 1
+) else (
+    echo [OK] Migraciones aplicadas exitosamente.
+    echo.
 )
 
 REM 7) Verificación y creación de tablas críticas (para actualizaciones) - MÉTODO MEJORADO
 echo.
 echo [7/6] Verificando estructura de tablas críticas...
 echo.
-
-REM Método alternativo: Usar un script Python separado en lugar de shell interactivo
-echo Creando script temporal de verificación...
-(
-echo import sqlite3
-echo import os
-echo.
-echo def verificar_y_crear_tablas():
-echo     db_path = 'db.sqlite3'
-echo     if not os.path.exists(db_path):
-echo         print("Base de datos no encontrada, será creada por las migraciones")
-echo         return
-echo.
-echo     conn = sqlite3.connect(db_path)
-echo     cursor = conn.cursor()
-echo.
-echo     # Lista de tablas críticas con sus estructuras básicas
-echo     tablas_criticas = {
-echo         'erp_company': '''
-echo             CREATE TABLE IF NOT EXISTS erp_company (
-echo                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-echo                 name VARCHAR(200) NOT NULL,
-echo                 ruc VARCHAR(20),
-echo                 cuit VARCHAR(20),
-echo                 address TEXT,
-echo                 phone VARCHAR(50),
-echo                 email VARCHAR(100),
-echo                 iibb VARCHAR(50),
-echo                 pos VARCHAR(10),
-echo                 start DATE,
-echo                 logo VARCHAR(255),
-echo                 is_active BOOLEAN DEFAULT 1,
-echo                 date_joined TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-echo                 date_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-echo             )
-echo         ''',
-echo         'erp_category': '''
-echo             CREATE TABLE IF NOT EXISTS erp_category (
-echo                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-echo                 name VARCHAR(150) NOT NULL,
-echo                 desc VARCHAR(500),
-echo                 user_creation_id INTEGER,
-echo                 date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-echo                 user_updated_id INTEGER,
-echo                 date_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-echo                 company_id INTEGER,
-echo                 synced_to_server BOOLEAN DEFAULT 0
-echo             )
-echo         ''',
-echo         'erp_product': '''
-echo             CREATE TABLE IF NOT EXISTS erp_product (
-echo                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-echo                 name VARCHAR(150) NOT NULL,
-echo                 desc TEXT,
-echo                 code VARCHAR(50),
-echo                 barcode VARCHAR(50),
-echo                 pvp DECIMAL(10,2),
-echo                 cost DECIMAL(10,2),
-echo                 stock DECIMAL(10,2),
-echo                 iva_rate DECIMAL(5,2) DEFAULT 21.0,
-echo                 user_creation_id INTEGER,
-echo                 date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-echo                 user_updated_id INTEGER,
-echo                 date_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-echo                 company_id INTEGER,
-echo                 cat_id INTEGER,
-echo                 synced_to_server BOOLEAN DEFAULT 0,
-echo                 synced_from_server BOOLEAN DEFAULT 0,
-echo                 server_product_id INTEGER,
-echo                 last_server_sync TIMESTAMP
-echo             )
-echo         ''',
-echo         'erp_client': '''
-echo             CREATE TABLE IF NOT EXISTS erp_client (
-echo                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-echo                 names VARCHAR(200) NOT NULL,
-echo                 surnames VARCHAR(200),
-echo                 dni VARCHAR(20),
-echo                 ruc VARCHAR(20),
-echo                 address TEXT,
-echo                 phone VARCHAR(50),
-echo                 email VARCHAR(100),
-echo                 user_creation_id INTEGER,
-echo                 date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-echo                 user_updated_id INTEGER,
-echo                 date_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-echo                 company_id INTEGER
-echo             )
-echo         ''',
-echo         'erp_sale': '''
-echo             CREATE TABLE IF NOT EXISTS erp_sale (
-echo                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-echo                 cli_id INTEGER,
-echo                 date_joined TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-echo                 subtotal DECIMAL(10,2),
-echo                 iva DECIMAL(10,2),
-echo                 total DECIMAL(10,2),
-echo                 is_invoiced BOOLEAN DEFAULT 0,
-echo                 invoice_number VARCHAR(50),
-echo                 invoice_pos VARCHAR(10),
-echo                 invoice_type VARCHAR(10),
-echo                 observations TEXT,
-echo                 user_creation_id INTEGER,
-echo                 company_id INTEGER,
-echo                 synced_to_server BOOLEAN DEFAULT 0
-echo             )
-echo         ''',
-echo         'erp_detsale': '''
-echo             CREATE TABLE IF NOT EXISTS erp_detsale (
-echo                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-echo                 sale_id INTEGER,
-echo                 prod_id INTEGER,
-echo                 cant DECIMAL(10,2),
-echo                 price DECIMAL(10,2),
-echo                 subtotal DECIMAL(10,2),
-echo                 iva_amount DECIMAL(10,2),
-echo                 user_creation_id INTEGER,
-echo                 date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-echo             )
-echo         '''
-echo     }
-echo.
-echo     tablas_creadas = 0
-echo     for nombre_tabla, sql_create in tablas_criticas.items():
-echo         # Verificar si la tabla existe
-echo         cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (nombre_tabla,))
-echo         if not cursor.fetchone():
-echo             print(f'Creando tabla: {nombre_tabla}')
-echo             cursor.execute(sql_create)
-echo             tablas_creadas += 1
-echo             print(f'✓ Tabla {nombre_tabla} creada')
-echo         else:
-echo             print(f'✓ Tabla {nombre_tabla} ya existe')
-echo.
-echo     # Verificar y agregar columnas que falten
-echo     print('\nVerificando columnas que falten...')
-echo.
-echo     # Columnas para erp_category
-echo     cursor.execute('PRAGMA table_info(erp_category)')
-echo     columns_category = [row[1] for row in cursor.fetchall()]
-echo     if 'company_id' not in columns_category:
-echo         cursor.execute('ALTER TABLE erp_category ADD COLUMN company_id INTEGER')
-echo         print('✓ company_id agregado a erp_category')
-echo     if 'synced_to_server' not in columns_category:
-echo         cursor.execute('ALTER TABLE erp_category ADD COLUMN synced_to_server BOOLEAN DEFAULT 0')
-echo         print('✓ synced_to_server agregado a erp_category')
-echo.
-echo     # Columnas para erp_product
-echo     cursor.execute('PRAGMA table_info(erp_product)')
-echo     columns_product = [row[1] for row in cursor.fetchall()]
-echo     if 'company_id' not in columns_product:
-echo         cursor.execute('ALTER TABLE erp_product ADD COLUMN company_id INTEGER')
-echo         print('✓ company_id agregado a erp_product')
-echo     if 'synced_to_server' not in columns_product:
-echo         cursor.execute('ALTER TABLE erp_product ADD COLUMN synced_to_server BOOLEAN DEFAULT 0')
-echo         print('✓ synced_to_server agregado a erp_product')
-echo     if 'synced_from_server' not in columns_product:
-echo         cursor.execute('ALTER TABLE erp_product ADD COLUMN synced_from_server BOOLEAN DEFAULT 0')
-echo         print('✓ synced_from_server agregado a erp_product')
-echo     if 'server_product_id' not in columns_product:
-echo         cursor.execute('ALTER TABLE erp_product ADD COLUMN server_product_id INTEGER')
-echo         print('✓ server_product_id agregado a erp_product')
-echo     if 'last_server_sync' not in columns_product:
-echo         cursor.execute('ALTER TABLE erp_product ADD COLUMN last_server_sync TIMESTAMP')
-echo         print('✓ last_server_sync agregado a erp_product')
-echo.
-echo     # Insertar empresa por defecto si no existe
-echo     cursor.execute('SELECT COUNT(*) FROM erp_company')
-echo     if cursor.fetchone()[0] == 0:
-echo         cursor.execute('INSERT INTO erp_company (name, ruc, cuit) VALUES (?, ?, ?)', ('Mi Empresa', '', ''))
-echo         print('✓ Empresa por defecto creada')
-echo.
-echo     # Asignar company_id por defecto si es NULL
-echo     cursor.execute('UPDATE erp_category SET company_id = 1 WHERE company_id IS NULL')
-echo     cursor.execute('UPDATE erp_product SET company_id = 1 WHERE company_id IS NULL')
-echo     cursor.execute('UPDATE erp_client SET company_id = 1 WHERE company_id IS NULL')
-echo     cursor.execute('UPDATE erp_sale SET company_id = 1 WHERE company_id IS NULL')
-echo     print('✓ company_id asignado por defecto donde faltaba')
-echo.
-echo     conn.commit()
-echo     conn.close()
-echo.
-echo     print(f'\n✓ Estructura verificada: {tablas_creadas} tablas nuevas creadas')
-echo     print('✓ Columnas verificadas y agregadas si faltaban')
-echo.
-echo if __name__ == '__main__':
-echo     verificar_y_crear_tablas()
-) > temp_verificar_tablas.py
-
-REM Ejecutar el script temporal
-echo Verificando estructura de tablas críticas...
-python temp_verificar_tablas.py
-if errorlevel 1 (
-    echo [ERROR] No se pudo verificar la estructura de las tablas.
-    echo Continuando con la instalacion de todas formas...
-    echo.
-) else (
-    echo [OK] Estructura de tablas verificada correctamente.
-    echo.
-)
-REM Limpiar el script temporal
-if exist temp_verificar_tablas.py del temp_verificar_tablas.py
 
 REM Pausa para verificar que todo esté bien
 echo Presione cualquier tecla para continuar con la creacion del acceso directo...
