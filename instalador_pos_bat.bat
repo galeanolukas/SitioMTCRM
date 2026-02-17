@@ -237,8 +237,24 @@ if not exist "%TARGET%" (
 
 REM Crear acceso directo con PowerShell
 echo Creando acceso directo profesional...
+echo DEBUG: Ruta del acceso directo: %SHORTCUT%
+echo DEBUG: Archivo destino: %TARGET%
+echo DEBUG: Icono: %ICON_PATH%
+echo.
+
+REM Verificar que PowerShell esté disponible
+powershell -Command "Write-Host 'PowerShell disponible'" 2>nul
+if errorlevel 1 (
+    echo [ERROR] PowerShell no está disponible o no se puede ejecutar
+    echo Creando acceso directo por método alternativo...
+    goto :create_shortcut_manual
+)
+
+REM Ejecutar PowerShell con manejo de errores mejorado
+echo Ejecutando comando PowerShell...
 powershell -Command "& {
     try {
+        Write-Host 'Iniciando creación de acceso directo...'
         $WshShell = New-Object -comObject WScript.Shell
         $Shortcut = $WshShell.CreateShortcut('%SHORTCUT%')
         $Shortcut.TargetPath = '%TARGET%'
@@ -257,25 +273,16 @@ powershell -Command "& {
         exit 0
     } catch {
         Write-Host '❌ Error creando acceso directo: ' $_.Exception.Message
+        Write-Host '❌ Detalles del error: ' $_.Exception.GetType().FullName
         exit 1
     }
 }" 2>&1
 
 REM Verificar el resultado de PowerShell
+echo DEBUG: Errorlevel de PowerShell: %errorlevel%
 if errorlevel 1 (
-    echo [ADVERTENCIA] No se pudo crear el acceso directo automaticamente.
-    echo.
-    echo INSTRUCCIONES PARA CREARLO MANUALMENTE:
-    echo   1. Boton derecho en el escritorio
-    echo   2. Nuevo - Acceso directo
-    echo   3. Destino: "%TARGET%"
-    echo   4. Directorio de inicio: "%~dp0"
-    echo   5. Nombre: MultilideresCRM POS
-    echo   6. Opcional: Cambiar icono a "%ICON_PATH%"
-    echo.
-    echo El instalador continuara, pero debera crear el acceso directo manualmente.
-    echo.
-    pause
+    echo [ADVERTENCIA] PowerShell falló, intentando método alternativo...
+    goto :create_shortcut_manual
 ) else (
     echo [OK] Acceso directo creado exitosamente
     echo     Ubicacion: %SHORTCUT%
@@ -290,7 +297,37 @@ if errorlevel 1 (
     echo Acceso directo creado correctamente. Continuando...
     echo.
     timeout /t 2 >nul
+    goto :shortcut_created
 )
+
+:create_shortcut_manual
+echo.
+echo [MÉTODO ALTERNATIVO] Creando acceso directo manualmente...
+echo.
+
+REM Verificar si se creó el archivo
+if exist "%SHORTCUT%" (
+    echo [OK] Acceso directo encontrado: %SHORTCUT%
+) else (
+    echo [ERROR] No se pudo crear el acceso directo automáticamente
+    echo.
+    echo INSTRUCCIONES PARA CREARLO MANUALMENTE:
+    echo   1. Boton derecho en el escritorio
+    echo   2. Nuevo - Acceso directo
+    echo   3. Destino: "%TARGET%"
+    echo   4. Directorio de inicio: "%~dp0"
+    echo   5. Nombre: MultilideresCRM POS
+    echo   6. Opcional: Cambiar icono a "%ICON_PATH%"
+    echo.
+    echo El instalador continuara, pero debera crear el acceso directo manualmente.
+    echo.
+    pause
+)
+
+:shortcut_created
+echo Continuando con la instalacion...
+echo.
+timeout /t 2 >nul
 
 REM 10) Recolectar archivos estáticos
 echo.
@@ -300,7 +337,9 @@ echo ============================================
 echo.
 
 echo Recolectando archivos estáticos...
+echo DEBUG: Ejecutando collectstatic...
 python manage.py collectstatic --noinput
+echo DEBUG: Errorlevel de collectstatic: %errorlevel%
 if errorlevel 1 (
     echo [ADVERTENCIA] Error al recolectar archivos estáticos.
     echo Esto puede afectar la visualizacion de algunos elementos.
@@ -366,7 +405,9 @@ echo   - O ejecute: actualizar_pos.bat
 echo.
 
 REM Preguntar si desea iniciar el programa automáticamente
+echo.
 set /p start_program="¿Desea iniciar el programa automáticamente? (s/n): "
+echo DEBUG: Respuesta del usuario: "%start_program%"
 if /i "%start_program%"=="s" (
     echo.
     echo Iniciando el programa...
@@ -382,4 +423,10 @@ if /i "%start_program%"=="s" (
     echo.
     echo Presione cualquier tecla para salir...
     pause >nul
+    echo DEBUG: Saliendo del instalador...
 )
+
+echo.
+echo FIN DEL INSTALADOR
+echo.
+timeout /t 3 >nul
