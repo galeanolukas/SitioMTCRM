@@ -382,21 +382,91 @@ echo.
 echo O acceda a la administracion y siga las instrucciones.
 echo.
 
-REM 9) Crear acceso directo en el escritorio
-echo Creando acceso directo en el escritorio...
-set "SHORTCUT=%USERPROFILE%\Desktop\MultilideresCRM POS.lnk"
-set "TARGET=%~dp0lanzar_pos.bat"
+REM 9) Crear acceso directo profesional en el escritorio
+echo.
+echo ============================================
+echo  Creando Acceso Directo Profesional
+echo ============================================
+echo.
 
-powershell -Command "$WshShell = New-Object -comObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('%SHORTCUT%'); $Shortcut.TargetPath = '%TARGET%'; $Shortcut.Save()" 2>nul
+REM Crear carpeta POS en el escritorio si no existe
+if not exist "%USERPROFILE%\Desktop\POS" (
+    echo Creando carpeta POS en escritorio...
+    mkdir "%USERPROFILE%\Desktop\POS"
+)
+
+REM Configurar rutas
+set "SHORTCUT=%USERPROFILE%\Desktop\POS\MultilideresCRM POS.lnk"
+set "TARGET=%~dp0lanzar_pos.bat"
+set "ICON_PATH=%~dp0icon.ico"
+
+REM Verificar que existe el archivo de destino
+if not exist "%TARGET%" (
+    echo [ERROR] No se encuentra el archivo lanzar_pos.bat
+    echo Creando lanzador básico...
+    
+    REM Crear lanzador básico si no existe
+    (
+        echo @echo off
+        echo cd /d "%%~dp0"
+        echo echo Iniciando MultilideresCRM POS...
+        echo echo.
+        echo call DJENV\Scripts\activate
+        echo python manage.py runserver 0.0.0.0:8000
+        echo pause
+    ) > "%TARGET%"
+    
+    echo [OK] Lanzador creado: lanzar_pos.bat
+)
+
+REM Crear acceso directo con PowerShell
+echo Creando acceso directo profesional...
+powershell -Command "& {
+    try {
+        $WshShell = New-Object -comObject WScript.Shell
+        $Shortcut = $WshShell.CreateShortcut('%SHORTCUT%')
+        $Shortcut.TargetPath = '%TARGET%'
+        $Shortcut.WorkingDirectory = '%~dp0'
+        $Shortcut.Description = 'Sistema POS MultilideresCRM'
+        
+        if (Test-Path '%ICON_PATH%') {
+            $Shortcut.IconLocation = '%ICON_PATH%'
+            Write-Host '✅ Icono asignado: %ICON_PATH%'
+        } else {
+            Write-Host '⚠️ Icono no encontrado, usando icono por defecto'
+        }
+        
+        $Shortcut.Save()
+        Write-Host '✅ Acceso directo creado exitosamente'
+        exit 0
+    } catch {
+        Write-Host '❌ Error creando acceso directo: ' $_.Exception.Message
+        exit 1
+    }
+}"
+
 if errorlevel 1 (
     echo [ADVERTENCIA] No se pudo crear el acceso directo automaticamente.
-    echo Puede crearlo manualmente:
+    echo.
+    echo INSTRUCCIONES PARA CREARLO MANUALMENTE:
     echo   1. Boton derecho en el escritorio
     echo   2. Nuevo - Acceso directo
     echo   3. Destino: "%TARGET%"
-    echo   4. Nombre: MultilideresCRM POS
+    echo   4. Directorio de inicio: "%~dp0"
+    echo   5. Nombre: MultilideresCRM POS
+    echo   6. Opcional: Cambiar icono a "%ICON_PATH%"
     echo.
     echo Continuando con la instalacion...
+) else (
+    echo [OK] Acceso directo creado exitosamente
+    echo     Ubicacion: %SHORTCUT%
+    echo     Destino: %TARGET%
+    echo     Directorio: %~dp0
+    if exist "%ICON_PATH%" (
+        echo     Icono: %ICON_PATH%
+    ) else (
+        echo     Icono: Por defecto (icon.ico no encontrado)
+    )
 )
 
 REM 10) Recolectar archivos estáticos
@@ -429,14 +499,28 @@ echo Componentes instalados:
 echo   - Entorno virtual venv
 echo   - Dependencias Python
 echo   - Base de datos SQLite con verificación de seguridad
-echo   - Acceso directo en escritorio
+echo   - Acceso directo profesional en escritorio
+echo   - Lanzador automatico lanzar_pos.bat
 echo.
-echo MEJORAS DE SEGURIDAD IMPLEMENTADAS:
+echo MEJORAS IMPLEMENTADAS:
+echo   - Acceso directo en carpeta POS organizada
+echo   - Icono personalizado si icon.ico esta disponible
+echo   - Directorio de trabajo configurado correctamente
 echo   - Verificación de base de datos existente
 echo   - Confirmación antes de eliminar datos
 echo   - Preservación de datos existentes
 echo   - Verificación automática de estructura
 echo   - Asignación automática de company_id
+echo.
+echo ACCESO DIRECTO CREADO:
+echo   Ubicacion: %USERPROFILE%\Desktop\POS\MultilideresCRM POS.lnk
+echo   Destino: lanzar_pos.bat
+echo   Directorio: %~dp0
+if exist "%~dp0icon.ico" (
+    echo   Icono: %~dp0icon.ico
+) else (
+    echo   Icono: Por defecto de Windows
+)
 echo.
 echo PASOS IMPORTANTES ANTES DE USAR:
 echo   1. Cree un superusuario: python manage.py createsuperuser
