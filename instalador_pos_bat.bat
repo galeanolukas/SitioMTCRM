@@ -359,13 +359,22 @@ echo     verificar_y_crear_tablas()
 ) > temp_verificar_tablas.py
 
 REM Ejecutar el script temporal
+echo Verificando estructura de tablas críticas...
 python temp_verificar_tablas.py
 if errorlevel 1 (
     echo [ERROR] No se pudo verificar la estructura de las tablas.
-    echo Continuando de todas formas...
+    echo Continuando con la instalacion de todas formas...
+    echo.
+) else (
+    echo [OK] Estructura de tablas verificada correctamente.
+    echo.
 )
 REM Limpiar el script temporal
 if exist temp_verificar_tablas.py del temp_verificar_tablas.py
+
+REM Pausa para verificar que todo esté bien
+echo Presione cualquier tecla para continuar con la creacion del acceso directo...
+pause >nul
 
 REM 8) Omitir creación automática de superusuario
 echo.
@@ -443,8 +452,9 @@ powershell -Command "& {
         Write-Host '❌ Error creando acceso directo: ' $_.Exception.Message
         exit 1
     }
-}"
+}" 2>&1
 
+REM Verificar el resultado de PowerShell
 if errorlevel 1 (
     echo [ADVERTENCIA] No se pudo crear el acceso directo automaticamente.
     echo.
@@ -456,7 +466,9 @@ if errorlevel 1 (
     echo   5. Nombre: MultilideresCRM POS
     echo   6. Opcional: Cambiar icono a "%ICON_PATH%"
     echo.
-    echo Continuando con la instalacion...
+    echo El instalador continuara, pero debera crear el acceso directo manualmente.
+    echo.
+    pause
 ) else (
     echo [OK] Acceso directo creado exitosamente
     echo     Ubicacion: %SHORTCUT%
@@ -467,6 +479,10 @@ if errorlevel 1 (
     ) else (
         echo     Icono: Por defecto (icon.ico no encontrado)
     )
+    echo.
+    echo Acceso directo creado correctamente. Continuando...
+    echo.
+    timeout /t 2 >nul
 )
 
 REM 10) Recolectar archivos estáticos
@@ -476,6 +492,7 @@ echo  Recolectando Archivos Estaticos
 echo ============================================
 echo.
 
+echo Recolectando archivos estáticos...
 python manage.py collectstatic --noinput
 if errorlevel 1 (
     echo [ADVERTENCIA] Error al recolectar archivos estáticos.
@@ -484,8 +501,14 @@ if errorlevel 1 (
     echo Puede ejecutar manualmente: python manage.py collectstatic --noinput
     echo.
     echo Continuando con la instalacion...
+    echo.
+    pause
 ) else (
     echo [OK] Archivos estáticos recolectados exitosamente.
+    echo.
+    echo Archivos estáticos listos. Continuando...
+    echo.
+    timeout /t 2 >nul
 )
 
 echo.
@@ -545,6 +568,10 @@ if /i "%start_program%"=="s" (
     echo.
     python manage.py runserver 0.0.0.0:8000
 ) else (
+    echo.
+    echo ============================================
+    echo  ¡INSTALACION FINALIZADA CON EXITO!
+    echo ============================================
     echo.
     echo Presione cualquier tecla para salir...
     pause >nul
