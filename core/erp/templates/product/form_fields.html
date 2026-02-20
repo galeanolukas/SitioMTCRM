@@ -23,10 +23,31 @@
         </small>
       {% endif %}
       
+      {% if field.name == 'cost_price' %}
+        <small class="form-text text-muted">
+          <i class="fas fa-info-circle"></i> 
+          Precio de costo sin IVA. Al modificar este campo, se recalculará el PVP según el margen establecido.
+        </small>
+      {% endif %}
+      
+      {% if field.name == 'margin_percentage' %}
+        <small class="form-text text-muted">
+          <i class="fas fa-info-circle"></i> 
+          Margen de ganancia (%). Al modificar este campo, se calculará automáticamente el PVP basado en el costo.
+        </small>
+      {% endif %}
+      
       {% if field.name == 'pvp' %}
         <small class="form-text text-muted">
           <i class="fas fa-info-circle"></i> 
-          Precio sin IVA
+          Precio sin IVA. Se calcula automáticamente basado en costo y margen. Se redondea hacia arriba.
+        </small>
+      {% endif %}
+      
+      {% if field.name == 'pvp_final' %}
+        <small class="form-text text-muted">
+          <i class="fas fa-info-circle"></i> 
+          Si deja este campo vacío o en 0, se calculará automáticamente: Precio neto × (1 + IVA). Se redondea hacia arriba.
         </small>
       {% endif %}
       

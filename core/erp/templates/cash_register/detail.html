@@ -2,6 +2,13 @@
 {% load static %}
 
 {% block content %}
+<style>
+.col-md-2-4 {
+    flex: 0 0 20%;
+    max-width: 20%;
+    padding: 0 15px;
+}
+</style>
 <div class="card">
     <div class="card-header bg-primary text-white">
         <div class="row align-items-center">
@@ -24,6 +31,11 @@
                 <button type="button" class="btn btn-light" data-toggle="modal" data-target="#movementModal">
                     <i class="fas fa-plus"></i> Agregar Movimiento
                 </button>
+                {% endif %}
+                {% if not object.is_closed and perms.erp.close_cash_register %}
+                <a href="{% url 'erp:cash_register_close' object.pk %}" class="btn btn-warning ml-2">
+                    <i class="fas fa-lock"></i> Cerrar Caja
+                </a>
                 {% endif %}
             </div>
         </div>
@@ -88,6 +100,126 @@
             </div>
         </div>
 
+        <!-- Resumen por Métodos de Pago -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-credit-card"></i> Resumen por Métodos de Pago</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-2-4">
+                                <div class="card border-left-success">
+                                    <div class="card-body">
+                                        <div class="d-flex align-items-center">
+                                            <div class="mr-3">
+                                                <i class="fas fa-money-bill-wave fa-2x text-success"></i>
+                                            </div>
+                                            <div>
+                                                <h6 class="card-title mb-0">Efectivo</h6>
+                                                <h4 class="text-success mb-0">
+                                                    {% if object.is_closed %}
+                                                        ${{ object.cash_sales|floatformat:2 }}
+                                                    {% else %}
+                                                        ${{ dynamic_cash_sales|floatformat:2 }}
+                                                    {% endif %}
+                                                </h4>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-2-4">
+                                <div class="card border-left-info">
+                                    <div class="card-body">
+                                        <div class="d-flex align-items-center">
+                                            <div class="mr-3">
+                                                <i class="fas fa-credit-card fa-2x text-info"></i>
+                                            </div>
+                                            <div>
+                                                <h6 class="card-title mb-0">Tarjeta de Crédito</h6>
+                                                <h4 class="text-info mb-0">
+                                                    {% if object.is_closed %}
+                                                        ${{ object.card_sales|floatformat:2 }}
+                                                    {% else %}
+                                                        ${{ dynamic_card_sales|floatformat:2 }}
+                                                    {% endif %}
+                                                </h4>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-2-4">
+                                <div class="card border-left-primary">
+                                    <div class="card-body">
+                                        <div class="d-flex align-items-center">
+                                            <div class="mr-3">
+                                                <i class="fas fa-exchange-alt fa-2x text-primary"></i>
+                                            </div>
+                                            <div>
+                                                <h6 class="card-title mb-0">Transferencia</h6>
+                                                <h4 class="text-primary mb-0">
+                                                    {% if object.is_closed %}
+                                                        ${{ object.transfer_sales|floatformat:2 }}
+                                                    {% else %}
+                                                        ${{ dynamic_transfer_sales|floatformat:2 }}
+                                                    {% endif %}
+                                                </h4>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-2-4">
+                                <div class="card border-left-warning">
+                                    <div class="card-body">
+                                        <div class="d-flex align-items-center">
+                                            <div class="mr-3">
+                                                <i class="fas fa-mobile-alt fa-2x text-warning"></i>
+                                            </div>
+                                            <div>
+                                                <h6 class="card-title mb-0">Mercado Pago</h6>
+                                                <h4 class="text-warning mb-0">
+                                                    {% if object.is_closed %}
+                                                        ${{ object.mp_sales|floatformat:2 }}
+                                                    {% else %}
+                                                        ${{ dynamic_mp_sales|floatformat:2 }}
+                                                    {% endif %}
+                                                </h4>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-2-4">
+                                <div class="card border-left-secondary">
+                                    <div class="card-body">
+                                        <div class="d-flex align-items-center">
+                                            <div class="mr-3">
+                                                <i class="fas fa-receipt fa-2x text-secondary"></i>
+                                            </div>
+                                            <div>
+                                                <h6 class="card-title mb-0">Cheque</h6>
+                                                <h4 class="text-secondary mb-0">
+                                                    {% if object.is_closed %}
+                                                        ${{ object.check_sales|floatformat:2 }}
+                                                    {% else %}
+                                                        ${{ dynamic_check_sales|floatformat:2 }}
+                                                    {% endif %}
+                                                </h4>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Información General -->
         <div class="row mb-4">
             <div class="col-md-12">
@@ -123,182 +255,102 @@
             </div>
         </div>
 
-        <!-- Detalle de Ventas por Método de Pago -->
-        <div class="row mb-4">
+        <!-- Lista de Movimientos -->
+        <div class="row">
             <div class="col-md-12">
                 <div class="card">
                     <div class="card-header">
-                        <h5 class="mb-0"><i class="fas fa-credit-card"></i> Ventas por Método de Pago</h5>
+                        <h5 class="mb-0"><i class="fas fa-list"></i> Movimientos de Caja</h5>
                     </div>
                     <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-3">
-                                <div class="text-center">
-                                    <i class="fas fa-money-bill-wave fa-2x text-success mb-2"></i>
-                                    <h6>Efectivo</h6>
-                                    <h4 class="text-success">
-                                        {% if object.is_closed %}
-                                            ${{ object.cash_sales|floatformat:2 }}
-                                        {% else %}
-                                            ${{ dynamic_cash_sales|floatformat:2 }}
-                                        {% endif %}
-                                    </h4>
-                                </div>
+                        {% if movements %}
+                            <div class="table-responsive">
+                                <table class="table table-striped table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Fecha/Hora</th>
+                                            <th>Tipo</th>
+                                            <th>Monto</th>
+                                            <th>Método Pago</th>
+                                            <th>Descripción</th>
+                                            <th>Usuario</th>
+                                            {% if not object.is_closed and perms.erp.delete_cashmovement %}
+                                            <th>Acciones</th>
+                                            {% endif %}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for movement in movements %}
+                                            <tr>
+                                                <td>{{ movement.created_at|date:"d/m/Y H:i" }}</td>
+                                                <td>
+                                                    {% if movement.movement_type == 'in' %}
+                                                        <span class="badge badge-success">Ingreso</span>
+                                                    {% else %}
+                                                        <span class="badge badge-danger">Egreso</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if movement.movement_type == 'in' %}
+                                                        <span class="text-success">+${{ movement.amount|floatformat:2 }}</span>
+                                                    {% else %}
+                                                        <span class="text-danger">-${{ movement.amount|floatformat:2 }}</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if movement.payment_type == 'cash' %}
+                                                        <i class="fas fa-money-bill-wave text-success"></i> Efectivo
+                                                    {% elif movement.payment_type == 'card' %}
+                                                        <i class="fas fa-credit-card text-info"></i> Tarjeta
+                                                    {% elif movement.payment_type == 'transfer' %}
+                                                        <i class="fas fa-exchange-alt text-primary"></i> Transferencia
+                                                    {% elif movement.payment_type == 'mp' %}
+                                                        <i class="fas fa-mobile-alt text-warning"></i> Mercado Pago
+                                                    {% else %}
+                                                        <i class="fas fa-question-circle text-secondary"></i> Otro
+                                                    {% endif %}
+                                                </td>
+                                                <td>{{ movement.description }}</td>
+                                                <td>{{ movement.created_by.get_full_name|default:movement.created_by.username }}</td>
+                                                {% if not object.is_closed and perms.erp.delete_cashmovement %}
+                                                <td>
+                                                    <a href="{% url 'erp:cash_movement_delete' movement.pk %}" class="btn btn-sm btn-danger" onclick="return confirm('¿Está seguro de eliminar este movimiento?')">
+                                                        <i class="fas fa-trash"></i>
+                                                    </a>
+                                                </td>
+                                                {% endif %}
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
                             </div>
-                            <div class="col-md-3">
-                                <div class="text-center">
-                                    <i class="fas fa-credit-card fa-2x text-info mb-2"></i>
-                                    <h6>Tarjeta</h6>
-                                    <h4 class="text-info">
-                                        {% if object.is_closed %}
-                                            ${{ object.card_sales|floatformat:2 }}
-                                        {% else %}
-                                            ${{ dynamic_card_sales|floatformat:2 }}
-                                        {% endif %}
-                                    </h4>
-                                </div>
+                        {% else %}
+                            <div class="text-center text-muted py-4">
+                                <i class="fas fa-inbox fa-3x mb-3"></i>
+                                <p>No hay movimientos registrados</p>
                             </div>
-                            <div class="col-md-3">
-                                <div class="text-center">
-                                    <i class="fas fa-exchange-alt fa-2x text-warning mb-2"></i>
-                                    <h6>Transferencia</h6>
-                                    <h4 class="text-warning">
-                                        {% if object.is_closed %}
-                                            ${{ object.transfer_sales|floatformat:2 }}
-                                        {% else %}
-                                            ${{ dynamic_transfer_sales|floatformat:2 }}
-                                        {% endif %}
-                                    </h4>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="text-center">
-                                    <i class="fab fa-mercadopago fa-2x text-primary mb-2"></i>
-                                    <h6>Mercado Pago</h6>
-                                    <h4 class="text-primary">
-                                        {% if object.is_closed %}
-                                            ${{ object.mp_sales|floatformat:2 }}
-                                        {% else %}
-                                            ${{ dynamic_mp_sales|floatformat:2 }}
-                                        {% endif %}
-                                    </h4>
-                                </div>
-                            </div>
-                        </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
         </div>
-
-        {% if object.is_closed %}
-        <!-- Debug: Mostrar diferencias si existen -->
-        {% if object.expenses != dynamic_expenses or object.total_sales != dynamic_total_sales %}
-        <div class="alert alert-warning mt-3">
-            <h6><i class="fas fa-exclamation-triangle"></i> Inconsistencias detectadas</h6>
-            <table class="table table-sm">
-                <tr>
-                    <th>Concepto</th>
-                    <th>Valor Guardado</th>
-                    <th>Valor Calculado</th>
-                    <th>Diferencia</th>
-                </tr>
-                <tr>
-                    <td>Gastos</td>
-                    <td>${{ object.expenses|floatformat:2 }}</td>
-                    <td>${{ dynamic_expenses|floatformat:2 }}</td>
-                    <td class="{% if object.expenses != dynamic_expenses %}text-danger{% endif %}">
-                        ${{ object.expenses|add:"-"|add:dynamic_expenses|floatformat:2 }}
-                    </td>
-                </tr>
-                <tr>
-                    <td>Total Ventas</td>
-                    <td>${{ object.total_sales|floatformat:2 }}</td>
-                    <td>${{ dynamic_total_sales|floatformat:2 }}</td>
-                    <td class="{% if object.total_sales != dynamic_total_sales %}text-danger{% endif %}">
-                        ${{ object.total_sales|add:"-"|add:dynamic_total_sales|floatformat:2 }}
-                    </td>
-                </tr>
-                <tr>
-                    <td>Saldo Esperado</td>
-                    <td>${{ object.calculated_balance|floatformat:2 }}</td>
-                    <td>${{ dynamic_calculated_balance|floatformat:2 }}</td>
-                    <td class="{% if object.calculated_balance != dynamic_calculated_balance %}text-danger{% endif %}">
-                        ${{ object.calculated_balance|add:"-"|add:dynamic_calculated_balance|floatformat:2 }}
-                    </td>
-                </tr>
-            </table>
-            <small class="text-muted">
-                <i class="fas fa-info-circle"></i> 
-                Las diferencias pueden ocurrir si se modificaron ventas/gastos después del cierre 
-                o si el cierre se realizó con datos incorrectos.
-            </small>
-        </div>
-        {% endif %}
-        {% endif %}
-
-        <h5>Movimientos</h5>
-        <table class="table table-bordered">
-            <thead>
-                <tr>
-                    <th>Fecha</th>
-                    <th>Tipo</th>
-                    <th>Descripción</th>
-                    <th>Tipo de Pago</th>
-                    <th class="text-right">Monto</th>
-                    <th>Usuario</th>
-                    <th>Acciones</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for movement in movements %}
-                <tr>
-                    <td>{{ movement.created_at|date:"d/m/Y H:i" }}</td>
-                    <td>{{ movement.get_movement_type_display }}</td>
-                    <td>{{ movement.description }}</td>
-                    <td>{{ movement.get_payment_type_display }}</td>
-                    <td class="text-right {% if movement.movement_type == 'in' %}text-success{% else %}text-danger{% endif %}">
-                        ${{ movement.amount|floatformat:2 }}
-                    </td>
-                    <td>{{ movement.created_by.get_full_name }}</td>
-                    <td>
-                        {% if perms.erp.delete_cashmovement or movement.created_by == request.user %}
-                            {% if not object.is_closed %}
-                                <a href="{% url 'erp:cash_movement_delete' movement.pk %}" 
-                                   class="btn btn-xs btn-danger" 
-                                   onclick="return confirm('¿Está seguro de anular este movimiento?')"
-                                   title="Anular movimiento">
-                                    <i class="fas fa-trash"></i>
-                                </a>
-                            {% else %}
-                                <button class="btn btn-xs btn-secondary" disabled 
-                                        title="No se pueden anular movimientos de caja cerrada">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            {% endif %}
-                        {% endif %}
-                    </td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="7" class="text-center">No hay movimientos registrados</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
     </div>
 </div>
 
-<!-- Movement Modal -->
+<!-- Modal para Agregar Movimiento -->
+{% if not object.is_closed and perms.erp.add_cashmovement %}
 <div class="modal fade" id="movementModal" tabindex="-1" role="dialog" aria-labelledby="movementModalLabel" aria-hidden="true">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="movementModalLabel">Agregar Movimiento</h5>
+                <h5 class="modal-title" id="movementModalLabel">
+                    <i class="fas fa-plus"></i> Agregar Movimiento
+                </h5>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
-            <form id="movementForm" method="post" action="{% url 'erp:cash_movement_create' object.pk %}">
+            <form method="post" action="{% url 'erp:cash_movement_create' object.pk %}" id="movementForm">
                 {% csrf_token %}
                 <div class="modal-body">
                     <div class="form-group">
@@ -335,6 +387,7 @@
         </div>
     </div>
 </div>
+{% endif %}
 {% endblock %}
 
 {% block javascript %}

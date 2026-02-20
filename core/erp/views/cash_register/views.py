@@ -34,10 +34,18 @@ class CashRegisterListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
 
         # Calcular totales en vivo para todas las cajas (abiertas y cerradas)
         for cr in qs:
-            sales_qs = Sale.objects.filter(
-                date_joined__date=cr.date,
-                company_id=cr.company_id,
-            )
+            if cr.is_closed:
+                # Si está cerrada, filtrar ventas solo del día de la caja
+                sales_qs = Sale.objects.filter(
+                    date_joined__date=cr.date,
+                    company_id=cr.company_id,
+                )
+            else:
+                # Si está abierta, filtrar TODAS las ventas desde la fecha de apertura hasta ahora
+                sales_qs = Sale.objects.filter(
+                    date_joined__date__gte=cr.date,  # Desde la fecha de apertura en adelante
+                    company_id=cr.company_id,
+                )
 
             live_cash = sales_qs.filter(payment_method='cash').aggregate(total=Sum('total'))['total'] or 0
             live_card = sales_qs.filter(payment_method='card').aggregate(total=Sum('total'))['total'] or 0
@@ -45,41 +53,20 @@ class CashRegisterListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
             live_mp = sales_qs.filter(payment_method='mp').aggregate(total=Sum('total'))['total'] or 0
 
             expenses_qs = Expense.objects.filter(
-                date=cr.date,
                 company_id=cr.company_id,
+                date=cr.date,
             )
             live_expenses = expenses_qs.aggregate(total=Sum('amount'))['total'] or 0
 
             live_total_sales = live_cash + live_card + live_transfer + live_mp
 
-            # Para cajas abiertas, usar valores en vivo
-            if not cr.is_closed:
-                cr.live_cash_sales = live_cash
-                cr.live_card_sales = live_card
-                cr.live_transfer_sales = live_transfer
-                cr.live_mp_sales = live_mp
-                cr.live_total_sales = live_total_sales
-                cr.live_expenses = live_expenses
-            else:
-                # Para cajas cerradas, verificar si los valores guardados son correctos
-                # Si no, usar los valores en vivo para mostrar datos correctos
-                cr.live_cash_sales = live_cash
-                cr.live_card_sales = live_card
-                cr.live_transfer_sales = live_transfer
-                cr.live_mp_sales = live_mp
-                cr.live_total_sales = live_total_sales
-                cr.live_expenses = live_expenses
-                
-                # Debug: mostrar diferencias si existen
-                if (cr.cash_sales != live_cash or cr.card_sales != live_card or 
-                    cr.transfer_sales != live_transfer or cr.mp_sales != live_mp or
-                    cr.expenses != live_expenses):
-                    print(f"⚠️  Caja {cr.id} cerrada tiene datos desactualizados:")
-                    print(f"   Guardado - Efectivo: {cr.cash_sales}, Real: {live_cash}")
-                    print(f"   Guardado - Tarjeta: {cr.card_sales}, Real: {live_card}")
-                    print(f"   Guardado - Transfer: {cr.transfer_sales}, Real: {live_transfer}")
-                    print(f"   Guardado - MP: {cr.mp_sales}, Real: {live_mp}")
-                    print(f"   Guardado - Gastos: {cr.expenses}, Real: {live_expenses}")
+            # Asignar valores como atributos dinámicos (sin guardar en BD)
+            cr.live_cash_sales = live_cash
+            cr.live_card_sales = live_card
+            cr.live_transfer_sales = live_transfer
+            cr.live_mp_sales = live_mp
+            cr.live_total_sales = live_total_sales
+            cr.live_expenses = live_expenses
 
         context['title'] = 'Cierres de Caja'
         context['create_url'] = reverse_lazy('erp:cash_register_create')
@@ -263,10 +250,25 @@ class CashRegisterDetailView(LoginRequiredMixin, ValidatePermissionRequiredMixin
             company_id=cash_register.company_id,
         )
 
+        # Ventas por métodos simples
         dynamic_cash = sales_qs.filter(payment_method='cash').aggregate(total=Sum('total'))['total'] or 0
         dynamic_card = sales_qs.filter(payment_method='card').aggregate(total=Sum('total'))['total'] or 0
         dynamic_transfer = sales_qs.filter(payment_method='transfer').aggregate(total=Sum('total'))['total'] or 0
         dynamic_mp = sales_qs.filter(payment_method='mp').aggregate(total=Sum('total'))['total'] or 0
+        dynamic_check = sales_qs.filter(payment_method='check').aggregate(total=Sum('total'))['total'] or 0
+
+        # Desglosar ventas combinadas y sumar a los métodos individuales
+        combined_sales = sales_qs.filter(payment_method='combined')
+        for sale in combined_sales:
+            if sale.payment_details:
+                # Sumar cada método del pago combinado
+                payment_breakdown = sale.payment_details
+                if isinstance(payment_breakdown, dict):
+                    dynamic_cash += payment_breakdown.get('cash', 0)
+                    dynamic_card += payment_breakdown.get('card', 0)
+                    dynamic_transfer += payment_breakdown.get('transfer', 0)
+                    dynamic_mp += payment_breakdown.get('mp', 0)
+                    dynamic_check += payment_breakdown.get('check', 0)
 
         expenses_qs = Expense.objects.filter(
             date=cash_register.date,
@@ -274,7 +276,7 @@ class CashRegisterDetailView(LoginRequiredMixin, ValidatePermissionRequiredMixin
         )
         dynamic_expenses = expenses_qs.aggregate(total=Sum('amount'))['total'] or 0
 
-        dynamic_total_sales = dynamic_cash + dynamic_card + dynamic_transfer + dynamic_mp
+        dynamic_total_sales = dynamic_cash + dynamic_card + dynamic_transfer + dynamic_mp + dynamic_check
         dynamic_calculated_balance = cash_register.opening_balance + dynamic_total_sales - dynamic_expenses
 
         context['movements'] = cash_register.movements.all()
@@ -282,6 +284,7 @@ class CashRegisterDetailView(LoginRequiredMixin, ValidatePermissionRequiredMixin
         context['dynamic_card_sales'] = dynamic_card
         context['dynamic_transfer_sales'] = dynamic_transfer
         context['dynamic_mp_sales'] = dynamic_mp
+        context['dynamic_check_sales'] = dynamic_check
         context['dynamic_expenses'] = dynamic_expenses
         context['dynamic_total_sales'] = dynamic_total_sales
         context['dynamic_calculated_balance'] = dynamic_calculated_balance

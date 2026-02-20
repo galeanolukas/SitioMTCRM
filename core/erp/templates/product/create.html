@@ -118,14 +118,50 @@
             rate = rate / 100;
           }
           
-          const precioFinal = (pvp * (1 + rate)).toFixed(2);
-          $('#id_pvp_final').val(precioFinal);
+          let precioFinal = pvp * (1 + rate);
+          
+          // Redondear hacia arriba al siguiente entero
+          precioFinal = Math.ceil(precioFinal);
+          
+          $('#id_pvp_final').val(precioFinal.toFixed(2));
         }
       }
       
+      // Calcular automáticamente pvp cuando cambia cost_price o margin_percentage
+      function calcularPVPDesdeCosto() {
+        const costPrice = parseFloat($('#id_cost_price').val()) || 0;
+        const marginPercentage = parseFloat($('#id_margin_percentage').val()) || 0;
+        
+        // Solo calcular si hay valores válidos
+        if (costPrice > 0 && marginPercentage >= 0) {
+          // Calcular PVP basado en costo y margen: PVP = Costo / (1 - Margen)
+          const marginRate = marginPercentage / 100;
+          let calculatedPVP = costPrice / (1 - marginRate);
+          
+          // Redondear hacia arriba al siguiente entero
+          calculatedPVP = Math.ceil(calculatedPVP);
+          
+          $('#id_pvp').val(calculatedPVP.toFixed(2));
+          
+          // Después de calcular PVP, calcular automáticamente el precio final
+          calcularPrecioFinal();
+        }
+      }
+      
+            
       // Event listeners para cálculo automático
       $('#id_pvp, #id_iva_rate').on('input change', function() {
         calcularPrecioFinal();
+      });
+      
+      // Event listener principal: margen dispara el cálculo de PVP
+      $('#id_margin_percentage').on('input change', function() {
+        calcularPVPDesdeCosto();
+      });
+      
+      // Event listener secundario: costo también dispara el cálculo
+      $('#id_cost_price').on('input change', function() {
+        calcularPVPDesdeCosto();
       });
       
       // Si el usuario modifica pvp_final manualmente, no volver a calcular automáticamente
@@ -154,6 +190,9 @@
       
       // Calcular al cargar la página si pvp_final está vacío
       calcularPrecioFinal();
+      
+      // Calcular PVP desde costo si hay valores
+      calcularPVPDesdeCosto();
 
       // Agregar botón de escáner al campo de código
       const codeField = $('#id_code').parent();
