@@ -8,7 +8,7 @@ from core.erp.views.operator_reports.views import OperatorSalesReportView, opera
 from core.erp.views.sync.views import SyncToggleView, SyncStatusView, ProductSyncView
 from core.erp.views.tests.views import *
 from core.erp.views.activity_log import ActivityLogView, ActivityLogDashboardView
-from core.erp.api.updates import check_updates_api, refresh_version_info, execute_update_script, check_git_portable, version_diagnostics, check_update_status
+from core.erp.api.updates import check_updates_api, refresh_version_info, execute_update_script, version_diagnostics, check_update_status
 from core.erp.api.release import execute_release
 from core.erp.views.dashboard.views import (
     DashboardView,
@@ -33,9 +33,15 @@ from core.erp.views.dashboard.views import (
 )
 
 # Importar vistas de reportes
-from core.erp.views.reports import (
+from core.erp.views.reports.views import (
     UnifiedReportsView,
     ExportReportView,
+)
+from core.erp.views.reports.undo_views import (
+    UndoChangeView,
+    ChangeHistoryView,
+    SaveConfigurationView,
+    LoadConfigurationView,
 )
 
 # Importar vistas de reportes de ganancias
@@ -108,6 +114,12 @@ urlpatterns = [
     # reports (superuser)
     path('reports/', UnifiedReportsView.as_view(), name='unified_reports'),
     path('reports/export/', ExportReportView.as_view(), name='export_report'),
+    # Nuevos reportes avanzados con sistema de deshacer
+    path('reports/enhanced/', UnifiedReportsView.as_view(), name='enhanced_reports'),
+    path('reports/undo/', UndoChangeView.as_view(), name='undo_change'),
+    path('reports/history/', ChangeHistoryView.as_view(), name='change_history'),
+    path('reports/save-config/', SaveConfigurationView.as_view(), name='save_configuration'),
+    path('reports/load-config/', LoadConfigurationView.as_view(), name='load_configuration'),
     # operator reports
     path('operator/sales/', OperatorSalesReportView.as_view(), name='operator_sales_report'),
     path('operator/sales/export/', operator_sales_export, name='operator_sales_export'),
@@ -160,7 +172,6 @@ urlpatterns = [
     path('api/updates/refresh/', refresh_version_info, name='api_refresh_version'),
     path('api/updates/execute/', execute_update_script, name='api_execute_update'),
     path('api/updates/status/', check_update_status, name='api_check_update_status'),
-    path('api/updates/check-git-portable/', check_git_portable, name='api_check_git_portable'),
     path('api/updates/diagnostics/', version_diagnostics, name='api_version_diagnostics'),
     path('api/execute-release/', execute_release, name='api_execute_release'),
     # Descuentos y Ofertas (comentado temporalmente para evitar errores de importación)

@@ -100,15 +100,23 @@ class Category(BaseModel):
     #     super(Category, self).save()
 
     def save(self, *args, **kwargs):
+        # Convertir el nombre a mayúsculas antes de guardar
+        if self.name:
+            self.name = self.name.upper()
+        
         # Asignar empresa automáticamente si no tiene
         if not self.company_id:
             user = get_current_user()
-            if user and not user.is_anonymous:
-                self.company_id = getattr(user, 'company_id', None)
-        super().save(*args, **kwargs)
+            if user and hasattr(user, 'company') and user.company:
+                self.company = user.company
+        
+        super(Category, self).save(*args, **kwargs)
 
     def toJSON(self):
         item = model_to_dict(self)  #(self, exclude=['user_creation', 'user_updated'])
+        # Asegurar que el nombre esté en mayúsculas
+        if 'name' in item and item['name']:
+            item['name'] = item['name'].upper()
         return item
 
     class Meta:
@@ -153,11 +161,15 @@ class Product(models.Model):
         return self.name
 
     def save(self, *args, **kwargs):
-        # Setear empresa por defecto
-        if not self.company_id:
+        # Setear empresa por defecto SOLO si no tiene y es creación
+        # NO modificar empresa en ediciones para evitar cruzado
+        if not self.pk and not self.company_id:  # Solo en creación
             user = get_current_user()
             if user and not user.is_anonymous:
                 self.company_id = getattr(user, 'company_id', None)
+        # Asegurar que track_stock siempre tenga un valor booleano válido
+        if self.track_stock is None:
+            self.track_stock = True
         # Generar token QR si no existe
         if not self.qr_token:
             self.qr_token = uuid.uuid4().hex
@@ -486,8 +498,7 @@ class DetSale(models.Model):
             return (subtotal_decimal * iva_rate).quantize(Decimal('0.01'))
         return Decimal('0.00')
     
-    def save(self, *args, **kwargs):
-        # Calcular el monto de IVA automáticamente
+    def save(self, *args, **kwargs):        # Calcular el monto de IVA automáticamente
         self.iva_amount = self.calculate_iva_amount()
         super().save(*args, **kwargs)
 
@@ -681,7 +692,7 @@ class CashRegister(models.Model):
     card_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Ventas con tarjeta')
     transfer_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Ventas por transferencia')
     mp_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Ventas por Mercado Pago')
-    expenses = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Gastos')
+    expenses = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name='Gastos')
     notes = models.TextField(blank=True, null=True, verbose_name='Notas')
     is_closed = models.BooleanField(default=False, verbose_name='Caja cerrada')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -902,8 +913,7 @@ class InternalTransferDetail(models.Model):
     def __str__(self):
         return f"{self.product.name} - {self.quantity}"
     
-    def save(self, *args, **kwargs):
-        # Calcular subtotal automáticamente
+    def save(self, *args, **kwargs):        # Calcular subtotal automáticamente
         self.subtotal = self.quantity * self.unit_price
         super().save(*args, **kwargs)
     
@@ -1131,8 +1141,7 @@ class DetEmployeeAccount(models.Model):
             return (subtotal_decimal * iva_rate).quantize(Decimal('0.01'))
         return Decimal('0.00')
     
-    def save(self, *args, **kwargs):
-        # Calcular el monto de IVA automáticamente
+    def save(self, *args, **kwargs):        # Calcular el monto de IVA automáticamente
         self.iva_amount = self.calculate_iva_amount()
         super().save(*args, **kwargs)
 

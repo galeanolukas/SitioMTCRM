@@ -1,4 +1,5 @@
 {% extends 'vtc/body.html' %}
+{% load currency_filters %}
 {% block content %}
 <div class="content p-3">
   <div class="container-fluid">
@@ -67,7 +68,7 @@
               <td>{{ obj.date|date:"Y-m-d" }}</td>
               <td>{{ obj.supplier.name|default:"—" }}</td>
               <td>{{ obj.description|default:"—" }}</td>
-              <td class="text-right">${{ obj.amount|floatformat:2 }}</td>
+              <td class="text-right">{{ obj.amount|currency }}</td>
               <td>{{ obj.payer|default:"—" }}</td>
               <td>
                 {% if obj.receipt %}

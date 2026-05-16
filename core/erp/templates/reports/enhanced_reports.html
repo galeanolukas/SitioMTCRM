@@ -1,0 +1,276 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Reportes Avanzados - MultilideresCRM{% endblock %}
+
+{% block head_content %}
+<link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-chart-line"></i> Reportes Avanzados
+                    </h3>
+                </div>
+                
+                <div class="card-body">
+                    <!-- Formulario de Filtros -->
+                    <form id="reportForm" class="mb-4">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <label for="reportType" class="form-label">Tipo de Reporte</label>
+                                <select class="form-select" id="reportType" name="report_type">
+                                    <option value="">Seleccionar...</option>
+                                    <option value="inventory_enhanced">Inventario Detallado</option>
+                                    <option value="sales_by_period">Ventas por Período</option>
+                                    <option value="product_sales">Ventas por Producto</option>
+                                </select>
+                            </div>
+                            
+                            <div class="col-md-3">
+                                <label for="company" class="form-label">Empresa</label>
+                                <select class="form-select" id="company" name="company">
+                                    <option value="">Todas</option>
+                                    {% for comp in companies %}
+                                    <option value="{{ comp.id }}" {% if comp.id|stringformat:"s" == company_id %}selected{% endif %}>
+                                        {{ comp.name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
+                            <div class="col-md-2">
+                                <label for="startDate" class="form-label">Desde</label>
+                                <input type="date" class="form-control" id="startDate" name="start_date" value="{{ start_date }}">
+                            </div>
+                            
+                            <div class="col-md-2">
+                                <label for="endDate" class="form-label">Hasta</label>
+                                <input type="date" class="form-control" id="endDate" name="end_date" value="{{ end_date }}">
+                            </div>
+                            
+                            <div class="col-md-2">
+                                <label class="form-label">&nbsp;</label><br>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-search"></i> Generar
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Filtros Adicionales (se muestran según el tipo de reporte) -->
+                        <div id="additionalFilters" class="row mt-3" style="display: none;">
+                            <!-- Filtros de Inventario -->
+                            <div id="inventoryFilters" style="display: none;">
+                                <div class="col-md-3">
+                                    <label for="stockFilter" class="form-label">Filtro de Stock</label>
+                                    <select class="form-select" id="stockFilter" name="stock_filter">
+                                        <option value="">Todos</option>
+                                        <option value="positive">Con Stock</option>
+                                        <option value="low">Stock Bajo</option>
+                                        <option value="critical">Stock Crítico</option>
+                                        <option value="out">Sin Stock</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="category" class="form-label">Categoría</label>
+                                    <select class="form-select" id="category" name="category">
+                                        <option value="">Todas</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="supplier" class="form-label">Proveedor</label>
+                                    <select class="form-select" id="supplier" name="supplier">
+                                        <option value="">Todos</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="search" class="form-label">Buscar</label>
+                                    <input type="text" class="form-control" id="search" name="search" placeholder="Nombre o código">
+                                </div>
+                            </div>
+                            
+                            <!-- Filtros de Período -->
+                            <div id="periodFilters" style="display: none;">
+                                <div class="col-md-3">
+                                    <label for="periodType" class="form-label">Agrupar por</label>
+                                    <select class="form-select" id="periodType" name="period_type">
+                                        <option value="daily">Diario</option>
+                                        <option value="weekly">Semanal</option>
+                                        <option value="monthly">Mensual</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <!-- Filtros de Producto -->
+                            <div id="productFilters" style="display: none;">
+                                <div class="col-md-6">
+                                    <label for="productId" class="form-label">Producto</label>
+                                    <select class="form-select" id="productId" name="product_id">
+                                        <option value="">Todos los productos</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Controles de Configuración -->
+                        <div id="configControls" class="row mt-3" style="display: none;">
+                            <div class="col-md-12">
+                                <div class="btn-group" role="group">
+                                    <button type="button" class="btn btn-outline-primary btn-sm" id="saveConfigBtn">
+                                        <i class="fas fa-save"></i> Guardar Configuración
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" id="loadConfigBtn">
+                                        <i class="fas fa-folder-open"></i> Cargar Configuración
+                                    </button>
+                                    <button type="button" class="btn btn-outline-warning btn-sm" id="undoBtn">
+                                        <i class="fas fa-undo"></i> Deshacer Último
+                                    </button>
+                                    <button type="button" class="btn btn-outline-info btn-sm" id="historyBtn">
+                                        <i class="fas fa-history"></i> Ver Historial
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                    
+                    <!-- Área de Resultados -->
+                    <div id="reportResults" style="display: none;">
+                        <!-- Pestañas de navegación -->
+                        <ul class="nav nav-tabs" id="reportTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="table-tab" data-bs-toggle="tab" data-bs-target="#table-pane" type="button" role="tab">
+                                    <i class="fas fa-table"></i> Tabla
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="charts-tab" data-bs-toggle="tab" data-bs-target="#charts-pane" type="button" role="tab">
+                                    <i class="fas fa-chart-bar"></i> Gráficos
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="summary-tab" data-bs-toggle="tab" data-bs-target="#summary-pane" type="button" role="tab">
+                                    <i class="fas fa-info-circle"></i> Resumen
+                                </button>
+                            </li>
+                        </ul>
+                        
+                        <div class="tab-content" id="reportTabContent">
+                            <!-- Tabla de Datos -->
+                            <div class="tab-pane fade show active" id="table-pane" role="tabpanel">
+                                <div class="table-responsive mt-3">
+                                    <table id="reportTable" class="table table-striped table-hover">
+                                        <thead></thead>
+                                        <tbody></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            
+                            <!-- Gráficos -->
+                            <div class="tab-pane fade" id="charts-pane" role="tabpanel">
+                                <div class="row mt-3">
+                                    <div class="col-md-6">
+                                        <canvas id="mainChart"></canvas>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <canvas id="secondaryChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Resumen -->
+                            <div class="tab-pane fade" id="summary-pane" role="tabpanel">
+                                <div class="row mt-3" id="summaryCards">
+                                    <!-- Las tarjetas de resumen se generarán dinámicamente -->
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Botones de Exportación -->
+                        <div class="row mt-3">
+                            <div class="col-md-12">
+                                <div class="btn-group" role="group">
+                                    <button type="button" class="btn btn-success" id="exportCsvBtn">
+                                        <i class="fas fa-file-csv"></i> Exportar CSV
+                                    </button>
+                                    <button type="button" class="btn btn-success" id="exportExcelBtn">
+                                        <i class="fas fa-file-excel"></i> Exportar Excel
+                                    </button>
+                                    <button type="button" class="btn btn-danger" id="exportPdfBtn">
+                                        <i class="fas fa-file-pdf"></i> Exportar PDF
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Historial de Cambios -->
+                    <div id="changeHistory" class="mt-4" style="display: none;">
+                        <h5><i class="fas fa-history"></i> Historial de Cambios Recientes</h5>
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Usuario</th>
+                                        <th>Tipo</th>
+                                        <th>Descripción</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="changesTableBody">
+                                    <!-- Se llenará dinámicamente -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Configuraciones -->
+<div class="modal fade" id="configModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Configuraciones Guardadas</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="configList"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Historial -->
+<div class="modal fade" id="historyModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Historial Completo de Cambios</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="fullHistory"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block javascript %}
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{% static 'reports/js/enhanced_reports.js' %}"></script>
+{% endblock %}

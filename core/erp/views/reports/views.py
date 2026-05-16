@@ -28,6 +28,7 @@ except ImportError:
     REPORTLAB_AVAILABLE = False
 
 from core.erp.models import Sale, DetSale, Product, Company, Expense
+from core.erp.models_report_changes import ReportChangeLog, ReportConfiguration
 from core.user.models import User
 
 
@@ -88,12 +89,27 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
             context['sales_data'] = self.get_sales_data(company_id, start_date, end_date, payment_method, page)
         elif report_type == 'inventory':
             context['inventory_data'] = self.get_inventory_data(company_id, page)
+        elif report_type == 'inventory_enhanced':
+            context['inventory_enhanced_data'] = self.get_inventory_enhanced_data(company_id, page, self.request.GET)
+        elif report_type == 'sales_by_period':
+            period_type = self.request.GET.get('period_type', 'daily')
+            context['sales_by_period_data'] = self.get_sales_by_period_data(company_id, period_type, start_date, end_date)
+        elif report_type == 'product_sales':
+            product_id = self.request.GET.get('product_id', '')
+            context['product_sales_data'] = self.get_product_sales_data(company_id, product_id, start_date, end_date)
         elif report_type == 'expenses':
             context['expenses_data'] = self.get_expenses_data(company_id, start_date, end_date, page)
         elif report_type == 'profit':
             context['profit_data'] = self.get_profit_data(company_id, start_date, end_date)
         elif report_type == 'top_selling':
             context['top_selling_data'] = self.get_top_selling_data(company_id, start_date, end_date, page)
+        
+        # Agregar logs de cambios para opción de deshacer
+        if report_type in ['inventory_enhanced', 'sales_by_period', 'product_sales']:
+            context['recent_changes'] = ReportChangeLog.objects.filter(
+                report_type=report_type,
+                is_reverted=False
+            ).order_by('-created_at')[:10]
         
         return context
     
@@ -181,6 +197,126 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         return {
             'products': products,
             'summary': summary,
+        }
+    
+    def get_inventory_enhanced_data(self, company_id, page=1, request_params=None):
+        """Reporte mejorado de inventario con filtros y análisis detallado"""
+        filters = {}
+        if company_id:
+            filters['company_id'] = company_id
+        
+        products_queryset = Product.objects.filter(**filters).select_related('cat', 'supplier')
+        
+        # Aplicar filtros adicionales
+        if request_params:
+            stock_filter = request_params.get('stock_filter', '')
+            category_filter = request_params.get('category', '')
+            supplier_filter = request_params.get('supplier', '')
+            search_query = request_params.get('search', '')
+            
+            if stock_filter == 'low':
+                products_queryset = products_queryset.filter(stock__lte=F('min_stock'), stock__gt=0)
+            elif stock_filter == 'out':
+                products_queryset = products_queryset.filter(stock__lte=0)
+            elif stock_filter == 'positive':
+                products_queryset = products_queryset.filter(stock__gt=0)
+            elif stock_filter == 'critical':
+                products_queryset = products_queryset.filter(stock__lte=F('min_stock')/2)
+            
+            if category_filter:
+                products_queryset = products_queryset.filter(cat_id=category_filter)
+            
+            if supplier_filter:
+                products_queryset = products_queryset.filter(supplier_id=supplier_filter)
+            
+            if search_query:
+                products_queryset = products_queryset.filter(
+                    Q(name__icontains=search_query) | 
+                    Q(code__icontains=search_query)
+                )
+        
+        # Paginación - 50 productos por página
+        paginator = Paginator(products_queryset, 50)
+        try:
+            products = paginator.page(page)
+        except PageNotAnInteger:
+            products = paginator.page(1)
+        except EmptyPage:
+            products = paginator.page(paginator.num_pages)
+        
+        # Datos enriquecidos para cada producto
+        products_data = []
+        for product in products:
+            stock_status = product.get_stock_status()
+            stock_value = float(product.stock * product.pvp_final)
+            cost_value = float(product.stock * product.cost_price)
+            potential_profit = float(product.stock * (product.pvp_final - product.cost_price))
+            
+            products_data.append({
+                'id': product.id,
+                'name': product.name,
+                'code': product.code or 'N/A',
+                'category': product.cat.name if product.cat else 'Sin categoría',
+                'supplier': product.supplier.name if product.supplier else 'Sin proveedor',
+                'stock': float(product.stock),
+                'min_stock': float(product.min_stock),
+                'stock_status': stock_status,
+                'stock_status_display': product.get_stock_status_display(),
+                'stock_value': stock_value,
+                'cost_value': cost_value,
+                'potential_profit': potential_profit,
+                'margin_percentage': float(product.margin_percentage),
+                'pvp': float(product.pvp),
+                'pvp_final': float(product.pvp_final),
+                'cost_price': float(product.cost_price),
+                'unit': product.unit,
+                'unit_display': product.get_unit_display(),
+                'track_stock': product.track_stock,
+                'has_low_stock': product.has_low_stock(),
+                'is_out_of_stock': product.is_out_of_stock(),
+                'last_stock_sync': product.last_stock_sync,
+            })
+        
+        # Resumen completo (usando todos los datos, no solo la página actual)
+        summary = products_queryset.aggregate(
+            total_products=Count('id'),
+            total_stock=Sum('stock'),
+            total_value=Sum(F('stock') * F('pvp_final')),
+            total_cost=Sum(F('stock') * F('cost_price')),
+            total_profit=Sum(F('stock') * (F('pvp_final') - F('cost_price'))),
+            avg_margin=Avg('margin_percentage'),
+            low_stock_count=Count('id', filter=Q(stock__lte=F('min_stock'), stock__gt=0)),
+            out_of_stock_count=Count('id', filter=Q(stock__lte=0)),
+            critical_stock_count=Count('id', filter=Q(stock__lte=F('min_stock')/2)),
+        )
+        
+        # Análisis por categoría
+        category_breakdown = products_queryset.values('cat__name').annotate(
+            count=Count('id'),
+            total_stock=Sum('stock'),
+            total_value=Sum(F('stock') * F('pvp_final')),
+            low_stock_count=Count('id', filter=Q(stock__lte=F('min_stock'), stock__gt=0))
+        ).order_by('-total_value')
+        
+        # Análisis por proveedor
+        supplier_breakdown = products_queryset.values('supplier__name').annotate(
+            count=Count('id'),
+            total_stock=Sum('stock'),
+            total_value=Sum(F('stock') * F('pvp_final'))
+        ).order_by('-total_value')
+        
+        return {
+            'products': products,
+            'products_data': products_data,
+            'summary': summary,
+            'category_breakdown': list(category_breakdown),
+            'supplier_breakdown': list(supplier_breakdown),
+            'filters_applied': {
+                'stock_filter': request_params.get('stock_filter', '') if request_params else '',
+                'category': request_params.get('category', '') if request_params else '',
+                'supplier': request_params.get('supplier', '') if request_params else '',
+                'search': request_params.get('search', '') if request_params else '',
+            }
         }
     
     def get_expenses_data(self, company_id, start_date, end_date, page=1):
@@ -342,6 +478,308 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
             'summary': summary,
             'page_obj': products_page,
         }
+    
+    def get_sales_by_period_data(self, company_id, period_type='daily', start_date=None, end_date=None):
+        """Reporte de ventas con agregación por período (diario/semanal/mensual)"""
+        # Convertir strings a datetime para el rango completo
+        if start_date:
+            start_datetime = timezone.make_aware(datetime.strptime(start_date, '%Y-%m-%d'))
+        else:
+            start_datetime = timezone.now() - timedelta(days=30)
+        
+        if end_date:
+            end_datetime = timezone.make_aware(datetime.strptime(end_date, '%Y-%m-%d')) + timedelta(days=1, seconds=-1)
+        else:
+            end_datetime = timezone.now()
+        
+        # Filtros base
+        filters = {
+            'date_joined__range': [start_datetime, end_datetime],
+        }
+        
+        if company_id:
+            filters['company_id'] = company_id
+        
+        # Determinar función de truncado según período
+        if period_type == 'daily':
+            trunc_func = TruncDay('date_joined')
+            date_format = '%Y-%m-%d'
+        elif period_type == 'weekly':
+            trunc_func = TruncDay('date_joined')  # Luego agrupar por semana
+            date_format = '%Y-%m-%d'
+        elif period_type == 'monthly':
+            trunc_func = TruncMonth('date_joined')
+            date_format = '%Y-%m'
+        else:
+            trunc_func = TruncDay('date_joined')
+            date_format = '%Y-%m-%d'
+        
+        # Ventas agregadas por período
+        sales_by_period = Sale.objects.filter(**filters).annotate(
+            period=trunc_func
+        ).values('period').annotate(
+            total_sales=Count('id'),
+            total_amount=Sum('total'),
+            total_items=Sum('detsale__cant'),
+            avg_ticket=Coalesce(Avg('total'), 0, output_field=FloatField()),
+            subtotal=Sum('subtotal'),
+            iva=Sum('iva')
+        ).order_by('period')
+        
+        # Procesar datos según tipo de período
+        if period_type == 'weekly':
+            processed_data = self._group_by_week(sales_by_period)
+        else:
+            processed_data = []
+            for item in sales_by_period:
+                processed_data.append({
+                    'period': item['period'].strftime(date_format) if item['period'] else '',
+                    'total_sales': item['total_sales'] or 0,
+                    'total_amount': float(item['total_amount'] or 0),
+                    'total_items': float(item['total_items'] or 0),
+                    'avg_ticket': float(item['avg_ticket'] or 0),
+                    'subtotal': float(item['subtotal'] or 0),
+                    'iva': float(item['iva'] or 0),
+                })
+        
+        # Resumen general
+        summary = Sale.objects.filter(**filters).aggregate(
+            total_sales=Count('id'),
+            total_amount=Sum('total'),
+            total_items=Sum('detsale__cant'),
+            avg_ticket=Coalesce(Avg('total'), 0, output_field=FloatField()),
+            best_day=Max('total'),
+            worst_day=Min('total')
+        )
+        
+        # Análisis por método de pago
+        payment_breakdown = Sale.objects.filter(**filters).values('payment_method').annotate(
+            count=Count('id'),
+            amount=Sum('total'),
+            percentage=Count('id') * 100.0 / Count('id', filter=Q(company_id=company_id))
+        ).order_by('-amount')
+        
+        # Top productos del período
+        top_products = DetSale.objects.filter(
+            sale__date_joined__range=[start_datetime, end_datetime]
+        )
+        if company_id:
+            top_products = top_products.filter(sale__company_id=company_id)
+        
+        top_products = top_products.values(
+            'prod__name', 'prod__code'
+        ).annotate(
+            total_quantity=Sum('cant'),
+            total_amount=Sum(F('cant') * F('price')),
+            sales_count=Count('sale_id', distinct=True)
+        ).order_by('-total_quantity')[:10]
+        
+        return {
+            'period_data': processed_data,
+            'summary': summary,
+            'payment_breakdown': list(payment_breakdown),
+            'top_products': list(top_products),
+            'period_type': period_type,
+            'date_range': {
+                'start': start_datetime.strftime('%Y-%m-%d'),
+                'end': end_datetime.strftime('%Y-%m-%d'),
+            }
+        }
+    
+    def _group_by_week(self, daily_data):
+        """Agrupar datos diarios por semana"""
+        weekly_summary = {}
+        
+        for item in daily_data:
+            if not item['period']:
+                continue
+                
+            week_start = self._get_week_start(item['period'])
+            week_key = week_start.strftime('%Y-%m-%d')
+            
+            if week_key not in weekly_summary:
+                weekly_summary[week_key] = {
+                    'period': f"Semana del {week_start.strftime('%d/%m/%Y')}",
+                    'total_sales': 0,
+                    'total_amount': 0,
+                    'total_items': 0,
+                    'avg_ticket': 0,
+                    'subtotal': 0,
+                    'iva': 0,
+                    'days_included': []
+                }
+            
+            week_data = weekly_summary[week_key]
+            week_data['total_sales'] += item['total_sales'] or 0
+            week_data['total_amount'] += float(item['total_amount'] or 0)
+            week_data['total_items'] += float(item['total_items'] or 0)
+            week_data['subtotal'] += float(item['subtotal'] or 0)
+            week_data['iva'] += float(item['iva'] or 0)
+            week_data['days_included'].append(item['period'].strftime('%Y-%m-%d'))
+            
+            # Calcular promedio del ticket
+            if week_data['total_sales'] > 0:
+                week_data['avg_ticket'] = week_data['total_amount'] / week_data['total_sales']
+        
+        return list(weekly_summary.values())
+    
+    def _get_week_start(self, date):
+        """Obtener el inicio de la semana para una fecha dada (lunes)"""
+        # Asumir que la semana empieza el lunes
+        weekday = date.weekday()
+        if weekday == 0:  # Ya es lunes
+            return date
+        else:
+            return date - timedelta(days=weekday)
+    
+    def get_product_sales_data(self, company_id, product_id=None, start_date=None, end_date=None):
+        """Reporte de ventas por producto (general o específico)"""
+        # Convertir strings a datetime para el rango completo
+        if start_date:
+            start_datetime = timezone.make_aware(datetime.strptime(start_date, '%Y-%m-%d'))
+        else:
+            start_datetime = timezone.now() - timedelta(days=30)
+        
+        if end_date:
+            end_datetime = timezone.make_aware(datetime.strptime(end_date, '%Y-%m-%d')) + timedelta(days=1, seconds=-1)
+        else:
+            end_datetime = timezone.now()
+        
+        # Filtros base
+        filters = {
+            'sale__date_joined__range': [start_datetime, end_datetime],
+        }
+        
+        if company_id:
+            filters['sale__company_id'] = company_id
+        
+        # Base de datos de detalles de ventas
+        queryset = DetSale.objects.filter(**filters).select_related('prod', 'sale')
+        
+        if product_id:
+            # Reporte específico de un producto
+            filters['prod_id'] = product_id
+            product_queryset = queryset.filter(prod_id=product_id)
+            
+            # Ventas diarias del producto
+            daily_sales = product_queryset.annotate(
+                sale_date=TruncDay('sale__date_joined')
+            ).values('sale_date').annotate(
+                daily_quantity=Sum('cant'),
+                daily_amount=Sum(F('cant') * F('price')),
+                daily_sales=Count('sale_id', distinct=True),
+                daily_avg_price=Coalesce(Sum(F('cant') * F('price')) / Sum('cant'), 0, output_field=FloatField())
+            ).order_by('sale_date')
+            
+            # Información del producto
+            try:
+                product_info = Product.objects.get(pk=product_id)
+            except Product.DoesNotExist:
+                return {'error': 'Producto no encontrado'}
+            
+            # Evolución de precios
+            price_evolution = product_queryset.annotate(
+                sale_date=TruncDay('sale__date_joined')
+            ).values('sale_date', 'price').annotate(
+                sales_at_price=Count('id')
+            ).order_by('sale_date')
+            
+            # Resumen completo
+            summary = product_queryset.aggregate(
+                total_quantity=Sum('cant'),
+                total_amount=Sum(F('cant') * F('price')),
+                total_sales=Count('sale_id', distinct=True),
+                avg_price=Coalesce(Sum(F('cant') * F('price')) / Sum('cant'), 0, output_field=FloatField()),
+                max_price=Max('price'),
+                min_price=Min('price'),
+                first_sale=Min('sale__date_joined'),
+                last_sale=Max('sale__date_joined')
+            )
+            
+            return {
+                'product_info': {
+                    'id': product_info.id,
+                    'name': product_info.name,
+                    'code': product_info.code or 'N/A',
+                    'category': product_info.cat.name if product_info.cat else 'Sin categoría',
+                    'current_stock': float(product_info.stock),
+                    'min_stock': float(product_info.min_stock),
+                    'pvp': float(product_info.pvp),
+                    'pvp_final': float(product_info.pvp_final),
+                    'cost_price': float(product_info.cost_price),
+                    'unit': product_info.unit,
+                },
+                'daily_sales': [
+                    {
+                        'date': item['sale_date'].strftime('%Y-%m-%d') if item['sale_date'] else '',
+                        'quantity': float(item['daily_quantity'] or 0),
+                        'amount': float(item['daily_amount'] or 0),
+                        'sales': item['daily_sales'] or 0,
+                        'avg_price': float(item['daily_avg_price'] or 0),
+                    }
+                    for item in daily_sales
+                ],
+                'price_evolution': list(price_evolution),
+                'summary': summary,
+                'date_range': {
+                    'start': start_datetime.strftime('%Y-%m-%d'),
+                    'end': end_datetime.strftime('%Y-%m-%d'),
+                }
+            }
+        else:
+            # Reporte general de todos los productos
+            product_summary = queryset.values(
+                'prod_id',
+                'prod__name',
+                'prod__code',
+                'prod__cat__name'
+            ).annotate(
+                total_quantity=Sum('cant'),
+                total_amount=Sum(F('cant') * F('price')),
+                total_sales=Count('sale_id', distinct=True),
+                avg_price=Coalesce(Sum(F('cant') * F('price')) / Sum('cant'), 0, output_field=FloatField()),
+                max_price=Max('price'),
+                min_price=Min('price'),
+                first_sale=Min('sale__date_joined'),
+                last_sale=Max('sale__date_joined')
+            ).order_by('-total_amount')
+            
+            # Convertir a lista de diccionarios
+            products_data = []
+            for item in product_summary:
+                if item['total_quantity'] and item['total_quantity'] > 0:
+                    products_data.append({
+                        'id': item['prod_id'],
+                        'name': item['prod__name'] or 'Sin nombre',
+                        'code': item['prod__code'] or 'N/A',
+                        'category': item['prod__cat__name'] or 'Sin categoría',
+                        'total_quantity': float(item['total_quantity']),
+                        'total_amount': float(item['total_amount'] or 0),
+                        'total_sales': item['total_sales'] or 0,
+                        'avg_price': float(item['avg_price'] or 0),
+                        'max_price': float(item['max_price'] or 0),
+                        'min_price': float(item['min_price'] or 0),
+                        'first_sale': item['first_sale'].strftime('%Y-%m-%d') if item['first_sale'] else '',
+                        'last_sale': item['last_sale'].strftime('%Y-%m-%d') if item['last_sale'] else '',
+                    })
+            
+            # Resumen general
+            summary = queryset.aggregate(
+                total_products=Count('prod_id', distinct=True),
+                grand_total_quantity=Sum('cant'),
+                grand_total_amount=Sum(F('cant') * F('price')),
+                grand_total_sales=Count('sale_id', distinct=True),
+                avg_product_price=Coalesce(Sum(F('cant') * F('price')) / Sum('cant'), 0, output_field=FloatField())
+            )
+            
+            return {
+                'products': products_data,
+                'summary': summary,
+                'date_range': {
+                    'start': start_datetime.strftime('%Y-%m-%d'),
+                    'end': end_datetime.strftime('%Y-%m-%d'),
+                }
+            }
 
 
 class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
@@ -443,7 +881,8 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
     def get_top_selling_export_data(self, company_id, start_date, end_date):
         """Obtener datos para exportación de productos más vendidos"""
         unified_view = UnifiedReportsView()
-        return unified_view.get_top_selling_data(company_id, start_date, end_date)
+        # Para exportación, necesitamos todos los datos sin paginación
+        return unified_view.get_top_selling_data(company_id, start_date, end_date, page=1)
     
     def export_to_csv(self, data, filename, report_type, period_info=None):
         response = HttpResponse(content_type='text/csv')
@@ -1003,8 +1442,230 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
             story.append(Paragraph(f"<b>Fecha de Generación:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", info_style))
             story.append(Spacer(1, 20))  # Espacio después del encabezado
         
-        if report_type == 'top_selling':
-            # Datos de la tabla
+        if report_type == 'sales':
+            # Datos de la tabla de ventas
+            table_data = [['ID', 'Fecha', 'Cliente', 'Total', 'Método de Pago', 'Estado']]
+            
+            for sale in data:
+                table_data.append([
+                    str(sale.id),
+                    sale.date_joined.strftime('%d/%m/%Y %H:%M') if sale.date_joined else '',
+                    sale.cli.name if sale.cli else 'N/A',
+                    f"${sale.total:,.2f}",
+                    dict(sale.payment_method_choices).get(sale.payment_method, sale.payment_method),
+                    'Facturada' if sale.is_invoiced else 'Pendiente'
+                ])
+            
+            # Crear tabla
+            table = Table(table_data)
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 9),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ]))
+            
+            story.append(table)
+            story.append(Spacer(1, 20))
+            
+            # Resumen de ventas
+            story.append(Paragraph("RESUMEN DE VENTAS", header_style))
+            story.append(Spacer(1, 12))
+            
+            total_sales = data.count()
+            total_amount = data.aggregate(total=Sum('total'))['total'] or 0
+            
+            summary_data = [
+                ['Concepto', 'Valor'],
+                ['Total de Ventas', str(total_sales)],
+                ['Monto Total', f"${total_amount:,.2f}"],
+                ['Promedio por Venta', f"${total_amount/total_sales if total_sales > 0 else 0:,.2f}"]
+            ]
+            
+            summary_table = Table(summary_data)
+            summary_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ]))
+            
+            story.append(summary_table)
+            
+        elif report_type == 'inventory':
+            # Datos de la tabla de inventario
+            table_data = [['Código', 'Producto', 'Categoría', 'Stock', 'Precio Venta', 'Proveedor']]
+            
+            for product in data:
+                table_data.append([
+                    product.code or '',
+                    product.name,
+                    product.cat.name if product.cat else 'N/A',
+                    f"{product.stock or 0:.2f}",
+                    f"${product.pvp_final or product.pvp or 0:,.2f}",
+                    product.supplier.name if product.supplier else 'N/A'
+                ])
+            
+            # Crear tabla
+            table = Table(table_data)
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 9),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ]))
+            
+            story.append(table)
+            story.append(Spacer(1, 20))
+            
+            # Resumen de inventario
+            story.append(Paragraph("RESUMEN DE INVENTARIO", header_style))
+            story.append(Spacer(1, 12))
+            
+            total_products = data.count()
+            total_stock = data.aggregate(total=Sum('stock'))['total'] or 0
+            total_value = data.aggregate(
+                total=Sum(F('stock') * F('pvp_final'))
+            )['total'] or 0
+            
+            summary_data = [
+                ['Concepto', 'Valor'],
+                ['Total de Productos', str(total_products)],
+                ['Stock Total', f"{total_stock:.2f}"],
+                ['Valor Total del Inventario', f"${total_value:,.2f}"]
+            ]
+            
+            summary_table = Table(summary_data)
+            summary_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ]))
+            
+            story.append(summary_table)
+            
+        elif report_type == 'expenses':
+            # Datos de la tabla de gastos
+            table_data = [['Fecha', 'Proveedor', 'Descripción', 'Monto', 'Pagado por']]
+            
+            for expense in data:
+                table_data.append([
+                    expense.date.strftime('%d/%m/%Y') if expense.date else '',
+                    expense.supplier.name if expense.supplier else 'N/A',
+                    expense.description or '',
+                    f"${expense.amount:,.2f}",
+                    expense.payer or 'N/A'
+                ])
+            
+            # Crear tabla
+            table = Table(table_data)
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 9),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ]))
+            
+            story.append(table)
+            story.append(Spacer(1, 20))
+            
+            # Resumen de gastos
+            story.append(Paragraph("RESUMEN DE GASTOS", header_style))
+            story.append(Spacer(1, 12))
+            
+            total_expenses = data.count()
+            total_amount = data.aggregate(total=Sum('amount'))['total'] or 0
+            
+            summary_data = [
+                ['Concepto', 'Valor'],
+                ['Total de Gastos', str(total_expenses)],
+                ['Monto Total', f"${total_amount:,.2f}"],
+                ['Promedio por Gasto', f"${total_amount/total_expenses if total_expenses > 0 else 0:,.2f}"]
+            ]
+            
+            summary_table = Table(summary_data)
+            summary_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ]))
+            
+            story.append(summary_table)
+            
+        elif report_type == 'profit':
+            # Datos de ganancias (suponiendo que data es un diccionario con información)
+            if isinstance(data, dict) and 'sales_data' in data:
+                table_data = [['Concepto', 'Ventas', 'Costos', 'Ganancias', 'Margen %']]
+                
+                for item in data.get('sales_data', []):
+                    table_data.append([
+                        item.get('product', 'N/A'),
+                        f"${item.get('sales', 0):,.2f}",
+                        f"${item.get('cost', 0):,.2f}",
+                        f"${item.get('profit', 0):,.2f}",
+                        f"{item.get('margin', 0):.2f}%"
+                    ])
+            else:
+                # Resumen general de ganancias
+                table_data = [['Período', 'Ventas Totales', 'Costos Totales', 'Ganancias', 'Margen %']]
+                
+                # Calcular totales (esto es un ejemplo, ajustar según la estructura real de datos)
+                total_sales = data.aggregate(total=Sum('total'))['total'] or 0 if hasattr(data, 'aggregate') else 0
+                total_costs = 0  # Ajustar según el cálculo real de costos
+                total_profit = total_sales - total_costs
+                margin_percent = (total_profit / total_sales * 100) if total_sales > 0 else 0
+                
+                table_data.append([
+                    f"{period_info.get('start_date', '')} al {period_info.get('end_date', '')}",
+                    f"${total_sales:,.2f}",
+                    f"${total_costs:,.2f}",
+                    f"${total_profit:,.2f}",
+                    f"{margin_percent:.2f}%"
+                ])
+            
+            # Crear tabla
+            table = Table(table_data)
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ]))
+            
+            story.append(table)
+            
+        elif report_type == 'top_selling':
+            # Datos de la tabla (código existente)
             table_data = [['Código', 'Producto', 'Stock Disponible', 'Total Vendidos', 'Precio Promedio', 'Total Recaudado']]
             
             for product in data['products']:
