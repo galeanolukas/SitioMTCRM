@@ -321,6 +321,15 @@ class SupplierForm(ModelForm):
             form.field.widget.attrs["class"] = "form-control"
             form.field.widget.attrs["autocomplete"] = "off"
         self.fields['name'].widget.attrs['autofocus'] = True
+        
+        # Ocultar campos de sistema
+        if 'is_active' in self.fields:
+            self.fields['is_active'].widget = HiddenInput()
+            self.fields['is_active'].required = False
+        if 'synced_to_server' in self.fields:
+            self.fields['synced_to_server'].widget = HiddenInput()
+            self.fields['synced_to_server'].required = False
+            
         if 'company' in self.fields and self.request and hasattr(self.request, 'user') and not getattr(self.request.user, 'is_superuser', False):
             if getattr(self.request.user, 'company_id', None):
                 self.fields['company'].queryset = Company.objects.filter(pk=self.request.user.company_id, is_active=True)

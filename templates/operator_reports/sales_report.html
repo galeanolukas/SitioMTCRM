@@ -1,6 +1,10 @@
 {% extends 'vtc/body.html' %}
 {% load static %}
 
+<!-- CSS responsive para tabla y botones -->
+<link rel="stylesheet" href="{% static 'operator_reports/css/responsive-table.css' %}">
+<link rel="stylesheet" href="{% static 'operator_reports/css/buttons-layout.css' %}">
+
 {% block content %}
 <div class="container-fluid">
     <div class="content-header">
@@ -27,7 +31,7 @@
                 <form method="POST" id="report-form">
                     {% csrf_token %}
                     <div class="row">
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <div class="form-group">
                                 <label for="report_type">Tipo de Reporte</label>
                                 <select name="report_type" id="report_type" class="form-control">
@@ -35,6 +39,15 @@
                                     <option value="weekly">Últimos 7 días</option>
                                     <option value="monthly">Últimos 30 días</option>
                                     <option value="custom">Personalizado</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="form-group">
+                                <label for="report_format">Formato</label>
+                                <select name="report_format" id="report_format" class="form-control">
+                                    <option value="payment">Por Método de Pago</option>
+                                    <option value="products">Ranking de Productos</option>
                                 </select>
                             </div>
                         </div>
@@ -63,36 +76,46 @@
                             </div>
                         </div>
                         {% endif %}
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <div class="form-group">
                                 <label>&nbsp;</label>
-                                <div class="btn-group w-100">
-                                    <button type="button" class="btn btn-primary" onclick="getReport()">
-                                        <i class="fas fa-search"></i> Generar
+                                <button type="button" class="btn generate-btn btn-block" onclick="getReport()">
+                                    <i class="fas fa-search"></i> Generar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Fila separada para botones de exportación -->
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <div class="export-buttons-container">
+                                <div class="d-flex justify-content-center gap-2 flex-wrap">
+                                    <button type="button" class="btn export-btn export-btn-csv" onclick="exportReport('csv')">
+                                        <i class="fas fa-file-csv"></i> Exportar CSV
                                     </button>
-                                    <button type="button" class="btn btn-success" onclick="exportReport('csv')">
-                                        <i class="fas fa-file-csv"></i> CSV
+                                    <button type="button" class="btn export-btn export-btn-excel" onclick="exportReport('excel')">
+                                        <i class="fas fa-file-excel"></i> Exportar Excel
                                     </button>
-                                    <button type="button" class="btn btn-info" onclick="exportReport('excel')">
-                                        <i class="fas fa-file-excel"></i> Excel
-                                    </button>
-                                    <button type="button" class="btn btn-danger" onclick="exportReport('pdf')">
-                                        <i class="fas fa-file-pdf"></i> PDF
+                                    <button type="button" class="btn export-btn export-btn-pdf" onclick="exportReport('pdf')">
+                                        <i class="fas fa-file-pdf"></i> Exportar PDF
                                     </button>
                                 </div>
                             </div>
                         </div>
-                        {% if request.user.is_superuser or perms.erp.manage_employee_accounts %}
-                        <div class="col-md-2">
-                            <div class="form-group">
-                                <label>&nbsp;</label>
-                                <a href="{% url 'erp:employee_account_list' %}" class="btn btn-warning w-100" title="Cuentas Corrientes de Empleados">
+                    
+                    <!-- Fila para botones adicionales (Cta. Corriente) -->
+                    {% if request.user.is_superuser or perms.erp.manage_employee_accounts %}
+                    <div class="row mt-2">
+                        <div class="col-12">
+                            <div class="d-flex justify-content-end">
+                                <a href="{% url 'erp:employee_account_list' %}" class="btn cta-btn" title="Cuentas Corrientes de Empleados">
                                     <i class="fas fa-user-clock"></i> Cta. Corriente
                                 </a>
                             </div>
                         </div>
-                        {% endif %}
                     </div>
+                    {% endif %}
                 </form>
             </div>
         </div>
@@ -117,8 +140,9 @@
 
                 <!-- Tabla principal -->
                 <div id="report-table" style="display: none;">
-                    <table class="table table-bordered table-striped" id="sales-table">
-                        <thead class="thead-dark">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-striped table-hover" id="sales-table">
+                        <thead class="thead-dark" id="table-head">
                             <tr>
                                 <th>N° Comprob.</th>
                                 <th>Efectivo</th>
@@ -129,7 +153,7 @@
                         </thead>
                         <tbody id="sales-tbody">
                         </tbody>
-                        <tfoot class="table-secondary">
+                        <tfoot class="table-secondary" id="table-foot">
                             <tr class="font-weight-bold">
                                 <td>Resumen</td>
                                 <td id="cash-total">$0.00</td>
@@ -142,7 +166,8 @@
                                 <td id="grand-total" colspan="4">$0.00</td>
                             </tr>
                         </tfoot>
-                    </table>
+                        </table>
+                    </div>
                 </div>
 
                 <!-- Observaciones y Conformidad -->
@@ -264,14 +289,120 @@ function getReport() {
 }
 
 function displayReport(data) {
-    // Update table with payment method distribution
     const tbody = $('#sales-tbody');
     tbody.empty();
     
+    console.log('Data received:', data); // Debug log
+    
+    // Verificar el formato del reporte
+    if (data.report_format === 'products') {
+        // Mostrar reporte de ranking de productos
+        displayProductsReport(data);
+    } else {
+        // Mostrar reporte por método de pago (original)
+        displayPaymentReport(data);
+    }
+}
+
+function displayProductsReport(data) {
+    console.log('Displaying products report:', data.products); // Debug log
+    
+    // Obtener tbody
+    const tbody = $('#sales-tbody');
+    tbody.empty();
+    
+    // Actualizar headers para formato de productos
+    const tableHead = $('#table-head');
+    tableHead.html(`
+        <tr>
+            <th>Ranking</th>
+            <th>Producto</th>
+            <th>Cantidad Vendida</th>
+            <th>Stock Actual</th>
+            <th>Precio Promedio</th>
+            <th>Total Ventas</th>
+        </tr>
+    `);
+    
+    // Actualizar footer para formato de productos
+    const tableFoot = $('#table-foot');
+    const grandTotal = data.products.reduce((sum, p) => sum + p.total, 0);
+    const totalQuantity = data.products.reduce((sum, p) => sum + p.quantity, 0);
+    
+    tableFoot.html(`
+        <tr class="font-weight-bold bg-success text-white">
+            <td colspan="3">Total General</td>
+            <td></td>
+            <td></td>
+            <td class="text-right">$${grandTotal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+        </tr>
+    `);
+    
+    // Mostrar datos de productos
+    if (!data.products || data.products.length === 0) {
+        console.log('No products found');
+        $('#empty-state').show();
+        $('#report-table').hide();
+    } else {
+        console.log('Found products:', data.products.length);
+        data.products.forEach(function(product) {
+            const row = `
+                <tr>
+                    <td class="text-center"><strong>#${product.rank}</strong></td>
+                    <td>${product.product}</td>
+                    <td class="text-right">${product.quantity.toLocaleString('es-AR')}</td>
+                    <td class="text-right">${product.stock.toLocaleString('es-AR')}</td>
+                    <td class="text-right">$${product.price.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td class="text-right">$${product.total.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                </tr>
+            `;
+            tbody.append(row);
+        });
+        
+        $('#empty-state').hide();
+        $('#report-table').show();
+        $('#observations-section').hide();  // Ocultar observaciones para ranking de productos
+    }
+}
+
+function displayPaymentReport(data) {
+    // Obtener tbody
+    const tbody = $('#sales-tbody');
+    tbody.empty();
+    
+    // Update table with payment method distribution
     let cashTotal = 0;
     let mpTotal = 0;
     let transferTotal = 0;
     let otherTotal = 0;
+    
+    // Restaurar headers originales
+    const tableHead = $('#table-head');
+    tableHead.html(`
+        <tr>
+            <th>N° Comprob.</th>
+            <th>Efectivo</th>
+            <th>Mercado Pago</th>
+            <th>Transferencias</th>
+            <th>Otros</th>
+        </tr>
+    `);
+    
+    // Restaurar footer original
+    const tableFoot = $('#table-foot');
+    tableFoot.html(`
+        <tr class="font-weight-bold">
+            <td>Resumen</td>
+            <td id="cash-total">$0.00</td>
+            <td id="mp-total">$0.00</td>
+            <td id="transfer-total">$0.00</td>
+            <td id="other-total">$0.00</td>
+        </tr>
+        <tr class="font-weight-bold bg-primary text-white">
+            <td>Total General</td>
+            <td id="grand-total" colspan="4">$0.00</td>
+        </tr>
+    `);
     
     if (data.sales.length === 0) {
         $('#empty-state').show();

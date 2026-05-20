@@ -1,0 +1,170 @@
+/* Estilos responsive y hover para la tabla de reportes */
+
+/* Contenedor responsive para tabla */
+.table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 0.375rem;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+/* Estilos base para la tabla */
+#sales-table {
+    margin-bottom: 0;
+    font-size: 0.9rem;
+    background-color: white;
+    transition: all 0.3s ease;
+}
+
+/* Hover en filas de datos */
+#sales-table tbody tr {
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+#sales-table tbody tr:hover {
+    background-color: #f8f9fa !important;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Hover en celdas específicas */
+#sales-table tbody tr:hover td {
+    color: #495057;
+    font-weight: 500;
+}
+
+/* Efecto hover en headers */
+#sales-table thead th:hover {
+    background-color: #343a40 !important;
+    color: white !important;
+}
+
+/* Estilos para celdas numéricas */
+#sales-table td.text-right {
+    font-family: 'Courier New', monospace;
+    font-weight: 600;
+}
+
+#sales-table td.text-right:hover {
+    color: #007bff !important;
+}
+
+/* Estilos para celdas de ranking */
+#sales-table td.text-center strong {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 1rem;
+    font-size: 0.8rem;
+    display: inline-block;
+    min-width: 2rem;
+    text-align: center;
+}
+
+#sales-table td.text-center strong:hover {
+    transform: scale(1.1);
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+}
+
+/* Responsive design para pantallas pequeñas */
+@media (max-width: 768px) {
+    .table-responsive {
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+    }
+    
+    #sales-table {
+        font-size: 0.8rem;
+    }
+    
+    #sales-table th,
+    #sales-table td {
+        padding: 0.5rem 0.25rem;
+        white-space: nowrap;
+    }
+    
+    /* Ocultar columnas menos importantes en móviles */
+    #sales-table th:nth-child(3),
+    #sales-table td:nth-child(3) {
+        display: none;
+    }
+}
+
+@media (max-width: 576px) {
+    #sales-table {
+        font-size: 0.75rem;
+    }
+    
+    #sales-table th,
+    #sales-table td {
+        padding: 0.4rem 0.2rem;
+        font-size: 0.7rem;
+    }
+    
+    /* Ocultar más columnas en pantallas muy pequeñas */
+    #sales-table th:nth-child(2),
+    #sales-table td:nth-child(2),
+    #sales-table th:nth-child(4),
+    #sales-table td:nth-child(4) {
+        display: none;
+    }
+}
+
+/* Animación de carga */
+.table-loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.table-loading tbody tr {
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+/* Estilos para filas de totales */
+#sales-table tfoot tr {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    color: white !important;
+    font-weight: bold;
+}
+
+#sales-table tfoot tr:hover {
+    background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%) !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+}
+
+/* Scrollbar personalizado para responsive */
+.table-responsive::-webkit-scrollbar {
+    height: 8px;
+}
+
+.table-responsive::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+/* Efecto de selección */
+#sales-table tbody tr.selected {
+    background-color: #e3f2fd !important;
+    border-left: 4px solid #2196f3;
+}
+
+#sales-table tbody tr.selected:hover {
+    background-color: #bbdefb !important;
+}
