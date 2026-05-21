@@ -148,10 +148,18 @@ class Command(BaseCommand):
 
                 if not dry_run:
                     with transaction.atomic(using='remote'):
-                        # Verificar si ya existe un cierre de caja con sync_id único
+                        # Verificar si ya existe un cierre de caja por local_uuid
                         existing_cr = None
-                        if cr.sync_id:
-                            existing_cr = CashRegister.objects.using('remote').filter(sync_id=cr.sync_id).first()
+                        if cr.local_uuid:
+                            existing_cr = CashRegister.objects.using('remote').filter(local_uuid=cr.local_uuid).first()
+                        
+                        # Si no existe por UUID, verificar por clave natural (date, user, company)
+                        if not existing_cr and remote_company_id and remote_user_id:
+                            existing_cr = CashRegister.objects.using('remote').filter(
+                                date=cr.date,
+                                user_id=remote_user_id,
+                                company_id=remote_company_id
+                            ).first()
                         
                         if existing_cr:
                             # Actualizar el registro existente en lugar de crear uno nuevo
@@ -167,12 +175,15 @@ class Command(BaseCommand):
                             existing_cr.expenses=cr.expenses
                             existing_cr.notes=cr.notes
                             existing_cr.is_closed=cr.is_closed
+                            # Mantener local_uuid si ya existe
+                            if not existing_cr.local_uuid and cr.local_uuid:
+                                existing_cr.local_uuid = cr.local_uuid
                             existing_cr.save()
                             remote_cr = existing_cr
                         else:
-                            # Crear nuevo cierre de caja en remoto con sync_id único
+                            # Crear nuevo cierre de caja en remoto con sync_id basado en local_uuid
                             import uuid
-                            sync_id = f"pos_{cr.id}_{uuid.uuid4().hex[:8]}"
+                            sync_id = f"pos_{cr.local_uuid}" if cr.local_uuid else f"pos_{cr.id}_{uuid.uuid4().hex}"
                             
                             remote_cr = CashRegister.objects.using('remote').create(
                                 company_id=remote_company_id,
@@ -188,6 +199,7 @@ class Command(BaseCommand):
                                 notes=cr.notes,
                                 is_closed=cr.is_closed,
                                 sync_id=sync_id,
+                                local_uuid=cr.local_uuid,
                             )
                             
                             # Guardar sync_id en el registro local

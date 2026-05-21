@@ -699,11 +699,13 @@ class CashRegister(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     is_synced = models.BooleanField(default=False, verbose_name='Sincronizado')
     sync_id = models.CharField(max_length=100, blank=True, null=True)
+    local_uuid = models.UUIDField(unique=True, default=None, null=True, editable=False, verbose_name='UUID local')
 
     class Meta:
         verbose_name = 'Cierre de caja'
         verbose_name_plural = 'Cierres de caja'
         ordering = ['-date', '-created_at']
+        # unique_together = [['date', 'user', 'company']]  # Comentado por conflictos con datos existentes
         permissions = [
             ("close_cash_register", "Puede cerrar caja"),
             ("view_cash_register", "Puede ver cierres de caja"),
@@ -711,6 +713,13 @@ class CashRegister(models.Model):
 
     def __str__(self):
         return f"Caja {self.date} - {self.user.get_full_name()}"
+
+    def save(self, *args, **kwargs):
+        # Generar local_uuid automáticamente para nuevos cierres de caja
+        if not self.local_uuid:
+            import uuid
+            self.local_uuid = uuid.uuid4()
+        super().save(*args, **kwargs)
 
     @property
     def total_sales(self):

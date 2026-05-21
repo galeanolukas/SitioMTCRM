@@ -56,6 +56,7 @@ def run_full_sync():
         'empresas': {'before': 0, 'after': 0, 'synced': 0},
         'usuarios': {'before': 0, 'after': 0, 'synced': 0},
         'productos': {'before': 0, 'after': 0, 'synced': 0},
+        'stock': {'before': 0, 'after': 0, 'synced': 0},
         'categorias': {'before': 0, 'after': 0, 'synced': 0},
         'ventas': {'before': 0, 'after': 0, 'synced': 0},
         'clientes': {'before': 0, 'after': 0, 'synced': 0},
@@ -117,6 +118,24 @@ def run_full_sync():
         except Exception as e:
             logger.error(f"Error en sincronización de productos local → servidor: {e}")
             errors.append(f"sync_products_to_remote: {e}")
+        
+        # 3.a.b) Stock: Sincronizar stock de productos local → servidor
+        try:
+            logger.info("📦 Sincronizando stock de productos local → servidor...")
+            
+            call_command("sync_stock_to_remote")
+            
+            # Contar productos con stock desincronizado
+            from core.erp.models import Product
+            products_with_stock = Product.objects.using('default').filter(track_stock=True).count()
+            sync_stats['stock']['before'] = products_with_stock
+            sync_stats['stock']['after'] = products_with_stock  # El comando actualiza, no crea/elimina
+            sync_stats['stock']['synced'] = 0  # El comando reportará actualizaciones
+            
+            logger.info(f"✅ Stock sincronizado: {products_with_stock} productos con control de stock")
+        except Exception as e:
+            logger.error(f"Error en sincronización de stock: {e}")
+            errors.append(f"sync_stock_to_remote: {e}")
         
         # 3.b) Categorías
         try:
@@ -244,7 +263,8 @@ def run_full_sync():
     logger.info(f"🏢 EMPRESAS: {sync_stats['empresas']['synced']} nuevas ({sync_stats['empresas']['before']} → {sync_stats['empresas']['after']})")
     logger.info(f"👥 USUARIOS: {sync_stats['usuarios']['synced']} cambios ({sync_stats['usuarios']['before']} → {sync_stats['usuarios']['after']})")
     logger.info(f"📦 PRODUCTOS: {sync_stats['productos']['synced']} sincronizados ({sync_stats['productos']['before']} → {sync_stats['productos']['after']})")
-    logger.info(f"📁 CATEGORÍAS: {sync_stats['categorias']['synced']} nuevas ({sync_stats['categorias']['before']} → {sync_stats['categorias']['after']})")
+    logger.info(f"� STOCK: {sync_stats['stock']['synced']} actualizados ({sync_stats['stock']['before']} productos con control de stock)")
+    logger.info(f"�📁 CATEGORÍAS: {sync_stats['categorias']['synced']} nuevas ({sync_stats['categorias']['before']} → {sync_stats['categorias']['after']})")
     logger.info(f"💰 VENTAS: {sync_stats['ventas']['synced']} pendientes ({sync_stats['ventas']['before']} → {sync_stats['ventas']['after']})")
     logger.info(f"👤 CLIENTES: {sync_stats['clientes']['synced']} nuevos ({sync_stats['clientes']['before']} → {sync_stats['clientes']['after']})")
     logger.info(f"🏭 PROVEEDORES: {sync_stats['proveedores']['synced']} nuevos ({sync_stats['proveedores']['before']} → {sync_stats['proveedores']['after']})")

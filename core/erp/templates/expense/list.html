@@ -28,15 +28,24 @@
     <div class="card mb-3">
       <div class="card-body">
         <form method="GET" class="row g-3">
-          <div class="col-md-4">
+          <div class="col-md-3">
+            <label for="period" class="form-label">Período</label>
+            <select name="period" id="period" class="form-select" onchange="handlePeriodChange()">
+              <option value="">Personalizado</option>
+              <option value="today" {% if request.GET.period == 'today' %}selected{% endif %}>Hoy</option>
+              <option value="week" {% if request.GET.period == 'week' %}selected{% endif %}>Esta semana</option>
+              <option value="month" {% if request.GET.period == 'month' %}selected{% endif %}>Este mes</option>
+            </select>
+          </div>
+          <div class="col-md-3">
             <label for="start_date" class="form-label">Fecha Inicio</label>
             <input type="date" name="start_date" id="start_date" class="form-control" value="{{ request.GET.start_date }}">
           </div>
-          <div class="col-md-4">
+          <div class="col-md-3">
             <label for="end_date" class="form-label">Fecha Fin</label>
             <input type="date" name="end_date" id="end_date" class="form-control" value="{{ request.GET.end_date }}">
           </div>
-          <div class="col-md-4">
+          <div class="col-md-3">
             <label class="form-label">&nbsp;</label>
             <div class="d-flex gap-2">
               <button type="submit" class="btn btn-outline-primary">
@@ -103,6 +112,46 @@
 </div>
 
 <script>
+function handlePeriodChange() {
+    const period = document.getElementById('period').value;
+    const startDateInput = document.getElementById('start_date');
+    const endDateInput = document.getElementById('end_date');
+    const today = new Date();
+    
+    if (period === 'today') {
+        startDateInput.value = formatDate(today);
+        endDateInput.value = formatDate(today);
+    } else if (period === 'week') {
+        const startOfWeek = new Date(today);
+        startOfWeek.setDate(today.getDate() - today.getDay());
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6);
+        startDateInput.value = formatDate(startOfWeek);
+        endDateInput.value = formatDate(endOfWeek);
+    } else if (period === 'month') {
+        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        startDateInput.value = formatDate(startOfMonth);
+        endDateInput.value = formatDate(endOfMonth);
+    }
+}
+
+function formatDate(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+// Establecer período por defecto como hoy al cargar
+document.addEventListener('DOMContentLoaded', function() {
+    const periodSelect = document.getElementById('period');
+    if (!periodSelect.value) {
+        periodSelect.value = 'today';
+        handlePeriodChange();
+    }
+});
+
 function deleteDuplicateExpenses() {
     if (!confirm('¿Está seguro que desea eliminar los gastos duplicados de la base de datos remota?\n\nEsta acción marcará los duplicados como inactivos y no se eliminarán físicamente.')) {
         return;

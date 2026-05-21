@@ -623,13 +623,38 @@ class ExpenseListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListV
     def get_queryset(self):
         qs = super().get_queryset()
         
-        # Excluir gastos inactivos para evitar mostrar duplicados
-        qs = qs.filter(is_active=True)
-        
-        # Apply date range filters
+        # Handle period parameter
+        period = self.request.GET.get('period')
         start_date = self.request.GET.get('start_date')
         end_date = self.request.GET.get('end_date')
         
+        # If period is specified, calculate dates
+        if period and not (start_date or end_date):
+            from django.utils import timezone
+            from datetime import timedelta
+            
+            today = timezone.now().date()
+            
+            if period == 'today':
+                start_date = today.strftime('%Y-%m-%d')
+                end_date = today.strftime('%Y-%m-%d')
+            elif period == 'week':
+                # Start of week (Monday)
+                start_of_week = today - timedelta(days=today.weekday())
+                end_of_week = start_of_week + timedelta(days=6)
+                start_date = start_of_week.strftime('%Y-%m-%d')
+                end_date = end_of_week.strftime('%Y-%m-%d')
+            elif period == 'month':
+                # Start of month
+                start_of_month = today.replace(day=1)
+                # End of month
+                from calendar import monthrange
+                last_day = monthrange(today.year, today.month)[1]
+                end_of_month = today.replace(day=last_day)
+                start_date = start_of_month.strftime('%Y-%m-%d')
+                end_date = end_of_month.strftime('%Y-%m-%d')
+        
+        # Apply date range filters
         if start_date:
             qs = qs.filter(date__gte=start_date)
         if end_date:
