@@ -127,6 +127,23 @@ class Command(BaseCommand):
                             # No existe, podemos crear normalmente
                             pass
                     
+                    # Verificar si el invoice_number ya existe en el servidor
+                    if sale.invoice_number:
+                        try:
+                            existing_invoice = Sale.objects.using('remote').get(
+                                invoice_number=sale.invoice_number
+                            )
+                            self.stdout.write(
+                                self.style.WARNING(f"Venta {sale.id}: Número de factura {sale.invoice_number} ya existe en servidor (ID: {existing_invoice.id}), omitiendo...")
+                            )
+                            # Marcar como sincronizada y continuar
+                            Sale.objects.using('default').filter(pk=sale.pk).update(synced_to_server=True)
+                            synced += 1
+                            continue
+                        except Sale.DoesNotExist:
+                            # No existe, podemos crear normalmente
+                            pass
+                    
                     # Crear cabecera de venta en remoto usando update_or_create para evitar duplicados
                     # Si no es factura facturada, el IVA debe ser 0
                     iva_amount = sale.iva if sale.is_invoiced else 0
