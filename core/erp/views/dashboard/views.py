@@ -1088,7 +1088,7 @@ def report_expenses_export(request):
     for e in qs:
         rows.append({
             'ID': e.id,
-            'Fecha': e.date.strftime('%Y-%m-%d') if e.date else '',
+            'Fecha': e.date.strftime('%d/%m/%Y') if e.date else '',
             'Proveedor': getattr(e.supplier, 'name', '') if e.supplier_id else '',
             'Descripción': e.description or '',
             'Importe': float(e.amount or 0),
@@ -1246,7 +1246,7 @@ def expense_export(request):
         items_str = " | ".join(items) if items else "N/A"
         
         detailed_rows.append({
-            'Fecha': expense.date.strftime('%Y-%m-%d') if expense.date else '',
+            'Fecha': expense.date.strftime('%d/%m/%Y') if expense.date else '',
             'Proveedor': expense.supplier.name if expense.supplier else 'N/A',
             'Descripción': expense.description or '',
             'Items': items_str,
@@ -1259,7 +1259,7 @@ def expense_export(request):
     summary_rows = []
     for day_data in daily_summary:
         summary_rows.append({
-            'Fecha': day_data['day'].strftime('%Y-%m-%d') if day_data['day'] else '',
+            'Fecha': day_data['day'].strftime('%d/%m/%Y') if day_data['day'] else '',
             'Total Gastos': float(day_data['total'] or 0),
             'Cantidad': day_data['count'] or 0
         })
