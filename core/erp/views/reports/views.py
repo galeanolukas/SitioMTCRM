@@ -5,7 +5,9 @@ from django.db.models.functions import TruncDay, TruncMonth, TruncYear, Coalesce
 from django.utils import timezone
 from django.http import HttpResponse
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
-from datetime import timedelta, datetime
+from datetime import datetime
+from django.utils import timezone
+from datetime import timedelta
 import json
 import csv
 
@@ -815,9 +817,9 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
                 filename = f'ventas_{start_date}_al_{end_date}'
             elif report_type == 'inventory':
                 data = self.get_inventory_export_data(company_id)
-                filename = f'inventario_{datetime.now().strftime("%Y-%m-%d")}'
-                period_info['start_date'] = datetime.now().strftime('%Y-%m-%d')
-                period_info['end_date'] = datetime.now().strftime('%Y-%m-%d')
+                filename = f'inventario_{timezone.now().strftime("%Y-%m-%d")}'
+                period_info['start_date'] = timezone.now().strftime('%Y-%m-%d')
+                period_info['end_date'] = timezone.now().strftime('%Y-%m-%d')
             elif report_type == 'expenses':
                 data = self.get_expenses_export_data(company_id, start_date, end_date)
                 filename = f'gastos_{start_date}_al_{end_date}'
@@ -915,7 +917,7 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
             if period_info.get('payment_method'):
                 writer.writerow(['Método de Pago:', period_info['payment_method']])
             
-            writer.writerow(['Fecha de Generación:', datetime.now().strftime('%Y-%m-%d %H:%M:%S')])
+            writer.writerow(['Fecha de Generación:', timezone.now().strftime('%Y-%m-%d %H:%M:%S')])
             writer.writerow([])  # Fila vacía
         
         if report_type == 'sales':
@@ -1120,7 +1122,7 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
             
             # Fecha de generación
             ws.cell(row=row, column=1, value='Fecha de Generación:')
-            ws.cell(row=row, column=2, value=datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+            ws.cell(row=row, column=2, value=timezone.now().strftime('%Y-%m-%d %H:%M:%S'))
             row += 2  # Espacio extra después del encabezado
         
         if report_type == 'sales':
@@ -1439,7 +1441,7 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
                 story.append(Paragraph(f"<b>Método de Pago:</b> {period_info['payment_method']}", info_style))
             
             # Fecha de generación
-            story.append(Paragraph(f"<b>Fecha de Generación:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", info_style))
+            story.append(Paragraph(f"<b>Fecha de Generación:</b> {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}", info_style))
             story.append(Spacer(1, 20))  # Espacio después del encabezado
         
         if report_type == 'sales':

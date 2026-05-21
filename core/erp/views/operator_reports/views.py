@@ -891,9 +891,20 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
     for sale in sales:
         sale_subtotal = float(sale.subtotal)  # Usar PVP puro sin IVA
         
-        # Get product names from sale details
+        # Get product names from sale details with 30 character limit and line breaks
         product_names = [det.prod.name for det in sale.detsale_set.all()]
-        products_text = ", ".join(product_names) if product_names else "Sin productos"
+        
+        # Function to format product name with 30 char limit and line breaks
+        def format_product_name(name):
+            if len(name) <= 30:
+                return name
+            # Split into chunks of 30 characters
+            chunks = [name[i:i+30] for i in range(0, len(name), 30)]
+            return '\n'.join(chunks)
+        
+        # Format each product name
+        formatted_names = [format_product_name(name) for name in product_names]
+        products_text = '\n'.join(formatted_names) if formatted_names else "Sin productos"
         
         # Distribute amount by payment method
         cash_amount = 0
@@ -975,7 +986,8 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
     ])
     
     # Create table with optimized column widths for A4 (primera columna más ancha para nombres de productos)
-    sales_table = Table(table_data, colWidths=[2.0*inch, 1.1*inch, 1.1*inch, 1.1*inch, 1.1*inch])
+    # Aumentar el ancho de la primera columna para acomodar múltiples líneas de nombres de productos
+    sales_table = Table(table_data, colWidths=[2.5*inch, 1.0*inch, 1.0*inch, 1.0*inch, 1.0*inch])
     sales_table.setStyle(TableStyle([
         # Header styling
         ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
@@ -990,12 +1002,14 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
         # Data rows styling
         ('BACKGROUND', (0, 1), (-1, -2), colors.white),
         ('TEXTCOLOR', (0, 1), (-1, -2), colors.black),
-        ('ALIGN', (0, 1), (-1, -2), 'CENTER'),
+        ('ALIGN', (1, 1), (-1, -2), 'CENTER'),  # Solo columnas de montos centradas
+        ('ALIGN', (0, 1), (0, -2), 'LEFT'),       # Primera columna (productos) alineada a la izquierda
         ('FONTNAME', (0, 1), (-1, -2), font_name),
         ('FONTSIZE', (0, 1), (-1, -2), 9),
         ('BOTTOMPADDING', (0, 1), (-1, -2), 4),  # Reducido de 6 a 4
         ('TOPPADDING', (0, 1), (-1, -2), 4),  # Reducido de 6 a 4
         ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        ('VALIGN', (0, 1), (-1, -2), 'TOP'),     # Alinear texto hacia arriba para múltiples líneas
         
         # Summary row styling
         ('BACKGROUND', (0, -2), (-1, -2), colors.lightgrey),

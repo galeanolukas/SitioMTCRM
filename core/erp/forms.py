@@ -552,6 +552,32 @@ class ExpenseForm(ModelForm):
         try:
             if self.is_valid():
                 obj = super().save(commit=False)
+                
+                # Validación para evitar duplicados
+                if not self.instance.pk:  # Solo para nuevos gastos
+                    from django.utils import timezone
+                    from datetime import datetime, timedelta
+                    
+                    # Combinar fecha y hora para datetime completo
+                    if obj.date and obj.time:
+                        expense_datetime = datetime.combine(obj.date, obj.time)
+                    else:
+                        expense_datetime = timezone.now()
+                    
+                    # Buscar posibles duplicados (mismos campos clave en última hora)
+                    from core.erp.models import Expense
+                    potential_duplicates = Expense.objects.filter(
+                        amount=obj.amount,
+                        date__gte=expense_datetime - timedelta(hours=1),
+                        date__lte=expense_datetime + timedelta(hours=1),
+                        description=obj.description,
+                        company_id=obj.company_id
+                    ).exclude(is_active=False)
+                    
+                    if potential_duplicates.exists():
+                        data['error'] = 'Ya existe un gasto similar con el mismo monto, descripción y fecha en la última hora. Por favor, verifique si es un duplicado.'
+                        return data
+                
                 # Establecer hora actual si no se proporcionó
                 if not obj.time and not self.instance.pk:
                     from django.utils import timezone
@@ -560,6 +586,7 @@ class ExpenseForm(ModelForm):
                 if self.request and hasattr(self.request, 'user') and not getattr(self.request.user, 'is_superuser', False):
                     if getattr(self.request.user, 'company_id', None) and not getattr(obj, 'company_id', None):
                         obj.company_id = self.request.user.company_id
+                
                 if commit:
                     obj.save()
                 data = obj.toJSON() if hasattr(obj, 'toJSON') else {}

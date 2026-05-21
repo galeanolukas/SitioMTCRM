@@ -525,8 +525,106 @@ class ExpenseListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListV
     def dispatch(self, request, *args, **kwargs):
         return super().dispatch(request, *args, **kwargs)
 
+    def post(self, request, *args, **kwargs):
+        data = {}
+        try:
+            action = request.POST['action']
+            if action == 'searchdata':
+                data = []
+                for i in self.get_queryset():
+                    data.append(i.toJSON())
+            elif action == 'delete_duplicates':
+                # Eliminar gastos duplicados de la base de datos remota
+                data = self.delete_duplicate_expenses()
+            else:
+                data['error'] = 'Ha ocurrido un error'
+        except Exception as e:
+            data['error'] = str(e)
+        return JsonResponse(data, safe=False)
+
+    def delete_duplicate_expenses(self):
+        """Eliminar gastos duplicados de la base de datos remota"""
+        from django.db import connections
+        
+        if 'remote' not in connections:
+            return {'error': 'No hay conexión a base de datos remota'}
+        
+        try:
+            # Obtener todos los gastos de la base remota
+            remote_expenses = []
+            with connections['remote'].cursor() as cursor:
+                cursor.execute("""
+                    SELECT id, local_uuid, local_expense_id, amount, date, desc, company_id, 
+                           synced_to_server, source
+                    FROM erp_expense 
+                    WHERE is_active = TRUE
+                    ORDER BY date DESC, id DESC
+                """)
+                columns = [col[0] for col in cursor.description]
+                for row in cursor.fetchall():
+                    expense_dict = dict(zip(columns, row))
+                    remote_expenses.append(expense_dict)
+            
+            # Identificar duplicados basados en local_uuid o local_expense_id
+            duplicates_to_delete = []
+            seen_uuids = set()
+            seen_local_ids = set()
+            
+            for expense in remote_expenses:
+                is_duplicate = False
+                
+                # Verificar duplicado por local_uuid
+                if expense['local_uuid']:
+                    if expense['local_uuid'] in seen_uuids:
+                        is_duplicate = True
+                    else:
+                        seen_uuids.add(expense['local_uuid'])
+                
+                # Verificar duplicado por local_expense_id
+                if expense['local_expense_id']:
+                    if expense['local_expense_id'] in seen_local_ids:
+                        is_duplicate = True
+                    else:
+                        seen_local_ids.add(expense['local_expense_id'])
+                
+                # Si es duplicado, agregar a lista para eliminar (mantener el más reciente)
+                if is_duplicate:
+                    duplicates_to_delete.append(expense['id'])
+            
+            # Eliminar duplicados
+            deleted_count = 0
+            if duplicates_to_delete:
+                with connections['remote'].cursor() as cursor:
+                    # Marcar como inactivos en lugar de eliminar físicamente
+                    placeholders = ','.join(['%s'] * len(duplicates_to_delete))
+                    cursor.execute(f"""
+                        UPDATE erp_expense 
+                        SET is_active = FALSE, 
+                            synced_to_server = FALSE 
+                        WHERE id IN ({placeholders})
+                    """, duplicates_to_delete)
+                    deleted_count = cursor.rowcount
+                
+                return {
+                    'success': True,
+                    'message': f'Se han eliminado {deleted_count} gastos duplicados',
+                    'deleted_count': deleted_count
+                }
+            else:
+                return {
+                    'success': True,
+                    'message': 'No se encontraron gastos duplicados',
+                    'deleted_count': 0
+                }
+                
+        except Exception as e:
+            return {'error': f'Error al eliminar duplicados: {str(e)}'}
+
     def get_queryset(self):
         qs = super().get_queryset()
+        
+        # Excluir gastos inactivos para evitar mostrar duplicados
+        qs = qs.filter(is_active=True)
         
         # Apply date range filters
         start_date = self.request.GET.get('start_date')
@@ -541,6 +639,10 @@ class ExpenseListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListV
             active_cid = self.request.session.get('company_id') or getattr(self.request.user, 'company_id', None)
             if active_cid:
                 qs = qs.filter(company_id=active_cid)
+        
+        # Ordenar para mostrar los más recientes primero
+        qs = qs.order_by('-date', '-id')
+        
         return qs
 
     def get_context_data(self, **kwargs):

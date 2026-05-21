@@ -6,6 +6,9 @@
     <div class="d-flex justify-content-between align-items-center mb-2">
       <h3 class="mb-0">{{ title }}</h3>
       <div class="d-flex gap-2">
+        <button type="button" class="btn btn-warning" onclick="deleteDuplicateExpenses()">
+          <i class="fas fa-trash-alt mr-1"></i> Eliminar Duplicados
+        </button>
         <a href="{% url 'erp:expense_export' %}?format=pdf{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}" class="btn btn-danger">
           <i class="fas fa-file-pdf mr-1"></i> Exportar PDF
         </a>
@@ -98,4 +101,64 @@
 
   </div>
 </div>
+
+<script>
+function deleteDuplicateExpenses() {
+    if (!confirm('¿Está seguro que desea eliminar los gastos duplicados de la base de datos remota?\n\nEsta acción marcará los duplicados como inactivos y no se eliminarán físicamente.')) {
+        return;
+    }
+    
+    // Mostrar loading
+    const btn = event.target;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Eliminando...';
+    btn.disabled = true;
+    
+    // Enviar solicitud AJAX
+    fetch('.', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: 'action=delete_duplicates'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message || 'Operación completada');
+            // Recargar la página para mostrar los cambios
+            location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Ha ocurrido un error desconocido'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error de conexión. Por favor, inténtelo nuevamente.');
+    })
+    .finally(() => {
+        // Restaurar botón
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    });
+}
+
+// Función para obtener CSRF token
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
+
 {% endblock %}
