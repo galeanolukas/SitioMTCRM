@@ -18,7 +18,7 @@ function format(d) {
         html += '<td>' + value.prod.cat.name + '</td>';
         html += '<td>$' + (parseFloat(value.prod.pvp) || 0).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</td>';
         html += '<td>$' + (parseFloat(value.prod.pvp_with_iva) || 0).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</td>';
-        html += '<td>' + value.cant + '</td>';
+        html += '<td>' + (parseInt(value.cant) || 0) + '</td>';
         html += '<td>$' + (parseFloat(value.subtotal) || 0).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</td>';
         html += '<td>$' + (parseFloat(value.iva_amount) || 0).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</td>';
         html += '</tr>';
@@ -283,7 +283,10 @@ $(function () {
                     },
                     { 
                         "data": "cant",
-                        "class": "text-center"
+                        "class": "text-center",
+                        "render": function(data, type, row) {
+                            return parseInt(data) || 0;
+                        }
                     },
                     { 
                         "data": "subtotal",
