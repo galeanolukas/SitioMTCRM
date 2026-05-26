@@ -1337,6 +1337,7 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                             prod.pvp_final = pvp_final
                         prod.unit = unit
                         prod.stock = stock
+                        prod.stock_modified_locally = timezone.now()  # Marcar modificación de stock
                         if company_id:
                             prod.company_id = company_id
                         elif not prod.company_id and hasattr(request.user, 'company') and request.user.company:

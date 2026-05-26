@@ -331,6 +331,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         if prod and getattr(prod, 'track_stock', True):
                             Product.objects.filter(pk=det.prod_id).update(
                                 stock=F('stock') - cant,
+                                stock_modified_locally=timezone.now(),  # Marcar modificación de stock
                                 synced_to_server=False  # Marcar para sincronizar
                             )
                     data = {'id': sale.id}
@@ -412,6 +413,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         if prod and getattr(prod, 'track_stock', True):
                             Product.objects.filter(pk=det.prod_id).update(
                                 stock=F('stock') - cant,
+                                stock_modified_locally=timezone.now(),  # Marcar modificación de stock
                                 synced_to_server=False  # Marcar para sincronizar
                             )
                     data = {'id': sale.id, 'invoice_url': reverse_lazy('erp:invoice_pdf', kwargs={'pk': sale.id})}
@@ -469,6 +471,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         if getattr(prod, 'track_stock', True):
                             Product.objects.filter(pk=prod.id).update(
                                 stock=F('stock') - cant,
+                                stock_modified_locally=timezone.now(),  # Marcar modificación de stock
                                 synced_to_server=False  # Marcar para sincronizar
                             )
 
@@ -560,6 +563,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         if getattr(prod, 'track_stock', True):
                             Product.objects.filter(pk=det.prod_id).update(
                                 stock=F('stock') - cant,
+                                stock_modified_locally=timezone.now(),  # Marcar modificación de stock
                                 synced_to_server=False  # Marcar para sincronizar
                             )
                     data = {'id': emp_sale.id, 'message': 'Venta por cuenta corriente registrada correctamente'}
@@ -795,6 +799,7 @@ class SaleUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Update
                     for d in sale.detsale_set.all():
                         Product.objects.filter(pk=d.prod_id).update(
                             stock=F('stock') + d.cant,
+                            stock_modified_locally=timezone.now(),  # Marcar modificación de stock
                             synced_to_server=False  # Marcar para sincronizar
                         )
                     sale.detsale_set.all().delete()
@@ -822,6 +827,7 @@ class SaleUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Update
                         det.save()
                         Product.objects.filter(pk=det.prod_id).update(
                             stock=F('stock') - cant,
+                            stock_modified_locally=timezone.now(),  # Marcar modificación de stock
                             synced_to_server=False  # Marcar para sincronizar
                         )
                 
@@ -1167,6 +1173,7 @@ class InvoiceCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Cre
                         det.save()
                         Product.objects.filter(pk=det.prod_id).update(
                             stock=F('stock') - det.cant,
+                            stock_modified_locally=timezone.now(),  # Marcar modificación de stock
                             synced_to_server=False  # Marcar para sincronizar
                         )
             else:
@@ -1322,6 +1329,7 @@ def sync_sales_api(request):
                     if prod and getattr(prod, 'track_stock', True):
                         Product.objects.filter(pk=prod_id).update(
                             stock=F('stock') - cant,
+                            stock_modified_locally=timezone.now(),  # Marcar modificación de stock
                             synced_to_server=False  # Marcar para sincronizar
                         )
 
@@ -1525,6 +1533,7 @@ class EmployeeAccountListView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                                 for detail in sale.detsale_set.all():
                                     Product.objects.filter(pk=detail.prod_id).update(
                                         stock=F('stock') + detail.cant,
+                                        stock_modified_locally=timezone.now(),  # Marcar modificación de stock
                                         synced_to_server=False
                                     )
                                 # Eliminar la venta y sus detalles
@@ -1559,6 +1568,7 @@ class EmployeeAccountListView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                     for detail in account.detemployeeaccount_set.all():
                         Product.objects.filter(pk=detail.prod_id).update(
                             stock=F('stock') + detail.cant,
+                            stock_modified_locally=timezone.now(),  # Marcar modificación de stock
                             synced_to_server=False
                         )
                     account.delete()

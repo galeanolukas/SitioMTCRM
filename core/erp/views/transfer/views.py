@@ -248,6 +248,7 @@ class TransferCreateView(LoginRequiredMixin, View):
                                         
                                         # Descontar stock del origen
                                         product.stock -= quantity
+                                        product.stock_modified_locally = timezone.now()  # Marcar modificación de stock
                                         product.synced_to_server = False  # Marcar para sincronizar
                                         product.save()
                                         
@@ -260,6 +261,7 @@ class TransferCreateView(LoginRequiredMixin, View):
                                         if dest_product:
                                             # Si existe, aumentar stock
                                             dest_product.stock += quantity
+                                            dest_product.stock_modified_locally = timezone.now()  # Marcar modificación de stock
                                             dest_product.synced_to_server = False  # Marcar para sincronizar
                                             dest_product.save()
                                         else:
@@ -331,6 +333,7 @@ class TransferReceiveView(LoginRequiredMixin, View):
                     for detail in transfer.details.all():
                         product = detail.product
                         product.stock += detail.quantity
+                        product.stock_modified_locally = timezone.now()  # Marcar modificación de stock
                         product.synced_to_server = False  # Marcar para sincronizar
                         product.save()
                     
@@ -353,6 +356,7 @@ class TransferReceiveView(LoginRequiredMixin, View):
                         for detail in transfer.details.all():
                             product = detail.product
                             product.stock += detail.quantity
+                            product.stock_modified_locally = timezone.now()  # Marcar modificación de stock
                             product.synced_to_server = False  # Marcar para sincronizar
                             product.save()
                     

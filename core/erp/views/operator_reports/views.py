@@ -144,7 +144,7 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                             'error': f'Error al procesar productos: {str(e)}'
                         }
                 else:
-                    # Calculate totals (formato original por método de pago)
+                    # Calculate totals (formato por método de pago agrupado por producto)
                     total_sales = sales.aggregate(
                         total=Sum('total'),
                         subtotal=Sum('subtotal'),
@@ -178,29 +178,83 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                             'count': method_total['count'] or 0
                         }
                     
-                    # Prepare data for response
-                    sales_data = []
-                    for sale in sales:
-                        # Get invoice/ticket number
-                        if sale.is_invoiced:
-                            ticket_number = sale.invoice_number
-                        else:
-                            # Usar siempre el ID local para mantener consistencia
-                            if hasattr(sale, 'local_sale_id') and sale.local_sale_id:
-                                ticket_number = f"TK-{sale.local_sale_id:06d}"
-                            else:
-                                ticket_number = f"TK-{sale.id:06d}"
+                    # Agrupar datos por producto y categoría
+                    from django.db.models import Avg
+                    from collections import defaultdict
+                    
+                    product_data = defaultdict(lambda: {
+                        'product_name': '',
+                        'category_name': '',
+                        'quantity': 0.0,
+                        'cash': 0.0,
+                        'mp': 0.0,
+                        'transfer': 0.0,
+                        'other': 0.0,
+                        'total': 0.0
+                    })
+                    
+                    # Obtener detalles de venta con información de producto y categoría
+                    det_sales = DetSale.objects.filter(sale__in=sales).select_related('prod', 'prod__cat', 'sale')
+                    
+                    for det in det_sales:
+                        product_key = det.prod.id
+                        product_data[product_key]['product_name'] = det.prod.name
+                        product_data[product_key]['category_name'] = det.prod.cat.name if det.prod.cat else 'Sin categoría'
+                        product_data[product_key]['quantity'] += float(det.cant)
                         
-                        sales_data.append({
-                            'id': sale.id,
-                            'date': sale.date_joined.strftime('%d/%m/%Y %H:%M'),
-                            'client': sale.cli.names if sale.cli else 'Anónimo',
-                            'subtotal': float(sale.subtotal),  # PVP puro sin IVA
-                            'payment_method': sale.payment_method,  # Enviar el código, no el display
-                            'payment_details': getattr(sale, 'payment_details', []),  # Enviar detalles si existen
-                            'company': sale.company.name if sale.company else 'N/A',
-                            'ticket_number': ticket_number
-                        })
+                        # Distribuir el subtotal según método de pago de la venta
+                        subtotal = float(det.subtotal)
+                        payment_method = det.sale.payment_method
+                        payment_details = getattr(det.sale, 'payment_details', [])
+                        
+                        cash_amount = 0.0
+                        mp_amount = 0.0
+                        transfer_amount = 0.0
+                        other_amount = 0.0
+                        
+                        if payment_method == 'cash':
+                            cash_amount = subtotal
+                        elif payment_method == 'mp':
+                            mp_amount = subtotal
+                        elif payment_method == 'transfer':
+                            transfer_amount = subtotal
+                        elif payment_method in ['card', 'check']:
+                            other_amount = subtotal
+                        elif payment_method and '+' in payment_method:
+                            # Pagos combinados
+                            if payment_details and isinstance(payment_details, list):
+                                for payment in payment_details:
+                                    if isinstance(payment, dict):
+                                        method = payment.get('method', '')
+                                        amount = float(payment.get('amount', 0))
+                                        
+                                        if method == 'cash':
+                                            cash_amount += amount
+                                        elif method == 'mp':
+                                            mp_amount += amount
+                                        elif method == 'transfer':
+                                            transfer_amount += amount
+                                        elif method in ['card', 'check']:
+                                            other_amount += amount
+                                        else:
+                                            other_amount += amount
+                            else:
+                                other_amount = subtotal
+                        else:
+                            other_amount = subtotal
+                        
+                        product_data[product_key]['cash'] += cash_amount
+                        product_data[product_key]['mp'] += mp_amount
+                        product_data[product_key]['transfer'] += transfer_amount
+                        product_data[product_key]['other'] += other_amount
+                        product_data[product_key]['total'] += subtotal
+                    
+                    # Convertir a lista ordenada por total
+                    products_list = sorted(
+                        product_data.values(),
+                        key=lambda x: x['total'],
+                        reverse=True
+                    )
                     
                     # Calcular totales generales usando subtotal (PVP puro)
                     grand_total = sum(float(sale.subtotal) for sale in sales)
@@ -208,7 +262,7 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                     data = {
                         'success': True,
                         'report_format': 'payment',
-                        'sales': sales_data,
+                        'products': products_list,
                         'total_amount': grand_total,
                         'total_count': total_sales['count'] or 0,
                         'payment_totals': payment_totals,
@@ -876,10 +930,10 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
         # Para pagos combinados, solo mostrar el monto sin descripción
         return f"${amount:,.2f}"
     
-    # Sales table with payment method columns (no Total column)
-    headers = ['Producto', 'Efectivo', 'Mercado Pago', 'Transferencias', 'Otros']
+    # Sales table with payment method columns grouped by product
+    headers = ['Producto', 'Cantidad', 'Efectivo', 'Mercado Pago', 'Transferencias', 'Otros', 'Total']
     
-    # Table data with payment distribution
+    # Table data with payment distribution grouped by product
     table_data = [headers]
     
     # Initialize totals
@@ -888,45 +942,50 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
     transfer_total = 0
     other_total = 0
     
-    for sale in sales:
-        sale_subtotal = float(sale.subtotal)  # Usar PVP puro sin IVA
+    # Agrupar datos por producto y categoría (misma lógica que en el backend HTML)
+    from collections import defaultdict
+    from core.erp.models import DetSale
+    
+    product_data = defaultdict(lambda: {
+        'product_name': '',
+        'category_name': '',
+        'quantity': 0.0,
+        'cash': 0.0,
+        'mp': 0.0,
+        'transfer': 0.0,
+        'other': 0.0,
+        'total': 0.0
+    })
+    
+    # Obtener detalles de venta con información de producto y categoría
+    det_sales = DetSale.objects.filter(sale__in=sales).select_related('prod', 'prod__cat', 'sale')
+    
+    for det in det_sales:
+        product_key = det.prod.id
+        product_data[product_key]['product_name'] = det.prod.name
+        product_data[product_key]['category_name'] = det.prod.cat.name if det.prod.cat else 'Sin categoría'
+        product_data[product_key]['quantity'] += float(det.cant)
         
-        # Get product names from sale details with 30 character limit and line breaks
-        product_names = [det.prod.name for det in sale.detsale_set.all()]
+        # Distribuir el subtotal según método de pago de la venta
+        subtotal = float(det.subtotal)
+        payment_method = det.sale.payment_method
+        payment_details = getattr(det.sale, 'payment_details', [])
         
-        # Function to format product name with 30 char limit and line breaks
-        def format_product_name(name):
-            if len(name) <= 30:
-                return name
-            # Split into chunks of 30 characters
-            chunks = [name[i:i+30] for i in range(0, len(name), 30)]
-            return '\n'.join(chunks)
+        cash_amount = 0.0
+        mp_amount = 0.0
+        transfer_amount = 0.0
+        other_amount = 0.0
         
-        # Format each product name
-        formatted_names = [format_product_name(name) for name in product_names]
-        products_text = '\n'.join(formatted_names) if formatted_names else "Sin productos"
-        
-        # Distribute amount by payment method
-        cash_amount = 0
-        mp_amount = 0
-        transfer_amount = 0
-        other_amount = 0
-        
-        if sale.payment_method == 'cash':
-            cash_amount = sale_subtotal
-            cash_total += cash_amount
-        elif sale.payment_method == 'mp':
-            mp_amount = sale_subtotal
-            mp_total += mp_amount
-        elif sale.payment_method == 'transfer':
-            transfer_amount = sale_subtotal
-            transfer_total += transfer_amount
-        elif sale.payment_method in ['card', 'check']:
-            other_amount = sale_subtotal
-            other_total += other_amount
-        elif sale.payment_method and '+' in sale.payment_method:
-            # Combined payments
-            payment_details = getattr(sale, 'payment_details', [])
+        if payment_method == 'cash':
+            cash_amount = subtotal
+        elif payment_method == 'mp':
+            mp_amount = subtotal
+        elif payment_method == 'transfer':
+            transfer_amount = subtotal
+        elif payment_method in ['card', 'check']:
+            other_amount = subtotal
+        elif payment_method and '+' in payment_method:
+            # Pagos combinados
             if payment_details and isinstance(payment_details, list):
                 for payment in payment_details:
                     if isinstance(payment, dict):
@@ -935,59 +994,69 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
                         
                         if method == 'cash':
                             cash_amount += amount
-                            cash_total += amount
                         elif method == 'mp':
                             mp_amount += amount
-                            mp_total += amount
                         elif method == 'transfer':
                             transfer_amount += amount
-                            transfer_total += amount
                         elif method in ['card', 'check']:
                             other_amount += amount
-                            other_total += amount
                         else:
-                            # Método no reconocido, agregar a otros
                             other_amount += amount
-                            other_total += amount
             else:
-                # If no details or invalid format, put in others
-                other_amount = sale_subtotal
-                other_total += other_amount
+                other_amount = subtotal
         else:
-            # Unrecognized method, put in others
-            other_amount = sale_subtotal
-            other_total += other_amount
+            other_amount = subtotal
+        
+        product_data[product_key]['cash'] += cash_amount
+        product_data[product_key]['mp'] += mp_amount
+        product_data[product_key]['transfer'] += transfer_amount
+        product_data[product_key]['other'] += other_amount
+        product_data[product_key]['total'] += subtotal
+    
+    # Convertir a lista ordenada por total
+    products_list = sorted(
+        product_data.values(),
+        key=lambda x: x['total'],
+        reverse=True
+    )
+    
+    # Agregar filas de productos a la tabla
+    for product in products_list:
+        cash_total += product['cash']
+        mp_total += product['mp']
+        transfer_total += product['transfer']
+        other_total += product['other']
+        
+        # Formatear cantidad como entero
+        quantity_str = f"{int(product['quantity'])}" if product['quantity'] == int(product['quantity']) else f"{product['quantity']:.2f}"
+        
+        # Usar Paragraph para el nombre del producto con word wrapping
+        product_paragraph = Paragraph(product['product_name'], normal_style)
         
         table_data.append([
-            products_text,
-            format_currency(cash_amount),
-            format_currency(mp_amount),
-            format_currency(transfer_amount),
-            format_currency(other_amount)
+            product_paragraph,
+            quantity_str,
+            format_currency(product['cash']),
+            format_currency(product['mp']),
+            format_currency(product['transfer']),
+            format_currency(product['other']),
+            format_currency(product['total'])
         ])
     
     # Add summary row
     table_data.append([
         'Resumen',
+        '',
         format_currency(cash_total),
         format_currency(mp_total),
         format_currency(transfer_total),
-        format_currency(other_total)
+        format_currency(other_total),
+        format_currency(cash_total + mp_total + transfer_total + other_total)
     ])
     
-    # Add grand total row - igual que en el template HTML (colspan=4)
-    grand_total = cash_total + mp_total + transfer_total + other_total
-    table_data.append([
-        'Total General',
-        '',  # Efectivo vacío
-        '',  # Mercado Pago vacío
-        '',  # Transferencias vacío
-        format_currency(grand_total)  # Total en la última columna
-    ])
-    
-    # Create table with optimized column widths for A4 (primera columna más ancha para nombres de productos)
-    # Aumentar el ancho de la primera columna para acomodar múltiples líneas de nombres de productos
-    sales_table = Table(table_data, colWidths=[2.5*inch, 1.0*inch, 1.0*inch, 1.0*inch, 1.0*inch])
+    # Create table with optimized column widths for A4 (7 columnas: Producto, Cantidad, Efectivo, MP, Transfer, Otros, Total)
+    # Reducido ancho de Producto a 1.8" para forzar word wrapping
+    sales_table = Table(table_data, colWidths=[1.8*inch, 0.8*inch, 0.9*inch, 0.9*inch, 0.9*inch, 0.9*inch, 0.9*inch])
     sales_table.setStyle(TableStyle([
         # Header styling
         ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
