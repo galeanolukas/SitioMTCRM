@@ -1077,8 +1077,8 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
     ])
     
     # Create table with optimized column widths for A4 (7 columnas: Producto, Cantidad, Efectivo, MP, Transfer, Otros, Total)
-    # Reducido ancho de Producto a 1.8" para forzar word wrapping
-    sales_table = Table(table_data, colWidths=[1.8*inch, 0.8*inch, 0.9*inch, 0.9*inch, 0.9*inch, 0.9*inch, 0.9*inch])
+    # Aumentado ancho de columnas de montos para que entren los importes formateados
+    sales_table = Table(table_data, colWidths=[1.6*inch, 0.7*inch, 1.0*inch, 1.0*inch, 1.0*inch, 1.0*inch, 1.0*inch])
     sales_table.setStyle(TableStyle([
         # Header styling
         ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
