@@ -206,6 +206,7 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                         subtotal = float(det.subtotal)
                         payment_method = det.sale.payment_method
                         payment_details = getattr(det.sale, 'payment_details', [])
+                        sale_total = float(det.sale.total)
                         
                         cash_amount = 0.0
                         mp_amount = 0.0
@@ -221,23 +222,28 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                         elif payment_method in ['card', 'check']:
                             other_amount = subtotal
                         elif payment_method and '+' in payment_method:
-                            # Pagos combinados
-                            if payment_details and isinstance(payment_details, list):
+                            # Pagos combinados - distribuir proporcionalmente
+                            if payment_details and isinstance(payment_details, list) and sale_total > 0:
+                                # Calcular proporción de cada método de pago
                                 for payment in payment_details:
                                     if isinstance(payment, dict):
                                         method = payment.get('method', '')
                                         amount = float(payment.get('amount', 0))
+                                        # Proporción de este método sobre el total de la venta
+                                        proportion = amount / sale_total
+                                        # Aplicar proporción al subtotal del detalle
+                                        detail_amount = subtotal * proportion
                                         
                                         if method == 'cash':
-                                            cash_amount += amount
+                                            cash_amount += detail_amount
                                         elif method == 'mp':
-                                            mp_amount += amount
+                                            mp_amount += detail_amount
                                         elif method == 'transfer':
-                                            transfer_amount += amount
+                                            transfer_amount += detail_amount
                                         elif method in ['card', 'check']:
-                                            other_amount += amount
+                                            other_amount += detail_amount
                                         else:
-                                            other_amount += amount
+                                            other_amount += detail_amount
                             else:
                                 other_amount = subtotal
                         else:
@@ -459,30 +465,35 @@ def operator_sales_export(request):
                     other_amount = sale_subtotal
                     other_total += other_amount
                 elif sale.payment_method and '+' in sale.payment_method:
-                    # Combined payments
+                    # Combined payments - distribuir proporcionalmente
                     payment_details = getattr(sale, 'payment_details', [])
-                    if payment_details and isinstance(payment_details, list):
+                    sale_total = float(sale.total)
+                    if payment_details and isinstance(payment_details, list) and sale_total > 0:
                         for payment in payment_details:
                             if isinstance(payment, dict):
                                 method = payment.get('method', '')
                                 amount = float(payment.get('amount', 0))
+                                # Proporción de este método sobre el total de la venta
+                                proportion = amount / sale_total
+                                # Aplicar proporción al subtotal de la venta
+                                detail_amount = sale_subtotal * proportion
                                 
                                 if method == 'cash':
-                                    cash_amount += amount
-                                    cash_total += amount
+                                    cash_amount += detail_amount
+                                    cash_total += detail_amount
                                 elif method == 'mp':
-                                    mp_amount += amount
-                                    mp_total += amount
+                                    mp_amount += detail_amount
+                                    mp_total += detail_amount
                                 elif method == 'transfer':
-                                    transfer_amount += amount
-                                    transfer_total += amount
+                                    transfer_amount += detail_amount
+                                    transfer_total += detail_amount
                                 elif method in ['card', 'check']:
-                                    other_amount += amount
-                                    other_total += amount
+                                    other_amount += detail_amount
+                                    other_total += detail_amount
                                 else:
                                     # Método no reconocido, agregar a otros
-                                    other_amount += amount
-                                    other_total += amount
+                                    other_amount += detail_amount
+                                    other_total += detail_amount
                     else:
                         # If no details or invalid format, put in others
                         other_amount = sale_subtotal
@@ -644,30 +655,35 @@ def operator_sales_export(request):
                     other_amount = sale_subtotal
                     other_total += other_amount
                 elif sale.payment_method and '+' in sale.payment_method:
-                    # Combined payments
+                    # Combined payments - distribuir proporcionalmente
                     payment_details = getattr(sale, 'payment_details', [])
-                    if payment_details and isinstance(payment_details, list):
+                    sale_total = float(sale.total)
+                    if payment_details and isinstance(payment_details, list) and sale_total > 0:
                         for payment in payment_details:
                             if isinstance(payment, dict):
                                 method = payment.get('method', '')
                                 amount = float(payment.get('amount', 0))
+                                # Proporción de este método sobre el total de la venta
+                                proportion = amount / sale_total
+                                # Aplicar proporción al subtotal de la venta
+                                detail_amount = sale_subtotal * proportion
                                 
                                 if method == 'cash':
-                                    cash_amount += amount
-                                    cash_total += amount
+                                    cash_amount += detail_amount
+                                    cash_total += detail_amount
                                 elif method == 'mp':
-                                    mp_amount += amount
-                                    mp_total += amount
+                                    mp_amount += detail_amount
+                                    mp_total += detail_amount
                                 elif method == 'transfer':
-                                    transfer_amount += amount
-                                    transfer_total += amount
+                                    transfer_amount += detail_amount
+                                    transfer_total += detail_amount
                                 elif method in ['card', 'check']:
-                                    other_amount += amount
-                                    other_total += amount
+                                    other_amount += detail_amount
+                                    other_total += detail_amount
                                 else:
                                     # Método no reconocido, agregar a otros
-                                    other_amount += amount
-                                    other_total += amount
+                                    other_amount += detail_amount
+                                    other_total += detail_amount
                     else:
                         # If no details or invalid format, put in others
                         other_amount = sale_subtotal
@@ -970,6 +986,7 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
         subtotal = float(det.subtotal)
         payment_method = det.sale.payment_method
         payment_details = getattr(det.sale, 'payment_details', [])
+        sale_total = float(det.sale.total)
         
         cash_amount = 0.0
         mp_amount = 0.0
@@ -985,23 +1002,28 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
         elif payment_method in ['card', 'check']:
             other_amount = subtotal
         elif payment_method and '+' in payment_method:
-            # Pagos combinados
-            if payment_details and isinstance(payment_details, list):
+            # Pagos combinados - distribuir proporcionalmente
+            if payment_details and isinstance(payment_details, list) and sale_total > 0:
+                # Calcular proporción de cada método de pago
                 for payment in payment_details:
                     if isinstance(payment, dict):
                         method = payment.get('method', '')
                         amount = float(payment.get('amount', 0))
+                        # Proporción de este método sobre el total de la venta
+                        proportion = amount / sale_total
+                        # Aplicar proporción al subtotal del detalle
+                        detail_amount = subtotal * proportion
                         
                         if method == 'cash':
-                            cash_amount += amount
+                            cash_amount += detail_amount
                         elif method == 'mp':
-                            mp_amount += amount
+                            mp_amount += detail_amount
                         elif method == 'transfer':
-                            transfer_amount += amount
+                            transfer_amount += detail_amount
                         elif method in ['card', 'check']:
-                            other_amount += amount
+                            other_amount += detail_amount
                         else:
-                            other_amount += amount
+                            other_amount += detail_amount
             else:
                 other_amount = subtotal
         else:
