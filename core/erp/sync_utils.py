@@ -67,36 +67,44 @@ def run_full_sync():
     
     # 1) PRIMERO: Sincronizar empresas (base para usuarios)
     logger.info("🏢 PASO 1/10: Sincronizando empresas (base para usuarios)...")
-    try:
-        # Contar empresas antes
-        from core.erp.models import Company
-        sync_stats['empresas']['before'] = Company.objects.count()
-        
-        call_command("sync_companies_from_remote_to_local")
-        sync_stats['empresas']['after'] = Company.objects.count()
-        sync_stats['empresas']['synced'] = sync_stats['empresas']['after'] - sync_stats['empresas']['before']
-        
-        logger.info(f"✅ Empresas sincronizadas: {sync_stats['empresas']['synced']} nuevas (total: {sync_stats['empresas']['after']})")
-    except Exception as e:
-        logger.error(f"Error en sincronización de empresas: {e}")
-        errors.append(f"sync_companies_from_remote_to_local: {e}")
+    if _can_reach_remote_db():
+        try:
+            # Contar empresas antes
+            from core.erp.models import Company
+            sync_stats['empresas']['before'] = Company.objects.count()
+            
+            call_command("sync_companies_from_remote_to_local")
+            sync_stats['empresas']['after'] = Company.objects.count()
+            sync_stats['empresas']['synced'] = sync_stats['empresas']['after'] - sync_stats['empresas']['before']
+            
+            logger.info(f"✅ Empresas sincronizadas: {sync_stats['empresas']['synced']} nuevas (total: {sync_stats['empresas']['after']})")
+        except Exception as e:
+            logger.error(f"Error en sincronización de empresas: {e}")
+            errors.append(f"sync_companies_from_remote_to_local: {e}")
+    else:
+        logger.warning("Sin conexión remota - omitiendo sincronización de empresas")
+        errors.append("Sin conexión remota - omitiendo sincronización de empresas")
     
     # 2) SEGUNDO: Sincronizar usuarios (dependen de empresas)
     logger.info("👥 PASO 2/10: Sincronizando usuarios (dependen de empresas)...")
-    try:
-        # Contar usuarios antes
-        from django.contrib.auth import get_user_model
-        User = get_user_model()
-        sync_stats['usuarios']['before'] = User.objects.count()
-        
-        call_command("sync_users_safe")
-        sync_stats['usuarios']['after'] = User.objects.count()
-        sync_stats['usuarios']['synced'] = sync_stats['usuarios']['after'] - sync_stats['usuarios']['before']
-        
-        logger.info(f"✅ Usuarios sincronizados: {sync_stats['usuarios']['synced']} cambios (total: {sync_stats['usuarios']['after']})")
-    except Exception as e:
-        logger.error(f"Error en sincronización de usuarios: {e}")
-        errors.append(f"sync_users_safe: {e}")
+    if _can_reach_remote_db():
+        try:
+            # Contar usuarios antes
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            sync_stats['usuarios']['before'] = User.objects.count()
+            
+            call_command("sync_users_safe")
+            sync_stats['usuarios']['after'] = User.objects.count()
+            sync_stats['usuarios']['synced'] = sync_stats['usuarios']['after'] - sync_stats['usuarios']['before']
+            
+            logger.info(f"✅ Usuarios sincronizados: {sync_stats['usuarios']['synced']} cambios (total: {sync_stats['usuarios']['after']})")
+        except Exception as e:
+            logger.error(f"Error en sincronización de usuarios: {e}")
+            errors.append(f"sync_users_safe: {e}")
+    else:
+        logger.warning("Sin conexión remota - omitiendo sincronización de usuarios")
+        errors.append("Sin conexión remota - omitiendo sincronización de usuarios")
 
     # 3) TERCERO: Sincronizar el resto de datos (productos, categorías, ventas, etc.)
     logger.info("📦 PASO 3/10: Sincronizando resto de datos...")

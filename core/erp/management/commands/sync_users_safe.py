@@ -2,8 +2,9 @@ from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
 from core.erp.models import Company
-from django.db import connections
+from django.db import connections, OperationalError
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -111,20 +112,17 @@ class Command(BaseCommand):
                 self.stdout.write(f"Grupos encontrados en servidor: {len(grupos_servidor)}")
                 
                 for grupo_id, grupo_name in grupos_servidor:
-                    try:
-                        # Verificar si el grupo existe localmente
-                        grupo_local = Group.objects.get(id=grupo_id)
-                        
-                        # Actualizar nombre si es diferente
-                        if grupo_local.name != grupo_name:
-                            if not dry_run:
-                                grupo_local.name = grupo_name
-                                grupo_local.save()
-                            
-                    except Group.DoesNotExist:
-                        # Crear grupo localmente
+                    # Usar get_or_create para evitar problemas de concurrencia
+                    grupo_local, created = Group.objects.get_or_create(
+                        id=grupo_id,
+                        defaults={'name': grupo_name}
+                    )
+                    
+                    # Actualizar nombre si es diferente
+                    if not created and grupo_local.name != grupo_name:
                         if not dry_run:
-                            grupo_local = Group.objects.create(id=grupo_id, name=grupo_name)
+                            grupo_local.name = grupo_name
+                            grupo_local.save()
                 
                 # Sincronizar permisos de grupos
                 self.sync_group_permissions(grupos_servidor, dry_run)

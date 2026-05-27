@@ -621,11 +621,11 @@
           if (modalEl) {
             const modal = new bootstrap.Modal(modalEl);
             modal.show();
+            // Recargar página después de que el modal se cierre
+            modalEl.addEventListener('hidden.bs.modal', function () {
+              window.location.reload();
+            }, { once: true });
           }
-          // Recargar página después de venta exitosa
-          setTimeout(() => {
-            window.location.reload();
-          }, 2000);
         }
         $('#btnClear').trigger('click');
       })
@@ -661,11 +661,11 @@
           if (modalEl) {
             const modal = new bootstrap.Modal(modalEl);
             modal.show();
+            // Recargar página después de que el modal se cierre
+            modalEl.addEventListener('hidden.bs.modal', function () {
+              window.location.reload();
+            }, { once: true });
           }
-          // Recargar página después de generar factura
-          setTimeout(() => {
-            window.location.reload();
-          }, 2000);
           $('#btnClear').trigger('click');
         }
       })
@@ -721,6 +721,9 @@
   function updateCombinedTotals() {
     const wantsInvoice = $('#combinedInvoice').is(':checked');
     
+    console.log('updateCombinedTotals - items:', items);
+    console.log('updateCombinedTotals - items.length:', items.length);
+    
     if (wantsInvoice) {
       // Para facturas, recalcular con IVA al 21%
       let subtotal = 0;
@@ -738,12 +741,21 @@
       
       const total = subtotal + iva;
       
+      console.log('Factura - subtotal:', subtotal, 'iva:', iva, 'total:', total);
+      
       $('#combinedSubtotalAmount').text(fmt(subtotal));
       $('#combinedIvaAmount').text(fmt(iva));
       $('#combinedTotalAmount').text(fmt(total));
     } else {
-      // Para tickets, usar los valores actuales del POS (sin IVA)
-      const subtotal = parseFloat($tSubtotal.text().replace('$', '').replace(/,/g, '')) || 0;
+      // Para tickets, calcular desde los items (sin IVA)
+      let subtotal = 0;
+      items.forEach(it => {
+        const price = parseFloat(it.price) || 0;
+        const cant = parseFloat(it.cant) || 0;
+        subtotal += price * cant;
+      });
+      
+      console.log('Ticket - subtotal:', subtotal);
       
       $('#combinedSubtotalAmount').text(fmt(subtotal));
       $('#combinedIvaAmount').text(fmt(0));
@@ -932,10 +944,11 @@
             if (modalEl) {
               const modal = new bootstrap.Modal(modalEl);
               modal.show();
+              // Recargar página después de que el modal se cierre
+              modalEl.addEventListener('hidden.bs.modal', function () {
+                window.location.reload();
+              }, { once: true });
             }
-            setTimeout(() => {
-              window.location.reload();
-            }, 2000);
           }
           $('#btnClear').trigger('click');
         })
