@@ -1067,7 +1067,7 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
             format_currency(product['total'])
         ])
     
-    # Add summary row
+    # Add summary row (gray background) - will be moved to end after grand total
     table_data.append([
         'Resumen',
         '',
@@ -1076,6 +1076,18 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
         format_currency(transfer_total),
         format_currency(other_total),
         format_currency(cash_total + mp_total + transfer_total + other_total)
+    ])
+    
+    # Add grand total row (white background) - last row
+    grand_total = cash_total + mp_total + transfer_total + other_total
+    table_data.append([
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        format_currency(grand_total)
     ])
     
     # Create table with optimized column widths for A4 (7 columnas: Producto, Cantidad, Efectivo, MP, Transfer, Otros, Total)
@@ -1093,18 +1105,18 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
         ('TOPPADDING', (0, 0), (-1, 0), 6),  # Reducido de 8 a 6
         
         # Data rows styling
-        ('BACKGROUND', (0, 1), (-1, -2), colors.white),
-        ('TEXTCOLOR', (0, 1), (-1, -2), colors.black),
-        ('ALIGN', (1, 1), (-1, -2), 'CENTER'),  # Solo columnas de montos centradas
-        ('ALIGN', (0, 1), (0, -2), 'LEFT'),       # Primera columna (productos) alineada a la izquierda
-        ('FONTNAME', (0, 1), (-1, -2), font_name),
-        ('FONTSIZE', (0, 1), (-1, -2), 9),
-        ('BOTTOMPADDING', (0, 1), (-1, -2), 4),  # Reducido de 6 a 4
-        ('TOPPADDING', (0, 1), (-1, -2), 4),  # Reducido de 6 a 4
+        ('BACKGROUND', (0, 1), (-1, -3), colors.white),
+        ('TEXTCOLOR', (0, 1), (-1, -3), colors.black),
+        ('ALIGN', (1, 1), (-1, -3), 'CENTER'),  # Solo columnas de montos centradas
+        ('ALIGN', (0, 1), (0, -3), 'LEFT'),       # Primera columna (productos) alineada a la izquierda
+        ('FONTNAME', (0, 1), (-1, -3), font_name),
+        ('FONTSIZE', (0, 1), (-1, -3), 9),
+        ('BOTTOMPADDING', (0, 1), (-1, -3), 4),  # Reducido de 6 a 4
+        ('TOPPADDING', (0, 1), (-1, -3), 4),  # Reducido de 6 a 4
         ('GRID', (0, 0), (-1, -1), 1, colors.black),
-        ('VALIGN', (0, 1), (-1, -2), 'TOP'),     # Alinear texto hacia arriba para múltiples líneas
+        ('VALIGN', (0, 1), (-1, -3), 'TOP'),     # Alinear texto hacia arriba para múltiples líneas
         
-        # Summary row styling
+        # Summary row styling (gray background) - penultimate row
         ('BACKGROUND', (0, -2), (-1, -2), colors.lightgrey),
         ('TEXTCOLOR', (0, -2), (-1, -2), colors.black),
         ('ALIGN', (0, -2), (-1, -2), 'CENTER'),
@@ -1114,7 +1126,7 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
         ('BOTTOMPADDING', (0, -2), (-1, -2), 6),  # Reducido de 8 a 6
         ('TOPPADDING', (0, -2), (-1, -2), 6),  # Reducido de 8 a 6
         
-        # Grand total row styling - fondo blanco, texto negro negrita
+        # Grand total row styling - fondo blanco, texto negro negrita (last row)
         ('BACKGROUND', (0, -1), (-1, -1), colors.white),
         ('TEXTCOLOR', (0, -1), (-1, -1), colors.black),
         ('ALIGN', (0, -1), (-1, -1), 'CENTER'),
