@@ -41,9 +41,11 @@ class CashRegisterListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
                     company_id=cr.company_id,
                 )
             else:
-                # Si está abierta, filtrar TODAS las ventas desde la fecha de apertura hasta ahora
+                # Si está abierta, filtrar ventas del día actual (usando fecha local)
+                from datetime import date
+                current_date = date.today()  # Fecha local del sistema
                 sales_qs = Sale.objects.filter(
-                    date_joined__date__gte=cr.date,  # Desde la fecha de apertura en adelante
+                    date_joined__date=current_date,  # Ventas del día actual
                     company_id=cr.company_id,
                 )
 
@@ -52,10 +54,21 @@ class CashRegisterListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
             live_transfer = sales_qs.filter(payment_method='transfer').aggregate(total=Sum('total'))['total'] or 0
             live_mp = sales_qs.filter(payment_method='mp').aggregate(total=Sum('total'))['total'] or 0
 
-            expenses_qs = Expense.objects.filter(
-                company_id=cr.company_id,
-                date=cr.date,
-            )
+            # Para cajas abiertas, incluir gastos desde la fecha de apertura hasta ahora
+            if cr.is_closed:
+                # Si está cerrada, filtrar gastos solo del día de la caja
+                expenses_qs = Expense.objects.filter(
+                    company_id=cr.company_id,
+                    date=cr.date,
+                )
+            else:
+                # Si está abierta, filtrar gastos del día actual (usando fecha local)
+                from datetime import date
+                current_date = date.today()  # Fecha local del sistema
+                expenses_qs = Expense.objects.filter(
+                    company_id=cr.company_id,
+                    date=current_date,  # Gastos del día actual
+                )
             live_expenses = expenses_qs.aggregate(total=Sum('amount'))['total'] or 0
 
             live_total_sales = live_cash + live_card + live_transfer + live_mp
@@ -106,19 +119,20 @@ class CashRegisterCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin
                     
                     # Check if cash register already exists for this company, date, and user
                     from django.utils import timezone
-                    today = timezone.now().date()
+                    # Usar fecha local del sistema, no UTC
+                    from datetime import date
+                    today_local = date.today()
                     existing = CashRegister.objects.filter(
                         company=cash_register.company,
-                        date=today,
+                        date=today_local,
                         user=cash_register.user
                     ).first()
                     
                     if existing and not existing.is_closed:
-                        data['error'] = f'Ya existe una caja abierta para {existing.user.get_full_name() or existing.user.username} en la fecha {today}. Debe cerrarla antes de abrir una nueva.'
+                        data['error'] = f'Ya existe una caja abierta para {existing.user.get_full_name() or existing.user.username} en la fecha {today_local}. Debe cerrarla antes de abrir una nueva.'
                     else:
-                        # Establecer la fecha explícitamente antes de guardar
-                        from django.utils import timezone
-                        cash_register.date = timezone.now().date()
+                        # Establecer la fecha local del sistema, no UTC
+                        cash_register.date = today_local
                         cash_register.save()
                         messages.success(request, 'Caja abierta correctamente')
                         data['success'] = True
@@ -244,11 +258,21 @@ class CashRegisterDetailView(LoginRequiredMixin, ValidatePermissionRequiredMixin
         context = super().get_context_data(**kwargs)
         cash_register = self.object
 
-        # Totales "en vivo" para la fecha y empresa de esta caja
-        sales_qs = Sale.objects.filter(
-            date_joined__date=cash_register.date,
-            company_id=cash_register.company_id,
-        )
+        # Para cajas abiertas, incluir ventas desde la fecha de apertura hasta ahora
+        if cash_register.is_closed:
+            # Si está cerrada, filtrar ventas solo del día de la caja
+            sales_qs = Sale.objects.filter(
+                date_joined__date=cash_register.date,
+                company_id=cash_register.company_id,
+            )
+        else:
+            # Si está abierta, filtrar ventas del día actual (usando fecha local)
+            from datetime import date
+            current_date = date.today()  # Fecha local del sistema
+            sales_qs = Sale.objects.filter(
+                date_joined__date=current_date,  # Ventas del día actual
+                company_id=cash_register.company_id,
+            )
 
         # Ventas por métodos simples
         dynamic_cash = sales_qs.filter(payment_method='cash').aggregate(total=Sum('total'))['total'] or 0
@@ -270,10 +294,21 @@ class CashRegisterDetailView(LoginRequiredMixin, ValidatePermissionRequiredMixin
                     dynamic_mp += payment_breakdown.get('mp', 0)
                     dynamic_check += payment_breakdown.get('check', 0)
 
-        expenses_qs = Expense.objects.filter(
-            date=cash_register.date,
-            company_id=cash_register.company_id,
-        )
+        # Para cajas abiertas, incluir gastos desde la fecha de apertura hasta ahora
+        if cash_register.is_closed:
+            # Si está cerrada, filtrar gastos solo del día de la caja
+            expenses_qs = Expense.objects.filter(
+                date=cash_register.date,
+                company_id=cash_register.company_id,
+            )
+        else:
+            # Si está abierta, filtrar gastos del día actual (usando fecha local)
+            from datetime import date
+            current_date = date.today()  # Fecha local del sistema
+            expenses_qs = Expense.objects.filter(
+                date=current_date,  # Gastos del día actual
+                company_id=cash_register.company_id,
+            )
         dynamic_expenses = expenses_qs.aggregate(total=Sum('amount'))['total'] or 0
 
         dynamic_total_sales = dynamic_cash + dynamic_card + dynamic_transfer + dynamic_mp + dynamic_check

@@ -252,11 +252,15 @@ AUTH_USER_MODEL = 'user.User'
 
 # Configuración de sesiones
 # Tiempo de expiración de la cookie de sesión (en segundos)
-# 86400 segundos = 24 horas
-SESSION_COOKIE_AGE = 86400
+# 604800 segundos = 7 días (aumentado para evitar cierre prematuro)
+SESSION_COOKIE_AGE = 604800
 
 # La sesión NO expira al cerrar el navegador
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 
 # Guardar la sesión en cada solicitud para mantenerla activa
 SESSION_SAVE_EVERY_REQUEST = True
+
+# Configuración adicional para mayor duración de sesión
+# No requerir renovación de sesión por inactividad
+SESSION_INACTIVITY_TIMEOUT = None  # Desactivado
