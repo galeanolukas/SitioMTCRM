@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.apps import apps
-from .models import Company, Product, Sale, Client, Supplier, Category
+from .models import Company, Product, Sale, Client, Supplier, Category, EmployeeAccountSale
 
 # Clase base para admin con filtrado por empresa
 class CompanyFilteredAdmin(admin.ModelAdmin):
@@ -56,6 +56,22 @@ class CategoryAdmin(CompanyFilteredAdmin):
     list_filter = ('company',)
     search_fields = ('name',)
 
+class EmployeeAccountSaleAdmin(CompanyFilteredAdmin):
+    list_display = ('employee', 'date_joined', 'total', 'is_paid', 'paid_date', 'company')
+    list_filter = ('company', 'is_paid', 'date_joined')
+    search_fields = ('employee__username', 'employee__first_name', 'employee__last_name', 'notes')
+    date_hierarchy = 'date_joined'
+    readonly_fields = ('local_uuid', 'synced_to_server')
+    
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if request.user.is_superuser:
+            return qs
+        # Usuarios normales solo ven registros de su empresa
+        if hasattr(request.user, 'company_id') and request.user.company_id:
+            return qs.filter(company_id=request.user.company_id)
+        return qs.none()
+
 # Registrar modelos principales con admin personalizado
 admin.site.register(Company, CompanyAdmin)
 admin.site.register(Product, ProductAdmin)
@@ -63,12 +79,13 @@ admin.site.register(Sale, SaleAdmin)
 admin.site.register(Client, ClientAdmin)
 admin.site.register(Supplier, SupplierAdmin)
 admin.site.register(Category, CategoryAdmin)
+admin.site.register(EmployeeAccountSale, EmployeeAccountSaleAdmin)
 
 # Obtener todos los modelos de la aplicación
 app_models = apps.get_app_config('erp').get_models()
 
 # Registrar los modelos restantes que no tienen admin personalizado
-registered_models = {Company, Product, Sale, Client, Supplier, Category}
+registered_models = {Company, Product, Sale, Client, Supplier, Category, EmployeeAccountSale}
 for model in app_models:
     if model not in registered_models:
         try:

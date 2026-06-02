@@ -4,14 +4,14 @@ REM Lanzar POS local de MultilideresCRM en Windows
 REM Ir siempre a la carpeta donde esta este script
 cd /d "%~dp0"
 
-if not exist venv\Scripts\activate.bat (
+if not exist DJENV\Scripts\activate.bat (
     echo [ERROR] Entorno virtual venv no encontrado. Cree el venv primero:
-    echo python -m venv venv
+    echo python -m venv DJENV
     pause
     exit /b 1
 )
 
-call venv\Scripts\activate
+call DJENV\Scripts\activate
 
 REM Asegurar entorno de POS (no production)
 set ENVIRONMENT=development
