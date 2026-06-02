@@ -64,6 +64,7 @@ $(function () {
             {"data": "code"},
             {"data": "cat.name"},
             {"data": "image"},
+            {"data": "stock"},       // Stock disponible
             {"data": "pvp"},         // Precio neto (sin IVA)
             {"data": "pvp_final"},   // Precio final (con IVA)
             {"data": "id"},
@@ -99,7 +100,20 @@ $(function () {
                 }
             },
             {
-                targets: [5, 6], // precios s/IVA y c/IVA
+                targets: 5, // stock
+                class: 'text-center',
+                orderable: true,
+                render: function (data, type, row) {
+                    var stock = parseFloat(data);
+                    if (isNaN(stock)) {
+                        stock = 0;
+                    }
+                    // Mostrar solo número entero
+                    return Math.floor(stock).toString();
+                }
+            },
+            {
+                targets: [6, 7], // precios s/IVA y c/IVA
                 class: 'text-center',
                 orderable: false,
                 render: function (data, type, row) {
@@ -111,7 +125,7 @@ $(function () {
                 }
             },
             {
-                targets: 7, // opciones
+                targets: 8, // opciones
                 class: 'text-center',
                 orderable: false,
                 render: function (data, type, row) {
