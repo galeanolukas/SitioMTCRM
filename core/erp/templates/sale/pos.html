@@ -223,99 +223,8 @@
               });
             }
             
-            // Función principal para calcular totales del POS
-            function calculateTotals() {
-              let subtotal = 0;
-              let totalIva = 0;
-              let ivaRates = new Set(); // Para detectar diferentes tasas
-              
-              // Recorrer todas las filas de la tabla POS
-              $('#posItems tbody tr').each(function() {
-                const row = $(this);
-                const quantity = parseFloat(row.find('td:eq(1)').text()) || 0;
-                const price = parseFloat(row.find('td:eq(2)').text().replace('$', '').replace(',', '')) || 0;
-                const rowSubtotal = quantity * price;
-                
-                // Obtener el IVA del producto (almacenado en data-iva o usar 21% por defecto)
-                const productIvaRate = parseFloat(row.data('iva')) || 0.21;
-                const rowIva = rowSubtotal * productIvaRate;
-                
-                subtotal += rowSubtotal;
-                totalIva += rowIva;
-                
-                // Agregar la tasa de IVA al conjunto
-                ivaRates.add(productIvaRate);
-              });
-              
-              const total = subtotal + totalIva;
-              
-              // Determinar qué mostrar en el texto del IVA
-              let ivaText = '';
-              if (ivaRates.size === 1) {
-                // Una sola tasa de IVA
-                const rate = Array.from(ivaRates)[0];
-                ivaText = `(${(rate * 100).toFixed(0)}%)`;
-              } else if (ivaRates.size > 1) {
-                // Múltiples tasas de IVA
-                ivaText = '(Mixto)';
-              } else {
-                // Sin IVA
-                ivaText = '(0%)';
-              }
-              
-              // Actualizar los elementos del DOM
-              $('#tItems').text($('#posItems tbody tr').length);
-              $('#tSubtotal').text(formatCurrency(subtotal));
-              $('#tIva').text(formatCurrency(totalIva));
-              $('#ivaRateText').text(ivaText);
-              $('#tTotal').text(formatCurrency(total));
-            }
-            
-            // Función para agregar el IVA del producto a la fila cuando se agrega
-            function setupProductIva(row, ivaRate) {
-              if (ivaRate !== undefined && ivaRate !== null) {
-                $(row).data('iva', ivaRate);
-              } else {
-                $(row).data('iva', 0.21); // Por defecto 21%
-              }
-            }
-            
-            // Observar cuando se agregan nuevas filas a la tabla POS
-            const observer = new MutationObserver(function(mutations) {
-              mutations.forEach(function(mutation) {
-                if (mutation.type === 'childList') {
-                  mutation.addedNodes.forEach(function(node) {
-                    if (node.nodeType === 1 && node.tagName === 'TR') {
-                      // Es una nueva fila de producto, necesitamos obtener su IVA
-                      // Buscar el IVA en el contenido o usar por defecto
-                      const rowText = $(node).text();
-                      let ivaRate = 0.21; // Por defecto
-                      
-                      // Intentar extraer el IVA del texto del producto si está disponible
-                      // Esto dependerá de cómo se implemente la búsqueda de productos
-                      setupProductIva(node, ivaRate);
-                      
-                      // Recalcular totales
-                      calculateTotals();
-                    }
-                  });
-                }
-              });
-            });
-            
-            // Empezar a observar la tabla POS
-            const posTable = document.getElementById('posItems');
-            if (posTable) {
-              const tbody = posTable.querySelector('tbody');
-              if (tbody) {
-                observer.observe(tbody, {
-                  childList: true
-                });
-              }
-            }
-            
-            // Función simplificada para actualizar totales (sin bucles)
-            function updateTotalsWithFormat() {
+            // Función simplificada para actualizar formato de totales (sin recalcular)
+            function updateTotalsFormat() {
               const subtotal = parseFloat($('#tSubtotal').text().replace('$', '').replace(',', '')) || 0;
               const iva = parseFloat($('#tIva').text().replace('$', '').replace(',', '')) || 0;
               const total = parseFloat($('#tTotal').text().replace('$', '').replace(',', '')) || 0;
@@ -324,8 +233,6 @@
               $('#tIva').text(formatCurrency(iva));
               $('#tTotal').text(formatCurrency(total));
             }
-            
-            // Eliminada updateItemsTableWithFormat para evitar bucles infinitos
           </script>
 
           <div class="mb-3">
