@@ -1061,6 +1061,18 @@
     updateEmployeeAccountSummary();
   };
 
+  // Mostrar/ocultar sección de pago combinado en cuenta corriente
+  $(document).on('change', '#employeeCombinedPayment', function() {
+    const isChecked = $(this).is(':checked');
+    $('#employeePaymentSection').toggle(isChecked);
+    
+    if (isChecked) {
+      // Limpiar campos al mostrar
+      $('#employeePaymentAmount').val('');
+      $('#employeePaymentMethod').val('cash');
+    }
+  });
+
   // Botón de cuenta corriente de empleados
   $('#btnEmployeeAccount').on('click', function() {
     if (items.length === 0) {
@@ -1170,6 +1182,7 @@
   $(document).on('click', '#btnConfirmEmployeeAccount', function() {
     const employeeId = $('#employeeSelect').val();
     const notes = $('#employeeNotes').val();
+    const isCombinedPayment = $('#employeeCombinedPayment').is(':checked');
 
     if (!employeeId) {
       showToast('warning', 'Debe seleccionar un empleado');
@@ -1179,6 +1192,23 @@
     if (items.length === 0) {
       showToast('warning', 'Debe agregar productos');
       return;
+    }
+
+    // Validar pago combinado si está activado
+    if (isCombinedPayment) {
+      const paymentAmount = parseFloat($('#employeePaymentAmount').val()) || 0;
+      const paymentMethod = $('#employeePaymentMethod').val();
+      
+      if (paymentAmount <= 0) {
+        showToast('warning', 'Debe ingresar un monto de pago válido');
+        return;
+      }
+      
+      const subtotal = items.reduce((sum, it) => sum + (it.subtotal || 0), 0);
+      if (paymentAmount > subtotal) {
+        showToast('warning', 'El monto de pago no puede ser mayor al total');
+        return;
+      }
     }
 
     // Prevenir doble clic
@@ -1204,6 +1234,18 @@
       total: total
     };
 
+    // Agregar detalles de pago combinado si está activado
+    if (isCombinedPayment) {
+      const paymentAmount = parseFloat($('#employeePaymentAmount').val()) || 0;
+      const paymentMethod = $('#employeePaymentMethod').val();
+      
+      saleData.payment_details = {
+        method: paymentMethod,
+        amount: paymentAmount,
+        description: getPaymentMethodName(paymentMethod)
+      };
+    }
+
     // Generar token único para esta venta
     const saleToken = 'emp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 
@@ -1226,6 +1268,9 @@
           if (modal) modal.hide();
           $('#employeeSelect').val('');
           $('#employeeNotes').val('');
+          $('#employeeCombinedPayment').prop('checked', false);
+          $('#employeePaymentSection').hide();
+          $('#employeePaymentAmount').val('');
           flashSummary();
         }
       },

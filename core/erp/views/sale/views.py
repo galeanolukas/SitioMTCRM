@@ -528,6 +528,15 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     emp_sale.total = float(payload.get('total', 0))
                     emp_sale.notes = payload.get('notes', '')
                     
+                    # Guardar detalles de pago combinado si existen
+                    if 'payment_details' in payload and payload['payment_details']:
+                        emp_sale.payment_details = payload['payment_details']
+                        # Si hay pago parcial, marcar como pagado parcialmente
+                        payment_amount = payload['payment_details'].get('amount', 0)
+                        if payment_amount > 0:
+                            emp_sale.is_paid = False  # Aún tiene deuda
+                            # Podríamos agregar un campo para el monto pagado si fuera necesario
+                    
                     # Establecer zona horaria local
                     import pytz
                     emp_sale.local_timezone = 'America/Argentina/Buenos_Aires'
@@ -1467,6 +1476,19 @@ class EmployeeAccountListView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                 if not request.user.has_perm('erp.manage_employee_accounts'):
                     return JsonResponse({'error': 'No tiene permisos para realizar esta acción'}, status=403)
                 
+                # Obtener método de pago para pagos simples
+                payment_method = request.POST.get('payment_method', 'cash')
+                
+                # Obtener detalles de pago si existen (array para pagos combinados)
+                payment_details_str = request.POST.get('payment_details')
+                payment_details = None
+                if payment_details_str:
+                    try:
+                        import json
+                        payment_details = json.loads(payment_details_str)
+                    except:
+                        pass
+                
                 # Crear venta normal cuando se paga la cuenta corriente
                 try:
                     with transaction.atomic():
@@ -1475,41 +1497,98 @@ class EmployeeAccountListView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                         if not request.user.is_superuser:
                             active_cid = active_cid or getattr(request.user, 'company_id', None)
                         
-                        # Crear venta normal
-                        sale = Sale.objects.create(
-                            company_id=active_cid,
-                            cli_id=None,  # Cliente anónimo para ventas a empleados
-                            subtotal=account.total,
-                            iva=0,  # Sin IVA para empleados
-                            total=account.total,
-                            payment_method='cash',  # Asumir pago en efectivo
-                            is_invoiced=False,
-                            date_joined=timezone.now(),
-                            local_uuid=str(uuid.uuid4()),
-                            synced_to_server=False
-                        )
+                        sales_created = []
                         
-                        # Crear detalles de la venta
-                        for detail in account.detemployeeaccount_set.all():
-                            DetSale.objects.create(
-                                sale_id=sale.id,
-                                prod_id=detail.prod_id,
-                                cant=detail.cant,
-                                price=detail.price,
-                                subtotal=detail.subtotal,
-                                iva_amount=0  # Sin IVA
+                        if payment_details and isinstance(payment_details, list):
+                            # Pago combinado - crear una sola venta con método combinado
+                            # Construir string de método combinado (ej: "Efectivo + MercadoPago")
+                            from core.erp.choices import payment_method_choices
+                            pm_map = dict(payment_method_choices)
+                            
+                            method_names = []
+                            for payment in payment_details:
+                                method = payment.get('method', 'cash')
+                                method_names.append(pm_map.get(method, method))
+                            
+                            combined_method = ' + '.join(method_names)
+                            
+                            # Crear una sola venta con el total completo
+                            sale = Sale.objects.create(
+                                company_id=active_cid,
+                                cli_id=None,
+                                subtotal=account.total,
+                                iva=0,
+                                total=account.total,
+                                payment_method=combined_method,  # Ej: "Efectivo + MercadoPago"
+                                is_invoiced=False,
+                                date_joined=timezone.now(),
+                                local_uuid=str(uuid.uuid4()),
+                                synced_to_server=False
                             )
-                        
-                        # Marcar cuenta corriente como pagada
-                        account.is_paid = True
-                        account.paid_date = timezone.now()
-                        account.related_sale_id = sale.id  # Referencia a la venta generada
-                        account.save()
+                            
+                            # Guardar detalles de pago combinado
+                            sale.payment_details = payment_details
+                            sale.save()
+                            
+                            # Crear detalles de venta para que figure en reportes (sin descontar stock)
+                            for detail in account.detemployeeaccount_set.all():
+                                DetSale.objects.create(
+                                    sale_id=sale.id,
+                                    prod_id=detail.prod_id,
+                                    cant=detail.cant,
+                                    price=detail.price,
+                                    subtotal=detail.subtotal,
+                                    iva_amount=0
+                                )
+                            
+                            sales_created.append(sale.id)
+                            
+                            # Marcar cuenta corriente como pagada
+                            account.is_paid = True
+                            account.paid_date = timezone.now()
+                            account.related_sale_id = sale.id
+                            account.payment_details = payment_details
+                            account.save()
+                            
+                        else:
+                            # Pago simple normal
+                            sale = Sale.objects.create(
+                                company_id=active_cid,
+                                cli_id=None,
+                                subtotal=account.total,
+                                iva=0,
+                                total=account.total,
+                                payment_method=payment_method,
+                                is_invoiced=False,
+                                date_joined=timezone.now(),
+                                local_uuid=str(uuid.uuid4()),
+                                synced_to_server=False
+                            )
+                            
+                            # Crear detalles de venta para que figure en reportes (sin descontar stock)
+                            for detail in account.detemployeeaccount_set.all():
+                                DetSale.objects.create(
+                                    sale_id=sale.id,
+                                    prod_id=detail.prod_id,
+                                    cant=detail.cant,
+                                    price=detail.price,
+                                    subtotal=detail.subtotal,
+                                    iva_amount=0
+                                )
+                            
+                            sales_created.append(sale.id)
+                            
+                            # Marcar cuenta corriente como pagada
+                            account.is_paid = True
+                            account.paid_date = timezone.now()
+                            account.related_sale_id = sale.id
+                            account.save()
                         
                         return JsonResponse({
                             'success': True, 
-                            'message': 'Cuenta marcada como pagada y venta registrada correctamente',
-                            'sale_id': sale.id
+                            'message': 'Pago registrado correctamente',
+                            'sale_ids': sales_created,
+                            'is_combined': bool(payment_details and isinstance(payment_details, list))
                         })
                         
                 except Exception as e:
@@ -1525,18 +1604,12 @@ class EmployeeAccountListView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                 
                 try:
                     with transaction.atomic():
-                        # Si hay una venta relacionada, eliminarla
+                        # Si hay una venta relacionada, eliminarla sin restaurar stock
+                        # (el stock ya se restauró cuando se creó la cuenta corriente)
                         if account.related_sale_id:
                             try:
                                 sale = Sale.objects.get(id=account.related_sale_id)
-                                # Restaurar stock de los detalles de la venta
-                                for detail in sale.detsale_set.all():
-                                    Product.objects.filter(pk=detail.prod_id).update(
-                                        stock=F('stock') + detail.cant,
-                                        stock_modified_locally=timezone.now(),  # Marcar modificación de stock
-                                        synced_to_server=False
-                                    )
-                                # Eliminar la venta y sus detalles
+                                # Eliminar la venta y sus detalles sin restaurar stock
                                 sale.delete()
                             except Sale.DoesNotExist:
                                 pass  # La venta ya no existe, continuar
@@ -1563,17 +1636,28 @@ class EmployeeAccountListView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                 if not request.user.has_perm('erp.manage_employee_accounts'):
                     return JsonResponse({'error': 'No tiene permisos para realizar esta acción'}, status=403)
                 
-                # Restaurar stock antes de eliminar
+                # Restaurar stock antes de eliminar solo si la cuenta está impaga
                 with transaction.atomic():
-                    for detail in account.detemployeeaccount_set.all():
-                        Product.objects.filter(pk=detail.prod_id).update(
-                            stock=F('stock') + detail.cant,
-                            stock_modified_locally=timezone.now(),  # Marcar modificación de stock
-                            synced_to_server=False
-                        )
+                    if not account.is_paid:
+                        # Solo restaurar stock si la cuenta no está pagada
+                        for detail in account.detemployeeaccount_set.all():
+                            Product.objects.filter(pk=detail.prod_id).update(
+                                stock=F('stock') + detail.cant,
+                                stock_modified_locally=timezone.now(),  # Marcar modificación de stock
+                                synced_to_server=False
+                            )
+                    
+                    # Si hay una venta relacionada, eliminarla
+                    if account.related_sale_id:
+                        try:
+                            sale = Sale.objects.get(id=account.related_sale_id)
+                            sale.delete()
+                        except Sale.DoesNotExist:
+                            pass  # La venta ya no existe, continuar
+                    
                     account.delete()
                 
-                return JsonResponse({'success': True, 'message': 'Cuenta eliminada y stock restaurado'})
+                return JsonResponse({'success': True, 'message': 'Cuenta eliminada correctamente'})
             
             else:
                 return JsonResponse({'error': 'Acción no soportada'}, status=400)

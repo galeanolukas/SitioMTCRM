@@ -130,10 +130,18 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         if company_id:
             filters['company_id'] = company_id
         
-        if payment_method:
-            filters['payment_method'] = payment_method
-        
         sales_queryset = Sale.objects.filter(**filters).select_related('cli', 'company').order_by('-date_joined')
+        
+        # Si se filtra por método de pago, incluir ventas combinadas que contengan ese método
+        if payment_method:
+            from core.erp.choices import payment_method_choices
+            pm_map = dict(payment_method_choices)
+            method_name = pm_map.get(payment_method, payment_method)
+            
+            # Filtrar ventas que tengan el método exacto o que contengan el nombre en métodos combinados
+            sales_queryset = sales_queryset.filter(
+                Q(payment_method=payment_method) | Q(payment_method__icontains=method_name)
+            )
         
         # Paginación - 50 ventas por página
         paginator = Paginator(sales_queryset, 50)
@@ -853,10 +861,20 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
         if company_id:
             filters['company_id'] = company_id
         
-        if payment_method:
-            filters['payment_method'] = payment_method
+        sales_queryset = Sale.objects.filter(**filters).select_related('cli', 'company')
         
-        return Sale.objects.filter(**filters).select_related('cli', 'company')
+        # Si se filtra por método de pago, incluir ventas combinadas que contengan ese método
+        if payment_method:
+            from core.erp.choices import payment_method_choices
+            pm_map = dict(payment_method_choices)
+            method_name = pm_map.get(payment_method, payment_method)
+            
+            # Filtrar ventas que tengan el método exacto o que contengan el nombre en métodos combinados
+            sales_queryset = sales_queryset.filter(
+                Q(payment_method=payment_method) | Q(payment_method__icontains=method_name)
+            )
+        
+        return sales_queryset
     
     def get_inventory_export_data(self, company_id):
         filters = {}

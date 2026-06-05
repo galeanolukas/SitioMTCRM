@@ -302,7 +302,7 @@
                             <i class="fas fa-eye"></i>
                           </button>
                           {% if not account.is_paid %}
-                            <button type="button" class="btn btn-outline-success" onclick="markAsPaid({{ account.id }})" title="Marcar Pagado">
+                            <button type="button" class="btn btn-outline-success" onclick="markAsPaid({{ account.id }}, {{ account.total }})" title="Marcar Pagado">
                               <i class="fas fa-check"></i>
                             </button>
                           {% else %}
@@ -380,6 +380,110 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de pago combinado paso 1 -->
+<div class="modal fade" id="paymentModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fas fa-money-bill-wave"></i> Registrar Pago
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-info">
+          <i class="fas fa-info-circle"></i> Seleccione la forma de pago para registrar esta cuenta como pagada.
+        </div>
+        <input type="hidden" id="paymentAccountId" value="">
+        <div class="mb-3">
+          <label class="form-label">Total a pagar:</label>
+          <h4 class="text-primary" id="paymentTotal">$0.00</h4>
+        </div>
+        <div class="mb-3">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="paymentCombined">
+            <label class="form-check-label" for="paymentCombined">
+              <strong>Pago Combinado</strong> - Usar dos formas de pago
+            </label>
+          </div>
+        </div>
+        <div class="mb-3" id="singlePaymentSection">
+          <label for="paymentMethod" class="form-label">Forma de pago</label>
+          <select id="paymentMethod" class="form-select">
+            <option value="cash">Efectivo</option>
+            <option value="card">Tarjeta</option>
+            <option value="transfer">Transferencia</option>
+            <option value="mp">Mercado Pago</option>
+            <option value="check">Cheque</option>
+          </select>
+        </div>
+        <div class="mb-3" id="combinedPaymentSection" style="display: none;">
+          <label for="firstPaymentMethod" class="form-label">Primera forma de pago</label>
+          <select id="firstPaymentMethod" class="form-select">
+            <option value="cash">Efectivo</option>
+            <option value="card">Tarjeta</option>
+            <option value="transfer">Transferencia</option>
+            <option value="mp">Mercado Pago</option>
+            <option value="check">Cheque</option>
+          </select>
+          <div class="mb-3 mt-3">
+            <label for="firstPaymentAmount" class="form-label">Monto primer pago</label>
+            <input type="number" id="firstPaymentAmount" class="form-control" min="0" step="0.01" placeholder="0.00">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Restante: <strong id="paymentRemaining">$0.00</strong></label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-success" id="btnConfirmPayment">
+          <i class="fas fa-check"></i> Continuar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de pago combinado paso 2 -->
+<div class="modal fade" id="paymentStep2Modal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fas fa-money-bill-wave"></i> Confirmar Segundo Pago
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label">Primer pago: <strong id="firstPaymentSummary">$0.00</strong></label>
+        </div>
+        <div class="mb-3">
+          <label for="secondPaymentMethod" class="form-label">Segunda forma de pago</label>
+          <select id="secondPaymentMethod" class="form-select">
+            <option value="cash">Efectivo</option>
+            <option value="card">Tarjeta</option>
+            <option value="transfer">Transferencia</option>
+            <option value="mp">Mercado Pago</option>
+            <option value="check">Cheque</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label for="secondPaymentAmount" class="form-label">Monto segundo pago</label>
+          <input type="number" id="secondPaymentAmount" class="form-control" min="0" step="0.01" placeholder="0.00">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="btnPaymentBack">Volver</button>
+        <button type="button" class="btn btn-success" id="btnPaymentConfirm">
+          <i class="fas fa-check"></i> Confirmar
+        </button>
       </div>
     </div>
   </div>
@@ -509,28 +613,36 @@ function showDetails(accountId) {
   });
 }
 
-function markAsPaid(accountId) {
-  if (!confirm('¿Está seguro que desea marcar esta cuenta como pagada?')) return;
+function markAsPaid(accountId, total) {
+  // Obtener el total de la fila si no se pasa como parámetro
+  if (!total) {
+    const row = document.querySelector(`button[onclick="markAsPaid(${accountId})"]`).closest('tr');
+    const totalCell = row.querySelector('td:nth-child(6)');
+    total = parseFloat(totalCell.textContent.replace('$', '').replace(/\./g, '').replace(',', '.')) || 0;
+  }
   
-  fetch('', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'X-CSRFToken': getCookie('csrftoken')
-    },
-    body: 'action=mark_as_paid&account_id=' + accountId
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.success) {
-      location.reload();
-    } else {
-      alert('Error: ' + data.error);
-    }
-  })
-  .catch(error => {
-    alert('Error de conexión: ' + error);
-  });
+  // Establecer valores en el modal
+  const paymentAccountId = document.getElementById('paymentAccountId');
+  const paymentTotal = document.getElementById('paymentTotal');
+  const paymentCombined = document.getElementById('paymentCombined');
+  const combinedPaymentSection = document.getElementById('combinedPaymentSection');
+  const singlePaymentSection = document.getElementById('singlePaymentSection');
+  const paymentRemaining = document.getElementById('paymentRemaining');
+  const firstPaymentAmount = document.getElementById('firstPaymentAmount');
+  const firstPaymentMethod = document.getElementById('firstPaymentMethod');
+  
+  if (paymentAccountId) paymentAccountId.value = accountId;
+  if (paymentTotal) paymentTotal.textContent = '$' + total.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  if (paymentCombined) paymentCombined.checked = false;
+  if (combinedPaymentSection) combinedPaymentSection.style.display = 'none';
+  if (singlePaymentSection) singlePaymentSection.style.display = 'block';
+  if (paymentRemaining) paymentRemaining.textContent = '$0.00';
+  if (firstPaymentAmount) firstPaymentAmount.value = '';
+  if (firstPaymentMethod) firstPaymentMethod.value = 'cash';
+  
+  // Mostrar modal
+  const modal = new bootstrap.Modal(document.getElementById('paymentModal'));
+  modal.show();
 }
 
 function markAsUnpaid(accountId) {
@@ -594,6 +706,154 @@ function getCookie(name) {
     }
   }
   return cookieValue;
+}
+
+// Manejar checkbox de pago combinado
+document.getElementById('paymentCombined').addEventListener('change', function() {
+  const isCombined = this.checked;
+  document.getElementById('combinedPaymentSection').style.display = isCombined ? 'block' : 'none';
+  document.getElementById('singlePaymentSection').style.display = isCombined ? 'none' : 'block';
+  
+  if (isCombined) {
+    document.getElementById('firstPaymentAmount').value = '';
+    document.getElementById('paymentRemaining').textContent = '$0.00';
+  }
+});
+
+// Calcular restante en tiempo real
+document.getElementById('firstPaymentAmount').addEventListener('input', function() {
+  const totalText = document.getElementById('paymentTotal').textContent;
+  const total = parseFloat(totalText.replace('$', '').replace(/\./g, '').replace(',', '.')) || 0;
+  const amount = parseFloat(this.value) || 0;
+  const remaining = total - amount;
+  
+  document.getElementById('paymentRemaining').textContent = '$' + remaining.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+});
+
+// Continuar al paso 2
+document.getElementById('btnConfirmPayment').addEventListener('click', function() {
+  const isCombined = document.getElementById('paymentCombined').checked;
+  const accountId = document.getElementById('paymentAccountId').value;
+  
+  if (!isCombined) {
+    // Pago simple - enviar directamente
+    const paymentMethod = document.getElementById('paymentMethod').value;
+    
+    fetch('', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-CSRFToken': getCookie('csrftoken')
+      },
+      body: 'action=mark_as_paid&account_id=' + accountId + '&payment_method=' + paymentMethod
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('paymentModal'));
+        modal.hide();
+        location.reload();
+      } else {
+        alert('Error: ' + data.error);
+      }
+    })
+    .catch(error => {
+      alert('Error de conexión: ' + error);
+    });
+  } else {
+    // Pago combinado - validar y pasar al paso 2
+    const totalText = document.getElementById('paymentTotal').textContent;
+    const total = parseFloat(totalText.replace('$', '').replace(/\./g, '').replace(',', '.')) || 0;
+    const firstAmount = parseFloat(document.getElementById('firstPaymentAmount').value) || 0;
+    const firstMethod = document.getElementById('firstPaymentMethod').value;
+    
+    if (firstAmount <= 0) {
+      alert('Debe ingresar un monto válido para el primer pago');
+      return;
+    }
+    
+    if (firstAmount >= total) {
+      alert('El primer monto debe ser menor que el total');
+      return;
+    }
+    
+    const remaining = total - firstAmount;
+    
+    // Llenar datos del paso 2
+    document.getElementById('firstPaymentSummary').textContent = 
+      getPaymentMethodName(firstMethod) + ': $' + firstAmount.toLocaleString('es-AR', {minimumFractionDigits: 2});
+    document.getElementById('secondPaymentAmount').value = remaining.toFixed(2);
+    document.getElementById('secondPaymentMethod').value = 'cash';
+    
+    // Cerrar modal paso 1 y abrir paso 2
+    bootstrap.Modal.getInstance(document.getElementById('paymentModal')).hide();
+    const modal2 = new bootstrap.Modal(document.getElementById('paymentStep2Modal'));
+    modal2.show();
+  }
+});
+
+// Volver al paso 1
+document.getElementById('btnPaymentBack').addEventListener('click', function() {
+  bootstrap.Modal.getInstance(document.getElementById('paymentStep2Modal')).hide();
+  const modal1 = new bootstrap.Modal(document.getElementById('paymentModal'));
+  modal1.show();
+});
+
+// Confirmar pago combinado
+document.getElementById('btnPaymentConfirm').addEventListener('click', function() {
+  const accountId = document.getElementById('paymentAccountId').value;
+  const firstMethod = document.getElementById('firstPaymentMethod').value;
+  const firstAmount = parseFloat(document.getElementById('firstPaymentAmount').value) || 0;
+  const secondMethod = document.getElementById('secondPaymentMethod').value;
+  const secondAmount = parseFloat(document.getElementById('secondPaymentAmount').value) || 0;
+  
+  const totalText = document.getElementById('paymentTotal').textContent;
+  const total = parseFloat(totalText.replace('$', '').replace(/\./g, '').replace(',', '.')) || 0;
+  
+  if (Math.abs((firstAmount + secondAmount) - total) > 0.01) {
+    alert('Los montos no suman el total correcto');
+    return;
+  }
+  
+  // Construir detalles de pagos combinados
+  const paymentDetails = [
+    { method: firstMethod, amount: firstAmount },
+    { method: secondMethod, amount: secondAmount }
+  ];
+  
+  // Enviar solicitud de pago
+  fetch('', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-CSRFToken': getCookie('csrftoken')
+    },
+    body: 'action=mark_as_paid&account_id=' + accountId + '&payment_details=' + encodeURIComponent(JSON.stringify(paymentDetails))
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      const modal = bootstrap.Modal.getInstance(document.getElementById('paymentStep2Modal'));
+      modal.hide();
+      location.reload();
+    } else {
+      alert('Error: ' + data.error);
+    }
+  })
+  .catch(error => {
+    alert('Error de conexión: ' + error);
+  });
+});
+
+function getPaymentMethodName(method) {
+  const names = {
+    'cash': 'Efectivo',
+    'card': 'Tarjeta',
+    'transfer': 'Transferencia',
+    'mp': 'Mercado Pago',
+    'check': 'Cheque'
+  };
+  return names[method] || method;
 }
 </script>
 {% endblock %}

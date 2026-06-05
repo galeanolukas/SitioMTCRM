@@ -1053,6 +1053,7 @@ class EmployeeAccountSale(models.Model):
     related_sale_id = models.IntegerField(null=True, blank=True, verbose_name='ID de venta relacionada')
     synced_to_server = models.BooleanField(default=False, verbose_name='Sincronizado con servidor')
     local_uuid = models.CharField(max_length=64, blank=True, null=True, db_index=True, verbose_name='UUID local', help_text='UUID para sincronización (índice para búsquedas rápidas)')
+    payment_details = models.JSONField(default=dict, blank=True, verbose_name='Detalles de pago combinado')
 
     def __str__(self):
         return f"Cta. Cte. {self.employee.get_full_name()} - {self.date_joined.strftime('%d/%m/%Y')}"

@@ -10,4 +10,5 @@ payment_method_choices = (
     ('mp', 'Mercado Pago'),
     ('check', 'Cheque'),
     ('combined', 'Combinada'),
+    ('debt', 'Deuda'),
 )
