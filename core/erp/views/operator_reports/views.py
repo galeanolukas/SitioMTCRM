@@ -226,8 +226,9 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                         else:
                             other_amount = sale_total
                         
-                        # Formatear fecha y hora
-                        date_joined = sale.date_joined
+                        # Formatear fecha y hora con zona horaria local
+                        from django.utils import timezone
+                        date_joined = timezone.localtime(sale.date_joined)
                         formatted_date = date_joined.strftime('%d/%m/%Y %H:%M')
                         
                         sales_list.append({
@@ -491,7 +492,7 @@ def operator_sales_export(request):
                     other_total += other_amount
                 
                 writer.writerow([
-                    sale.date_joined.strftime('%d/%m/%Y %H:%M'),
+                    timezone.localtime(sale.date_joined).strftime('%d/%m/%Y %H:%M'),
                     ticket_number,
                     sale.cli.names if sale.cli else 'Anónimo',
                     cash_amount,
@@ -681,7 +682,7 @@ def operator_sales_export(request):
                     other_total += other_amount
                 
                 ws.append([
-                    sale.date_joined.strftime('%d/%m/%Y %H:%M'),
+                    timezone.localtime(sale.date_joined).strftime('%d/%m/%Y %H:%M'),
                     ticket_number,
                     sale.cli.names if sale.cli else 'Anónimo',
                     cash_amount,
@@ -993,8 +994,8 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
         else:
             other_amount = sale_total
         
-        # Formatear fecha y hora
-        date_joined = sale.date_joined
+        # Formatear fecha y hora con zona horaria local
+        date_joined = timezone.localtime(sale.date_joined)
         formatted_date = date_joined.strftime('%d/%m/%Y %H:%M')
         
         sales_list.append({
