@@ -102,38 +102,37 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                             sale__in=sales
                         ).values('prod__name', 'prod__id').annotate(
                             total_quantity=Sum('cant'),
-                            avg_price=Avg('price'),
                             total_sales=Sum('subtotal')
                         ).order_by('-total_quantity')
                         
                         product_sales_data = []
                         for idx, ps in enumerate(product_sales, 1):
-                            # Obtener stock actual del producto
+                            # Obtener PVP y stock actual del producto
                             try:
                                 product = Product.objects.get(id=ps['prod__id'])
+                                pvp = float(product.pvp or 0)
                                 stock_actual = float(product.stock or 0)
-                                # Debug: mostrar valores
-                                print(f"Producto: {ps['prod__name']}, ID: {ps['prod__id']}, Stock: {stock_actual}")
                             except Product.DoesNotExist:
+                                pvp = 0
                                 stock_actual = 0
-                                print(f"Producto no encontrado: ID {ps['prod__id']}")
-                            except Exception as e:
-                                stock_actual = 0
-                                print(f"Error obteniendo stock para {ps['prod__name']}: {e}")
                             
                             product_sales_data.append({
                                 'rank': idx,
                                 'product': ps['prod__name'],
                                 'quantity': int(float(ps['total_quantity'])),  # Convertir a entero
-                                'price': float(ps['avg_price']),
+                                'price': pvp,  # PVP del producto en lugar de precio promedio
                                 'total': float(ps['total_sales']),
                                 'stock': int(stock_actual)  # Stock como entero
                             })
+                        
+                        # Calcular total general usando subtotal (igual que en reporte por método de pago)
+                        grand_total = sum(float(sale.subtotal) for sale in sales)
                         
                         data = {
                             'success': True,
                             'report_format': 'products',
                             'products': product_sales_data,
+                            'total_amount': grand_total,
                             'period_type': report_type,
                             'start_date': start_date,
                             'end_date': end_date
@@ -145,7 +144,7 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                             'error': f'Error al procesar productos: {str(e)}'
                         }
                 else:
-                    # Calculate totals (formato por método de pago agrupado por producto)
+                    # Calculate totals (formato por método de pago agrupado por venta)
                     total_sales = sales.aggregate(
                         total=Sum('total'),
                         subtotal=Sum('subtotal'),
@@ -179,35 +178,17 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                             'count': method_total['count'] or 0
                         }
                     
-                    # Agrupar datos por producto y categoría
-                    from django.db.models import Avg
-                    from collections import defaultdict
-                    
-                    product_data = defaultdict(lambda: {
-                        'product_name': '',
-                        'category_name': '',
-                        'quantity': 0.0,
-                        'cash': 0.0,
-                        'mp': 0.0,
-                        'transfer': 0.0,
-                        'other': 0.0,
-                        'total': 0.0
-                    })
-                    
-                    # Obtener detalles de venta con información de producto y categoría
-                    det_sales = DetSale.objects.filter(sale__in=sales).select_related('prod', 'prod__cat', 'sale')
-                    
-                    for det in det_sales:
-                        product_key = det.prod.id
-                        product_data[product_key]['product_name'] = det.prod.name
-                        product_data[product_key]['category_name'] = det.prod.cat.name if det.prod.cat else 'Sin categoría'
-                        product_data[product_key]['quantity'] += float(det.cant)
+                    # Agrupar datos por venta
+                    sales_list = []
+                    for sale in sales:
+                        # Obtener todos los productos de esta venta
+                        det_sales = DetSale.objects.filter(sale=sale).select_related('prod')
+                        products_str = ', '.join([f"{det.prod.name}" for det in det_sales])
                         
-                        # Distribuir el subtotal según método de pago de la venta
-                        subtotal = float(det.subtotal)
-                        payment_method = det.sale.payment_method
-                        payment_details = getattr(det.sale, 'payment_details', [])
-                        sale_total = float(det.sale.total)
+                        # Distribuir el total según método de pago
+                        sale_total = float(sale.total)
+                        payment_method = sale.payment_method
+                        payment_details = getattr(sale, 'payment_details', [])
                         
                         cash_amount = 0.0
                         mp_amount = 0.0
@@ -215,53 +196,53 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                         other_amount = 0.0
                         
                         if payment_method == 'cash':
-                            cash_amount = subtotal
+                            cash_amount = sale_total
                         elif payment_method == 'mp':
-                            mp_amount = subtotal
+                            mp_amount = sale_total
                         elif payment_method == 'transfer':
-                            transfer_amount = subtotal
+                            transfer_amount = sale_total
                         elif payment_method in ['card', 'check']:
-                            other_amount = subtotal
+                            other_amount = sale_total
                         elif payment_method and '+' in payment_method:
-                            # Pagos combinados - distribuir proporcionalmente
-                            if payment_details and isinstance(payment_details, list) and sale_total > 0:
-                                # Calcular proporción de cada método de pago
+                            # Pagos combinados - usar los detalles de pago
+                            if payment_details and isinstance(payment_details, list):
                                 for payment in payment_details:
                                     if isinstance(payment, dict):
                                         method = payment.get('method', '')
                                         amount = float(payment.get('amount', 0))
-                                        # Proporción de este método sobre el total de la venta
-                                        proportion = amount / sale_total
-                                        # Aplicar proporción al subtotal del detalle
-                                        detail_amount = subtotal * proportion
                                         
                                         if method == 'cash':
-                                            cash_amount += detail_amount
+                                            cash_amount += amount
                                         elif method == 'mp':
-                                            mp_amount += detail_amount
+                                            mp_amount += amount
                                         elif method == 'transfer':
-                                            transfer_amount += detail_amount
+                                            transfer_amount += amount
                                         elif method in ['card', 'check']:
-                                            other_amount += detail_amount
+                                            other_amount += amount
                                         else:
-                                            other_amount += detail_amount
+                                            other_amount += amount
                             else:
-                                other_amount = subtotal
+                                other_amount = sale_total
                         else:
-                            other_amount = subtotal
+                            other_amount = sale_total
                         
-                        product_data[product_key]['cash'] += cash_amount
-                        product_data[product_key]['mp'] += mp_amount
-                        product_data[product_key]['transfer'] += transfer_amount
-                        product_data[product_key]['other'] += other_amount
-                        product_data[product_key]['total'] += subtotal
+                        # Formatear fecha y hora
+                        date_joined = sale.date_joined
+                        formatted_date = date_joined.strftime('%d/%m/%Y %H:%M')
+                        
+                        sales_list.append({
+                            'id': sale.id,
+                            'products': products_str,
+                            'date': formatted_date,
+                            'cash': cash_amount,
+                            'mp': mp_amount,
+                            'transfer': transfer_amount,
+                            'other': other_amount,
+                            'total': sale_total
+                        })
                     
-                    # Convertir a lista ordenada por total
-                    products_list = sorted(
-                        product_data.values(),
-                        key=lambda x: x['total'],
-                        reverse=True
-                    )
+                    # Ordenar por fecha descendente
+                    sales_list.sort(key=lambda x: x['date'], reverse=True)
                     
                     # Calcular totales generales usando subtotal (PVP puro)
                     grand_total = sum(float(sale.subtotal) for sale in sales)
@@ -269,7 +250,7 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                     data = {
                         'success': True,
                         'report_format': 'payment',
-                        'products': products_list,
+                        'sales': sales_list,
                         'total_amount': grand_total,
                         'total_count': total_sales['count'] or 0,
                         'payment_totals': payment_totals,
@@ -354,27 +335,31 @@ def operator_sales_export(request):
                     sale__in=sales
                 ).values('prod__name', 'prod__id').annotate(
                     total_quantity=Sum('cant'),
-                    avg_price=Avg('price'),
                     total_sales=Sum('subtotal')
                 ).order_by('-total_quantity')
                 
                 product_sales_data = []
                 for idx, ps in enumerate(product_sales, 1):
-                    # Obtener stock actual del producto
+                    # Obtener PVP y stock actual del producto
                     try:
                         product = Product.objects.get(id=ps['prod__id'])
+                        pvp = float(product.pvp or 0)
                         stock_actual = float(product.stock or 0)
                     except:
+                        pvp = 0
                         stock_actual = 0
                     
                     product_sales_data.append({
                         'rank': idx,
                         'product': ps['prod__name'],
                         'quantity': int(float(ps['total_quantity'])),  # Convertir a entero
-                        'price': float(ps['avg_price']),
+                        'price': pvp,  # PVP del producto
                         'total': float(ps['total_sales']),
                         'stock': int(stock_actual)  # Stock como entero
                     })
+                
+                # Calcular total general usando subtotal (igual que en reporte por método de pago)
+                grand_total = sum(float(sale.subtotal) for sale in sales)
                 
                 response = HttpResponse(content_type='text/csv')
                 response['Content-Disposition'] = f'attachment; filename="ranking_productos_{start_date}_al_{end_date}.csv"'
@@ -385,7 +370,7 @@ def operator_sales_export(request):
                 writer.writerow([f"Fecha de generación: {timezone.now().strftime('%d/%m/%Y %H:%M')}"])
                 writer.writerow([])
                 
-                writer.writerow(['Ranking', 'Producto', 'Cantidad Vendida', 'Stock Actual', 'Precio Promedio', 'Total Ventas'])
+                writer.writerow(['Ranking', 'Producto', 'Cantidad Vendida', 'Stock Actual', 'PVP', 'Total Ventas'])
                 
                 for product in product_sales_data:
                     writer.writerow([
@@ -860,12 +845,12 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
     
     styles = getSampleStyleSheet()
     
-    # Custom styles for the exact format
+    # Custom styles for the exact format - reducido para ahorrar espacio
     header_style = ParagraphStyle(
         'HeaderStyle',
         parent=styles['Heading1'],
-        fontSize=16,
-        spaceAfter=12,
+        fontSize=12,  # Reducido de 16 a 12
+        spaceAfter=4,  # Reducido de 12 a 4
         alignment=1,  # Center
         textColor=colors.black,
         bold=True
@@ -874,8 +859,8 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
     date_style = ParagraphStyle(
         'DateStyle',
         parent=styles['Heading2'],
-        fontSize=14,
-        spaceAfter=20,
+        fontSize=10,  # Reducido de 14 a 10
+        spaceAfter=8,  # Reducido de 20 a 8
         alignment=1,  # Center
         textColor=colors.black,
         bold=True
@@ -886,17 +871,17 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
     # Build story
     story = []
     
-    # Header - Company name and Planilla de Ventas
-    story.append(Paragraph(company_name, header_style))
-    story.append(Paragraph("Planilla de Ventas", date_style))
-    story.append(Spacer(1, 6))  # Reducido de 8 a 6
+    # Header - Todo en una sola línea para ahorrar espacio
+    header_text = f"{company_name} - Planilla de Ventas - Ventas x Métodos de Pago"
+    story.append(Paragraph(header_text, header_style))
+    story.append(Spacer(1, 4))  # Reducido espacio
     
     # Date and Operator section - más compacto
     date_style_small = ParagraphStyle(
         'DateStyleSmall',
         parent=styles['Normal'],
-        fontSize=10,  # Reducido de 12 a 10
-        spaceAfter=6,  # Reducido espacio
+        fontSize=9,  # Reducido de 10 a 9
+        spaceAfter=4,  # Reducido de 6 a 4
         alignment=1,  # Center
         textColor=colors.black
     )
@@ -948,8 +933,8 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
         # Para pagos combinados, solo mostrar el monto sin descripción
         return f"${amount:,.2f}"
     
-    # Sales table with payment method columns grouped by product
-    headers = ['Producto', 'Cantidad', 'Efectivo', 'Mercado Pago', 'Transferencias', 'Otros', 'Total']
+    # Sales table with payment method columns grouped by sale
+    headers = ['Fecha/Hora', 'Productos', 'Efectivo', 'Mercado Pago', 'Transferencias', 'Otros', 'Total']
     
     # Table data with payment distribution grouped by product
     table_data = [headers]
@@ -960,35 +945,17 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
     transfer_total = 0
     other_total = 0
     
-    # Agrupar datos por producto y categoría (misma lógica que en el backend HTML)
-    from collections import defaultdict
-    from core.erp.models import DetSale
-    
-    product_data = defaultdict(lambda: {
-        'product_name': '',
-        'category_name': '',
-        'quantity': 0.0,
-        'cash': 0.0,
-        'mp': 0.0,
-        'transfer': 0.0,
-        'other': 0.0,
-        'total': 0.0
-    })
-    
-    # Obtener detalles de venta con información de producto y categoría
-    det_sales = DetSale.objects.filter(sale__in=sales).select_related('prod', 'prod__cat', 'sale')
-    
-    for det in det_sales:
-        product_key = det.prod.id
-        product_data[product_key]['product_name'] = det.prod.name
-        product_data[product_key]['category_name'] = det.prod.cat.name if det.prod.cat else 'Sin categoría'
-        product_data[product_key]['quantity'] += float(det.cant)
+    # Agrupar datos por venta (misma lógica que en el backend HTML)
+    sales_list = []
+    for sale in sales:
+        # Obtener todos los productos de esta venta
+        det_sales = DetSale.objects.filter(sale=sale).select_related('prod')
+        products_str = ', '.join([f"{det.prod.name}" for det in det_sales])
         
-        # Distribuir el subtotal según método de pago de la venta
-        subtotal = float(det.subtotal)
-        payment_method = det.sale.payment_method
-        payment_details = getattr(det.sale, 'payment_details', [])
-        sale_total = float(det.sale.total)
+        # Distribuir el total según método de pago
+        sale_total = float(sale.total)
+        payment_method = sale.payment_method
+        payment_details = getattr(sale, 'payment_details', [])
         
         cash_amount = 0.0
         mp_amount = 0.0
@@ -996,75 +963,71 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
         other_amount = 0.0
         
         if payment_method == 'cash':
-            cash_amount = subtotal
+            cash_amount = sale_total
         elif payment_method == 'mp':
-            mp_amount = subtotal
+            mp_amount = sale_total
         elif payment_method == 'transfer':
-            transfer_amount = subtotal
+            transfer_amount = sale_total
         elif payment_method in ['card', 'check']:
-            other_amount = subtotal
+            other_amount = sale_total
         elif payment_method and '+' in payment_method:
-            # Pagos combinados - distribuir proporcionalmente
-            if payment_details and isinstance(payment_details, list) and sale_total > 0:
-                # Calcular proporción de cada método de pago
+            # Pagos combinados - usar los detalles de pago
+            if payment_details and isinstance(payment_details, list):
                 for payment in payment_details:
                     if isinstance(payment, dict):
                         method = payment.get('method', '')
                         amount = float(payment.get('amount', 0))
-                        # Proporción de este método sobre el total de la venta
-                        proportion = amount / sale_total
-                        # Aplicar proporción al subtotal del detalle
-                        detail_amount = subtotal * proportion
                         
                         if method == 'cash':
-                            cash_amount += detail_amount
+                            cash_amount += amount
                         elif method == 'mp':
-                            mp_amount += detail_amount
+                            mp_amount += amount
                         elif method == 'transfer':
-                            transfer_amount += detail_amount
+                            transfer_amount += amount
                         elif method in ['card', 'check']:
-                            other_amount += detail_amount
+                            other_amount += amount
                         else:
-                            other_amount += detail_amount
+                            other_amount += amount
             else:
-                other_amount = subtotal
+                other_amount = sale_total
         else:
-            other_amount = subtotal
+            other_amount = sale_total
         
-        product_data[product_key]['cash'] += cash_amount
-        product_data[product_key]['mp'] += mp_amount
-        product_data[product_key]['transfer'] += transfer_amount
-        product_data[product_key]['other'] += other_amount
-        product_data[product_key]['total'] += subtotal
+        # Formatear fecha y hora
+        date_joined = sale.date_joined
+        formatted_date = date_joined.strftime('%d/%m/%Y %H:%M')
+        
+        sales_list.append({
+            'date': formatted_date,
+            'products': products_str,
+            'cash': cash_amount,
+            'mp': mp_amount,
+            'transfer': transfer_amount,
+            'other': other_amount,
+            'total': sale_total
+        })
     
-    # Convertir a lista ordenada por total
-    products_list = sorted(
-        product_data.values(),
-        key=lambda x: x['total'],
-        reverse=True
-    )
+    # Ordenar por fecha descendente
+    sales_list.sort(key=lambda x: x['date'], reverse=True)
     
-    # Agregar filas de productos a la tabla
-    for product in products_list:
-        cash_total += product['cash']
-        mp_total += product['mp']
-        transfer_total += product['transfer']
-        other_total += product['other']
+    # Agregar filas de ventas a la tabla
+    for sale in sales_list:
+        cash_total += sale['cash']
+        mp_total += sale['mp']
+        transfer_total += sale['transfer']
+        other_total += sale['other']
         
-        # Formatear cantidad como entero
-        quantity_str = f"{int(product['quantity'])}" if product['quantity'] == int(product['quantity']) else f"{product['quantity']:.2f}"
-        
-        # Usar Paragraph para el nombre del producto con word wrapping
-        product_paragraph = Paragraph(product['product_name'], normal_style)
+        # Usar Paragraph para los productos con word wrapping
+        products_paragraph = Paragraph(sale['products'], normal_style)
         
         table_data.append([
-            product_paragraph,
-            quantity_str,
-            format_currency(product['cash']),
-            format_currency(product['mp']),
-            format_currency(product['transfer']),
-            format_currency(product['other']),
-            format_currency(product['total'])
+            sale['date'],
+            products_paragraph,
+            format_currency(sale['cash']),
+            format_currency(sale['mp']),
+            format_currency(sale['transfer']),
+            format_currency(sale['other']),
+            format_currency(sale['total'])
         ])
     
     # Add summary row (gray background) - will be moved to end after grand total
@@ -1090,9 +1053,9 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
         format_currency(grand_total)
     ])
     
-    # Create table with optimized column widths for A4 (7 columnas: Producto, Cantidad, Efectivo, MP, Transfer, Otros, Total)
+    # Create table with optimized column widths for A4 (7 columnas: Fecha/Hora, Productos, Efectivo, MP, Transfer, Otros, Total)
     # Aumentado ancho de columnas de montos para que entren los importes formateados
-    sales_table = Table(table_data, colWidths=[1.6*inch, 0.7*inch, 1.0*inch, 1.0*inch, 1.0*inch, 1.0*inch, 1.0*inch])
+    sales_table = Table(table_data, colWidths=[1.2*inch, 2.0*inch, 1.0*inch, 1.0*inch, 1.0*inch, 1.0*inch, 1.0*inch])
     sales_table.setStyle(TableStyle([
         # Header styling
         ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
@@ -1232,33 +1195,31 @@ def generate_products_pdf_report(sales, start_date, end_date, company_id, user, 
         sale__in=sales
     ).values('prod__name', 'prod__id').annotate(
         total_quantity=Sum('cant'),
-        avg_price=Avg('price'),
         total_sales=Sum('subtotal')
     ).order_by('-total_quantity')
     
     product_sales_data = []
     for idx, ps in enumerate(product_sales, 1):
-        # Obtener stock actual del producto
+        # Obtener PVP y stock actual del producto
         try:
             product = Product.objects.get(id=ps['prod__id'])
+            pvp = float(product.pvp or 0)
             stock_actual = float(product.stock or 0)
-            # Debug: mostrar valores en PDF también
-            print(f"PDF - Producto: {ps['prod__name']}, ID: {ps['prod__id']}, Stock: {stock_actual}")
         except Product.DoesNotExist:
+            pvp = 0
             stock_actual = 0
-            print(f"PDF - Producto no encontrado: ID {ps['prod__id']}")
-        except Exception as e:
-            stock_actual = 0
-            print(f"PDF - Error obteniendo stock para {ps['prod__name']}: {e}")
         
         product_sales_data.append({
             'rank': idx,
             'product': ps['prod__name'],
             'quantity': int(float(ps['total_quantity'])),  # Convertir a entero
-            'price': float(ps['avg_price']),
+            'price': pvp,  # PVP del producto en lugar de precio promedio
             'total': float(ps['total_sales']),
             'stock': int(stock_actual)  # Stock como entero
         })
+    
+    # Calcular total general usando subtotal (igual que en reporte por método de pago)
+    grand_total = sum(float(sale.subtotal) for sale in sales)
     
     response = HttpResponse(content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="ranking_productos_{start_date}_al_{end_date}.pdf"'
@@ -1268,12 +1229,12 @@ def generate_products_pdf_report(sales, start_date, end_date, company_id, user, 
     
     styles = getSampleStyleSheet()
     
-    # Custom styles
+    # Custom styles - reducido para ahorrar espacio
     header_style = ParagraphStyle(
         'HeaderStyle',
         parent=styles['Heading1'],
-        fontSize=16,
-        spaceAfter=12,
+        fontSize=12,  # Reducido de 16 a 12
+        spaceAfter=4,  # Reducido de 12 a 4
         alignment=1,  # Center
         textColor=colors.black,
         bold=True
@@ -1282,8 +1243,8 @@ def generate_products_pdf_report(sales, start_date, end_date, company_id, user, 
     date_style = ParagraphStyle(
         'DateStyle',
         parent=styles['Heading2'],
-        fontSize=14,
-        spaceAfter=20,
+        fontSize=10,  # Reducido de 14 a 10
+        spaceAfter=8,  # Reducido de 20 a 8
         alignment=1,  # Center
         textColor=colors.black,
         bold=True
@@ -1294,17 +1255,17 @@ def generate_products_pdf_report(sales, start_date, end_date, company_id, user, 
     # Build story
     story = []
     
-    # Header
-    story.append(Paragraph(company_name, header_style))
-    story.append(Paragraph("Ranking de Productos", date_style))
-    story.append(Spacer(1, 6))
+    # Header - Todo en una sola línea para ahorrar espacio
+    header_text = f"{company_name} - Ranking de Productos - Por Productos Vendidos"
+    story.append(Paragraph(header_text, header_style))
+    story.append(Spacer(1, 4))  # Reducido espacio
     
-    # Date and Operator section
+    # Date and Operator section - más compacto
     date_style_small = ParagraphStyle(
         'DateStyleSmall',
         parent=styles['Normal'],
-        fontSize=10,
-        spaceAfter=6,
+        fontSize=9,  # Reducido de 10 a 9
+        spaceAfter=4,  # Reducido de 6 a 4
         alignment=1,  # Center
         textColor=colors.black
     )
@@ -1377,16 +1338,14 @@ def generate_products_pdf_report(sales, start_date, end_date, company_id, user, 
         return "\n".join(lines)
     
     # Headers para ranking de productos
-    headers = ['#', 'Producto', 'Cantidad', 'Stock', 'Precio Prom.', 'Total Ventas']
+    headers = ['#', 'Producto', 'Cantidad', 'Stock', 'PVP', 'Total Ventas']
     
     # Table data
     table_data = [headers]
     
-    grand_total = 0
     total_quantity = 0
     
     for product in product_sales_data:
-        grand_total += product['total']
         total_quantity += product['quantity']
         
         table_data.append([
@@ -1405,7 +1364,7 @@ def generate_products_pdf_report(sales, start_date, end_date, company_id, user, 
         str(total_quantity),  # Entero sin formato
         '',
         '',
-        format_currency(grand_total)
+        format_currency(grand_total)  # Usar grand_total calculado anteriormente
     ])
     
     # Create table with optimized column widths

@@ -144,9 +144,8 @@
                         <table class="table table-bordered table-striped table-hover" id="sales-table">
                         <thead class="thead-dark" id="table-head">
                             <tr>
-                                <th>Producto</th>
-                                <th>Categoría</th>
-                                <th>Cantidad</th>
+                                <th>Fecha/Hora</th>
+                                <th>Productos</th>
                                 <th>Efectivo</th>
                                 <th>Mercado Pago</th>
                                 <th>Transferencias</th>
@@ -158,7 +157,7 @@
                         </tbody>
                         <tfoot class="table-secondary" id="table-foot">
                             <tr class="font-weight-bold">
-                                <td colspan="3">Resumen</td>
+                                <td colspan="2">Resumen</td>
                                 <td id="cash-total">$0.00</td>
                                 <td id="mp-total">$0.00</td>
                                 <td id="transfer-total">$0.00</td>
@@ -319,14 +318,14 @@ function displayProductsReport(data) {
             <th>Producto</th>
             <th>Cantidad Vendida</th>
             <th>Stock Actual</th>
-            <th>Precio Promedio</th>
+            <th>PVP</th>
             <th>Total Ventas</th>
         </tr>
     `);
     
     // Actualizar footer para formato de productos
     const tableFoot = $('#table-foot');
-    const grandTotal = data.products.reduce((sum, p) => sum + p.total, 0);
+    const grandTotal = data.total_amount || 0;  // Usar total del backend para coincidir con reporte por método de pago
     const totalQuantity = data.products.reduce((sum, p) => sum + p.quantity, 0);
     
     tableFoot.html(`
@@ -370,19 +369,18 @@ function displayPaymentReport(data) {
     const tbody = $('#sales-tbody');
     tbody.empty();
     
-    // Update table with payment method distribution by product
+    // Update table with payment method distribution by sale
     let cashTotal = 0;
     let mpTotal = 0;
     let transferTotal = 0;
     let otherTotal = 0;
     
-    // Actualizar headers para mostrar productos
+    // Actualizar headers para mostrar ventas
     const tableHead = $('#table-head');
     tableHead.html(`
         <tr>
-            <th>Producto</th>
-            <th>Categoría</th>
-            <th>Cantidad</th>
+            <th>Fecha/Hora</th>
+            <th>Productos</th>
             <th>Efectivo</th>
             <th>Mercado Pago</th>
             <th>Transferencias</th>
@@ -395,7 +393,7 @@ function displayPaymentReport(data) {
     const tableFoot = $('#table-foot');
     tableFoot.html(`
         <tr class="font-weight-bold">
-            <td colspan="3">Resumen</td>
+            <td colspan="2">Resumen</td>
             <td id="cash-total">$0.00</td>
             <td id="mp-total">$0.00</td>
             <td id="transfer-total">$0.00</td>
@@ -404,17 +402,16 @@ function displayPaymentReport(data) {
         </tr>
     `);
     
-    if (!data.products || data.products.length === 0) {
+    if (!data.sales || data.sales.length === 0) {
         $('#empty-state').show();
         $('#report-table').hide();
     } else {
-        data.products.forEach(function(product) {
-            const cashAmount = parseFloat(product.cash) || 0;
-            const mpAmount = parseFloat(product.mp) || 0;
-            const transferAmount = parseFloat(product.transfer) || 0;
-            const otherAmount = parseFloat(product.other) || 0;
-            const totalAmount = parseFloat(product.total) || 0;
-            const quantity = parseFloat(product.quantity) || 0;
+        data.sales.forEach(function(sale) {
+            const cashAmount = parseFloat(sale.cash) || 0;
+            const mpAmount = parseFloat(sale.mp) || 0;
+            const transferAmount = parseFloat(sale.transfer) || 0;
+            const otherAmount = parseFloat(sale.other) || 0;
+            const totalAmount = parseFloat(sale.total) || 0;
             
             cashTotal += cashAmount;
             mpTotal += mpAmount;
@@ -423,9 +420,8 @@ function displayPaymentReport(data) {
             
             const row = `
                 <tr>
-                    <td><strong>${product.product_name}</strong></td>
-                    <td><small class="text-muted">${product.category_name}</small></td>
-                    <td class="text-center">${quantity.toLocaleString('es-AR')}</td>
+                    <td><small>${sale.date}</small></td>
+                    <td><small>${sale.products}</small></td>
                     <td class="text-right">$${cashAmount.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                     <td class="text-right">$${mpAmount.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                     <td class="text-right">$${transferAmount.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
