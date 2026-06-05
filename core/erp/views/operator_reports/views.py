@@ -227,7 +227,6 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                             other_amount = sale_total
                         
                         # Formatear fecha y hora con zona horaria local
-                        from django.utils import timezone
                         date_joined = timezone.localtime(sale.date_joined)
                         formatted_date = date_joined.strftime('%d/%m/%Y %H:%M')
                         
