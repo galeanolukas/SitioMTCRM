@@ -30,4 +30,10 @@ urlpatterns = [
     path('', include('core.homepage.urls')),
 ]
 
-urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# Servir archivos estáticos y media en desarrollo (DEBUG=True)
+if settings.DEBUG:
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+else:
+    # En producción, solo servir media (static files deben ser servidos por Whitenoise o nginx)
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

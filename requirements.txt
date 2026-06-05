@@ -20,6 +20,9 @@ mercadopago==2.2.0
 # Carga de variables desde .env
 python-dotenv==1.0.1
 
+# Servir static files en producción
+whitenoise==6.6.0
+
 # Manejo de datos en Excel - Versiones compatibles y estables para Python 3.12
 numpy==2.4.2
 pandas==2.2.3
