@@ -30,7 +30,7 @@ openpyxl==3.1.5
 
 # Manejo de versiones semánticas
 packaging==24.2
-requests==2.32.3
+requests==2.34.2
 
 # Manejo de zonas horarias
 pytz==2024.2
