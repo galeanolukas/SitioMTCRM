@@ -1404,30 +1404,30 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
         story = []
         styles = getSampleStyleSheet()
         
-        # Estilo personalizado para título
+        # Estilo personalizado para título - reducido para ahorrar espacio
         title_style = ParagraphStyle(
             'CustomTitle',
             parent=styles['Heading1'],
-            fontSize=18,
-            spaceAfter=30,
+            fontSize=12,  # Reducido de 18 a 12
+            spaceAfter=4,  # Reducido de 30 a 4
             alignment=1  # Centrado
         )
         
-        # Estilo para encabezados
+        # Estilo para encabezados - reducido para ahorrar espacio
         header_style = ParagraphStyle(
             'CustomHeader',
             parent=styles['Heading2'],
-            fontSize=12,
-            spaceAfter=12,
+            fontSize=10,  # Reducido de 12 a 10
+            spaceAfter=6,  # Reducido de 12 a 6
             textColor=colors.darkblue
         )
         
-        # Estilo para información del período
+        # Estilo para información del período - reducido para ahorrar espacio
         info_style = ParagraphStyle(
             'CustomInfo',
             parent=styles['Normal'],
-            fontSize=10,
-            spaceAfter=6,
+            fontSize=9,  # Reducido de 10 a 9
+            spaceAfter=3,  # Reducido de 6 a 3
             leftIndent=20
         )
         
@@ -1440,27 +1440,25 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
                          'REPORTE DE GANANCIAS' if report_type == 'profit' else \
                          'REPORTE DE PRODUCTOS MÁS VENDIDOS'
             
-            story.append(Paragraph(report_title, title_style))
+            # Construir header en una sola línea
+            header_parts = [report_title]
             
-            # Información del período
             if period_info.get('start_date') and period_info.get('end_date'):
-                story.append(Paragraph(f"<b>Período:</b> Desde {period_info['start_date']} hasta {period_info['end_date']}", info_style))
+                header_parts.append(f"Período: {period_info['start_date']} al {period_info['end_date']}")
             
-            # Información de la empresa si está disponible
             if period_info.get('company_id'):
                 try:
                     company = Company.objects.get(id=period_info['company_id'])
-                    story.append(Paragraph(f"<b>Empresa:</b> {company.name}", info_style))
+                    header_parts.append(f"Empresa: {company.name}")
                 except Company.DoesNotExist:
                     pass
             
-            # Método de pago si está disponible
             if period_info.get('payment_method'):
-                story.append(Paragraph(f"<b>Método de Pago:</b> {period_info['payment_method']}", info_style))
+                header_parts.append(f"Método: {period_info['payment_method']}")
             
-            # Fecha de generación
-            story.append(Paragraph(f"<b>Fecha de Generación:</b> {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}", info_style))
-            story.append(Spacer(1, 20))  # Espacio después del encabezado
+            header_text = ' - '.join(header_parts)
+            story.append(Paragraph(header_text, title_style))
+            story.append(Spacer(1, 4))  # Reducido espacio
         
         if report_type == 'sales':
             # Datos de la tabla de ventas
@@ -1608,11 +1606,11 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
             ]))
             
             story.append(table)
-            story.append(Spacer(1, 20))
+            story.append(Spacer(1, 8))  # Reducido de 20 a 8
             
             # Resumen de gastos
             story.append(Paragraph("RESUMEN DE GASTOS", header_style))
-            story.append(Spacer(1, 12))
+            story.append(Spacer(1, 6))  # Reducido de 12 a 6
             
             total_expenses = data.count()
             total_amount = data.aggregate(total=Sum('amount'))['total'] or 0

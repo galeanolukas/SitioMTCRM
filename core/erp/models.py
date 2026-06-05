@@ -608,6 +608,11 @@ class Expense(models.Model):
             if user and not user.is_anonymous:
                 self.company_id = getattr(user, 'company_id', None)
         
+        # Si la descripción está vacía y hay un motivo recurrente, usar el motivo como descripción
+        if not self.description and self.recurring_reason:
+            reason_dict = dict(EXPENSE_RECURRING_REASONS)
+            self.description = reason_dict.get(self.recurring_reason, self.recurring_reason)
+        
         # Generar local_uuid para nuevos gastos locales
         if not self.pk and not self.local_uuid:
             import uuid
