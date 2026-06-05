@@ -993,9 +993,9 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
         else:
             other_amount = sale_total
         
-        # Formatear fecha y hora con zona horaria local
+        # Formatear fecha y hora con zona horaria local - hora en salto de línea
         date_joined = timezone.localtime(sale.date_joined)
-        formatted_date = date_joined.strftime('%d/%m/%Y %H:%M')
+        formatted_date = f"{date_joined.strftime('%d/%m/%Y')}<br/>{date_joined.strftime('%H:%M')}"
         
         sales_list.append({
             'date': formatted_date,
@@ -1017,11 +1017,12 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
         transfer_total += sale['transfer']
         other_total += sale['other']
         
-        # Usar Paragraph para los productos con word wrapping
+        # Usar Paragraph para los productos y fecha con word wrapping
         products_paragraph = Paragraph(sale['products'], normal_style)
+        date_paragraph = Paragraph(sale['date'], normal_style)
         
         table_data.append([
-            sale['date'],
+            date_paragraph,
             products_paragraph,
             format_currency(sale['cash']),
             format_currency(sale['mp']),
