@@ -840,8 +840,8 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
     response['Content-Disposition'] = f'attachment; filename="planilla_ventas_{start_date}_al_{end_date}.pdf"'
     
     buffer = BytesIO()
-    # Use A4 with optimized margins for better space utilization
-    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=30, leftMargin=30, topMargin=40, bottomMargin=40)
+    # Use A4 with optimized margins for better space utilization - márgenes aumentados
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
     
     styles = getSampleStyleSheet()
     
@@ -933,8 +933,8 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
         # Para pagos combinados, solo mostrar el monto sin descripción
         return f"${amount:,.2f}"
     
-    # Sales table with payment method columns grouped by sale
-    headers = ['Fecha/Hora', 'Productos', 'Efectivo', 'Mercado Pago', 'Transferencias', 'Otros', 'Total']
+    # Sales table with payment method columns grouped by sale - títulos abreviados
+    headers = ['Fecha/Hora', 'Productos', 'Efectivo', 'MP', 'Transf.', 'Otros', 'Total']
     
     # Table data with payment distribution grouped by product
     table_data = [headers]
@@ -1054,18 +1054,18 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
     ])
     
     # Create table with optimized column widths for A4 (7 columnas: Fecha/Hora, Productos, Efectivo, MP, Transfer, Otros, Total)
-    # Aumentado ancho de columnas de montos para que entren los importes formateados
-    sales_table = Table(table_data, colWidths=[1.2*inch, 2.0*inch, 1.0*inch, 1.0*inch, 1.0*inch, 1.0*inch, 1.0*inch])
+    # Reducidos anchos para agregar más margen lateral
+    sales_table = Table(table_data, colWidths=[1.0*inch, 1.8*inch, 0.8*inch, 0.8*inch, 0.8*inch, 0.8*inch, 0.9*inch])
     sales_table.setStyle(TableStyle([
         # Header styling
         ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
         ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
         ('FONTNAME', (0, 0), (-1, 0), font_name),
-        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('FONTSIZE', (0, 0), (-1, 0), 9),  # Reducido de 10 a 9
         ('BOLD', (0, 0), (-1, 0), True),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 6),  # Reducido de 8 a 6
-        ('TOPPADDING', (0, 0), (-1, 0), 6),  # Reducido de 8 a 6
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 4),  # Reducido de 6 a 4
+        ('TOPPADDING', (0, 0), (-1, 0), 4),  # Reducido de 6 a 4
         
         # Data rows styling
         ('BACKGROUND', (0, 1), (-1, -3), colors.white),
@@ -1073,9 +1073,9 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
         ('ALIGN', (1, 1), (-1, -3), 'CENTER'),  # Solo columnas de montos centradas
         ('ALIGN', (0, 1), (0, -3), 'LEFT'),       # Primera columna (productos) alineada a la izquierda
         ('FONTNAME', (0, 1), (-1, -3), font_name),
-        ('FONTSIZE', (0, 1), (-1, -3), 9),
-        ('BOTTOMPADDING', (0, 1), (-1, -3), 4),  # Reducido de 6 a 4
-        ('TOPPADDING', (0, 1), (-1, -3), 4),  # Reducido de 6 a 4
+        ('FONTSIZE', (0, 1), (-1, -3), 8),  # Reducido de 9 a 8
+        ('BOTTOMPADDING', (0, 1), (-1, -3), 3),  # Reducido de 4 a 3
+        ('TOPPADDING', (0, 1), (-1, -3), 3),  # Reducido de 4 a 3
         ('GRID', (0, 0), (-1, -1), 1, colors.black),
         ('VALIGN', (0, 1), (-1, -3), 'TOP'),     # Alinear texto hacia arriba para múltiples líneas
         
@@ -1084,19 +1084,19 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
         ('TEXTCOLOR', (0, -2), (-1, -2), colors.black),
         ('ALIGN', (0, -2), (-1, -2), 'CENTER'),
         ('FONTNAME', (0, -2), (-1, -2), font_name),
-        ('FONTSIZE', (0, -2), (-1, -2), 10),
+        ('FONTSIZE', (0, -2), (-1, -2), 9),  # Reducido de 10 a 9
         ('BOLD', (0, -2), (-1, -2), True),
-        ('BOTTOMPADDING', (0, -2), (-1, -2), 6),  # Reducido de 8 a 6
-        ('TOPPADDING', (0, -2), (-1, -2), 6),  # Reducido de 8 a 6
+        ('BOTTOMPADDING', (0, -2), (-1, -2), 4),  # Reducido de 6 a 4
+        ('TOPPADDING', (0, -2), (-1, -2), 4),  # Reducido de 6 a 4
         
         # Grand total row styling - fondo blanco, texto negro negrita (last row)
         ('BACKGROUND', (0, -1), (-1, -1), colors.white),
         ('TEXTCOLOR', (0, -1), (-1, -1), colors.black),
         ('ALIGN', (0, -1), (-1, -1), 'CENTER'),
         ('FONTNAME', (0, -1), (-1, -1), font_name),
-        ('FONTSIZE', (0, -1), (-1, -1), 11),
+        ('FONTSIZE', (0, -1), (-1, -1), 10),  # Reducido de 11 a 10
         ('BOLD', (0, -1), (-1, -1), True),
-        ('BOTTOMPADDING', (0, -1), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, -1), (-1, -1), 6),  # Reducido de 8 a 6
         ('TOPPADDING', (0, -1), (-1, -1), 8)
     ]))
     
@@ -1225,7 +1225,7 @@ def generate_products_pdf_report(sales, start_date, end_date, company_id, user, 
     response['Content-Disposition'] = f'attachment; filename="ranking_productos_{start_date}_al_{end_date}.pdf"'
     
     buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=30, leftMargin=30, topMargin=40, bottomMargin=40)
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
     
     styles = getSampleStyleSheet()
     
