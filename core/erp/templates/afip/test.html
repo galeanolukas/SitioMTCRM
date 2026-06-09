@@ -1,0 +1,100 @@
+{% extends 'list.html' %}
+{% load static %}
+
+{% block head_list %}
+  <script src="{% static 'afip/test.js' %}"></script>
+{% endblock %}
+
+{% block columns %}
+  <tr>
+    <th style="width: 10%;">ID</th>
+    <th style="width: 25%;">Empresa</th>
+    <th style="width: 15%;">CUIT</th>
+    <th style="width: 15%;">Ambiente</th>
+    <th style="width: 15%;">Estado</th>
+    <th style="width: 20%;">Opciones</th>
+  </tr>
+{% endblock %}
+
+{% block rows %}
+  {% for company in companies %}
+  <tr>
+    <td>{{ company.id }}</td>
+    <td>{{ company.name }}</td>
+    <td>{{ company.cuit|default:"No configurado" }}</td>
+    <td>-</td>
+    <td>
+      {% if company.is_active %}
+        <span class="badge badge-success">Activo</span>
+      {% else %}
+        <span class="badge badge-secondary">Inactivo</span>
+      {% endif %}
+    </td>
+    <td>
+      <button class="btn btn-info btn-flat btn-sm" onclick="testConnection({{ company.id }})">
+        <i class="fas fa-vial"></i> Probar
+      </button>
+    </td>
+  </tr>
+  {% empty %}
+  <tr>
+    <td colspan="6" class="text-center">No hay empresas activas para probar conexión</td>
+  </tr>
+  {% endfor %}
+{% endblock %}
+
+{% block buttons_list %}
+  <a href="{% url 'erp:afip:dashboard' %}" class="btn btn-primary btn-flat"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+  <a href="{% url 'erp:afip:list' %}" class="btn btn-success btn-flat"><i class="fas fa-sync"></i> Actualizar</a>
+{% endblock %}
+
+{% block javascript %}
+  <div class="modal fade" id="testModal" tabindex="-1" aria-labelledby="testModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="testModalLabel"><i class="fas fa-vial"></i> Prueba de Conexión AFIP</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="testForm">
+          <div class="modal-body">
+            <div id="error-block" class="alert alert-danger d-none"></div>
+            <div id="success-block" class="alert alert-success d-none"></div>
+            <div class="container-fluid">
+              <input type="hidden" name="action" id="action" value="" />
+              <input type="hidden" name="company_id" id="company_id" value="" />
+              {% csrf_token %}
+              
+              <div class="form-group mb-2">
+                <label class="form-label">Empresa:</label>
+                <select name="company_id_select" id="company_id_select" class="form-control">
+                  {% for company in companies %}
+                    <option value="{{ company.id }}">{{ company.name }} (CUIT: {{ company.cuit|default:"No configurado" }})</option>
+                  {% endfor %}
+                </select>
+              </div>
+              
+              <div class="form-group mb-2">
+                <label class="form-label">Tipo de prueba:</label>
+                <select name="test_type" id="test_type" class="form-control">
+                  <option value="test_connection">Probar Conexión (Mis Comprobantes)</option>
+                  <option value="get_taxpayer">Consultar Contribuyente (Nuestra Parte)</option>
+                </select>
+              </div>
+              
+              <div class="form-group mb-2 d-none" id="cuit_group">
+                <label class="form-label">CUIT a consultar:</label>
+                <input type="text" name="cuit" id="cuit" class="form-control" placeholder="Ingrese CUIT (sin guiones)" />
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-primary btn-flat">
+              <i class="fas fa-play"></i> Ejecutar Prueba
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+{% endblock %}

@@ -1,0 +1,10 @@
+{% extends 'delete.html' %}
+{% load static %}
+
+{% block head_delete %}
+  <script src="{% static 'afip/delete.js' %}"></script>
+{% endblock %}
+
+{% block delete_message %}
+  ¿Está seguro de eliminar la configuración AFIP de <strong>{{ object.company.name }}</strong> (CUIT: {{ object.cuit }})?
+{% endblock %}

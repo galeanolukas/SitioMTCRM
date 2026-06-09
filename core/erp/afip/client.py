@@ -55,19 +55,21 @@ class AfipClient:
     
     def get_server_status(self):
         """
-        Verifica el estado del servidor de AFIP
+        Verifica el estado del servidor de AFIP usando automatización
         
         Returns:
             Dict con el estado del servidor
         """
         try:
-            return self.afip.GetServerStatus()
+            # Usar automatización para verificar estado
+            result = self.afip.createAutomation('MisComprobantes', {}, wait=True)
+            return {'status': 'ok', 'data': result}
         except Exception as e:
             return {'error': str(e)}
     
     def get_taxpayer_info(self, cuit):
         """
-        Obtiene información de un contribuyente
+        Obtiene información de un contribuyente usando automatización
         
         Args:
             cuit: CUIT del contribuyente
@@ -76,7 +78,9 @@ class AfipClient:
             Dict con información del contribuyente
         """
         try:
-            return self.afip.GetTaxpayer(cuit)
+            # Usar automatización para obtener información de contribuyente
+            result = self.afip.createAutomation('NuestraParte', {'cuit': cuit}, wait=True)
+            return {'taxpayer': result}
         except Exception as e:
             return {'error': str(e)}
     
@@ -98,65 +102,50 @@ class AfipClient:
     
     def get_invoice_types(self):
         """
-        Obtiene los tipos de comprobantes disponibles
+        Obtiene los tipos de comprobantes disponibles usando automatización
         
         Returns:
             List con los tipos de comprobantes
         """
         try:
-            ws = self.get_web_service('wsfe')
-            return ws.GetInvoiceTypes()
+            # Usar automatización para obtener tipos de comprobantes
+            result = self.afip.createAutomation('MisComprobantes', {}, wait=True)
+            return {'types': result}
         except Exception as e:
             return {'error': str(e)}
     
     def get_concept_types(self):
         """
-        Obtiene los tipos de conceptos disponibles
+        Obtiene los tipos de conceptos disponibles (no implementado en automatizaciones)
         
         Returns:
-            List con los tipos de conceptos
+            Dict con error indicando que no está disponible
         """
-        try:
-            ws = self.get_web_service('wsfe')
-            return ws.GetConceptTypes()
-        except Exception as e:
-            return {'error': str(e)}
+        return {'error': 'Método no disponible en automatizaciones AFIP SDK'}
     
     def get_document_types(self):
         """
-        Obtiene los tipos de documentos disponibles
+        Obtiene los tipos de documentos disponibles (no implementado en automatizaciones)
         
         Returns:
-            List con los tipos de documentos
+            Dict con error indicando que no está disponible
         """
-        try:
-            ws = self.get_web_service('wsfe')
-            return ws.GetDocumentTypes()
-        except Exception as e:
-            return {'error': str(e)}
+        return {'error': 'Método no disponible en automatizaciones AFIP SDK'}
     
     def get_aliquote_types(self):
         """
-        Obtiene los tipos de alícuotas de IVA disponibles
+        Obtiene los tipos de alícuotas de IVA disponibles (no implementado en automatizaciones)
         
         Returns:
-            List con los tipos de alícuotas
+            Dict con error indicando que no está disponible
         """
-        try:
-            ws = self.get_web_service('wsfe')
-            return ws.GetAliquoteTypes()
-        except Exception as e:
-            return {'error': str(e)}
+        return {'error': 'Método no disponible en automatizaciones AFIP SDK'}
     
     def get_currency_types(self):
         """
-        Obtiene los tipos de monedas disponibles
+        Obtiene los tipos de monedas disponibles (no implementado en automatizaciones)
         
         Returns:
-            List con los tipos de monedas
+            Dict con error indicando que no está disponible
         """
-        try:
-            ws = self.get_web_service('wsfe')
-            return ws.GetCurrencyTypes()
-        except Exception as e:
-            return {'error': str(e)}
+        return {'error': 'Método no disponible en automatizaciones AFIP SDK'}

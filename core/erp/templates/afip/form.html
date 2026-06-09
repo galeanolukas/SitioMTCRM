@@ -1,0 +1,25 @@
+{% extends 'form.html' %}
+{% load static %}
+
+{% block head_form %}
+  <script src="{% static 'afip/form.js' %}"></script>
+{% endblock %}
+
+{% block javascript %}
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const companySelect = document.getElementById('id_company');
+      const cuitInput = document.getElementById('id_cuit');
+      
+      if (companySelect && cuitInput) {
+        companySelect.addEventListener('change', function() {
+          const selectedOption = this.options[this.selectedIndex];
+          const cuitMatch = selectedOption.text.match(/CUIT:\s*([^\)]+)/);
+          if (cuitMatch) {
+            cuitInput.value = cuitMatch[1].trim();
+          }
+        });
+      }
+    });
+  </script>
+{% endblock %}
