@@ -247,6 +247,16 @@ LOGIN_REDIRECT_URL = '/erp/launcher/'
 
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media/')
 
+# AFIP SDK Configuration
+# Obtener access token en https://app.afipsdk.com
+AFIP_ACCESS_TOKEN = os.environ.get('AFIP_ACCESS_TOKEN', None)
+AFIP_CUIT = os.environ.get('AFIP_CUIT', None)
+AFIP_ENVIRONMENT = os.environ.get('AFIP_ENVIRONMENT', 'dev')  # 'dev' o 'prod'
+
+# Rutas a certificados (solo para producción)
+AFIP_CERT_PATH = os.environ.get('AFIP_CERT_PATH', None)
+AFIP_KEY_PATH = os.environ.get('AFIP_KEY_PATH', None)
+
 MEDIA_URL = '/media/'
 
 AUTH_USER_MODEL = 'user.User'

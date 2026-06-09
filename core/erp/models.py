@@ -944,6 +944,32 @@ class InternalTransferDetail(models.Model):
         ordering = ['id']
 
 
+class AfipConfig(models.Model):
+    """Configuración de AFIP SDK por empresa"""
+    ENVIRONMENT_CHOICES = (
+        ('dev', 'Desarrollo'),
+        ('prod', 'Producción'),
+    )
+    
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa', null=True, blank=True)
+    cuit = models.CharField(max_length=20, verbose_name='CUIT')
+    access_token = models.CharField(max_length=255, verbose_name='Access Token AFIP SDK')
+    cert = models.TextField(blank=True, null=True, verbose_name='Certificado (solo producción)')
+    key = models.TextField(blank=True, null=True, verbose_name='Key (solo producción)')
+    environment = models.CharField(max_length=10, choices=ENVIRONMENT_CHOICES, default='dev', verbose_name='Ambiente')
+    is_active = models.BooleanField(default=True, verbose_name='Activo')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de creación')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Fecha de actualización')
+    
+    def __str__(self):
+        return f"AFIP Config - {self.company.name if self.company else 'Global'} ({self.cuit})"
+    
+    class Meta:
+        verbose_name = 'Configuración AFIP'
+        verbose_name_plural = 'Configuraciones AFIP'
+        ordering = ['-is_active', 'company__name']
+
+
 class GlobalSyncStatus(models.Model):
     """Model to store global sync status that can be checked by background threads"""
     sync_enabled = models.BooleanField(default=True)

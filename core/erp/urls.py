@@ -174,6 +174,8 @@ urlpatterns = [
     path('api/updates/status/', check_update_status, name='api_check_update_status'),
     path('api/updates/diagnostics/', version_diagnostics, name='api_version_diagnostics'),
     path('api/execute-release/', execute_release, name='api_execute_release'),
+    # AFIP
+    path('afip/', include('core.erp.afip.urls', namespace='afip')),
     # Descuentos y Ofertas (comentado temporalmente para evitar errores de importación)
     # path('discounts/', DiscountRuleListView.as_view(), name='discount_list'),
     # path('discounts/add/', DiscountRuleCreateView.as_view(), name='discount_create'),

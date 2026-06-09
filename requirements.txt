@@ -17,6 +17,9 @@ weasyprint==67.0
 # Mercado Pago SDK
 mercadopago==2.2.0
 
+# AFIP SDK para facturación electrónica
+afip.py==1.0.0
+
 # Carga de variables desde .env
 python-dotenv==1.0.1
 

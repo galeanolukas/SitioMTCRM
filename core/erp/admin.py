@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.apps import apps
-from .models import Company, Product, Sale, Client, Supplier, Category, EmployeeAccountSale
+from .models import Company, Product, Sale, Client, Supplier, Category, EmployeeAccountSale, AfipConfig
 
 # Clase base para admin con filtrado por empresa
 class CompanyFilteredAdmin(admin.ModelAdmin):
@@ -72,6 +72,20 @@ class EmployeeAccountSaleAdmin(CompanyFilteredAdmin):
             return qs.filter(company_id=request.user.company_id)
         return qs.none()
 
+class AfipConfigAdmin(CompanyFilteredAdmin):
+    list_display = ('company', 'cuit', 'environment', 'is_active', 'created_at')
+    list_filter = ('company', 'environment', 'is_active')
+    search_fields = ('cuit', 'company__name')
+    readonly_fields = ('created_at', 'updated_at')
+    
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if request.user.is_superuser:
+            return qs
+        if hasattr(request.user, 'company_id') and request.user.company_id:
+            return qs.filter(company_id=request.user.company_id)
+        return qs.none()
+
 # Registrar modelos principales con admin personalizado
 admin.site.register(Company, CompanyAdmin)
 admin.site.register(Product, ProductAdmin)
@@ -80,12 +94,13 @@ admin.site.register(Client, ClientAdmin)
 admin.site.register(Supplier, SupplierAdmin)
 admin.site.register(Category, CategoryAdmin)
 admin.site.register(EmployeeAccountSale, EmployeeAccountSaleAdmin)
+admin.site.register(AfipConfig, AfipConfigAdmin)
 
 # Obtener todos los modelos de la aplicación
 app_models = apps.get_app_config('erp').get_models()
 
 # Registrar los modelos restantes que no tienen admin personalizado
-registered_models = {Company, Product, Sale, Client, Supplier, Category, EmployeeAccountSale}
+registered_models = {Company, Product, Sale, Client, Supplier, Category, EmployeeAccountSale, AfipConfig}
 for model in app_models:
     if model not in registered_models:
         try:
