@@ -110,12 +110,14 @@
             </a>
           </li>
           
+          {% if perms.erp.view_catalogoconfig %}
           <li class="nav-item">
             <a href="{% url 'erp:catalogo_list' %}" class="nav-link">
               <i class="nav-icon fa-solid fa-cloud"></i>
               <p>Catálogo</p>
             </a>
           </li>
+          {% endif %}
           {% endif %}
         </ul>
       </nav>
