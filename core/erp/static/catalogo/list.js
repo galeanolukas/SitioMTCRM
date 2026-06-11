@@ -1,16 +1,5 @@
 // List Catalogo JavaScript
 
-document.addEventListener('DOMContentLoaded', function() {
-    $('#data').DataTable({
-        responsive: true,
-        lengthChange: false,
-        autoWidth: false,
-        language: {
-            url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es.json'
-        }
-    });
-});
-
 function syncCatalogo(button) {
     const catalogoId = button.getAttribute('data-catalogo-id');
     
@@ -21,6 +10,8 @@ function syncCatalogo(button) {
     button.disabled = true;
     button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
     
+    console.log('Iniciando sincronización de catálogo ID:', catalogoId);
+    
     fetch('/erp/catalogo/sync/', {
         method: 'POST',
         headers: {
@@ -29,20 +20,74 @@ function syncCatalogo(button) {
         },
         body: JSON.stringify({})
     })
-    .then(response => response.json())
+    .then(response => {
+        console.log('Respuesta recibida, status:', response.status);
+        return response.json();
+    })
     .then(data => {
+        console.log('Datos recibidos:', data);
         if (data.success) {
             alert('Productos sincronizados correctamente: ' + data.message);
+            location.reload();
         } else {
             alert('Error al sincronizar: ' + data.error);
+            if (data.response) {
+                console.error('Respuesta del servidor:', data.response);
+            }
         }
     })
     .catch(error => {
+        console.error('Error de conexión:', error);
         alert('Error de conexión: ' + error);
     })
     .finally(() => {
         button.disabled = false;
         button.innerHTML = '<i class="fas fa-sync"></i>';
+    });
+}
+
+function syncAllCatalogo() {
+    if (!confirm('¿Deseas sincronizar todo el inventario con el catálogo online?')) {
+        return;
+    }
+    
+    const button = event.target.closest('button');
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sincronizando...';
+    
+    console.log('Iniciando sincronización completa de inventario');
+    
+    fetch('/erp/catalogo/sync/', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({})
+    })
+    .then(response => {
+        console.log('Respuesta recibida, status:', response.status);
+        return response.json();
+    })
+    .then(data => {
+        console.log('Datos recibidos:', data);
+        if (data.success) {
+            alert('Inventario sincronizado correctamente: ' + data.message);
+            location.reload();
+        } else {
+            alert('Error al sincronizar inventario: ' + data.error);
+            if (data.response) {
+                console.error('Respuesta del servidor:', data.response);
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error de conexión:', error);
+        alert('Error de conexión: ' + error);
+    })
+    .finally(() => {
+        button.disabled = false;
+        button.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Sincronizar Inventario';
     });
 }
 

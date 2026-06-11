@@ -5,6 +5,30 @@
   <script src="{% static 'catalogo/list.js' %}"></script>
 {% endblock %}
 
+{% block javascript %}
+  <script type="application/javascript">
+      $(function () {
+          // Deshabilitar DataTables para catálogo
+          $('#data').DataTable = function() { return this; };
+          
+          $('.btnTest').on('click', function () {
+              $.ajax({
+                  url: '{% url 'erp:category_list' %}',
+                  type: 'POST',
+                  data: {id: 1},
+                  dataType: 'json'
+              }).done(function (data) {
+                  console.log(data);
+              }).fail(function (jqXHR, textStatus, errorThrown) {
+                  alert(textStatus + ': ' + errorThrown);
+              }).always(function (data) {
+
+              });
+          });
+      });
+  </script>
+{% endblock %}
+
 {% block columns %}
   <tr>
     <th style="width: 10%;">ID</th>
@@ -54,4 +78,7 @@
 {% block buttons_list %}
   <a href="{% url 'erp:catalogo_add' %}" class="btn btn-primary btn-flat"><i class="fas fa-plus"></i> Nuevo registro</a>
   <a href="{% url 'erp:catalogo_list' %}" class="btn btn-success btn-flat"><i class="fas fa-sync"></i> Actualizar</a>
+  <button class="btn btn-info btn-flat" onclick="syncAllCatalogo()">
+    <i class="fas fa-cloud-upload-alt"></i> Sincronizar Inventario
+  </button>
 {% endblock %}

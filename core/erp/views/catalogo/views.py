@@ -11,9 +11,12 @@ from django.urls import reverse_lazy
 from django.utils.decorators import method_decorator
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.utils import timezone
+import logging
 from core.erp.mixins import ValidatePermissionRequiredMixin
 from core.erp.models import Product, CatalogoConfig, Company
 import requests
+
+logger = logging.getLogger(__name__)
 
 
 @csrf_exempt
@@ -25,6 +28,8 @@ def enviar_productos_catalogo(request):
     Método: POST
     """
     try:
+        logger.info(f"Iniciando sincronización de productos. Usuario: {request.user.username}, Empresa: {request.user.company.name if request.user.company else 'N/A'}")
+        
         # Obtener configuración de sincronización desde la DB
         # Primero buscar configuración específica de la empresa del usuario
         catalogo_config = None
@@ -34,6 +39,7 @@ def enviar_productos_catalogo(request):
                 company=request.user.company,
                 is_active=True
             ).first()
+            logger.info(f"Config específica de empresa encontrada: {catalogo_config is not None}")
         
         # Si no hay config específica, buscar global
         if not catalogo_config:
@@ -41,8 +47,10 @@ def enviar_productos_catalogo(request):
                 company__isnull=True,
                 is_active=True
             ).first()
+            logger.info(f"Config global encontrada: {catalogo_config is not None}")
         
         if not catalogo_config:
+            logger.error("No hay configuración de catálogo activa")
             return JsonResponse({
                 'success': False,
                 'error': 'No hay configuración de catálogo activa para esta empresa'
@@ -50,12 +58,15 @@ def enviar_productos_catalogo(request):
         
         catalogo_url = catalogo_config.catalogo_url
         catalogo_api_key = catalogo_config.api_key
+        logger.info(f"URL del catálogo: {catalogo_url}")
         
         # Obtener productos del modelo Product en SitioMTCRM
         # Filtrar por empresa si el usuario tiene company
         productos_db = Product.objects.all()
         if hasattr(request.user, 'company') and request.user.company:
             productos_db = productos_db.filter(company=request.user.company)
+        
+        logger.info(f"Total de productos a sincronizar: {productos_db.count()}")
         
         productos = []
         for prod in productos_db:
@@ -71,9 +82,14 @@ def enviar_productos_catalogo(request):
                 'fecha_actualizacion': prod.last_server_sync.isoformat() if prod.last_server_sync else ''
             })
         
+        logger.info(f"Payload JSON preparado con {len(productos)} productos")
+        
         # Enviar productos al catálogo
+        sync_url = f"{catalogo_url}/api/sincronizar-productos-crm/"
+        logger.info(f"Enviando a URL: {sync_url}")
+        
         response = requests.post(
-            f"{catalogo_url}/api/sincronizar-productos-crm/",
+            sync_url,
             headers={
                 'Content-Type': 'application/json'
             },
@@ -84,10 +100,14 @@ def enviar_productos_catalogo(request):
             timeout=60
         )
         
+        logger.info(f"Respuesta del catálogo - Status: {response.status_code}, Content: {response.text[:500]}")
+        
         if response.status_code == 200:
             # Actualizar last_sync
             catalogo_config.last_sync = timezone.now()
             catalogo_config.save()
+            
+            logger.info(f"Sincronización exitosa. {len(productos)} productos enviados")
             
             return JsonResponse({
                 'success': True,
@@ -148,6 +168,12 @@ class CatalogoConfigCreateView(LoginRequiredMixin, ValidatePermissionRequiredMix
                 form.fields['company'].queryset = Company.objects.none()
         
         return form
+    
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({'success': True, 'message': 'Configuración creada correctamente'})
+        return response
 
 
 class CatalogoConfigUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, UpdateView):
@@ -181,6 +207,12 @@ class CatalogoConfigUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMix
                 form.fields['company'].queryset = Company.objects.none()
         
         return form
+    
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({'success': True, 'message': 'Configuración actualizada correctamente'})
+        return response
 
 
 class CatalogoConfigDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin, DeleteView):
