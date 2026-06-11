@@ -29,9 +29,9 @@ def enviar_productos_catalogo(request):
         # Primero buscar configuración específica de la empresa del usuario
         catalogo_config = None
         
-        if hasattr(request.user, 'company_id') and request.user.company_id:
+        if hasattr(request.user, 'company') and request.user.company:
             catalogo_config = CatalogoConfig.objects.filter(
-                company_id=request.user.company_id,
+                company=request.user.company,
                 is_active=True
             ).first()
         
@@ -52,10 +52,10 @@ def enviar_productos_catalogo(request):
         catalogo_api_key = catalogo_config.api_key
         
         # Obtener productos del modelo Product en SitioMTCRM
-        # Filtrar por empresa si el usuario tiene company_id
+        # Filtrar por empresa si el usuario tiene company
         productos_db = Product.objects.all()
-        if hasattr(request.user, 'company_id') and request.user.company_id:
-            productos_db = productos_db.filter(company_id=request.user.company_id)
+        if hasattr(request.user, 'company') and request.user.company:
+            productos_db = productos_db.filter(company=request.user.company)
         
         productos = []
         for prod in productos_db:
@@ -120,8 +120,8 @@ class CatalogoConfigListView(LoginRequiredMixin, ValidatePermissionRequiredMixin
         
         # Si no es superusuario, filtrar por empresa del usuario
         if not self.request.user.is_superuser:
-            if hasattr(self.request.user, 'company_id') and self.request.user.company_id:
-                qs = qs.filter(company_id=self.request.user.company_id)
+            if hasattr(self.request.user, 'company') and self.request.user.company:
+                qs = qs.filter(company=self.request.user.company)
             else:
                 qs = qs.none()
         
@@ -141,9 +141,9 @@ class CatalogoConfigCreateView(LoginRequiredMixin, ValidatePermissionRequiredMix
         
         # Si no es superusuario, limitar empresas
         if not self.request.user.is_superuser:
-            if hasattr(self.request.user, 'company_id') and self.request.user.company_id:
-                form.fields['company'].queryset = Company.objects.filter(id=self.request.user.company_id)
-                form.fields['company'].initial = self.request.user.company_id
+            if hasattr(self.request.user, 'company') and self.request.user.company:
+                form.fields['company'].queryset = Company.objects.filter(id=self.request.user.company.id)
+                form.fields['company'].initial = self.request.user.company.id
             else:
                 form.fields['company'].queryset = Company.objects.none()
         
@@ -163,8 +163,8 @@ class CatalogoConfigUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMix
         
         # Si no es superusuario, filtrar por empresa del usuario
         if not self.request.user.is_superuser:
-            if hasattr(self.request.user, 'company_id') and self.request.user.company_id:
-                qs = qs.filter(company_id=self.request.user.company_id)
+            if hasattr(self.request.user, 'company') and self.request.user.company:
+                qs = qs.filter(company=self.request.user.company)
             else:
                 qs = qs.none()
         
@@ -175,8 +175,8 @@ class CatalogoConfigUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMix
         
         # Si no es superusuario, limitar empresas
         if not self.request.user.is_superuser:
-            if hasattr(self.request.user, 'company_id') and self.request.user.company_id:
-                form.fields['company'].queryset = Company.objects.filter(id=self.request.user.company_id)
+            if hasattr(self.request.user, 'company') and self.request.user.company:
+                form.fields['company'].queryset = Company.objects.filter(id=self.request.user.company.id)
             else:
                 form.fields['company'].queryset = Company.objects.none()
         
@@ -195,8 +195,8 @@ class CatalogoConfigDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMix
         
         # Si no es superusuario, filtrar por empresa del usuario
         if not self.request.user.is_superuser:
-            if hasattr(self.request.user, 'company_id') and self.request.user.company_id:
-                qs = qs.filter(company_id=self.request.user.company_id)
+            if hasattr(self.request.user, 'company') and self.request.user.company:
+                qs = qs.filter(company=self.request.user.company)
             else:
                 qs = qs.none()
         

@@ -11,8 +11,8 @@ class CompanyFilteredAdmin(admin.ModelAdmin):
         if request.user.is_superuser:
             return qs  # Superusuarios ven todo
         # Usuarios normales solo ven registros de su empresa
-        if hasattr(request.user, 'company_id') and request.user.company_id:
-            return qs.filter(company_id=request.user.company_id)
+        if hasattr(request.user, 'company') and request.user.company:
+            return qs.filter(company=request.user.company)
         return qs.none()  # Sin empresa asignada, no ven nada
 
 # Admin personalizado para modelos con campo company
@@ -26,8 +26,8 @@ class CompanyAdmin(CompanyFilteredAdmin):
         if request.user.is_superuser:
             return qs
         # Usuarios normales solo ven su empresa
-        if hasattr(request.user, 'company_id') and request.user.company_id:
-            return qs.filter(id=request.user.company_id)
+        if hasattr(request.user, 'company') and request.user.company:
+            return qs.filter(id=request.user.company.id)
         return qs.none()
 
 class ProductAdmin(CompanyFilteredAdmin):
@@ -68,8 +68,8 @@ class EmployeeAccountSaleAdmin(CompanyFilteredAdmin):
         if request.user.is_superuser:
             return qs
         # Usuarios normales solo ven registros de su empresa
-        if hasattr(request.user, 'company_id') and request.user.company_id:
-            return qs.filter(company_id=request.user.company_id)
+        if hasattr(request.user, 'company') and request.user.company:
+            return qs.filter(company=request.user.company)
         return qs.none()
 
 class AfipConfigAdmin(CompanyFilteredAdmin):
@@ -82,8 +82,8 @@ class AfipConfigAdmin(CompanyFilteredAdmin):
         qs = super().get_queryset(request)
         if request.user.is_superuser:
             return qs
-        if hasattr(request.user, 'company_id') and request.user.company_id:
-            return qs.filter(company_id=request.user.company_id)
+        if hasattr(request.user, 'company') and request.user.company:
+            return qs.filter(company=request.user.company)
         return qs.none()
 
 
@@ -97,8 +97,8 @@ class CatalogoConfigAdmin(CompanyFilteredAdmin):
         qs = super().get_queryset(request)
         if request.user.is_superuser:
             return qs
-        if hasattr(request.user, 'company_id') and request.user.company_id:
-            return qs.filter(company_id=request.user.company_id)
+        if hasattr(request.user, 'company') and request.user.company:
+            return qs.filter(company=request.user.company)
         return qs.none()
 
 # Registrar modelos principales con admin personalizado
