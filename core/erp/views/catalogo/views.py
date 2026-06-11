@@ -12,9 +12,13 @@ from django.utils.decorators import method_decorator
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.utils import timezone
 import logging
+import urllib3
 from core.erp.mixins import ValidatePermissionRequiredMixin
 from core.erp.models import Product, CatalogoConfig, Company
 import requests
+
+# Deshabilitar advertencias de SSL para desarrollo
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +64,9 @@ def enviar_productos_catalogo(request):
         catalogo_api_key = catalogo_config.api_key
         logger.info(f"URL del catálogo: {catalogo_url}")
         
+        # Asegurar que la URL no tenga barra al final
+        catalogo_url = catalogo_url.rstrip('/')
+        
         # Obtener productos del modelo Product en SitioMTCRM
         # Filtrar por empresa si el usuario tiene company
         productos_db = Product.objects.all()
@@ -97,7 +104,8 @@ def enviar_productos_catalogo(request):
                 'api_key': catalogo_api_key,
                 'productos': productos
             },
-            timeout=60
+            timeout=60,
+            verify=False  # Deshabilitar verificación SSL temporalmente
         )
         
         logger.info(f"Respuesta del catálogo - Status: {response.status_code}, Content: {response.text[:500]}")
@@ -115,10 +123,15 @@ def enviar_productos_catalogo(request):
                 'response': response.json()
             })
         else:
+            error_msg = f'Error al enviar productos: {response.status_code}'
+            if response.status_code == 302:
+                error_msg += f' - Redirigido a: {response.headers.get("Location", "desconocido")}'
+            
+            logger.error(f"Error en sincronización: {error_msg}")
             return JsonResponse({
                 'success': False,
-                'error': f'Error al enviar productos: {response.status_code}',
-                'response': response.text
+                'error': error_msg,
+                'response': response.text[:500]
             }, status=500)
             
     except requests.Timeout:
