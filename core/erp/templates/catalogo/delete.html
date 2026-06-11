@@ -1,0 +1,10 @@
+{% extends 'delete.html' %}
+{% load static %}
+
+{% block head_delete %}
+  <script src="{% static 'catalogo/delete.js' %}"></script>
+{% endblock %}
+
+{% block delete_message %}
+  ¿Está seguro de eliminar la configuración de catálogo <strong>{{ object.catalogo_url }}</strong> de <strong>{{ object.company.name if object.company else 'Global' }}</strong>?
+{% endblock %}

@@ -57,6 +57,13 @@ from core.erp.views.cash_register.views import (
     CashMovementCreateView, CashRegisterDeleteView,
     CashMovementDeleteView,
 )
+from core.erp.views.catalogo.views import (
+    enviar_productos_catalogo,
+    CatalogoConfigListView,
+    CatalogoConfigCreateView,
+    CatalogoConfigUpdateView,
+    CatalogoConfigDeleteView,
+)
 
 # Importar vistas de descuentos (comentado temporalmente para evitar errores de importación)
 # from core.erp.views.discount.views import (
@@ -176,6 +183,12 @@ urlpatterns = [
     path('api/execute-release/', execute_release, name='api_execute_release'),
     # AFIP
     path('afip/', include('core.erp.afip.urls', namespace='afip')),
+    # Catálogo Marcos
+    path('catalogo/list/', CatalogoConfigListView.as_view(), name='catalogo_list'),
+    path('catalogo/add/', CatalogoConfigCreateView.as_view(), name='catalogo_add'),
+    path('catalogo/update/<int:pk>/', CatalogoConfigUpdateView.as_view(), name='catalogo_update'),
+    path('catalogo/delete/<int:pk>/', CatalogoConfigDeleteView.as_view(), name='catalogo_delete'),
+    path('catalogo/sync/', enviar_productos_catalogo, name='enviar_productos_catalogo'),
     # Descuentos y Ofertas (comentado temporalmente para evitar errores de importación)
     # path('discounts/', DiscountRuleListView.as_view(), name='discount_list'),
     # path('discounts/add/', DiscountRuleCreateView.as_view(), name='discount_create'),

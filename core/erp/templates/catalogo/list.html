@@ -1,0 +1,57 @@
+{% extends 'list.html' %}
+{% load static %}
+
+{% block head_list %}
+  <script src="{% static 'catalogo/list.js' %}"></script>
+{% endblock %}
+
+{% block columns %}
+  <tr>
+    <th style="width: 10%;">ID</th>
+    <th style="width: 20%;">Empresa</th>
+    <th style="width: 25%;">URL del Catálogo</th>
+    <th style="width: 10%;">Estado</th>
+    <th style="width: 15%;">Auto-sync</th>
+    <th style="width: 20%;">Opciones</th>
+  </tr>
+{% endblock %}
+
+{% block rows %}
+  {% for object in object_list %}
+  <tr>
+    <td>{{ object.id }}</td>
+    <td>{% if object.company %}{{ object.company.name }}{% else %}Global{% endif %}</td>
+    <td>{{ object.catalogo_url }}</td>
+    <td>
+      {% if object.is_active %}
+        <span class="badge badge-success">Activo</span>
+      {% else %}
+        <span class="badge badge-secondary">Inactivo</span>
+      {% endif %}
+    </td>
+    <td>
+      {% if object.auto_sync %}
+        <span class="badge badge-info">Sí ({{ object.sync_interval_hours }}h)</span>
+      {% else %}
+        <span class="badge badge-secondary">No</span>
+      {% endif %}
+    </td>
+    <td>
+      <a href="{% url 'erp:catalogo_update' object.id %}" class="btn btn-warning btn-flat btn-sm"><i class="fas fa-edit"></i></a>
+      <a href="{% url 'erp:catalogo_delete' object.id %}" class="btn btn-danger btn-flat btn-sm"><i class="fas fa-trash"></i></a>
+      <button class="btn btn-primary btn-flat btn-sm" data-catalogo-id="{{ object.id }}" onclick="syncCatalogo(this)">
+        <i class="fas fa-sync"></i>
+      </button>
+    </td>
+  </tr>
+  {% empty %}
+  <tr>
+    <td colspan="6" class="text-center">No hay configuraciones de catálogo creadas</td>
+  </tr>
+  {% endfor %}
+{% endblock %}
+
+{% block buttons_list %}
+  <a href="{% url 'erp:catalogo_add' %}" class="btn btn-primary btn-flat"><i class="fas fa-plus"></i> Nuevo registro</a>
+  <a href="{% url 'erp:catalogo_list' %}" class="btn btn-success btn-flat"><i class="fas fa-sync"></i> Actualizar</a>
+{% endblock %}

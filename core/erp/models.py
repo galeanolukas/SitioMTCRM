@@ -970,6 +970,28 @@ class AfipConfig(models.Model):
         ordering = ['-is_active', 'company__name']
 
 
+class CatalogoConfig(models.Model):
+    """Configuración de sincronización con SitioCatalogoMarcos por empresa"""
+    
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa', null=True, blank=True)
+    catalogo_url = models.URLField(max_length=255, verbose_name='URL del Catálogo')
+    api_key = models.CharField(max_length=255, verbose_name='API Key del Catálogo')
+    is_active = models.BooleanField(default=True, verbose_name='Activo')
+    auto_sync = models.BooleanField(default=False, verbose_name='Sincronización automática')
+    sync_interval_hours = models.IntegerField(default=24, verbose_name='Intervalo de sincronización (horas)')
+    last_sync = models.DateTimeField(blank=True, null=True, verbose_name='Última sincronización')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de creación')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Fecha de actualización')
+    
+    def __str__(self):
+        return f"Catálogo Config - {self.company.name if self.company else 'Global'} ({self.catalogo_url})"
+    
+    class Meta:
+        verbose_name = 'Configuración de Catálogo'
+        verbose_name_plural = 'Configuraciones de Catálogo'
+        ordering = ['-is_active', 'company__name']
+
+
 class GlobalSyncStatus(models.Model):
     """Model to store global sync status that can be checked by background threads"""
     sync_enabled = models.BooleanField(default=True)

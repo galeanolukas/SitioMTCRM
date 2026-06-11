@@ -253,6 +253,10 @@ AFIP_ACCESS_TOKEN = os.environ.get('AFIP_ACCESS_TOKEN', None)
 AFIP_CUIT = os.environ.get('AFIP_CUIT', None)
 AFIP_ENVIRONMENT = os.environ.get('AFIP_ENVIRONMENT', 'dev')  # 'dev' o 'prod'
 
+# Configuración de sincronización con SitioCatalogoMarcos
+CATALOGO_URL = os.environ.get('CATALOGO_URL', None)
+CATALOGO_API_KEY = os.environ.get('CATALOGO_API_KEY', None)
+
 # Rutas a certificados (solo para producción)
 AFIP_CERT_PATH = os.environ.get('AFIP_CERT_PATH', None)
 AFIP_KEY_PATH = os.environ.get('AFIP_KEY_PATH', None)

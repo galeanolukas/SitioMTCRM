@@ -1,0 +1,27 @@
+{% extends 'form.html' %}
+{% load static %}
+
+{% block head_form %}
+  <script src="{% static 'catalogo/form.js' %}"></script>
+{% endblock %}
+
+{% block javascript %}
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const autoSyncCheckbox = document.getElementById('id_auto_sync');
+      const syncIntervalField = document.getElementById('id_sync_interval_hours');
+      
+      if (autoSyncCheckbox && syncIntervalField) {
+        autoSyncCheckbox.addEventListener('change', function() {
+          syncIntervalField.disabled = !this.checked;
+          if (!this.checked) {
+            syncIntervalField.value = 24;
+          }
+        });
+        
+        // Initial state
+        syncIntervalField.disabled = !autoSyncCheckbox.checked;
+      }
+    });
+  </script>
+{% endblock %}

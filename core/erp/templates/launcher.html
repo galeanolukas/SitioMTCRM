@@ -78,6 +78,9 @@
               <i class="fas fa-sync me-1"></i> Sincronizar Productos
             </a>
             {% endif %}
+            <button id="btn-sync-catalogo" type="button" class="btn btn-outline-primary btn-sm">
+              <i class="fas fa-cloud-upload-alt me-1"></i> Sincronizar al Catálogo
+            </button>
             <button id="btn-sync-manual" type="button" class="btn btn-outline-secondary btn-sm">
               <i class="fas fa-sync-alt me-1"></i> Sincronizar ahora
             </button>
@@ -242,6 +245,56 @@
     if (btnManual) {
       btnManual.addEventListener('click', function () {
         runSync();
+      });
+    }
+
+    // Botón de sync al catálogo (solo visible para superusuarios)
+    const btnSyncCatalogo = document.getElementById('btn-sync-catalogo');
+    if (btnSyncCatalogo) {
+      btnSyncCatalogo.addEventListener('click', function () {
+        const box = document.getElementById('sync-status');
+        const msg = document.getElementById('sync-message');
+        if (!box || !msg) return;
+
+        box.classList.remove('d-none');
+        box.classList.remove('alert-success', 'alert-warning', 'alert-danger');
+        box.classList.add('alert-info');
+        msg.textContent = 'Enviando productos al catálogo...';
+
+        fetch('{% url "erp:enviar_productos_catalogo" %}', {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({})
+        })
+          .then(resp => resp.json().then(data => ({ ok: resp.ok, status: resp.status, data })))
+          .then(r => {
+            if (r.ok && r.data.success) {
+              msg.textContent = r.data.message || 'Productos enviados correctamente.';
+              box.classList.remove('alert-info');
+              box.classList.add('alert-success');
+              setTimeout(() => {
+                box.classList.add('d-none');
+              }, 5000);
+            } else {
+              msg.textContent = 'Error al enviar productos: ' + (r.data.error || 'Error desconocido');
+              box.classList.remove('alert-info');
+              box.classList.add('alert-danger');
+              setTimeout(() => {
+                box.classList.add('d-none');
+              }, 8000);
+            }
+          })
+          .catch(err => {
+            msg.textContent = 'Error de conexión con el catálogo.';
+            box.classList.remove('alert-info');
+            box.classList.add('alert-danger');
+            setTimeout(() => {
+              box.classList.add('d-none');
+            }, 8000);
+          });
       });
     }
   });
