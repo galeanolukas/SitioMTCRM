@@ -310,16 +310,34 @@ def run_full_sync():
 
         node_name = getattr(settings, 'POS_NODE_NAME', None) or socket.gethostname()
         msg = '\n'.join(errors) if errors else 'Sincronización completada sin errores.'
-        SyncLog.objects.using(using).create(
-            node_name=node_name,
-            success=ok,
-            message=msg,
-        )
-        logger.info(f"Log de sincronización guardado en base de datos '{using}'")
+        
+        try:
+            SyncLog.objects.using(using).create(
+                node_name=node_name,
+                success=ok,
+                message=msg,
+            )
+            logger.info(f"Log de sincronización guardado en base de datos '{using}'")
+        except Exception as e:
+            # Si falla guardar en remoto, intentar guardar en local
+            if using == 'remote':
+                logger.warning(f"Error al guardar log en base de datos remota: {e}. Intentando guardar en local...")
+                try:
+                    SyncLog.objects.using('default').create(
+                        node_name=f"{node_name}_LOCAL_FALLBACK",
+                        success=ok,
+                        message=f"[FALLBACK DESDE REMOTO] {msg}",
+                    )
+                    logger.info("Log de sincronización guardado en base de datos local (fallback)")
+                except Exception as local_error:
+                    logger.error(f"Error al guardar log en base de datos local: {local_error}")
+            else:
+                raise e
     except Exception as e:
         # No romper la sincronización si falló el log
+        import traceback
         logger.error(f"Error al guardar log de sincronización: {e}")
-        pass
+        logger.error(f"Traceback: {traceback.format_exc()}")
 
     return ok, errors
 
