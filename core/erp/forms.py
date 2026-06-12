@@ -113,6 +113,7 @@ class ProductForm(ModelForm):
             'name',
             'code',
             'codigo_proveedor',
+            'descripcion',
             'qr_token',
             'cat',
             'supplier',
