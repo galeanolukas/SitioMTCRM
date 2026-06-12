@@ -586,13 +586,98 @@
         subtotal: final * cant,
       };
     });
+    const clientId = $('#selectedClientId').val() || null;
     return {
       subtotal_neto,
       iva_total,
       items_net,
       items_final,
+      client_id: clientId,
     };
   }
+
+  // Función para cargar clientes
+  function loadClients(searchTerm = '') {
+    $.ajax({
+      url: '/erp/client/list/',
+      type: 'POST',
+      data: {
+        action: 'searchdata',
+        csrfmiddlewaretoken: csrftoken()
+      },
+      dataType: 'json',
+      success: function(data) {
+        const tbody = $('#clientListBody');
+        tbody.empty();
+        
+        if (data.length === 0) {
+          tbody.append('<tr><td colspan="4" class="text-center">No se encontraron clientes</td></tr>');
+          return;
+        }
+        
+        data.forEach(function(client) {
+          const fullName = client.names + ' ' + client.surnames;
+          const dni = client.dni || '-';
+          const address = client.address || '-';
+          
+          // Filtrar por término de búsqueda
+          if (searchTerm && !fullName.toLowerCase().includes(searchTerm.toLowerCase()) && 
+              !dni.includes(searchTerm)) {
+            return;
+          }
+          
+          const row = `
+            <tr>
+              <td>${fullName}</td>
+              <td>${dni}</td>
+              <td>${address}</td>
+              <td>
+                <button class="btn btn-sm btn-primary btn-select-client" data-client-id="${client.id}" data-client-name="${fullName}">
+                  <i class="fas fa-check"></i>
+                </button>
+              </td>
+            </tr>
+          `;
+          tbody.append(row);
+        });
+      },
+      error: function() {
+        showToast('error', 'Error al cargar clientes');
+      }
+    });
+  }
+
+  // Evento para abrir modal de selección de cliente
+  $('#btnSelectClient').on('click', function() {
+    $('#clientSelectModal').modal('show');
+    loadClients();
+  });
+
+  // Evento para buscar clientes
+  $('#clientSearchInput').on('input', function() {
+    const searchTerm = $(this).val();
+    loadClients(searchTerm);
+  });
+
+  // Evento para seleccionar cliente
+  $(document).on('click', '.btn-select-client', function() {
+    const clientId = $(this).data('client-id');
+    const clientName = $(this).data('client-name');
+    
+    $('#selectedClientId').val(clientId);
+    $('#selectedClientName').text(clientName);
+    
+    $('#clientSelectModal').modal('hide');
+    showToast('success', 'Cliente seleccionado: ' + clientName);
+  });
+
+  // Evento para limpiar cliente
+  $('#btnClearClient').on('click', function() {
+    $('#selectedClientId').val('');
+    $('#selectedClientName').text('Anónimo');
+    $('#clientSelectModal').modal('hide');
+    showToast('info', 'Cliente limpiado');
+  });
 
   function doCreateSale() {
     const calc = buildPayload(false); // Ticket sin IVA
@@ -605,7 +690,7 @@
     const saleToken = 'sale_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     
     const payload = {
-      client_id: calc.client_id,
+      cli: calc.client_id,
       items: calc.items_net,     // Detalle con precio neto
       subtotal, iva, total,
       payment_method: payMethod,
@@ -645,7 +730,7 @@
     const saleToken = 'invoice_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     
     const payload = {
-      client_id: calc.client_id,
+      cli: calc.client_id,
       items: calc.items_final,   // Detalle con IVA incluido
       subtotal, iva, total,
       payment_method: payMethod,

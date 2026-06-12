@@ -102,6 +102,13 @@
             <button id="btnGenericProduct" class="btn btn-outline-primary">
               <i class="fas fa-plus"></i> Productos Varios
             </button>
+            <button id="btnSelectClient" class="btn btn-outline-info">
+              <i class="fas fa-user"></i> Cliente
+            </button>
+          </div>
+          <div class="mt-2">
+            <small class="text-muted">Cliente: <span id="selectedClientName" class="fw-bold">Anónimo</span></small>
+            <input type="hidden" id="selectedClientId" value="">
           </div>
         </div>
       </div>
@@ -644,6 +651,44 @@
       <button type="button" class="btn-close ms-2 mb-1" data-bs-dismiss="toast" aria-label="Cerrar"></button>
     </div>
     <div class="toast-body" id="posToastBody"></div>
+  </div>
+</div>
+
+<!-- Modal para seleccionar cliente -->
+<div class="modal fade" id="clientSelectModal" tabindex="-1" aria-labelledby="clientSelectModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="clientSelectModalLabel">
+          <i class="fas fa-user"></i> Seleccionar Cliente
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <input type="text" id="clientSearchInput" class="form-control" placeholder="Buscar cliente por nombre o DNI...">
+        </div>
+        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+          <table class="table table-hover table-sm">
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>DNI</th>
+                <th>Dirección</th>
+                <th>Seleccionar</th>
+              </tr>
+            </thead>
+            <tbody id="clientListBody">
+              <!-- Se llenará vía AJAX -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-outline-danger" id="btnClearClient">Limpiar Cliente</button>
+      </div>
+    </div>
   </div>
 </div>
 
