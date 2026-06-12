@@ -13,7 +13,7 @@ import json
 class RemitoEntradaListView(LoginRequiredMixin, PermissionRequiredMixin, ListView):
     model = RemitoEntrada
     template_name = 'remito/list.html'
-    permission_required = 'erp.manage_remitos_entrada'
+    permission_required = 'erp.view_remitoentrada'
     paginate_by = 20
 
     def get_queryset(self):
@@ -42,7 +42,7 @@ class RemitoEntradaCreateView(LoginRequiredMixin, PermissionRequiredMixin, Creat
     model = RemitoEntrada
     template_name = 'remito/create.html'
     form_class = RemitoEntradaForm
-    permission_required = 'erp.manage_remitos_entrada'
+    permission_required = 'erp.add_remitoentrada'
     success_url = reverse_lazy('erp:remito_list')
 
     def form_valid(self, form):
@@ -61,7 +61,7 @@ class RemitoEntradaCreateView(LoginRequiredMixin, PermissionRequiredMixin, Creat
 class RemitoEntradaDetailView(LoginRequiredMixin, PermissionRequiredMixin, DetailView):
     model = RemitoEntrada
     template_name = 'remito/detail.html'
-    permission_required = 'erp.manage_remitos_entrada'
+    permission_required = 'erp.view_remitoentrada'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -76,7 +76,7 @@ class RemitoEntradaUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Updat
     model = RemitoEntrada
     template_name = 'remito/create.html'
     form_class = RemitoEntradaForm
-    permission_required = 'erp.manage_remitos_entrada'
+    permission_required = 'erp.change_remitoentrada'
     success_url = reverse_lazy('erp:remito_list')
 
     def form_valid(self, form):
@@ -94,7 +94,7 @@ class RemitoEntradaUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Updat
 class RemitoEntradaDeleteView(LoginRequiredMixin, PermissionRequiredMixin, DeleteView):
     model = RemitoEntrada
     template_name = 'delete.html'
-    permission_required = 'erp.manage_remitos_entrada'
+    permission_required = 'erp.delete_remitoentrada'
     success_url = reverse_lazy('erp:remito_list')
 
     def delete(self, request, *args, **kwargs):

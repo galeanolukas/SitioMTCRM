@@ -132,7 +132,7 @@
           </a>
         </li>
         {% endif %}
-        {% if request.user.is_superuser or perms.erp.manage_remitos_entrada %}
+        {% if request.user.is_superuser or perms.erp.view_remitoentrada %}
         <li class="nav-item">
           <a href="{% url 'erp:remito_list' %}" class="nav-link">
             <i class="fas fa-truck nav-icon"></i>
