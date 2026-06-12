@@ -146,14 +146,14 @@
     <div class="col-12">
       <!-- Encabezado para impresión -->
       <div class="text-center mb-4">
-        <h4 class="mb-1">Reporte de Cuentas Corrientes de Empleados</h4>
+        <h5 class="mb-1">Reporte de Cuentas Corrientes</h5>
         <p class="text-muted mb-0">Fecha: {% now "d/m/Y H:i" %}</p>
         <p class="text-muted">Empresa: {{ request.user.company|default:"Todas las empresas" }}</p>
       </div>
-      
-      <h1 class="h3 mb-4 no-print">
-        <i class="fas fa-user-tie me-2"></i>Cuenta Corriente de Empleados
-      </h1>
+
+      <h2 class="h4 mb-4 no-print">
+        <i class="fas fa-user-tie me-2"></i>Cuenta Corriente
+      </h2>
     </div>
   </div>
 
