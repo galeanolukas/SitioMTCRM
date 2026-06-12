@@ -113,7 +113,7 @@ class Category(BaseModel):
         super(Category, self).save(*args, **kwargs)
 
     def toJSON(self):
-        item = model_to_dict(self)  #(self, exclude=['user_creation', 'user_updated'])
+        item = model_to_dict(self, exclude=['date_creation', 'date_updated', 'user_creation', 'user_updated'])
         # Asegurar que el nombre esté en mayúsculas
         if 'name' in item and item['name']:
             item['name'] = item['name'].upper()
@@ -321,7 +321,7 @@ class Client(models.Model):
         super().save(*args, **kwargs)
 
     def toJSON(self):
-        item = model_to_dict(self)
+        item = model_to_dict(self, exclude=['date_creation', 'date_updated', 'user_creation', 'user_updated'])
         item['gender'] = {'id': self.gender, 'name': self.get_gender_display()}
         item['condicion_iva'] = {'id': self.condicion_iva, 'name': self.get_condicion_iva_display()}
         item['tipo_cliente'] = {'id': self.tipo_cliente, 'name': self.get_tipo_cliente_display()}
@@ -355,7 +355,7 @@ class Supplier(models.Model):
         super().save(*args, **kwargs)
 
     def toJSON(self):
-        item = model_to_dict(self)
+        item = model_to_dict(self, exclude=['date_creation', 'date_updated', 'user_creation', 'user_updated'])
         return item
 
     class Meta:
@@ -464,7 +464,7 @@ class Sale(models.Model):
             return f"{self.invoice_pos}-{self.invoice_type}-{seq:08d}"
 
     def toJSON(self):
-        item = model_to_dict(self)
+        item = model_to_dict(self, exclude=['date_creation', 'date_updated', 'user_creation', 'user_updated'])
         item['cli'] = (self.cli.names if self.cli_id else 'Anónimo')
         # Formatear la fecha sin conversión de zona horaria (Django ya maneja esto)
         try:
@@ -656,7 +656,7 @@ class Expense(models.Model):
         return None
 
     def toJSON(self):
-        item = model_to_dict(self)
+        item = model_to_dict(self, exclude=['date_creation', 'date_updated', 'user_creation', 'user_updated'])
         item['supplier'] = (self.supplier.name if self.supplier_id else None)
         item['supplier_id'] = self.supplier_id
         item['date'] = self.date.strftime('%Y-%m-%d') if self.date else None
@@ -931,7 +931,7 @@ class InternalTransfer(models.Model):
         return sum(detail.quantity * detail.unit_price for detail in self.details.all())
     
     def toJSON(self):
-        item = model_to_dict(self)
+        item = model_to_dict(self, exclude=['date_creation', 'date_updated', 'user_creation', 'user_updated'])
         item['created_by_name'] = self.created_by.get_full_name() or self.created_by.username
         item['company_name'] = self.company.name if self.company else None
         item['total_amount'] = self.get_total_amount()
@@ -961,7 +961,7 @@ class InternalTransferDetail(models.Model):
         super().save(*args, **kwargs)
     
     def toJSON(self):
-        item = model_to_dict(self)
+        item = model_to_dict(self, exclude=['date_creation', 'date_updated', 'user_creation', 'user_updated'])
         item['product_name'] = self.product.name
         item['product_code'] = self.product.code
         item['product_unit'] = self.product.get_unit_display()
@@ -1167,7 +1167,7 @@ class EmployeeAccountSale(models.Model):
         super().save(*args, **kwargs)
 
     def toJSON(self):
-        item = model_to_dict(self)
+        item = model_to_dict(self, exclude=['date_creation', 'date_updated', 'user_creation', 'user_updated'])
         item['employee'] = self.employee.get_full_name() or self.employee.username
         # Formatear la fecha sin conversión de zona horaria
         try:
