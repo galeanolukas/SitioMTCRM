@@ -83,6 +83,26 @@ def activate_pos_local_mode():
                 new_lines.append('DEBUG=True\n')
                 modified = True
                 print("✅ DEBUG cambiado a True")
+            elif line.startswith('DB_NAME='):
+                new_lines.append('DB_NAME=db.sqlite3\n')
+                modified = True
+                print("✅ DB_NAME cambiado a db.sqlite3 (SQLite)")
+            elif line.startswith('DB_HOST='):
+                new_lines.append('DB_HOST=\n')
+                modified = True
+                print("✅ DB_HOST vaciado (SQLite)")
+            elif line.startswith('DB_PORT='):
+                new_lines.append('DB_PORT=\n')
+                modified = True
+                print("✅ DB_PORT vaciado (SQLite)")
+            elif line.startswith('DB_USER='):
+                new_lines.append('DB_USER=\n')
+                modified = True
+                print("✅ DB_USER vaciado (SQLite)")
+            elif line.startswith('DB_PASSWORD='):
+                new_lines.append('DB_PASSWORD=\n')
+                modified = True
+                print("✅ DB_PASSWORD vaciado (SQLite)")
             else:
                 new_lines.append(line + '\n')
         
@@ -91,6 +111,12 @@ def activate_pos_local_mode():
             new_lines.insert(0, 'ENVIRONMENT=development\n')
             modified = True
             print("✅ ENVIRONMENT=development agregado")
+        
+        # Si no tenía DB_NAME, agregarlo
+        if not any(line.startswith('DB_NAME=') for line in new_lines):
+            new_lines.append('DB_NAME=db.sqlite3\n')
+            modified = True
+            print("✅ DB_NAME=db.sqlite3 agregado")
         
         if modified:
             with open(env_file, 'w') as f:
@@ -108,12 +134,13 @@ def show_next_steps():
     
     print("1. 📝 EDITAR CREDENCIALES:")
     print("   Abre el archivo .env y configura:")
-    print("   - DB_NAME, DB_USER, DB_PASSWORD, DB_HOST (BD local)")
     print("   - SECRET_KEY (¡genera una nueva!)")
     print("   - ALLOWED_HOSTS (localhost, 127.0.0.1)")
+    print("   - La base de datos ya está configurada para SQLite")
     
-    print("\n2. 🗄️  CREAR BASE DE DATOS LOCAL:")
-    print("   - Base de datos local para el POS")
+    print("\n2. 🗄️  BASE DE DATOS:")
+    print("   - Se usará SQLite (db.sqlite3)")
+    print("   - No requiere configuración de PostgreSQL")
     
     print("\n3. 🔄 EJECUTAR MIGRACIONES:")
     print("   python3 manage.py makemigrations")
@@ -126,7 +153,7 @@ def show_next_steps():
     print("   python3 check_pos_local_mode.py")
     
     print("\n🎯 Una vez configurado:")
-    print("- El POS funcionará en modo local")
+    print("- El POS funcionará en modo local con SQLite")
     print("- Se sincronizará con el servidor central")
     print("- Usa /erp/sync/ para sincronización manual")
 
