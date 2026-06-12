@@ -240,7 +240,7 @@ class Product(models.Model):
         return self.track_stock and self.stock <= 0
 
     def toJSON(self):
-        item = model_to_dict(self)
+        item = model_to_dict(self, exclude=['date_creation', 'date_updated', 'user_creation', 'user_updated'])
         item['cat'] = self.cat.toJSON()
         item['supplier'] = (self.supplier.name if self.supplier_id else None)
         item['supplier_id'] = self.supplier_id
