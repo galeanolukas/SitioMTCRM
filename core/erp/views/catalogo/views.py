@@ -127,10 +127,25 @@ def enviar_productos_catalogo(request):
             if response.status_code == 302:
                 error_msg += f' - Redirigido a: {response.headers.get("Location", "desconocido")}'
             
+            # Intentar parsear la respuesta del servidor para obtener más detalles
+            try:
+                response_data = response.json()
+                if 'error' in response_data:
+                    error_msg = f'Error del servidor: {response_data["error"]}'
+                elif 'detail' in response_data:
+                    error_msg = f'Error del servidor: {response_data["detail"]}'
+                elif 'message' in response_data:
+                    error_msg = f'Error del servidor: {response_data["message"]}'
+            except:
+                # Si no es JSON, usar el texto de la respuesta
+                if response.text:
+                    error_msg += f' - Detalles: {response.text[:200]}'
+            
             logger.error(f"Error en sincronización: {error_msg}")
             return JsonResponse({
                 'success': False,
                 'error': error_msg,
+                'status_code': response.status_code,
                 'response': response.text[:500]
             }, status=500)
             

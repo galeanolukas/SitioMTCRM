@@ -30,10 +30,15 @@ function syncCatalogo(button) {
             alert('Productos sincronizados correctamente: ' + data.message);
             location.reload();
         } else {
-            alert('Error al sincronizar: ' + data.error);
+            let errorMsg = 'Error al sincronizar: ' + data.error;
+            if (data.status_code) {
+                errorMsg += '\n\nCódigo de estado HTTP: ' + data.status_code;
+            }
             if (data.response) {
                 console.error('Respuesta del servidor:', data.response);
+                errorMsg += '\n\nDetalles adicionales (ver consola para más información)';
             }
+            alert(errorMsg);
         }
     })
     .catch(error => {
@@ -75,10 +80,15 @@ function syncAllCatalogo() {
             alert('Inventario sincronizado correctamente: ' + data.message);
             location.reload();
         } else {
-            alert('Error al sincronizar inventario: ' + data.error);
+            let errorMsg = 'Error al sincronizar inventario: ' + data.error;
+            if (data.status_code) {
+                errorMsg += '\n\nCódigo de estado HTTP: ' + data.status_code;
+            }
             if (data.response) {
                 console.error('Respuesta del servidor:', data.response);
+                errorMsg += '\n\nDetalles adicionales (ver consola para más información)';
             }
+            alert(errorMsg);
         }
     })
     .catch(error => {
