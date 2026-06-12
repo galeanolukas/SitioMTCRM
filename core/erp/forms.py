@@ -121,6 +121,7 @@ class ProductForm(ModelForm):
             'cost_price',
             'pvp',
             'iva_rate',
+            'margin_percentage',
             'pvp_final',
             'unit',
             'stock',
