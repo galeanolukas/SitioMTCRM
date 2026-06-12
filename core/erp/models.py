@@ -273,13 +273,38 @@ class Product(models.Model):
 
 
 class Client(models.Model):
+    CONDICION_IVA_CHOICES = [
+        ('RI', 'Responsable Inscripto'),
+        ('M', 'Monotributista'),
+        ('CF', 'Consumidor Final'),
+        ('EX', 'Exento'),
+        ('NC', 'No Categorizado'),
+    ]
+    
+    TIPO_CLIENTE_CHOICES = [
+        ('minorista', 'Minorista'),
+        ('mayorista', 'Mayorista'),
+    ]
+    
     company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa', null=True, blank=True)
     names = models.CharField(max_length=150, verbose_name='Nombres')
     surnames = models.CharField(max_length=150, verbose_name='Apellidos')
     dni = models.CharField(max_length=10, unique=True, verbose_name='Dni')
+    cuit_cuil = models.CharField(max_length=13, null=True, blank=True, verbose_name='CUIT/CUIL')
+    condicion_iva = models.CharField(max_length=2, choices=CONDICION_IVA_CHOICES, default='CF', verbose_name='Condición IVA')
     date_birthday = models.DateField(default=timezone.now, verbose_name='Fecha de nacimiento')
     address = models.CharField(max_length=150, null=True, blank=True, verbose_name='Dirección')
+    ciudad = models.CharField(max_length=100, null=True, blank=True, verbose_name='Ciudad')
+    provincia = models.CharField(max_length=100, null=True, blank=True, verbose_name='Provincia')
+    codigo_postal = models.CharField(max_length=10, null=True, blank=True, verbose_name='Código Postal')
+    email = models.EmailField(null=True, blank=True, verbose_name='Email')
+    telefono = models.CharField(max_length=20, null=True, blank=True, verbose_name='Teléfono')
+    telefono_alternativo = models.CharField(max_length=20, null=True, blank=True, verbose_name='Teléfono Alternativo')
     gender = models.CharField(max_length=10, choices=gender_choices, default='male', verbose_name='Sexo')
+    tipo_cliente = models.CharField(max_length=20, choices=TIPO_CLIENTE_CHOICES, default='minorista', verbose_name='Tipo de Cliente')
+    limite_credito = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name='Límite de Crédito')
+    descuento_habitual = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True, verbose_name='Descuento Habitual (%)')
+    observaciones = models.TextField(null=True, blank=True, verbose_name='Observaciones')
     synced_to_server = models.BooleanField(default=False, verbose_name='Sincronizado con servidor')
     is_active = models.BooleanField(default=True, verbose_name='Activo')
 
@@ -296,6 +321,8 @@ class Client(models.Model):
     def toJSON(self):
         item = model_to_dict(self)
         item['gender'] = {'id': self.gender, 'name': self.get_gender_display()}
+        item['condicion_iva'] = {'id': self.condicion_iva, 'name': self.get_condicion_iva_display()}
+        item['tipo_cliente'] = {'id': self.tipo_cliente, 'name': self.get_tipo_cliente_display()}
         item['date_birthday'] = self.date_birthday.strftime('%Y-%m-%d')
         return item
 
