@@ -46,6 +46,11 @@ a.h1, .h1 {
   margin: 2rem auto;
 }
 
+/* Fondo gris suave para formularios */
+.card .card-body {
+  background-color: #fafafa;
+}
+
 /* Limitar crecimiento de cards de gráficos */
 .chart-card {
   max-height: 420px;
