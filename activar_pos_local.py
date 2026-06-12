@@ -6,6 +6,7 @@ Script para activar modo POS LOCAL - versión simplificada sin Django.
 
 import os
 import sys
+from borrar_migrations import borrar_migraciones_y_db
 
 def check_current_env():
     """Verificar configuración actual."""
@@ -124,6 +125,15 @@ def activate_pos_local_mode():
             print("✅ Archivo .env actualizado")
         else:
             print("ℹ️  El archivo ya estaba configurado")
+    
+    # Preguntar si desea borrar migraciones
+    response = input("\n¿Deseas borrar las migraciones y la base de datos SQLite? (s/N): ").lower().strip()
+    if response in ['s', 'si', 'sí', 'y', 'yes']:
+        print("\n🗑️  BORRANDO MIGRACIONES Y BASE DE DATOS")
+        print("=" * 50)
+        proyecto_path = os.path.dirname(os.path.abspath(__file__))
+        borrar_migraciones_y_db(proyecto_path)
+        print("✅ Migraciones y base de datos eliminadas")
     
     return True
 
