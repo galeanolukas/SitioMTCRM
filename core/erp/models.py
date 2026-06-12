@@ -1287,6 +1287,9 @@ class RemitoEntrada(models.Model):
         verbose_name = 'Remito de Entrada'
         verbose_name_plural = 'Remitos de Entrada'
         ordering = ['-fecha', '-numero']
+        permissions = [
+            ("manage_remitos_entrada", "Puede gestionar remitos de entrada"),
+        ]
 
 
 class DetalleRemitoEntrada(models.Model):
