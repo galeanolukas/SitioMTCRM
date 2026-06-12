@@ -2,7 +2,7 @@ from django.forms import *
 from django.forms.widgets import CheckboxInput
 from datetime import datetime
 from django.core.exceptions import ValidationError
-from core.erp.models import Category, Product, Client, Sale, Company, Supplier, Expense, MercadoPagoConfig, AutoSyncConfig, InternalTransfer, InternalTransferDetail
+from core.erp.models import Category, Product, Client, Sale, Company, Supplier, Expense, MercadoPagoConfig, AutoSyncConfig, InternalTransfer, InternalTransferDetail, RemitoEntrada
 
 from django.contrib.auth.forms import AuthenticationForm
 
@@ -667,3 +667,31 @@ class InternalTransferDetailForm(ModelForm):
     class Meta:
         model = InternalTransferDetail
         fields = ['product', 'quantity', 'unit_price']
+
+
+class RemitoEntradaForm(ModelForm):
+    def __init__(self, *args, **kwargs):
+        self.request = kwargs.pop('request', None)
+        super().__init__(*args, **kwargs)
+        for form in self.visible_fields():
+            form.field.widget.attrs["class"] = "form-control"
+            form.field.widget.attrs["autocomplete"] = "off"
+        
+        # Manejar campo company según usuario
+        if 'company' in self.fields and self.request and hasattr(self.request, 'user') and not getattr(self.request.user, 'is_superuser', False):
+            if getattr(self.request.user, 'company_id', None):
+                self.fields['company'].queryset = Company.objects.filter(pk=self.request.user.company_id, is_active=True)
+                self.fields['company'].initial = self.request.user.company
+                self.fields['company'].widget = HiddenInput()
+                self.fields['company'].required = False
+        elif 'company' in self.fields:
+            self.fields['company'].queryset = Company.objects.filter(is_active=True)
+    
+    class Meta:
+        model = RemitoEntrada
+        fields = ['supplier', 'numero', 'fecha', 'estado', 'observaciones']
+        widgets = {
+            'fecha': DateInput(attrs={'type': 'date'}),
+            'observaciones': Textarea(attrs={'rows': 3}),
+        }
+        exclude = ['company', 'synced_to_server', 'created_at', 'updated_at', 'created_by']

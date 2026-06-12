@@ -1223,3 +1223,67 @@ class DetEmployeeAccount(models.Model):
         verbose_name = 'Detalle Cuenta Corriente Empleado'
         verbose_name_plural = 'Detalles Cuenta Corriente Empleados'
         ordering = ['id']
+
+
+class RemitoEntrada(models.Model):
+    """Remito de entrada de proveedores para cargar stock"""
+    ESTADO_CHOICES = [
+        ('pending', 'Pendiente'),
+        ('processed', 'Procesado'),
+        ('cancelled', 'Anulado'),
+    ]
+    
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa', null=True, blank=True)
+    supplier = models.ForeignKey(Supplier, on_delete=models.PROTECT, verbose_name='Proveedor')
+    numero = models.CharField(max_length=50, verbose_name='Número de Remito')
+    fecha = models.DateField(verbose_name='Fecha')
+    estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='pending', verbose_name='Estado')
+    observaciones = models.TextField(blank=True, null=True, verbose_name='Observaciones')
+    synced_to_server = models.BooleanField(default=False, verbose_name='Sincronizado con servidor')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de creación')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Fecha de actualización')
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, verbose_name='Creado por')
+    
+    def __str__(self):
+        return f"Remito {self.numero} - {self.supplier.name}"
+    
+    def save(self, *args, **kwargs):
+        if not self.company_id:
+            user = get_current_user()
+            if user and not user.is_anonymous:
+                self.company_id = getattr(user, 'company_id', None)
+        super().save(*args, **kwargs)
+    
+    class Meta:
+        verbose_name = 'Remito de Entrada'
+        verbose_name_plural = 'Remitos de Entrada'
+        ordering = ['-fecha', '-numero']
+        permissions = [
+            ("manage_remitos_entrada", "Puede gestionar remitos de entrada"),
+        ]
+
+
+class DetalleRemitoEntrada(models.Model):
+    """Detalle de remito de entrada"""
+    remito = models.ForeignKey(RemitoEntrada, on_delete=models.CASCADE, verbose_name='Remito')
+    prod = models.ForeignKey(Product, on_delete=models.PROTECT, verbose_name='Producto')
+    cantidad = models.DecimalField(max_digits=9, decimal_places=3, verbose_name='Cantidad')
+    precio_unitario = models.DecimalField(max_digits=9, decimal_places=2, verbose_name='Precio Unitario')
+    subtotal = models.DecimalField(max_digits=9, decimal_places=2, verbose_name='Subtotal')
+    
+    def save(self, *args, **kwargs):
+        self.subtotal = self.cantidad * self.precio_unitario
+        super().save(*args, **kwargs)
+    
+    def toJSON(self):
+        item = model_to_dict(self, exclude=['remito'])
+        item['prod'] = self.prod.toJSON()
+        item['cantidad'] = format(self.cantidad, '.3f') if self.cantidad is not None else '0.000'
+        item['precio_unitario'] = format(self.precio_unitario, '.2f') if self.precio_unitario is not None else '0.00'
+        item['subtotal'] = format(self.subtotal, '.2f') if self.subtotal is not None else '0.00'
+        return item
+    
+    class Meta:
+        verbose_name = 'Detalle Remito de Entrada'
+        verbose_name_plural = 'Detalles Remitos de Entrada'
+        ordering = ['id']

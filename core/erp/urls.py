@@ -31,6 +31,17 @@ from core.erp.views.dashboard.views import (
     AutoSyncConfigUpdateView,
     sync_data_view,
 )
+from core.erp.views.remito.views import (
+    RemitoEntradaListView,
+    RemitoEntradaCreateView,
+    RemitoEntradaDetailView,
+    RemitoEntradaUpdateView,
+    RemitoEntradaDeleteView,
+    procesar_remito,
+    anular_remito,
+    agregar_detalle_remito,
+    eliminar_detalle_remito,
+)
 
 # Importar vistas de reportes
 from core.erp.views.reports.views import (
@@ -139,6 +150,16 @@ urlpatterns = [
     # employee account
     path('employee-account/', EmployeeAccountListView.as_view(), name='employee_account_list'),
     path('employee-account/pdf/', employee_account_pdf_export, name='employee_account_pdf'),
+    # remitos de entrada
+    path('remito/list/', RemitoEntradaListView.as_view(), name='remito_list'),
+    path('remito/add/', RemitoEntradaCreateView.as_view(), name='remito_create'),
+    path('remito/detail/<int:pk>/', RemitoEntradaDetailView.as_view(), name='remito_detail'),
+    path('remito/update/<int:pk>/', RemitoEntradaUpdateView.as_view(), name='remito_update'),
+    path('remito/delete/<int:pk>/', RemitoEntradaDeleteView.as_view(), name='remito_delete'),
+    path('remito/procesar/<int:pk>/', procesar_remito, name='remito_procesar'),
+    path('remito/anular/<int:pk>/', anular_remito, name='remito_anular'),
+    path('remito/agregar-detalle/', agregar_detalle_remito, name='remito_agregar_detalle'),
+    path('remito/eliminar-detalle/<int:detalle_id>/', eliminar_detalle_remito, name='remito_eliminar_detalle'),
     # company
     path('company/', CompanyUpdateView.as_view(), name='company'),
     path('company/list/', CompanyView.as_view(), name='company_list'),

@@ -1,0 +1,275 @@
+{% extends 'vtc/body.html' %}
+{% load static %}
+
+{% block content %}
+<div class="content-wrapper">
+  <section class="content-header">
+    <div class="container-fluid">
+      <div class="row mb-2">
+        <div class="col-sm-6">
+          <h1 class="m-0">{{ title }}</h1>
+        </div>
+        <div class="col-sm-6">
+          <ol class="breadcrumb float-sm-right">
+            <li class="breadcrumb-item"><a href="{% url 'erp:launcher' %}">Inicio</a></li>
+            <li class="breadcrumb-item"><a href="{{ list_url }}">{{ entity }}</a></li>
+            <li class="breadcrumb-item active">{{ title }}</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="content">
+    <div class="container-fluid">
+      <div class="card">
+        <div class="card-body">
+          <form method="post" id="remitoForm">
+            {% csrf_token %}
+            <div class="row">
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label>{{ form.supplier.label }}</label>
+                  {{ form.supplier }}
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label>{{ form.numero.label }}</label>
+                  {{ form.numero }}
+                </div>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label>{{ form.fecha.label }}</label>
+                  {{ form.fecha }}
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label>{{ form.estado.label }}</label>
+                  {{ form.estado }}
+                </div>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>{{ form.observaciones.label }}</label>
+              {{ form.observaciones }}
+            </div>
+
+            <hr>
+            <h4>Productos</h4>
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <select id="productSelect" class="form-select">
+                  <option value="">Seleccione un producto...</option>
+                </select>
+              </div>
+              <div class="col-md-2">
+                <input type="number" id="cantidad" class="form-control" placeholder="Cantidad" step="0.001" min="0">
+              </div>
+              <div class="col-md-2">
+                <input type="number" id="precioUnitario" class="form-control" placeholder="Precio" step="0.01" min="0">
+              </div>
+              <div class="col-md-2">
+                <button type="button" onclick="agregarProducto()" class="btn btn-primary">
+                  <i class="fas fa-plus"></i> Agregar
+                </button>
+              </div>
+            </div>
+
+            <table class="table table-bordered">
+              <thead>
+                <tr>
+                  <th>Producto</th>
+                  <th>Cantidad</th>
+                  <th>Precio Unitario</th>
+                  <th>Subtotal</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="detallesTable">
+                <!-- Se llenará dinámicamente -->
+              </tbody>
+              <tfoot>
+                <tr>
+                  <th colspan="3" class="text-end">Total:</th>
+                  <th id="totalGeneral">$0.00</th>
+                  <th></th>
+                </tr>
+              </tfoot>
+            </table>
+
+            <div class="form-group mt-3">
+              <button type="submit" class="btn btn-success">
+                <i class="fas fa-save"></i> Guardar
+              </button>
+              <a href="{{ list_url }}" class="btn btn-secondary">
+                <i class="fas fa-times"></i> Cancelar
+              </a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<input type="hidden" id="remitoId" value="{% if form.instance.id %}{{ form.instance.id }}{% endif %}">
+
+<script>
+let detalles = [];
+
+// Cargar productos
+function cargarProductos() {
+  fetch('/erp/product/list/?action=searchdata', {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': getCookie('csrftoken'),
+    },
+  })
+  .then(response => response.json())
+  .then(data => {
+    const select = document.getElementById('productSelect');
+    select.innerHTML = '<option value="">Seleccione un producto...</option>';
+    data.forEach(prod => {
+      const option = document.createElement('option');
+      option.value = prod.id;
+      option.textContent = `${prod.name} - $${prod.pvp_final}`;
+      select.appendChild(option);
+    });
+  });
+}
+
+function agregarProducto() {
+  const productId = document.getElementById('productSelect').value;
+  const cantidad = parseFloat(document.getElementById('cantidad').value);
+  const precioUnitario = parseFloat(document.getElementById('precioUnitario').value);
+
+  if (!productId || !cantidad || !precioUnitario) {
+    alert('Complete todos los campos');
+    return;
+  }
+
+  const producto = document.getElementById('productSelect').options[document.getElementById('productSelect').selectedIndex];
+  const subtotal = cantidad * precioUnitario;
+
+  const detalle = {
+    temp_id: Date.now(),
+    prod_id: productId,
+    prod_name: producto.textContent,
+    cantidad: cantidad,
+    precio_unitario: precioUnitario,
+    subtotal: subtotal
+  };
+
+  detalles.push(detalle);
+  renderDetalles();
+}
+
+function renderDetalles() {
+  const tbody = document.getElementById('detallesTable');
+  tbody.innerHTML = '';
+  let total = 0;
+
+  detalles.forEach((det, index) => {
+    total += det.subtotal;
+    const row = `
+      <tr>
+        <td>${det.prod_name}</td>
+        <td>${det.cantidad.toFixed(3)}</td>
+        <td>$${det.precio_unitario.toFixed(2)}</td>
+        <td>$${det.subtotal.toFixed(2)}</td>
+        <td>
+          <button type="button" onclick="eliminarDetalle(${det.temp_id})" class="btn btn-sm btn-danger">
+            <i class="fas fa-trash"></i>
+          </button>
+        </td>
+      </tr>
+    `;
+    tbody.innerHTML += row;
+  });
+
+  document.getElementById('totalGeneral').textContent = '$' + total.toFixed(2);
+}
+
+function eliminarDetalle(tempId) {
+  detalles = detalles.filter(d => d.temp_id !== tempId);
+  renderDetalles();
+}
+
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+
+// Guardar remito con detalles
+document.getElementById('remitoForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  
+  if (detalles.length === 0) {
+    alert('Agregue al menos un producto');
+    return;
+  }
+
+  const formData = new FormData(this);
+  
+  fetch(this.action, {
+    method: 'POST',
+    body: formData,
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.id) {
+      // Guardar detalles
+      const remitoId = data.id;
+      let promises = detalles.map(det => {
+        return fetch('/erp/remito/agregar-detalle/', {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            remito_id: remitoId,
+            prod_id: det.prod_id,
+            cantidad: det.cantidad,
+            precio_unitario: det.precio_unitario
+          })
+        });
+      });
+
+      Promise.all(promises)
+        .then(() => {
+          alert('Remito guardado exitosamente');
+          window.location.href = '{{ list_url }}';
+        })
+        .catch(error => {
+          alert('Error al guardar detalles: ' + error);
+        });
+    } else {
+      alert('Error al guardar remito');
+    }
+  })
+  .catch(error => {
+    // Si no es JSON, es un redirect normal
+    this.submit();
+  });
+});
+
+// Cargar productos al inicio
+cargarProductos();
+</script>
+{% endblock %}

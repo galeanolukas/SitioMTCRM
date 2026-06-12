@@ -132,6 +132,14 @@
           </a>
         </li>
         {% endif %}
+        {% if request.user.is_superuser or perms.erp.manage_remitos_entrada %}
+        <li class="nav-item">
+          <a href="{% url 'erp:remito_list' %}" class="nav-link">
+            <i class="fas fa-truck nav-icon"></i>
+            <p>Remitos Entrada</p>
+          </a>
+        </li>
+        {% endif %}
         {% if request.user.is_superuser %}
         <li class="nav-item">
           <a href="{% url 'erp:company_list' %}" class="nav-link">
