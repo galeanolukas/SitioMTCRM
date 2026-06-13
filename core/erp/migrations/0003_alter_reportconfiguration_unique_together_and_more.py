@@ -6,7 +6,8 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('erp', '0002_initial'),
+        ('erp', '0001_initial'),
+        ('user', '0001_initial'),
     ]
 
     operations = [
