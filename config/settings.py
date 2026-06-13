@@ -280,13 +280,14 @@ SESSION_SAVE_EVERY_REQUEST = False
 # No requerir renovación de sesión por inactividad
 SESSION_INACTIVITY_TIMEOUT = None  # Desactivado
 
-# Usar caché para sesiones (más estable que base de datos)
+# Usar caché basada en archivos para sesiones (compartido entre procesos uWSGI)
 SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
 SESSION_CACHE_ALIAS = 'default'
 
-# Configurar caché para sesiones
+# Configurar caché basada en archivos para producción (compartido entre procesos)
 CACHES = {
     'default': {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
+        'LOCATION': os.path.join(BASE_DIR, 'cache'),
     }
 }
