@@ -273,9 +273,20 @@ SESSION_COOKIE_AGE = 604800
 # La sesión NO expira al cerrar el navegador
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 
-# Guardar la sesión en cada solicitud para mantenerla activa
-SESSION_SAVE_EVERY_REQUEST = True
+# NO guardar la sesión en cada solicitud (evita problemas de concurrencia en SQLite)
+SESSION_SAVE_EVERY_REQUEST = False
 
 # Configuración adicional para mayor duración de sesión
 # No requerir renovación de sesión por inactividad
 SESSION_INACTIVITY_TIMEOUT = None  # Desactivado
+
+# Usar caché para sesiones (más estable que base de datos)
+SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+SESSION_CACHE_ALIAS = 'default'
+
+# Configurar caché para sesiones
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+    }
+}
