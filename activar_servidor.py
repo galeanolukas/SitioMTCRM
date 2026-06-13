@@ -92,7 +92,7 @@ def activate_server_mode():
                 modified = True
                 print("✅ DB_USER configurado")
             elif line.startswith('DB_PASSWORD='):
-                new_lines.append('DB_PASSWORD=gall0z0lib$\n')
+                new_lines.append('DB_PASSWORD=g4ll0z0lib$\n')
                 modified = True
                 print("✅ DB_PASSWORD configurado")
             elif line.startswith('DB_HOST='):
@@ -116,7 +116,7 @@ def activate_server_mode():
         if not any(line.startswith('DB_NAME=') for line in new_lines):
             new_lines.append('DB_NAME=gayozolibreria\n')
             new_lines.append('DB_USER=gallozo_admin\n')
-            new_lines.append('DB_PASSWORD=gall0z0lib$\n')
+            new_lines.append('DB_PASSWORD=g4ll0z0lib$\n')
             new_lines.append('DB_HOST=localhost\n')
             new_lines.append('DB_PORT=5432\n')
             modified = True
