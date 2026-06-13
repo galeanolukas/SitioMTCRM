@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.views import PasswordChangeView, PasswordChangeDoneView
 from django.urls import reverse_lazy
 from django.views.generic import UpdateView, ListView, TemplateView
-from django.shortcuts import redirect, get_object_or_404
+from django.shortcuts import redirect, get_object_or_404, render
 from django.contrib import messages
 from django.contrib.auth.models import Group, Permission
 from django.views.decorators.http import require_POST
@@ -63,7 +63,65 @@ class UsersListView(LoginRequiredMixin, ListView):
         ctx['title'] = 'Usuarios'
         ctx['entity'] = 'Usuarios'
         ctx['list_url'] = reverse_lazy('user:list')
+        from core.erp.models import Company
+        ctx['companies'] = Company.objects.filter(is_active=True)
         return ctx
+
+
+@require_POST
+def user_create(request):
+    if not request.user.is_superuser:
+        return HttpResponseForbidden()
+    
+    UserModel = get_user_model()
+    username = request.POST.get('username')
+    password = request.POST.get('password')
+    password_confirm = request.POST.get('password_confirm')
+    first_name = request.POST.get('first_name', '')
+    last_name = request.POST.get('last_name', '')
+    email = request.POST.get('email', '')
+    phone = request.POST.get('phone', '')
+    company_id = request.POST.get('company')
+    is_superuser = request.POST.get('is_superuser') == 'on'
+    is_active = request.POST.get('is_active') == 'on'
+    
+    # Validaciones
+    if not username or not password:
+        messages.error(request, 'Usuario y contraseña son obligatorios.')
+        return redirect('user:list')
+    
+    if password != password_confirm:
+        messages.error(request, 'Las contraseñas no coinciden.')
+        return redirect('user:list')
+    
+    if UserModel.objects.filter(username=username).exists():
+        messages.error(request, 'El usuario ya existe.')
+        return redirect('user:list')
+    
+    # Crear usuario
+    user = UserModel.objects.create_user(
+        username=username,
+        password=password,
+        first_name=first_name,
+        last_name=last_name,
+        email=email,
+        phone=phone,
+        is_superuser=is_superuser,
+        is_active=is_active
+    )
+    
+    # Asignar empresa si se proporcionó
+    if company_id:
+        from core.erp.models import Company
+        try:
+            company = Company.objects.get(pk=company_id)
+            user.company = company
+            user.save()
+        except Company.DoesNotExist:
+            pass
+    
+    messages.success(request, f"Usuario '{username}' creado exitosamente.")
+    return redirect('user:list')
 
 
 @require_POST

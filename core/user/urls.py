@@ -6,6 +6,7 @@ from .views import (
     UserPasswordChangeDoneView,
     UsersListView,
     OperatorsPermissionsView,
+    user_create,
     user_toggle_active,
     user_delete,
 )
@@ -17,6 +18,7 @@ urlpatterns = [
     path('password/change/', UserPasswordChangeView.as_view(), name='password_change'),
     path('password/change/done/', UserPasswordChangeDoneView.as_view(), name='password_change_done'),
     path('users/', UsersListView.as_view(), name='list'),
+    path('users/create/', user_create, name='create'),
     path('users/<int:pk>/edit/', UserAdminUpdateView.as_view(), name='edit'),
     path('users/<int:pk>/toggle-active/', user_toggle_active, name='toggle_active'),
     path('users/<int:pk>/delete/', user_delete, name='delete'),
