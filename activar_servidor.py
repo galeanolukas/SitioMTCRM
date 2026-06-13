@@ -83,6 +83,26 @@ def activate_server_mode():
                 new_lines.append('DEBUG=False\n')
                 modified = True
                 print("✅ DEBUG cambiado a False")
+            elif line.startswith('DB_NAME='):
+                new_lines.append('DB_NAME=gayozolibreria\n')
+                modified = True
+                print("✅ DB_NAME configurado para PostgreSQL local")
+            elif line.startswith('DB_USER='):
+                new_lines.append('DB_USER=gallozo_admin\n')
+                modified = True
+                print("✅ DB_USER configurado")
+            elif line.startswith('DB_PASSWORD='):
+                new_lines.append('DB_PASSWORD=gall0z0lib$\n')
+                modified = True
+                print("✅ DB_PASSWORD configurado")
+            elif line.startswith('DB_HOST='):
+                new_lines.append('DB_HOST=localhost\n')
+                modified = True
+                print("✅ DB_HOST configurado a localhost")
+            elif line.startswith('DB_PORT='):
+                new_lines.append('DB_PORT=5432\n')
+                modified = True
+                print("✅ DB_PORT configurado a 5432")
             else:
                 new_lines.append(line + '\n')
         
@@ -91,6 +111,16 @@ def activate_server_mode():
             new_lines.insert(0, 'ENVIRONMENT=production\n')
             modified = True
             print("✅ ENVIRONMENT=production agregado")
+        
+        # Si no tenía configuración de BD, agregarla
+        if not any(line.startswith('DB_NAME=') for line in new_lines):
+            new_lines.append('DB_NAME=gayozolibreria\n')
+            new_lines.append('DB_USER=gallozo_admin\n')
+            new_lines.append('DB_PASSWORD=gall0z0lib$\n')
+            new_lines.append('DB_HOST=localhost\n')
+            new_lines.append('DB_PORT=5432\n')
+            modified = True
+            print("✅ Configuración de PostgreSQL local agregada")
         
         if modified:
             with open(env_file, 'w') as f:

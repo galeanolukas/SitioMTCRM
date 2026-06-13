@@ -104,6 +104,26 @@ def activate_pos_local_mode():
                 new_lines.append('DB_PASSWORD=\n')
                 modified = True
                 print("✅ DB_PASSWORD vaciado (SQLite)")
+            elif line.startswith('REMOTE_DB_NAME='):
+                new_lines.append('REMOTE_DB_NAME=gayozolibreria\n')
+                modified = True
+                print("✅ REMOTE_DB_NAME configurado")
+            elif line.startswith('REMOTE_DB_USER='):
+                new_lines.append('REMOTE_DB_USER=gallozo_admin\n')
+                modified = True
+                print("✅ REMOTE_DB_USER configurado")
+            elif line.startswith('REMOTE_DB_PASSWORD='):
+                new_lines.append('REMOTE_DB_PASSWORD=g4ll0z0lib$\n')
+                modified = True
+                print("✅ REMOTE_DB_PASSWORD configurado")
+            elif line.startswith('REMOTE_DB_HOST='):
+                new_lines.append('REMOTE_DB_HOST=www.multilideres.com\n')
+                modified = True
+                print("✅ REMOTE_DB_HOST configurado")
+            elif line.startswith('REMOTE_DB_PORT='):
+                new_lines.append('REMOTE_DB_PORT=5432\n')
+                modified = True
+                print("✅ REMOTE_DB_PORT configurado")
             else:
                 new_lines.append(line + '\n')
         
@@ -118,6 +138,17 @@ def activate_pos_local_mode():
             new_lines.append('DB_NAME=db.sqlite3\n')
             modified = True
             print("✅ DB_NAME=db.sqlite3 agregado")
+        
+        # Si no tenía configuración de BD remota, agregarla
+        if not any(line.startswith('REMOTE_DB_NAME=') for line in new_lines):
+            new_lines.append('REMOTE_DB_NAME=gayozolibreria\n')
+            new_lines.append('REMOTE_DB_USER=gallozo_admin\n')
+            new_lines.append('REMOTE_DB_PASSWORD=g4ll0z0lib$\n')
+            new_lines.append('REMOTE_DB_HOST=www.multilideres.com\n')
+            new_lines.append('REMOTE_DB_PORT=5432\n')
+            new_lines.append('REMOTE_DB_SSLMODE=require\n')
+            modified = True
+            print("✅ Configuración de BD remota agregada")
         
         if modified:
             with open(env_file, 'w') as f:
