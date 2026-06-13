@@ -2,11 +2,10 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 
 from config.settings import MEDIA_URL, STATIC_URL
-from core.erp.models import Company
 
 
 class User(AbstractUser):
-    company = models.ForeignKey(Company, null=True, blank=True, on_delete=models.SET_NULL, related_name='users')
+    company = models.ForeignKey('erp.Company', null=True, blank=True, on_delete=models.SET_NULL, related_name='users')
     image = models.ImageField(upload_to='users/%Y/%m/%d', null=True, blank=True)
     phone = models.CharField(max_length=30, null=True, blank=True, verbose_name='Teléfono')
 
