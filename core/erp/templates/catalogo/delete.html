@@ -6,5 +6,5 @@
 {% endblock %}
 
 {% block delete_message %}
-  ¿Está seguro de eliminar la configuración de catálogo <strong>{{ object.catalogo_url }}</strong> de <strong>{{ object.company.name if object.company else 'Global' }}</strong>?
+  ¿Está seguro de eliminar la configuración de catálogo <strong>{{ object.catalogo_url }}</strong> de <strong>{% if object.company %}{{ object.company.name }}{% else %}Global{% endif %}</strong>?
 {% endblock %}
