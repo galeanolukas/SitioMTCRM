@@ -19,6 +19,27 @@
           </div>
 
           <div class="card-body">
+            {% if error %}
+            <div class="alert alert-danger">{{ error }}</div>
+            {% else %}
+            <div class="mb-3">
+              <form method="post" class="d-inline">
+                {% csrf_token %}
+                <input type="hidden" name="change_group" value="1">
+                <div class="form-group d-inline-block">
+                  <label for="group_select" class="mr-2">Seleccionar Grupo:</label>
+                  <select id="group_select" name="group_id" class="form-control d-inline-block" style="width: auto;">
+                    {% for g in groups %}
+                    <option value="{{ g.id }}" {% if group.id == g.id %}selected{% endif %}>{{ g.name }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <button type="submit" class="btn btn-sm btn-outline-primary ml-2">
+                  <i class="fas fa-exchange-alt mr-1"></i> Cambiar
+                </button>
+              </form>
+            </div>
+
             <div class="mb-2 text-muted small">
               Permisos activos: <span id="perm-count-active">{{ group_permission_ids|length }}</span>
               de <span id="perm-count-total">{{ permissions|length }}</span>
@@ -64,6 +85,7 @@
                 </a>
               </div>
             </form>
+            {% endif %}
           </div>
         </div>
 

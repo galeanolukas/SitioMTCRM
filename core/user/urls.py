@@ -23,4 +23,5 @@ urlpatterns = [
     path('users/<int:pk>/toggle-active/', user_toggle_active, name='toggle_active'),
     path('users/<int:pk>/delete/', user_delete, name='delete'),
     path('operators/permissions/', OperatorsPermissionsView.as_view(), name='operators_permissions'),
+    path('operators/permissions/<int:group_id>/', OperatorsPermissionsView.as_view(), name='operators_permissions'),
 ]

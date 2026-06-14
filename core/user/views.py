@@ -163,15 +163,28 @@ class OperatorsPermissionsView(LoginRequiredMixin, TemplateView):
         return super().dispatch(request, *args, **kwargs)
 
     def get_group(self):
+        group_id = self.kwargs.get('group_id')
+        if group_id:
+            try:
+                return Group.objects.get(pk=group_id)
+            except Group.DoesNotExist:
+                return None
+        # Si no se especifica grupo, usar 'operadores' por defecto
         group, _ = Group.objects.get_or_create(name='operadores')
         return group
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         group = self.get_group()
-        ctx['title'] = 'Permisos Operadores'
-        ctx['entity'] = 'Permisos Operadores'
+        if not group:
+            ctx['error'] = 'Grupo no encontrado'
+            ctx['groups'] = Group.objects.all()
+            return ctx
+        
+        ctx['title'] = f'Permisos: {group.name}'
+        ctx['entity'] = 'Permisos de Grupo'
         ctx['group'] = group
+        ctx['groups'] = Group.objects.all()
         perms = list(Permission.objects.select_related('content_type').order_by('content_type__app_label', 'codename'))
         replacements = {
             'Can add ': 'Puede crear ',
@@ -197,8 +210,23 @@ class OperatorsPermissionsView(LoginRequiredMixin, TemplateView):
 
     def post(self, request, *args, **kwargs):
         group = self.get_group()
+        if not group:
+            messages.error(request, 'Grupo no encontrado')
+            return redirect('user:operators_permissions')
+        
+        # Si se está cambiando de grupo
+        if 'change_group' in request.POST:
+            new_group_id = request.POST.get('group_id')
+            if new_group_id:
+                try:
+                    new_group = Group.objects.get(pk=new_group_id)
+                    return redirect('user:operators_permissions', group_id=new_group.id)
+                except Group.DoesNotExist:
+                    messages.error(request, 'Grupo no encontrado')
+            return redirect('user:operators_permissions')
+        
         ids = request.POST.getlist('permissions')
         perms = Permission.objects.filter(id__in=ids)
         group.permissions.set(perms)
-        messages.success(request, 'Permisos actualizados para el grupo operadores.')
-        return redirect('user:operators_permissions')
+        messages.success(request, f'Permisos actualizados para el grupo {group.name}.')
+        return redirect('user:operators_permissions', group_id=group.id)
