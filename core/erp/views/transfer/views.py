@@ -78,6 +78,29 @@ class TransferListView(LoginRequiredMixin, ListView):
             qs = qs.filter(company_id=active_cid)
         return qs.select_related('created_by', 'company').prefetch_related('details')
     
+    def post(self, request, *args, **kwargs):
+        """Handle POST requests for DataTables AJAX"""
+        from django.utils.decorators import method_decorator
+        from django.views.decorators.csrf import csrf_exempt
+        
+        action = request.POST.get('action')
+        if action == 'searchdata':
+            data = []
+            active_cid = request.session.get('company_id')
+            if not request.user.is_superuser:
+                active_cid = active_cid or getattr(request.user, 'company_id', None)
+            
+            qs = InternalTransfer.objects.all()
+            if active_cid:
+                qs = qs.filter(company_id=active_cid)
+            
+            for transfer in qs.select_related('created_by', 'company').prefetch_related('details'):
+                data.append(transfer.toJSON())
+            
+            return JsonResponse(data, safe=False)
+        
+        return JsonResponse({'error': 'Invalid action'}, status=400)
+    
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = 'Transferencias Internas'

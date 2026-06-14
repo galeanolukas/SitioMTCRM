@@ -94,12 +94,14 @@
           </a>
         </li>
         {% endif %}
+        {% if request.user.is_superuser or perms.erp.view_internaltransfer %}
         <li class="nav-item">
           <a href="{% url 'erp:transfer_list' %}" class="nav-link">
             <i class="fas fa-exchange-alt nav-icon"></i>
             <p>Transferencias</p>
           </a>
         </li>
+        {% endif %}
         {% if request.user.is_superuser or perms.erp.view_sale %}
         <li class="nav-item">
           <a href="{% url 'erp:sale_list' %}" class="nav-link">
@@ -164,12 +166,14 @@
           </a>
         </li>
         {% endif %}
+        {% if request.user.is_superuser %}
         <li class="nav-item">
           <a href="{% url 'erp:updates' %}" class="nav-link">
             <i class="fas fa-download nav-icon"></i>
             <p>Actualizaciones</p>
           </a>
         </li>
+        {% endif %}
         {% if request.user.is_superuser or perms.erp.view_supplier %}
         <li class="nav-item">
           <a href="{% url 'erp:supplier_list' %}" class="nav-link">
@@ -202,12 +206,14 @@
           </a>
         </li>
         {% endif %}
+        {% if request.user.is_superuser %}
         <li class="nav-item">
           <a href="{% url 'about' %}" class="nav-link">
             <i class="fas fa-book nav-icon"></i>
             <p>Manual</p>
           </a>
         </li>
+        {% endif %}
       </ul>
     </nav>
     <!-- /.sidebar-menu -->
