@@ -137,11 +137,24 @@ class Command(BaseCommand):
         from django.db import connections
         
         with connections['remote'].cursor() as cursor:
-            cursor.execute('SELECT id, name, address, cuit, iibb, start, pos, phone, email, logo, is_active FROM erp_company')
-            remote_companies = cursor.fetchall()
+            # Intentar seleccionar con los nuevos campos, si falla usar la versión anterior
+            try:
+                cursor.execute('SELECT id, name, address, cuit, iibb, start, pos, phone, email, logo, is_active, sync_destination, local_server_url FROM erp_company')
+                remote_companies = cursor.fetchall()
+                use_new_fields = True
+            except Exception:
+                # Si los campos no existen en el servidor remoto, usar la versión anterior
+                cursor.execute('SELECT id, name, address, cuit, iibb, start, pos, phone, email, logo, is_active FROM erp_company')
+                remote_companies = cursor.fetchall()
+                use_new_fields = False
             
             for company_data in remote_companies:
-                company_id, name, address, cuit, iibb, start, pos, phone, email, logo, is_active = company_data
+                if use_new_fields:
+                    company_id, name, address, cuit, iibb, start, pos, phone, email, logo, is_active, sync_destination, local_server_url = company_data
+                else:
+                    company_id, name, address, cuit, iibb, start, pos, phone, email, logo, is_active = company_data
+                    sync_destination = 'cloud'  # Valor por defecto
+                    local_server_url = None  # Valor por defecto
                 
                 # Usar SQL directo para insertar con ID específico
                 with transaction.atomic(using='default'):
@@ -149,22 +162,40 @@ class Command(BaseCommand):
                     cursor_local = connection.cursor()
                     
                     try:
-                        # Intentar actualizar
-                        cursor_local.execute('''
-                            UPDATE erp_company 
-                            SET name = %s, address = %s, cuit = %s, iibb = %s, 
-                                start = %s, pos = %s, phone = %s, email = %s, 
-                                logo = %s, is_active = %s
-                            WHERE id = %s
-                        ''', [name, address, cuit, iibb, start, pos, phone, email, logo, is_active, company_id])
+                        # Intentar actualizar con los nuevos campos
+                        try:
+                            cursor_local.execute('''
+                                UPDATE erp_company 
+                                SET name = %s, address = %s, cuit = %s, iibb = %s, 
+                                    start = %s, pos = %s, phone = %s, email = %s, 
+                                    logo = %s, is_active = %s, sync_destination = %s, local_server_url = %s
+                                WHERE id = %s
+                            ''', [name, address, cuit, iibb, start, pos, phone, email, logo, is_active, sync_destination, local_server_url, company_id])
+                        except Exception:
+                            # Si falla (campos no existen localmente), usar versión anterior
+                            cursor_local.execute('''
+                                UPDATE erp_company 
+                                SET name = %s, address = %s, cuit = %s, iibb = %s, 
+                                    start = %s, pos = %s, phone = %s, email = %s, 
+                                    logo = %s, is_active = %s
+                                WHERE id = %s
+                            ''', [name, address, cuit, iibb, start, pos, phone, email, logo, is_active, company_id])
                         
                         if cursor_local.rowcount == 0:
                             # Si no actualizó nada, insertar nuevo
-                            cursor_local.execute('''
-                                INSERT INTO erp_company 
-                                (id, name, address, cuit, iibb, start, pos, phone, email, logo, is_active, synced_to_server)
-                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0)
-                            ''', [company_id, name, address, cuit, iibb, start, pos, phone, email, logo, is_active])
+                            try:
+                                cursor_local.execute('''
+                                    INSERT INTO erp_company 
+                                    (id, name, address, cuit, iibb, start, pos, phone, email, logo, is_active, synced_to_server, sync_destination, local_server_url)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0, %s, %s)
+                                ''', [company_id, name, address, cuit, iibb, start, pos, phone, email, logo, is_active, sync_destination, local_server_url])
+                            except Exception:
+                                # Si falla (campos no existen localmente), usar versión anterior
+                                cursor_local.execute('''
+                                    INSERT INTO erp_company 
+                                    (id, name, address, cuit, iibb, start, pos, phone, email, logo, is_active, synced_to_server)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0)
+                                ''', [company_id, name, address, cuit, iibb, start, pos, phone, email, logo, is_active])
                         
                         self.stdout.write(f'  Empresa {name} sincronizada (ID: {company_id})')
                         
