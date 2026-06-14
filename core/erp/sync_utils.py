@@ -29,6 +29,61 @@ def _can_reach_remote_db() -> bool:
         return False
 
 
+def _get_sync_destination():
+    """Determina el destino de sincronización basado en la empresa activa."""
+    from django.contrib.auth import get_user_model
+    from core.erp.models import Company
+    from crum import get_current_user
+    
+    User = get_user_model()
+    user = get_current_user()
+    
+    if not user or not user.is_authenticated:
+        return 'cloud'  # Default
+    
+    # Obtener empresa del usuario
+    company = getattr(user, 'company', None)
+    if not company:
+        # Si no tiene empresa asignada, usar la primera activa
+        company = Company.objects.filter(is_active=True).first()
+    
+    if not company:
+        return 'cloud'  # Default
+    
+    # Verificar si el usuario pertenece al grupo "Servidor Local"
+    if user.groups.filter(name='Servidor Local').exists():
+        # Forzar sincronización local para usuarios de este grupo
+        return 'local'
+    
+    # Usar configuración de la empresa
+    return company.sync_destination or 'cloud'
+
+
+def _can_reach_local_server() -> bool:
+    """Devuelve True si el servidor local está accesible, False si no."""
+    from core.erp.models import Company
+    from crum import get_current_user
+    
+    user = get_current_user()
+    if not user or not user.is_authenticated:
+        return False
+    
+    company = getattr(user, 'company', None)
+    if not company:
+        company = Company.objects.filter(is_active=True).first()
+    
+    if not company or not company.local_server_url:
+        return False
+    
+    # Verificar si podemos hacer una petición HTTP al servidor local
+    try:
+        import requests
+        response = requests.get(f"{company.local_server_url}/", timeout=5)
+        return response.status_code == 200
+    except Exception:
+        return False
+
+
 def run_full_sync():
     """Ejecuta sincronizacion de usuarios y ventas.
 
@@ -38,6 +93,24 @@ def run_full_sync():
     # La sincronización solo corresponde a los nodos POS locales.
     if getattr(settings, 'ENVIRONMENT', 'development') == 'production':
         return True, []
+
+    # Determinar destino de sincronización
+    sync_destination = _get_sync_destination()
+    logger.info(f"Destino de sincronización: {sync_destination}")
+    
+    # Verificar disponibilidad del destino
+    can_sync = False
+    if sync_destination == 'cloud':
+        can_sync = _can_reach_remote_db()
+    elif sync_destination == 'local':
+        can_sync = _can_reach_local_server()
+    elif sync_destination == 'both':
+        can_sync = _can_reach_remote_db() or _can_reach_local_server()
+    
+    if not can_sync:
+        msg = f"No hay conexión disponible para destino '{sync_destination}'"
+        logger.warning(msg)
+        return False, [msg]
 
     # Check if sync is globally disabled
     try:
@@ -67,7 +140,7 @@ def run_full_sync():
     
     # 1) PRIMERO: Sincronizar empresas (base para usuarios)
     logger.info("🏢 PASO 1/10: Sincronizando empresas (base para usuarios)...")
-    if _can_reach_remote_db():
+    if sync_destination in ['cloud', 'both'] and _can_reach_remote_db():
         try:
             # Contar empresas antes
             from core.erp.models import Company
@@ -82,12 +155,12 @@ def run_full_sync():
             logger.error(f"Error en sincronización de empresas: {e}")
             errors.append(f"sync_companies_from_remote_to_local: {e}")
     else:
-        logger.warning("Sin conexión remota - omitiendo sincronización de empresas")
-        errors.append("Sin conexión remota - omitiendo sincronización de empresas")
+        logger.warning(f"Sin conexión para destino '{sync_destination}' - omitiendo sincronización de empresas")
+        errors.append(f"Sin conexión para destino '{sync_destination}' - omitiendo sincronización de empresas")
     
     # 2) SEGUNDO: Sincronizar usuarios (dependen de empresas)
     logger.info("👥 PASO 2/10: Sincronizando usuarios (dependen de empresas)...")
-    if _can_reach_remote_db():
+    if sync_destination in ['cloud', 'both'] and _can_reach_remote_db():
         try:
             # Contar usuarios antes
             from django.contrib.auth import get_user_model
@@ -103,13 +176,13 @@ def run_full_sync():
             logger.error(f"Error en sincronización de usuarios: {e}")
             errors.append(f"sync_users_safe: {e}")
     else:
-        logger.warning("Sin conexión remota - omitiendo sincronización de usuarios")
-        errors.append("Sin conexión remota - omitiendo sincronización de usuarios")
+        logger.warning(f"Sin conexión para destino '{sync_destination}' - omitiendo sincronización de usuarios")
+        errors.append(f"Sin conexión para destino '{sync_destination}' - omitiendo sincronización de usuarios")
 
     # 3) TERCERO: Sincronizar el resto de datos (productos, categorías, ventas, etc.)
     logger.info("📦 PASO 3/10: Sincronizando resto de datos...")
     
-    if _can_reach_remote_db():
+    if sync_destination in ['cloud', 'both'] and _can_reach_remote_db():
         logger.info("Conexión remota disponible, iniciando sincronización de datos...")
         
         # 3.a) Productos: SOLO sincronización local → servidor (no descargar del servidor)
@@ -252,7 +325,7 @@ def run_full_sync():
             logger.error(f"Error omitiendo sincronización de transferencias: {e}")
             errors.append(f"transfer_sync_omitted: {e}")
     else:
-        msg = "Sin conexión a la base de datos remota; se omite sincronización de empresas, categorias, productos, ventas, clientes, proveedores, gastos y transferencias."
+        msg = f"Sin conexión para destino '{sync_destination}'; se omite sincronización de empresas, categorias, productos, ventas, clientes, proveedores, gastos y transferencias."
         logger.warning(msg)
         errors.append(msg)
 

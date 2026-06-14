@@ -18,6 +18,12 @@ from django.conf import settings
 
 
 class Company(models.Model):
+    SYNC_DESTINATION_CHOICES = (
+        ('cloud', 'Nube (Servidor Central)'),
+        ('local', 'Servidor Local'),
+        ('both', 'Ambos'),
+    )
+    
     name = models.CharField(max_length=150, verbose_name='Nombre')
     address = models.CharField(max_length=200, verbose_name='Dirección', blank=True, null=True)
     cuit = models.CharField(max_length=20, verbose_name='CUIT', blank=True, null=True)
@@ -29,6 +35,19 @@ class Company(models.Model):
     logo = models.ImageField(upload_to='company/', null=True, blank=True, verbose_name='Logo')
     synced_to_server = models.BooleanField(default=False, verbose_name='Sincronizado con servidor')
     is_active = models.BooleanField(default=True, verbose_name='Activo')
+    sync_destination = models.CharField(
+        max_length=10, 
+        choices=SYNC_DESTINATION_CHOICES, 
+        default='cloud',
+        verbose_name='Destino de Sincronización'
+    )
+    local_server_url = models.CharField(
+        max_length=255, 
+        blank=True, 
+        null=True,
+        verbose_name='URL del Servidor Local',
+        help_text='URL del servidor local para sincronización (ej: http://192.168.1.100:8000)'
+    )
 
     def __str__(self):
         return self.name
