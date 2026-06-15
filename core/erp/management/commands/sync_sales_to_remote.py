@@ -169,6 +169,13 @@ class Command(BaseCommand):
                             'synced_to_server': True,  # Marcar como sincronizada en servidor
                             'local_sale_id': sale.id,  # Importante: mantener ID local
                             'source': getattr(sale, 'source', 'local_pos'),  # Mantener origen
+                            'pos_id': getattr(sale, 'pos_id', ''),  # ID del POS que creó el presupuesto
+                            # Campos para presupuestos
+                            'status': getattr(sale, 'status', 'confirmed'),
+                            'is_budget': getattr(sale, 'is_budget', False),
+                            'sent_to_local': getattr(sale, 'sent_to_local', False),
+                            'local_server_response': getattr(sale, 'local_server_response', {}),
+                            'budget_notes': getattr(sale, 'budget_notes', ''),
                         }
                     )
 

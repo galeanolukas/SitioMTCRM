@@ -2,7 +2,7 @@ from django.urls import path, include
 from core.erp.views.category.views import *
 from core.erp.views.product.views import *
 from core.erp.views.client.views import ClientListView, ClientCreateView, ClientUpdateView, ClientDeleteView
-from core.erp.views.sale.views import SaleListView, SaleCreateView, SaleUpdateView, SaleDeleteView, ticket_print, POSView, InvoiceListView, InvoiceCreateView, invoice_pdf, sync_sales_api, EmployeeAccountListView, employee_account_pdf_export
+from core.erp.views.sale.views import SaleListView, SaleCreateView, SaleUpdateView, SaleDeleteView, ticket_print, POSView, InvoiceListView, InvoiceCreateView, invoice_pdf, sync_sales_api, EmployeeAccountListView, employee_account_pdf_export, BudgetListView, BudgetConvertView, BudgetDetailView
 from core.erp.views.transfer.views import TransferListView, TransferCreateView, TransferDetailView, TransferReceiveView, TransferSearchView, TransferProductSearchView
 from core.erp.views.operator_reports.views import OperatorSalesReportView, operator_sales_export
 from core.erp.views.sync.views import SyncToggleView, SyncStatusView, ProductSyncView
@@ -75,6 +75,7 @@ from core.erp.views.catalogo.views import (
     CatalogoConfigUpdateView,
     CatalogoConfigDeleteView,
 )
+from core.erp.views.api.budget_views import receive_budget, confirm_budget
 
 # Importar vistas de descuentos (comentado temporalmente para evitar errores de importación)
 # from core.erp.views.discount.views import (
@@ -215,4 +216,11 @@ urlpatterns = [
     # path('discounts/add/', DiscountRuleCreateView.as_view(), name='discount_create'),
     # path('discounts/update/<int:pk>/', DiscountRuleUpdateView.as_view(), name='discount_update'),
     # path('discounts/delete/<int:pk>/', DiscountRuleDeleteView.as_view(), name='discount_delete'),
+    # API de presupuestos para sincronización local
+    path('api/budgets/receive/', receive_budget, name='api_budgets_receive'),
+    path('api/budgets/confirm/<int:sale_id>/', confirm_budget, name='api_budgets_confirm'),
+    # Presupuestos pendientes
+    path('budget/list/', BudgetListView.as_view(), name='budget_list'),
+    path('budget/convert/<int:pk>/', BudgetConvertView.as_view(), name='budget_convert'),
+    path('sale/api/detail/<int:pk>/', BudgetDetailView.as_view(), name='budget_detail'),
 ]

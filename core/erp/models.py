@@ -384,6 +384,12 @@ class Supplier(models.Model):
 
 
 class Sale(models.Model):
+    STATUS_CHOICES = (
+        ('budget', 'Presupuesto'),
+        ('confirmed', 'Venta Confirmada'),
+        ('cancelled', 'Cancelado'),
+    )
+    
     company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa', null=True, blank=True)
     cli = models.ForeignKey(Client, on_delete=models.CASCADE, null=True, blank=True, verbose_name='Cliente')
     date_joined = models.DateTimeField(default=timezone.now)
@@ -403,6 +409,13 @@ class Sale(models.Model):
     local_uuid = models.CharField(max_length=64, blank=True, null=True, db_index=True, verbose_name='UUID local', help_text='UUID para sincronización (índice para búsquedas rápidas)')
     source = models.CharField(max_length=20, blank=True, null=True, verbose_name='Origen', help_text='Origen de la venta (local_pos, web, etc.)')
     synced_at = models.DateTimeField(blank=True, null=True, verbose_name='Fecha de sincronización')
+    pos_id = models.CharField(max_length=50, blank=True, null=True, verbose_name='ID del POS', help_text='Identificador del POS que creó la venta/presupuesto')
+    # Campos para presupuestos
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='confirmed', verbose_name='Estado')
+    is_budget = models.BooleanField(default=False, verbose_name='Es Presupuesto')
+    sent_to_local = models.BooleanField(default=False, verbose_name='Enviado a Servidor Local')
+    local_server_response = models.JSONField(default=dict, blank=True, verbose_name='Respuesta del Servidor Local')
+    budget_notes = models.TextField(blank=True, null=True, verbose_name='Notas del Presupuesto')
 
     def __str__(self):
         return self.cli.names

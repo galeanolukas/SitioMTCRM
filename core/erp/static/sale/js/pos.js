@@ -759,6 +759,56 @@
       });
   }
 
+  function doCreateBudget() {
+    const calc = buildPayload(false); // Usar precios netos (sin IVA)
+    const subtotal = calc.subtotal_neto;
+    const iva = 0; // Presupuestos no tienen IVA
+    const total = subtotal;
+    const payMethod = ($('#payMethod').val() || 'cash');
+    const budgetNotes = $('#budgetNotes').val() || '';
+    
+    // Llenar modal de confirmación
+    $('#budgetConfirmClient').text(calc.client_name || 'Cliente no seleccionado');
+    $('#budgetConfirmNotes').text(budgetNotes || 'Sin notas');
+    
+    // Llenar tabla de items
+    const tbody = $('#budgetConfirmItems');
+    tbody.empty();
+    
+    calc.items_net.forEach(item => {
+      const row = `
+        <tr>
+          <td>${item.name}</td>
+          <td class="text-center">${item.cant}</td>
+          <td class="text-end">$${fmt(item.pvp)}</td>
+          <td class="text-end">$${fmt(item.cant * item.pvp)}</td>
+        </tr>
+      `;
+      tbody.append(row);
+    });
+    
+    // Llenar totales
+    $('#budgetConfirmItemsCount').text(calc.items_net.length);
+    $('#budgetConfirmSubtotal').text('$' + fmt(subtotal));
+    $('#budgetConfirmIva').text('$0.00');
+    $('#budgetConfirmTotal').text('$' + fmt(total));
+    
+    // Guardar datos para enviar después de confirmar
+    window.budgetPayload = {
+      cli: calc.client_id,
+      items: calc.items_net,
+      subtotal, iva, total,
+      payment_method: payMethod,
+      is_budget: true,
+      budget_notes: budgetNotes,
+      sale_token: 'budget_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
+    };
+    
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById('budgetConfirmModal'));
+    modal.show();
+  }
+
   // Botón principal: abrir modal para elegir modo de registro
   $('#btnCheckout').on('click', function () {
     // Prevenir doble clic
@@ -1167,6 +1217,51 @@
     
     const modal = new bootstrap.Modal(document.getElementById('employeeAccountModal'));
     modal.show();
+  });
+
+  // Botón para crear presupuesto (solo para usuarios Servidor Local)
+  $('#btnCreateBudget').on('click', function() {
+    if (items.length === 0) {
+      showToast('warning', 'Debe agregar productos antes de crear un presupuesto');
+      return;
+    }
+    
+    doCreateBudget();
+  });
+
+  // Botón para confirmar creación de presupuesto
+  $('#btnConfirmBudget').on('click', function() {
+    if (!window.budgetPayload) {
+      showToast('error', 'Error: no hay datos del presupuesto');
+      return;
+    }
+    
+    // Cerrar modal
+    const modal = bootstrap.Modal.getInstance(document.getElementById('budgetConfirmModal'));
+    modal.hide();
+    
+    // Enviar datos al backend
+    ajaxAction('add', { action: 'add', vents: JSON.stringify(window.budgetPayload) })
+      .done(resp => {
+        if (resp && resp.id) {
+          lastSaleId = resp.id;
+          flashSummary();
+          showToast('success', 'Presupuesto creado correctamente. ID: ' + resp.id);
+          
+          // Limpiar campos
+          $('#budgetNotes').val('');
+          $('#btnClear').trigger('click');
+          window.budgetPayload = null;
+          
+          // Recargar página para mostrar el presupuesto en la lista
+          setTimeout(() => {
+            window.location.reload();
+          }, 1000);
+        }
+      })
+      .fail(jq => {
+        showToast('error', 'Error al crear presupuesto: ' + (jq.responseJSON ? jq.responseJSON.error : jq.statusText));
+      });
   });
 
   // Botón para agregar nuevo empleado

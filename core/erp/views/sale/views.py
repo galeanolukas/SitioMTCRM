@@ -10,7 +10,7 @@ from django.conf import settings
 from weasyprint import HTML, CSS
 import os
 from core.erp.forms import SaleForm
-from django.views.generic import CreateView, ListView, DeleteView, UpdateView, TemplateView
+from django.views.generic import CreateView, ListView, DeleteView, UpdateView, TemplateView, View
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 import json 
@@ -49,6 +49,9 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
         is_operator = self.request.user.groups.filter(name='operadores').exists()
         context['is_operator'] = is_operator
         context['pos_locked_by_cash'] = is_operator and not current_cr
+        # Determinar si el usuario está en el grupo "Servidor Local" para enviar presupuestos
+        is_local_server_user = self.request.user.groups.filter(name='Servidor Local').exists()
+        context['is_local_server_user'] = is_local_server_user
         return context
 
     def post(self, request, *args, **kwargs):
@@ -687,19 +690,21 @@ class SaleCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Create
             elif action == 'add':
                 with transaction.atomic():
                     vents = json.loads(request.POST['vents'])
+                    is_budget = vents.get('is_budget', False)
 
-                    # Validación de stock suficiente
-                    for i in vents['products']:
-                        prod = Product.objects.select_for_update().get(pk=i['id'])
-                        
-                        # Determinar la cantidad según la unidad del producto
-                        if prod.unit == 'kg':
-                            cant = float(i['cant'])
-                        else:
-                            cant = int(i['cant'])
+                    # Validación de stock suficiente (solo si no es presupuesto)
+                    if not is_budget:
+                        for i in vents['products']:
+                            prod = Product.objects.select_for_update().get(pk=i['id'])
                             
-                        if prod.stock < cant:
-                            raise Exception(f"Stock insuficiente para {prod.name}. Disponible: {format(prod.stock, '.2f')}, requerido: {cant}")
+                            # Determinar la cantidad según la unidad del producto
+                            if prod.unit == 'kg':
+                                cant = float(i['cant'])
+                            else:
+                                cant = int(i['cant'])
+                                
+                            if prod.stock < cant:
+                                raise Exception(f"Stock insuficiente para {prod.name}. Disponible: {format(prod.stock, '.2f')}, requerido: {cant}")
 
                     sale = Sale()
                     # Parse the date string to a timezone-aware datetime
@@ -718,6 +723,18 @@ class SaleCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Create
                     sale.subtotal = vents['subtotal']
                     sale.iva = vents['iva']
                     sale.total = vents['total']
+                    sale.payment_method = vents.get('payment_method', 'cash')
+                    
+                    # Configurar como presupuesto si corresponde
+                    if is_budget:
+                        sale.status = 'budget'
+                        sale.is_budget = True
+                        sale.budget_notes = vents.get('budget_notes', '')
+                        # Agregar pos_id para identificar qué POS creó el presupuesto
+                        import socket
+                        sale.pos_id = socket.gethostname() or 'pos_' + str(sale.id)
+                        # Los presupuestos se marcan para sincronización automáticamente (synced_to_server=False por defecto)
+                    
                     sale.save()
 
                     for i in vents['products']:
@@ -736,13 +753,23 @@ class SaleCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Create
                         det.price = float(i['pvp'])
                         det.subtotal = float(i['subtotal'])
                         det.save()
-                        # Descontar stock
-                        from django.utils import timezone
-                        Product.objects.filter(pk=det.prod_id).update(
-                            stock=F('stock') - det.cant,
-                            stock_modified_locally=timezone.now(),  # Marcar modificación local
-                            synced_to_server=False  # Marcar para sincronizar
-                        )
+                        
+                        # Descontar stock solo si no es presupuesto
+                        if not is_budget:
+                            from django.utils import timezone
+                            Product.objects.filter(pk=det.prod_id).update(
+                                stock=F('stock') - det.cant,
+                                stock_modified_locally=timezone.now(),  # Marcar modificación local
+                                synced_to_server=False  # Marcar para sincronizar
+                            )
+                
+                data = {'id': sale.id, 'is_budget': sale.is_budget, 'local_uuid': sale.local_uuid}
+            
+            elif action == 'send_budget_to_local':
+                from core.erp.services.budget_service import send_budget_to_local_server
+                sale_id = request.POST.get('sale_id')
+                result = send_budget_to_local_server(sale_id)
+                data = result
                 
             else:
                 data['error'] = 'No ha ingresado a ninguna opción'
@@ -1920,6 +1947,7 @@ def employee_account_pdf_export(request):
         
         # Generar PDF
         doc.build(story)
+        
         pdf_value = buffer.getvalue()
         buffer.close()
         response.write(pdf_value)
@@ -1927,3 +1955,93 @@ def employee_account_pdf_export(request):
         
     except Exception as e:
         return HttpResponse(f"Error al generar PDF: {str(e)}", content_type='text/plain')
+
+
+class BudgetListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView):
+    model = Sale
+    template_name = 'sale/budget_list.html'
+    permission_required = 'erp.view_sale'
+    context_object_name = 'budgets'
+
+    def get_queryset(self):
+        # Solo presupuestos pendientes (status='budget')
+        queryset = Sale.objects.filter(status='budget', is_budget=True).order_by('-date_joined')
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Presupuestos Pendientes'
+        context['entity'] = 'Presupuestos'
+        return context
+
+
+class BudgetConvertView(LoginRequiredMixin, ValidatePermissionRequiredMixin, View):
+    permission_required = 'erp.change_sale'
+
+    def post(self, request, *args, **kwargs):
+        from django.db import transaction
+        budget_id = kwargs.get('pk')
+        
+        try:
+            with transaction.atomic():
+                budget = Sale.objects.get(pk=budget_id, status='budget', is_budget=True)
+                
+                # Convertir presupuesto en venta real
+                budget.status = 'confirmed'
+                budget.is_budget = False  # Ya no es presupuesto
+                budget.save()
+                
+                # Descontar stock de los productos
+                for det in budget.detsale_set.all():
+                    from django.db.models import F
+                    from django.utils import timezone
+                    Product.objects.filter(pk=det.prod_id).update(
+                        stock=F('stock') - det.cant,
+                        stock_modified_locally=timezone.now(),
+                        synced_to_server=False
+                    )
+                
+                return JsonResponse({'success': True, 'message': 'Presupuesto convertido a venta correctamente'})
+        except Sale.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Presupuesto no encontrado'}, status=404)
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+class BudgetDetailView(LoginRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        budget_id = kwargs.get('pk')
+        
+        try:
+            budget = Sale.objects.get(pk=budget_id)
+            
+            # Obtener detalles
+            details = []
+            for det in budget.detsale_set.all():
+                details.append({
+                    'prod_name': det.prod.name,
+                    'cat_name': det.prod.cat.name if det.prod.cat else None,
+                    'price': float(det.price),
+                    'cant': det.cant,
+                    'subtotal': float(det.subtotal)
+                })
+            
+            data = {
+                'id': budget.id,
+                'cli': budget.cli.names if budget.cli else 'Anónimo',
+                'pos_id': budget.pos_id or '-',
+                'date_joined': budget.date_joined.strftime('%d/%m/%Y'),
+                'time': budget.date_joined.strftime('%H:%M:%S'),
+                'payment_method': budget.payment_method,
+                'payment_method_display': budget.get_payment_method_display(),
+                'budget_notes': budget.budget_notes or '',
+                'subtotal': float(budget.subtotal),
+                'iva': float(budget.iva),
+                'total': float(budget.total),
+                'items_count': budget.detsale_set.count(),
+                'details': details
+            }
+            
+            return JsonResponse(data)
+        except Sale.DoesNotExist:
+            return JsonResponse({'error': 'Presupuesto no encontrado'}, status=404)
