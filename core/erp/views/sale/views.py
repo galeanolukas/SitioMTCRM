@@ -725,6 +725,13 @@ class SaleCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Create
                     sale.total = vents['total']
                     sale.payment_method = vents.get('payment_method', 'cash')
                     
+                    # Asignar company_id explícitamente
+                    active_cid = request.session.get('company_id')
+                    if not request.user.is_superuser:
+                        active_cid = active_cid or getattr(request.user, 'company_id', None)
+                    if active_cid:
+                        sale.company_id = active_cid
+                    
                     # Configurar como presupuesto si corresponde
                     if is_budget:
                         sale.status = 'budget'
