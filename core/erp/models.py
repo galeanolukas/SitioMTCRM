@@ -400,7 +400,7 @@ class Sale(models.Model):
     payment_method = models.CharField(max_length=12, choices=payment_method_choices, default='cash', verbose_name='Forma de pago')
     payment_details = models.JSONField(default=dict, blank=True, verbose_name='Detalles de pago combinado')
     # Facturación
-    invoice_number = models.CharField(max_length=20, null=True, blank=True, unique=True)
+    invoice_number = models.CharField(max_length=20, null=True, blank=True)
     invoice_pos = models.CharField(max_length=5, default='0001')
     invoice_type = models.CharField(max_length=1, default='B')  # A/B/C
     is_invoiced = models.BooleanField(default=False)
