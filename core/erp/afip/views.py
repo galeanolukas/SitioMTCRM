@@ -27,7 +27,7 @@ class AfipConfigCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
     template_name = 'afip/form.html'
     permission_required = 'erp.add_afipconfig'
     fields = ['company', 'cuit', 'access_token', 'cert', 'key', 'environment', 'is_active']
-    success_url = reverse_lazy('erp:afip_list')
+    success_url = reverse_lazy('erp:afip:list')
 
 
 class AfipConfigUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, UpdateView):
@@ -36,7 +36,7 @@ class AfipConfigUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
     template_name = 'afip/form.html'
     permission_required = 'erp.change_afipconfig'
     fields = ['company', 'cuit', 'access_token', 'cert', 'key', 'environment', 'is_active']
-    success_url = reverse_lazy('erp:afip_list')
+    success_url = reverse_lazy('erp:afip:list')
 
 
 class AfipConfigDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin, DeleteView):
@@ -44,7 +44,14 @@ class AfipConfigDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
     model = AfipConfig
     template_name = 'afip/delete.html'
     permission_required = 'erp.delete_afipconfig'
-    success_url = reverse_lazy('erp:afip_list')
+    success_url = reverse_lazy('erp:afip:list')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Eliminar Configuración AFIP'
+        context['action'] = 'delete'
+        context['list_url'] = reverse_lazy('erp:afip:list')
+        return context
 
 
 class AfipTestView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView):
@@ -141,6 +148,8 @@ class AfipDashboardView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Tem
                     # Crear config usando CUIT de la empresa
                     access_token = request.POST.get('access_token')
                     environment = request.POST.get('environment', 'dev')
+                    punto_venta = request.POST.get('punto_venta', 1)
+                    tipo_comprobante = request.POST.get('tipo_comprobante', 6)
                     
                     if not access_token:
                         # Usar access token global del .env
@@ -155,6 +164,8 @@ class AfipDashboardView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Tem
                             cuit=company.cuit,
                             access_token=access_token,
                             environment=environment,
+                            punto_venta=punto_venta,
+                            tipo_comprobante=tipo_comprobante,
                             is_active=True
                         )
                         data = {'success': True, 'config_id': config.id, 'message': 'Configuración AFIP creada exitosamente'}

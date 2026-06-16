@@ -51,25 +51,27 @@ class AfipClient:
         Returns:
             Instancia del web service solicitado
         """
-        return self.afip.WebService(service_name)
+        return self.afip.webService(service_name)
     
     def get_server_status(self):
         """
-        Verifica el estado del servidor de AFIP usando automatización
+        Verifica el estado del servidor de AFIP usando FEDummy
         
         Returns:
             Dict con el estado del servidor
         """
         try:
-            # Usar automatización para verificar estado
-            result = self.afip.createAutomation('MisComprobantes', {}, wait=True)
+            # Usar Web Service WSFE para verificar estado con FEDummy
+            ws = self.get_web_service('wsfe')
+            # FEDummy es un método simple para verificar estado del servidor
+            result = ws.executeRequest("FEDummy", {})
             return {'status': 'ok', 'data': result}
         except Exception as e:
             return {'error': str(e)}
     
     def get_taxpayer_info(self, cuit):
         """
-        Obtiene información de un contribuyente usando automatización
+        Obtiene información de un contribuyente
         
         Args:
             cuit: CUIT del contribuyente
@@ -78,74 +80,150 @@ class AfipClient:
             Dict con información del contribuyente
         """
         try:
-            # Usar automatización para obtener información de contribuyente
-            result = self.afip.createAutomation('NuestraParte', {'cuit': cuit}, wait=True)
-            return {'taxpayer': result}
+            # Usar Web Service WSFE para obtener información de contribuyente
+            ws = self.get_web_service('wsfe')
+            # Obtener Token Authorization
+            ta = ws.getTokenAuthorization()
+            # Preparar datos con formato authRequest según documentación AFIP SDK
+            data = {
+                "authRequest": {
+                    "token": ta["token"],
+                    "sign": ta["sign"],
+                    "cuitRepresentada": self.config['CUIT']
+                }
+            }
+            # Ejecutar request para obtener datos del contribuyente
+            result = ws.executeRequest("FEParamGetTiposCbte", data)
+            return {'taxpayer': cuit, 'data': result}
         except Exception as e:
             return {'error': str(e)}
     
-    def register_invoice(self, invoice_data):
+    def create_voucher(self, voucher_data, full_response=False):
         """
-        Registra una factura electrónica
+        Crea y asigna CAE a un comprobante electrónico
         
         Args:
-            invoice_data: Dict con los datos de la factura
+            voucher_data: Dict con los datos del comprobante
+            full_response: Si es True, devuelve la respuesta completa del WS
         
         Returns:
-            Dict con el resultado del registro
+            Dict con CAE, CAEFchVto y otros datos del comprobante
         """
         try:
+            # Usar Web Service WSFE para facturación electrónica
             ws = self.get_web_service('wsfe')
-            return ws.CreateInvoice(invoice_data)
+            # Crear voucher usando el método de AFIP SDK
+            result = ws.createVoucher(voucher_data, full_response)
+            return result
         except Exception as e:
             return {'error': str(e)}
     
     def get_invoice_types(self):
         """
-        Obtiene los tipos de comprobantes disponibles usando automatización
+        Obtiene los tipos de comprobantes disponibles
         
         Returns:
-            List con los tipos de comprobantes
+            Dict con los tipos de comprobantes
         """
         try:
-            # Usar automatización para obtener tipos de comprobantes
-            result = self.afip.createAutomation('MisComprobantes', {}, wait=True)
+            ws = self.get_web_service('wsfe')
+            ta = ws.getTokenAuthorization()
+            data = {
+                "authRequest": {
+                    "token": ta["token"],
+                    "sign": ta["sign"],
+                    "cuitRepresentada": self.config['CUIT']
+                }
+            }
+            result = ws.executeRequest("FEParamGetTiposCbte", data)
             return {'types': result}
         except Exception as e:
             return {'error': str(e)}
     
     def get_concept_types(self):
         """
-        Obtiene los tipos de conceptos disponibles (no implementado en automatizaciones)
+        Obtiene los tipos de conceptos disponibles
         
         Returns:
-            Dict con error indicando que no está disponible
+            Dict con los tipos de conceptos
         """
-        return {'error': 'Método no disponible en automatizaciones AFIP SDK'}
+        try:
+            ws = self.get_web_service('wsfe')
+            ta = ws.getTokenAuthorization()
+            data = {
+                "authRequest": {
+                    "token": ta["token"],
+                    "sign": ta["sign"],
+                    "cuitRepresentada": self.config['CUIT']
+                }
+            }
+            result = ws.executeRequest("FEParamGetTiposConcepto", data)
+            return {'types': result}
+        except Exception as e:
+            return {'error': str(e)}
     
     def get_document_types(self):
         """
-        Obtiene los tipos de documentos disponibles (no implementado en automatizaciones)
+        Obtiene los tipos de documentos disponibles
         
         Returns:
-            Dict con error indicando que no está disponible
+            Dict con los tipos de documentos
         """
-        return {'error': 'Método no disponible en automatizaciones AFIP SDK'}
+        try:
+            ws = self.get_web_service('wsfe')
+            ta = ws.getTokenAuthorization()
+            data = {
+                "authRequest": {
+                    "token": ta["token"],
+                    "sign": ta["sign"],
+                    "cuitRepresentada": self.config['CUIT']
+                }
+            }
+            result = ws.executeRequest("FEParamGetTiposDoc", data)
+            return {'types': result}
+        except Exception as e:
+            return {'error': str(e)}
     
     def get_aliquote_types(self):
         """
-        Obtiene los tipos de alícuotas de IVA disponibles (no implementado en automatizaciones)
+        Obtiene los tipos de alícuotas de IVA disponibles
         
         Returns:
-            Dict con error indicando que no está disponible
+            Dict con los tipos de alícuotas
         """
-        return {'error': 'Método no disponible en automatizaciones AFIP SDK'}
+        try:
+            ws = self.get_web_service('wsfe')
+            ta = ws.getTokenAuthorization()
+            data = {
+                "authRequest": {
+                    "token": ta["token"],
+                    "sign": ta["sign"],
+                    "cuitRepresentada": self.config['CUIT']
+                }
+            }
+            result = ws.executeRequest("FEParamGetTiposIva", data)
+            return {'types': result}
+        except Exception as e:
+            return {'error': str(e)}
     
     def get_currency_types(self):
         """
-        Obtiene los tipos de monedas disponibles (no implementado en automatizaciones)
+        Obtiene los tipos de monedas disponibles
         
         Returns:
-            Dict con error indicando que no está disponible
+            Dict con los tipos de monedas
         """
-        return {'error': 'Método no disponible en automatizaciones AFIP SDK'}
+        try:
+            ws = self.get_web_service('wsfe')
+            ta = ws.getTokenAuthorization()
+            data = {
+                "authRequest": {
+                    "token": ta["token"],
+                    "sign": ta["sign"],
+                    "cuitRepresentada": self.config['CUIT']
+                }
+            }
+            result = ws.executeRequest("FEParamGetTiposMonedas", data)
+            return {'types': result}
+        except Exception as e:
+            return {'error': str(e)}

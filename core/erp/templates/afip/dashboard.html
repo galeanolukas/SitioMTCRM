@@ -74,21 +74,18 @@
               
               <div class="form-group mb-2">
                 <label class="form-label">Empresa:</label>
-                <select name="company_id_select" id="company_id_select" class="form-control">
-                  {% if user_company %}
-                    <option value="{{ user_company.id }}" selected>{{ user_company.name }} (CUIT: {{ user_company.cuit|default:"No configurado" }})</option>
-                  {% endif %}
+                <select name="company_id_select" id="company_id_select" class="form-control" data-cuits="{% for company in companies %}{{ company.id }}:{{ company.cuit|default:'' }}{% if not forloop.last %},{% endif %}{% endfor %}">
                   {% for company in companies %}
-                    {% if user_company and company.id != user_company.id %}
-                      <option value="{{ company.id }}">{{ company.name }} (CUIT: {{ company.cuit|default:"No configurado" }})</option>
-                    {% endif %}
+                    <option value="{{ company.id }}" {% if user_company and company.id == user_company.id %}selected{% endif %}>
+                      {{ company.name }} (CUIT: {{ company.cuit|default:"No configurado" }})
+                    </option>
                   {% endfor %}
                 </select>
               </div>
               
               <div class="form-group mb-2">
-                <label class="form-label">CUIT (se usará el de la empresa):</label>
-                <input type="text" id="cuit_display" class="form-control" readonly value="{% if user_company %}{{ user_company.cuit|default:'' }}{% endif %}" />
+                <label class="form-label">CUIT (se puede editar):</label>
+                <input type="text" id="cuit_display" class="form-control" value="{% if user_company %}{{ user_company.cuit|default:'' }}{% endif %}" placeholder="Ingresar CUIT" />
               </div>
               
               <div class="form-group mb-2">
@@ -101,6 +98,23 @@
                 <select name="environment" id="environment" class="form-control">
                   <option value="dev" selected>Desarrollo</option>
                   <option value="prod">Producción</option>
+                </select>
+              </div>
+              
+              <div class="form-group mb-2">
+                <label class="form-label">Punto de Venta:</label>
+                <input type="number" name="punto_venta" id="punto_venta" class="form-control" value="1" min="1" />
+              </div>
+              
+              <div class="form-group mb-2">
+                <label class="form-label">Tipo de Comprobante (default: 6=Factura B):</label>
+                <select name="tipo_comprobante" id="tipo_comprobante" class="form-control">
+                  <option value="1" title="Factura A">1 - Factura A</option>
+                  <option value="6" selected title="Factura B">6 - Factura B</option>
+                  <option value="11" title="Factura C">11 - Factura C</option>
+                  <option value="51" title="Nota de Crédito A">51 - Nota de Crédito A</option>
+                  <option value="56" title="Nota de Crédito B">56 - Nota de Crédito B</option>
+                  <option value="61" title="Nota de Crédito C">61 - Nota de Crédito C</option>
                 </select>
               </div>
             </div>

@@ -404,6 +404,12 @@ class Sale(models.Model):
     invoice_pos = models.CharField(max_length=5, default='0001')
     invoice_type = models.CharField(max_length=1, default='B')  # A/B/C
     is_invoiced = models.BooleanField(default=False)
+    # Campos AFIP
+    afip_cae = models.CharField(max_length=14, null=True, blank=True, verbose_name='CAE AFIP')
+    afip_cae_vto = models.DateField(null=True, blank=True, verbose_name='Vencimiento CAE')
+    afip_voucher_number = models.IntegerField(null=True, blank=True, verbose_name='Número de Comprobante AFIP')
+    afip_result = models.JSONField(default=dict, blank=True, verbose_name='Resultado AFIP')
+    afip_error = models.TextField(blank=True, null=True, verbose_name='Error AFIP')
     synced_to_server = models.BooleanField(default=False, verbose_name='Sincronizado con servidor')
     local_sale_id = models.PositiveIntegerField(blank=True, null=True, verbose_name='ID de venta local', help_text='ID de la venta en la base de datos local para evitar duplicados')
     local_uuid = models.CharField(max_length=64, blank=True, null=True, db_index=True, verbose_name='UUID local', help_text='UUID para sincronización (índice para búsquedas rápidas)')
@@ -446,6 +452,98 @@ class Sale(models.Model):
                 self.local_timezone = 'America/Argentina/Buenos_Aires'
         
         super().save(*args, **kwargs)
+        
+        # Emitir factura AFIP automáticamente si está configurado y la venta está confirmada
+        if self.status == 'confirmed' and not self.is_budget and not self.afip_cae:
+            self.emitir_factura_afip()
+
+    def emitir_factura_afip(self):
+        """
+        Emite la factura electrónica AFIP para esta venta
+        """
+        try:
+            from core.erp.afip.client import AfipClient
+            from core.erp.afip.config import get_afip_config
+            from datetime import datetime
+            
+            # Obtener configuración AFIP
+            afip_config = get_afip_config(self.company_id)
+            if not afip_config or not afip_config.get('is_active'):
+                return False
+            
+            # Inicializar cliente AFIP
+            client = AfipClient(company_id=self.company_id)
+            
+            # Obtener configuración de punto de venta y tipo de comprobante
+            config_obj = self.company.afipconfig_set.filter(is_active=True).first()
+            if not config_obj:
+                return False
+            
+            # Calcular IVA por alícuota
+            iva_details = []
+            for det in self.detsale_set.all():
+                if det.iva_amount > 0:
+                    # Determinar tipo de IVA según el porcentaje
+                    iva_rate = (det.iva_amount / det.subtotal) * 100 if det.subtotal > 0 else 0
+                    if iva_rate == 21:
+                        iva_id = 5
+                    elif iva_rate == 10.5:
+                        iva_id = 4
+                    elif iva_rate == 0:
+                        iva_id = 3
+                    else:
+                        iva_id = 5  # Default 21%
+                    
+                    iva_details.append({
+                        'Id': iva_id,
+                        'BaseImp': float(det.subtotal),
+                        'Importe': float(det.iva_amount)
+                    })
+            
+            # Preparar datos del voucher
+            fecha_afip = datetime.now().strftime('%Y%m%d')
+            voucher_data = {
+                'CantReg': 1,
+                'PtoVta': config_obj.punto_venta,
+                'CbteTipo': config_obj.tipo_comprobante,
+                'Concepto': 1,  # Productos
+                'DocTipo': 80 if self.cli and self.cli.cuit else 99,  # CUIT o Doc exterior
+                'DocNro': int(self.cli.cuit.replace('-', '')) if self.cli and self.cli.cuit else 0,
+                'CbteDesde': 1,
+                'CbteHasta': 1,
+                'CbteFch': int(fecha_afip),
+                'ImpTotal': float(self.total),
+                'ImpTotConc': 0.0,
+                'ImpNeto': float(self.subtotal),
+                'ImpOpEx': 0.0,
+                'ImpIVA': float(self.iva),
+                'ImpTrib': 0.0,
+                'MonId': 'PES',
+                'MonCotiz': 1,
+                'Iva': iva_details if iva_details else []
+            }
+            
+            # Crear voucher
+            result = client.create_voucher(voucher_data, full_response=True)
+            
+            if 'error' in result:
+                self.afip_error = str(result['error'])
+                self.save(update_fields=['afip_error'])
+                return False
+            
+            # Guardar resultado AFIP
+            self.afip_cae = result.get('CAE', '')
+            self.afip_cae_vto = datetime.strptime(result.get('CAEFchVto', ''), '%Y-%m-%d').date() if result.get('CAEFchVto') else None
+            self.afip_result = result
+            self.is_invoiced = True
+            self.save(update_fields=['afip_cae', 'afip_cae_vto', 'afip_result', 'is_invoiced'])
+            
+            return True
+            
+        except Exception as e:
+            self.afip_error = str(e)
+            self.save(update_fields=['afip_error'])
+            return False
 
     def next_sequential_for_pos_type(self):
         """
@@ -1018,6 +1116,8 @@ class AfipConfig(models.Model):
     cert = models.TextField(blank=True, null=True, verbose_name='Certificado (solo producción)')
     key = models.TextField(blank=True, null=True, verbose_name='Key (solo producción)')
     environment = models.CharField(max_length=10, choices=ENVIRONMENT_CHOICES, default='dev', verbose_name='Ambiente')
+    punto_venta = models.IntegerField(default=1, verbose_name='Punto de Venta')
+    tipo_comprobante = models.IntegerField(default=6, verbose_name='Tipo de Comprobante (default: 6=Factura B)')
     is_active = models.BooleanField(default=True, verbose_name='Activo')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de creación')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Fecha de actualización')

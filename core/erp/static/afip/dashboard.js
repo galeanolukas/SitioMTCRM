@@ -12,25 +12,33 @@ function createAfipConfig(companyId) {
 }
 
 function showCompanySelector() {
+    // Inicializar el campo CUIT con la empresa seleccionada por defecto
+    updateCuitDisplay();
     const modal = new bootstrap.Modal(document.getElementById('createConfigModal'));
     modal.show();
 }
 
 function updateCuitDisplay() {
     const companySelect = document.getElementById('company_id_select');
-    const selectedOption = companySelect.options[companySelect.selectedIndex];
-    const cuitText = selectedOption.text;
+    const selectedCompanyId = companySelect.value;
     
-    // Extraer CUIT del texto de la opción
-    const cuitMatch = cuitText.match(/CUIT:\s*([^\)]+)/);
-    if (cuitMatch) {
-        document.getElementById('cuit_display').value = cuitMatch[1].trim();
-    } else {
-        document.getElementById('cuit_display').value = '';
+    // Obtener CUITs del atributo data-cuits
+    const cuitsData = companySelect.getAttribute('data-cuits');
+    const cuitsMap = {};
+    
+    if (cuitsData) {
+        cuitsData.split(',').forEach(item => {
+            const [id, cuit] = item.split(':');
+            cuitsMap[id] = cuit;
+        });
     }
     
+    // Actualizar el campo CUIT con el valor de la empresa seleccionada
+    const cuitValue = cuitsMap[selectedCompanyId] || '';
+    document.getElementById('cuit_display').value = cuitValue;
+    
     // Actualizar el campo oculto company_id
-    document.getElementById('company_id').value = companySelect.value;
+    document.getElementById('company_id').value = selectedCompanyId;
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -44,8 +52,22 @@ document.addEventListener('DOMContentLoaded', function() {
         createConfigForm.addEventListener('submit', function(e) {
             e.preventDefault();
             
+            // Asegurar que el campo company_id esté actualizado antes de enviar
+            updateCuitDisplay();
+            
             const formData = new FormData(this);
             const errorBlock = document.getElementById('error-block');
+            
+            // Verificar que company_id no esté vacío
+            const companyId = document.getElementById('company_id').value;
+            if (!companyId) {
+                errorBlock.textContent = 'Debe seleccionar una empresa';
+                errorBlock.classList.remove('d-none');
+                return;
+            }
+            
+            // Agregar acción de crear configuración
+            formData.append('action', 'create_config');
             
             fetch('', {
                 method: 'POST',
