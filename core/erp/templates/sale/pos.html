@@ -367,10 +367,20 @@
       </div>
       <div class="modal-body">
         <p>Elija una opción para continuar con el registro de la venta.</p>
+        <div class="alert alert-info d-flex align-items-center" role="alert">
+          <i class="fas fa-info-circle me-2"></i>
+          <div>
+            <strong>Factura Electrónica AFIP:</strong> La opción "Facturar" generará una factura electrónica con CAE de AFIP automáticamente si está configurada.
+          </div>
+        </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary" id="btnModeNoInvoice">Solo ticket</button>
-        <button type="button" class="btn btn-primary" id="btnModeInvoice">Facturar</button>
+        <button type="button" class="btn btn-outline-secondary" id="btnModeNoInvoice">
+          <i class="fas fa-receipt me-1"></i> Solo ticket
+        </button>
+        <button type="button" class="btn btn-primary" id="btnModeInvoice">
+          <i class="fas fa-file-invoice-dollar me-1"></i> Facturar (AFIP)
+        </button>
       </div>
     </div>
   </div>
