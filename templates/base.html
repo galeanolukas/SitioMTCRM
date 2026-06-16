@@ -118,6 +118,15 @@
             </a>
           </li>
           {% endif %}
+          
+          {% if user.is_superuser or perms.erp.view_cashregister %}
+          <li class="nav-item">
+            <a href="{% url 'erp:cash_register_list' %}" class="nav-link">
+              <i class="nav-icon fas fa-cash-register"></i>
+              <p>Cajas y Movimientos</p>
+            </a>
+          </li>
+          {% endif %}
           {% endif %}
         </ul>
       </nav>
