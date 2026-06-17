@@ -8,54 +8,56 @@
     </button>
   </div>
   <div class="card-body">
-    <table class="table table-sm table-striped">
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Usuario</th>
-          <th>Nombre</th>
-          <th>Email</th>
-          <th>Empresa</th>
-          <th>Superuser</th>
-          <th>Activo</th>
-          <th>Acciones</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for u in users %}
-        <tr>
-          <td>{{ u.id }}</td>
-          <td>{{ u.username }}</td>
-          <td>{{ u.get_full_name|default:u.username }}</td>
-          <td>{{ u.email }}</td>
-          <td>{% if u.company %}{{ u.company.name }}{% else %}-{% endif %}</td>
-          <td>{{ u.is_superuser|yesno:"Sí,No" }}</td>
-          <td>{{ u.is_active|yesno:"Sí,No" }}</td>
-          <td>
-            <div class="d-flex gap-1">
-              <a href="{% url 'user:edit' u.id %}" class="btn btn-sm btn-primary" title="Editar perfil y empresa">
-                <i class="fas fa-user-edit"></i>
-              </a>
-              <form method="post" action="{% url 'user:toggle_active' u.id %}" style="display:inline-block;">
-                {% csrf_token %}
-                <button class="btn btn-sm {% if u.is_active %}btn-warning{% else %}btn-success{% endif %}" {% if u.id == request.user.id %}disabled title="No puedes desactivarte a ti mismo"{% else %}title="{% if u.is_active %}Desactivar{% else %}Activar{% endif %} usuario"{% endif %}>
-                  {% if u.is_active %}<i class="fas fa-ban"></i>{% else %}<i class="fas fa-check"></i>{% endif %}
-                </button>
-              </form>
-              <form method="post" action="{% url 'user:delete' u.id %}" style="display:inline-block;" onsubmit="return confirm('¿Eliminar usuario {{ u.username }}? Esta acción no se puede deshacer.');">
-                {% csrf_token %}
-                <button class="btn btn-sm btn-danger" {% if u.id == request.user.id %}disabled title="No puedes eliminarte a ti mismo"{% else %}title="Eliminar usuario"{% endif %}>
-                  <i class="fas fa-trash-alt"></i>
-                </button>
-              </form>
-            </div>
-          </td>
-        </tr>
-        {% empty %}
-        <tr><td colspan="8" class="text-center">Sin usuarios</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+    <div class="table-responsive">
+      <table class="table table-sm table-striped">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Usuario</th>
+            <th>Nombre</th>
+            <th>Email</th>
+            <th>Empresa</th>
+            <th>Superuser</th>
+            <th>Activo</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in users %}
+          <tr>
+            <td>{{ u.id }}</td>
+            <td>{{ u.username }}</td>
+            <td>{{ u.get_full_name|default:u.username }}</td>
+            <td>{{ u.email }}</td>
+            <td>{% if u.company %}{{ u.company.name }}{% else %}-{% endif %}</td>
+            <td>{{ u.is_superuser|yesno:"Sí,No" }}</td>
+            <td>{{ u.is_active|yesno:"Sí,No" }}</td>
+            <td>
+              <div class="d-flex gap-1">
+                <a href="{% url 'user:edit' u.id %}" class="btn btn-sm btn-primary" title="Editar perfil y empresa">
+                  <i class="fas fa-user-edit"></i>
+                </a>
+                <form method="post" action="{% url 'user:toggle_active' u.id %}" style="display:inline-block;">
+                  {% csrf_token %}
+                  <button class="btn btn-sm {% if u.is_active %}btn-warning{% else %}btn-success{% endif %}" {% if u.id == request.user.id %}disabled title="No puedes desactivarte a ti mismo"{% else %}title="{% if u.is_active %}Desactivar{% else %}Activar{% endif %} usuario"{% endif %}>
+                    {% if u.is_active %}<i class="fas fa-ban"></i>{% else %}<i class="fas fa-check"></i>{% endif %}
+                  </button>
+                </form>
+                <form method="post" action="{% url 'user:delete' u.id %}" style="display:inline-block;" onsubmit="return confirm('¿Eliminar usuario {{ u.username }}? Esta acción no se puede deshacer.');">
+                  {% csrf_token %}
+                  <button class="btn btn-sm btn-danger" {% if u.id == request.user.id %}disabled title="No puedes eliminarte a ti mismo"{% else %}title="Eliminar usuario"{% endif %}>
+                    <i class="fas fa-trash-alt"></i>
+                  </button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="8" class="text-center">Sin usuarios</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
 </div>
 

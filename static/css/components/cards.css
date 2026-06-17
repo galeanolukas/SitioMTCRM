@@ -1,0 +1,47 @@
+/* Estilos de cards personalizados */
+
+/* Card outline AdminLTE */
+.card-outline.card-primary {
+  border-top: 3px solid var(--ml-primary);
+}
+
+/* Fondo gris suave para formularios */
+.card .card-body {
+  background-color: #fafafa;
+}
+
+/* Cards de gráficos con altura limitada */
+.chart-card {
+  max-height: 420px;
+}
+
+.chart-card .card-body {
+  overflow: auto;
+}
+
+/* Cards del POS */
+.pos-card-main,
+.pos-card-secondary,
+.pos-card-summary {
+  border: 0;
+  border-radius: 0.75rem;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
+}
+
+.pos-card-main .card-header,
+.pos-card-secondary .card-header,
+.pos-card-summary .card-header {
+  border-bottom: 0;
+  background: #111827;
+  color: #e5e7eb;
+}
+
+/* Resumen destacado del POS */
+.pos-summary-highlight {
+  box-shadow: 0 0 0 0.25rem rgba(34, 197, 94, 0.4);
+  transition: box-shadow 0.3s ease-in-out, transform 0.1s ease-in-out;
+}
+
+.pos-summary-highlight:hover {
+  transform: translateY(-1px);
+}

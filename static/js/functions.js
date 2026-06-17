@@ -1,9 +1,4 @@
-function formatCurrency(amount) {
-    return '$' + Number(amount).toLocaleString('en-US', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-    });
-}
+// formatCurrency ahora se importa desde utils/currency.js
 
 function message_success(message) {
     var html = '';

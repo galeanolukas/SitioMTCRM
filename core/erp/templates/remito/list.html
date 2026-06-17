@@ -62,58 +62,60 @@
             </div>
           </form>
 
-          <table class="table table-bordered table-striped">
-            <thead>
-              <tr>
-                <th>Número</th>
-                <th>Proveedor</th>
-                <th>Fecha</th>
-                <th>Estado</th>
-                <th>Creado por</th>
-                <th>Opciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for obj in object_list %}
-              <tr>
-                <td>{{ obj.numero }}</td>
-                <td>{{ obj.supplier.name }}</td>
-                <td>{{ obj.fecha|date:"d/m/Y" }}</td>
-                <td>
-                  {% if obj.estado == 'pending' %}
-                    <span class="badge bg-warning">Pendiente</span>
-                  {% elif obj.estado == 'processed' %}
-                    <span class="badge bg-success">Procesado</span>
-                  {% elif obj.estado == 'cancelled' %}
-                    <span class="badge bg-danger">Anulado</span>
-                  {% endif %}
-                </td>
-                <td>{{ obj.created_by.username|default:"-" }}</td>
-                <td>
-                  <a href="{% url 'erp:remito_detail' obj.id %}" class="btn btn-sm btn-info">
-                    <i class="fas fa-eye"></i>
-                  </a>
-                  {% if obj.estado == 'pending' %}
-                  <a href="{% url 'erp:remito_update' obj.id %}" class="btn btn-sm btn-warning">
-                    <i class="fas fa-edit"></i>
-                  </a>
-                  <a href="{% url 'erp:remito_delete' obj.id %}" class="btn btn-sm btn-danger">
-                    <i class="fas fa-trash"></i>
-                  </a>
-                  {% elif obj.estado == 'processed' %}
-                  <button onclick="anularRemito({{ obj.id }})" class="btn btn-sm btn-danger">
-                    <i class="fas fa-undo"></i>
-                  </button>
-                  {% endif %}
-                </td>
-              </tr>
-              {% empty %}
-              <tr>
-                <td colspan="6" class="text-center">No hay registros</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+          <div class="table-responsive">
+            <table class="table table-bordered table-striped">
+              <thead>
+                <tr>
+                  <th>Número</th>
+                  <th>Proveedor</th>
+                  <th>Fecha</th>
+                  <th>Estado</th>
+                  <th>Creado por</th>
+                  <th>Opciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for obj in object_list %}
+                <tr>
+                  <td>{{ obj.numero }}</td>
+                  <td>{{ obj.supplier.name }}</td>
+                  <td>{{ obj.fecha|date:"d/m/Y" }}</td>
+                  <td>
+                    {% if obj.estado == 'pending' %}
+                      <span class="badge bg-warning">Pendiente</span>
+                    {% elif obj.estado == 'processed' %}
+                      <span class="badge bg-success">Procesado</span>
+                    {% elif obj.estado == 'cancelled' %}
+                      <span class="badge bg-danger">Anulado</span>
+                    {% endif %}
+                  </td>
+                  <td>{{ obj.created_by.username|default:"-" }}</td>
+                  <td>
+                    <a href="{% url 'erp:remito_detail' obj.id %}" class="btn btn-sm btn-info">
+                      <i class="fas fa-eye"></i>
+                    </a>
+                    {% if obj.estado == 'pending' %}
+                    <a href="{% url 'erp:remito_update' obj.id %}" class="btn btn-sm btn-warning">
+                      <i class="fas fa-edit"></i>
+                    </a>
+                    <a href="{% url 'erp:remito_delete' obj.id %}" class="btn btn-sm btn-danger">
+                      <i class="fas fa-trash"></i>
+                    </a>
+                    {% elif obj.estado == 'processed' %}
+                    <button onclick="anularRemito({{ obj.id }})" class="btn btn-sm btn-danger">
+                      <i class="fas fa-undo"></i>
+                    </button>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% empty %}
+                <tr>
+                  <td colspan="6" class="text-center">No hay registros</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
 
           {% if is_paginated %}
           <div class="pagination">

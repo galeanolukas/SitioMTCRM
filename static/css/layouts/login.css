@@ -1,0 +1,11 @@
+/* Estilos específicos para páginas de login */
+
+.login-page {
+  background-color: #f5f6f8;
+}
+
+.login-box {
+  width: 100%;
+  max-width: 380px;
+  margin: 2rem auto;
+}

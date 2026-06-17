@@ -1,125 +1,684 @@
-{% extends 'layout.html' %}
+{% extends "base/layout.html" %}
+{% load static %}
+{% load ars_filters %}
 
 {% block title %}Reportes Unificados{% endblock %}
 
 {% block content %}
-<div class="content-wrapper">
+<div class="container-fluid">
     <div class="content-header">
-        <div class="container-fluid">
-            <div class="row mb-2">
-                <div class="col-sm-6">
-                    <h1 class="m-0">Reportes</h1>
-                </div>
-                <div class="col-sm-6">
-                    <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="{% url 'erp:dashboard' %}">Dashboard</a></li>
-                        <li class="breadcrumb-item active">Reportes</li>
-                    </ol>
-                </div>
+        <div class="row mb-2">
+            <div class="col-sm-6">
+                <h1 class="m-0">Reportes</h1>
+            </div>
+            <div class="col-sm-6">
+                <ol class="breadcrumb float-sm-right">
+                    <li class="breadcrumb-item"><a href="{% url 'erp:dashboard' %}">Inicio</a></li>
+                    <li class="breadcrumb-item active">Reportes</li>
+                </ol>
             </div>
         </div>
     </div>
 
     <section class="content">
-        <div class="container-fluid">
             <!-- Filtros -->
-            <div class="card card-outline card-primary">
+            <div class="card">
                 <div class="card-header">
-                    <h3 class="card-title">
-                        <i class="fas fa-filter"></i> Filtros del Reporte
-                    </h3>
+                    <h3 class="card-title">Filtros</h3>
                 </div>
                 <div class="card-body">
-                    <form method="GET" id="report-filters">
+                    <form method="GET" id="filter-form">
                         <div class="row">
-                            <div class="col-md-3">
-                                <label for="report_type" class="form-label">Tipo de Reporte</label>
-                                <select class="form-control" id="report_type" name="report_type">
-                                    <option value="sales" {% if report_type == 'sales' %}selected{% endif %}>Ventas</option>
-                                    <option value="inventory" {% if report_type == 'inventory' %}selected{% endif %}>Inventario</option>
-                                    <option value="expenses" {% if report_type == 'expenses' %}selected{% endif %}>Gastos</option>
-                                    <option value="profit" {% if report_type == 'profit' %}selected{% endif %}>Ganancias</option>
-                                    <option value="top_selling" {% if report_type == 'top_selling' %}selected{% endif %}>Productos Más Vendidos</option>
-                                </select>
+                            <div class="col-md-2">
+                                <div class="form-group">
+                                    <label for="report_type">Tipo de Reporte</label>
+                                    <select name="report_type" id="report_type" class="form-control">
+                                        <option value="sales" {% if report_type == 'sales' %}selected{% endif %}>Ventas</option>
+                                        <option value="inventory" {% if report_type == 'inventory' %}selected{% endif %}>Inventario</option>
+                                        <option value="expenses" {% if report_type == 'expenses' %}selected{% endif %}>Gastos</option>
+                                        <option value="profit" {% if report_type == 'profit' %}selected{% endif %}>Ganancias</option>
+                                        <option value="top_selling" {% if report_type == 'top_selling' %}selected{% endif %}>Productos Más Vendidos</option>
+                                    </select>
+                                </div>
                             </div>
                             <div class="col-md-2">
-                                <label for="start_date" class="form-label">Fecha Inicio</label>
-                                <input type="date" class="form-control" id="start_date" name="start_date" 
-                                       value="{{ start_date }}" {% if report_type == 'inventory' %}disabled{% endif %}>
+                                <div class="form-group">
+                                    <label for="company">Empresa</label>
+                                    <select name="company" id="company" class="form-control">
+                                        <option value="">Todas</option>
+                                        {% for company in companies %}
+                                        <option value="{{ company.id }}" {% if company_id == company.id|stringformat:"s" %}selected{% endif %}>{{ company.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
                             </div>
                             <div class="col-md-2">
-                                <label for="end_date" class="form-label">Fecha Fin</label>
-                                <input type="date" class="form-control" id="end_date" name="end_date" 
-                                       value="{{ end_date }}" {% if report_type == 'inventory' %}disabled{% endif %}>
+                                <div class="form-group">
+                                    <label for="start_date">Fecha Desde</label>
+                                    <input type="date" name="start_date" id="start_date" class="form-control" value="{{ start_date }}">
+                                </div>
                             </div>
                             <div class="col-md-2">
-                                <label for="company" class="form-label">Empresa</label>
-                                <select class="form-control" id="company" name="company">
-                                    <option value="">Todas</option>
-                                    {% for company in companies %}
-                                        <option value="{{ company.id }}" {% if company_id == company.id|stringformat:"s" %}selected{% endif %}>
-                                            {{ company.name }}
-                                        </option>
-                                    {% endfor %}
-                                </select>
+                                <div class="form-group">
+                                    <label for="end_date">Fecha Hasta</label>
+                                    <input type="date" name="end_date" id="end_date" class="form-control" value="{{ end_date }}">
+                                </div>
                             </div>
-                            <div class="col-md-3">
-                                <label class="form-label">&nbsp;</label><br>
-                                <button type="submit" class="btn btn-primary">
-                                    <i class="fas fa-search"></i> Generar Reporte
-                                </button>
-                                <div class="btn-group">
-                                    <button type="button" class="btn btn-success dropdown-toggle" data-toggle="dropdown">
-                                        <i class="fas fa-download"></i> Exportar
-                                    </button>
-                                    <div class="dropdown-menu">
-                                        <a class="dropdown-item" href="#" onclick="exportReport('csv')">
+                            <div class="col-md-2" id="payment-method-filter">
+                                <div class="form-group">
+                                    <label for="payment_method">Forma de Pago</label>
+                                    <select name="payment_method" id="payment_method" class="form-control">
+                                        <option value="">Todas</option>
+                                        {% if sales_data %}
+                                            {% for key, value in sales_data.payment_method_choices.items %}
+                                            <option value="{{ key }}" {% if payment_method == key %}selected{% endif %}>{{ value }}</option>
+                                            {% endfor %}
+                                        {% endif %}
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="form-group">
+                                    <label>&nbsp;</label>
+                                    <div class="btn-group w-100">
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="fas fa-filter"></i> Filtrar
+                                        </button>
+                                        <button type="button" class="btn btn-success" onclick="exportReport('csv')">
                                             <i class="fas fa-file-csv"></i> CSV
-                                        </a>
-                                        <a class="dropdown-item" href="#" onclick="exportReport('excel')">
+                                        </button>
+                                        <button type="button" class="btn btn-info" onclick="exportReport('excel')">
                                             <i class="fas fa-file-excel"></i> Excel
-                                        </a>
-                                        <a class="dropdown-item" href="#" onclick="exportReport('pdf')">
-                                            <i class="fas fa-file-pdf"></i> PDF
-                                        </a>
+                                        </button>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        
-                        <!-- Filtro adicional para ventas -->
-                        {% if report_type == 'sales' %}
-                        <div class="row mt-2">
-                            <div class="col-md-3">
-                                <label for="payment_method" class="form-label">Forma de Pago</label>
-                                <select class="form-control" id="payment_method" name="payment_method">
-                                    <option value="">Todas</option>
-                                    {% for key, value in sales_data.payment_method_choices.items %}
-                                        <option value="{{ key }}" {% if payment_method == key %}selected{% endif %}>
-                                            {{ value }}
-                                        </option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                        </div>
-                        {% endif %}
                     </form>
                 </div>
             </div>
 
-            <!-- Contenido del Reporte -->
-            <div id="report-content">
-                {% if report_type == 'sales' %}
-                    {% include 'reports/sales_report.html' %}
-                {% elif report_type == 'inventory' %}
-                    {% include 'reports/products_report.html' %}
-                {% elif report_type == 'expenses' %}
-                    {% include 'reports/cash_flow.html' %}
-                {% elif report_type == 'profit' %}
-                    {% include 'reports/profit_report.html' %}
-                {% elif report_type == 'top_selling' %}
-                    {% include 'reports/top_selling_report.html' %}
-                {% endif %}
+            <!-- Tabs de Reportes -->
+            <div class="card">
+                <div class="card-header p-0">
+                    <ul class="nav nav-tabs" id="report-tabs" role="tablist">
+                        <li class="nav-item">
+                            <a class="nav-link {% if report_type == 'sales' %}active{% endif %}" 
+                               href="?report_type=sales&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}&payment_method={{ payment_method }}">
+                                <i class="fas fa-shopping-cart"></i> Ventas
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if report_type == 'inventory' %}active{% endif %}" 
+                               href="?report_type=inventory&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}">
+                                <i class="fas fa-boxes"></i> Inventario
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if report_type == 'expenses' %}active{% endif %}" 
+                               href="?report_type=expenses&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}">
+                                <i class="fas fa-file-invoice-dollar"></i> Gastos
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if report_type == 'profit' %}active{% endif %}" 
+                               href="?report_type=profit&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}">
+                                <i class="fas fa-chart-line"></i> Ganancias
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if report_type == 'top_selling' %}active{% endif %}" 
+                               href="?report_type=top_selling&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}">
+                                <i class="fas fa-box"></i> Productos Más Vendidos
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="card-body">
+                    <!-- Reporte de Ventas -->
+                    {% if report_type == 'sales' %}
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <div class="info-box">
+                                <span class="info-box-icon bg-blue">
+                                    <i class="fas fa-dollar-sign"></i>
+                                </span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">Total Ventas</span>
+                                    <span class="info-box-number">{{ sales_data.summary.total_sales|ars_currency|default:"0.00" }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="info-box">
+                                <span class="info-box-icon bg-green">
+                                    <i class="fas fa-receipt"></i>
+                                </span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">Cantidad</span>
+                                    <span class="info-box-number">{{ sales_data.summary.total_count|default:"0" }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="info-box">
+                                <span class="info-box-icon bg-yellow">
+                                    <i class="fas fa-chart-bar"></i>
+                                </span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">Ticket Promedio</span>
+                                    <span class="info-box-number">{{ sales_data.summary.avg_ticket|ars_currency|default:"0.00" }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tabla de Ventas -->
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Ticket/Factura</th>
+                                    <th>Cliente</th>
+                                    <th>Subtotal</th>
+                                    <th>IVA</th>
+                                    <th>Total</th>
+                                    <th>Forma de Pago</th>
+                                    <th>Empresa</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for sale in sales_data.sales %}
+                                <tr>
+                                    <td>{{ sale.date_joined|date:"d/m/Y H:i" }}</td>
+                                    <td>
+                                        {% if sale.invoice_number %}
+                                            {{ sale.invoice_pos }}-{{ sale.invoice_number }}
+                                        {% else %}
+                                            Ticket #{{ sale.id }}
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ sale.cli.names|default:"N/A" }}</td>
+                                    <td>{{ sale.subtotal|ars_currency }}</td>
+                                    <td>{{ sale.iva|ars_currency }}</td>
+                                    <td>{{ sale.total|ars_currency }}</td>
+                                    <td>{{ sale.get_payment_method_display }}</td>
+                                    <td>{{ sale.company.name|default:"N/A" }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="8" class="text-center">No hay datos disponibles</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Paginación -->
+                    {% if sales_data.sales.has_other_pages %}
+                    <nav aria-label="Paginación de ventas">
+                        <ul class="pagination justify-content-center">
+                            {% if sales_data.sales.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?report_type=sales&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}&payment_method={{ payment_method }}&page={{ sales_data.sales.previous_page_number }}">«</a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">«</span>
+                                </li>
+                            {% endif %}
+                            
+                            {% for num in sales_data.sales.paginator.page_range %}
+                                {% if sales_data.sales.number == num %}
+                                    <li class="page-item active">
+                                        <span class="page-link">{{ num }}</span>
+                                    </li>
+                                {% elif num > sales_data.sales.number|add:'-3' and num < sales_data.sales.number|add:'3' %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?report_type=sales&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}&payment_method={{ payment_method }}&page={{ num }}">{{ num }}</a>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% if sales_data.sales.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?report_type=sales&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}&payment_method={{ payment_method }}&page={{ sales_data.sales.next_page_number }}">»</a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">»</span>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    <div class="text-center text-muted">
+                        Mostrando {{ sales_data.sales.start_index }}-{{ sales_data.sales.end_index }} de {{ sales_data.sales.paginator.count }} ventas
+                    </div>
+                    {% endif %}
+
+                    {% endif %}
+
+                    <!-- Reporte de Inventario -->
+                    {% if report_type == 'inventory' %}
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <div class="info-box">
+                                <span class="info-box-icon bg-blue">
+                                    <i class="fas fa-boxes"></i>
+                                </span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">Total Productos</span>
+                                    <span class="info-box-number">{{ inventory_data.summary.total_products|default:"0" }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="info-box">
+                                <span class="info-box-icon bg-green">
+                                    <i class="fas fa-warehouse"></i>
+                                </span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">Stock Total</span>
+                                    <span class="info-box-number">{{ inventory_data.summary.total_stock|ars_format|default:"0.00" }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="info-box">
+                                <span class="info-box-icon bg-yellow">
+                                    <i class="fas fa-dollar-sign"></i>
+                                </span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">Valor Total</span>
+                                    <span class="info-box-number">{{ inventory_data.summary.total_value|ars_currency|default:"0.00" }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tabla de Inventario -->
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Producto</th>
+                                    <th>Código</th>
+                                    <th>Categoría</th>
+                                    <th>Stock</th>
+                                    <th>Costo</th>
+                                    <th>Precio Final</th>
+                                    <th>Valor Total</th>
+                                    <th>Valor con IVA</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for product in inventory_data.products %}
+                                <tr>
+                                    <td>{{ product.name }}</td>
+                                    <td>{{ product.code|default:"" }}</td>
+                                    <td>{{ product.cat.name|default:"" }}</td>
+                                    <td>{{ product.stock|ars_format }}</td>
+                                    <td>{{ product.cost_price|ars_currency }}</td>
+                                    <td>{{ product.pvp_final|ars_currency }}</td>
+                                    <td class="product-total" data-stock="{{ product.stock|add:"0" }}" data-price="{{ product.pvp_final }}">$0.00</td>
+                                    <td class="product-iva-total" data-stock="{{ product.stock|add:"0" }}" data-price="{{ product.pvp_final }}">$0.00</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="8" class="text-center">No hay datos disponibles</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Paginación de Inventario -->
+                    {% if inventory_data.products.has_other_pages %}
+                    <nav aria-label="Paginación de inventario">
+                        <ul class="pagination justify-content-center">
+                            {% if inventory_data.products.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?report_type=inventory&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}&page={{ inventory_data.products.previous_page_number }}">«</a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">«</span>
+                                </li>
+                            {% endif %}
+                            
+                            {% for num in inventory_data.products.paginator.page_range %}
+                                {% if inventory_data.products.number == num %}
+                                    <li class="page-item active">
+                                        <span class="page-link">{{ num }}</span>
+                                    </li>
+                                {% elif num > inventory_data.products.number|add:'-3' and num < inventory_data.products.number|add:'3' %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?report_type=inventory&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}&page={{ num }}">{{ num }}</a>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% if inventory_data.products.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?report_type=inventory&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}&page={{ inventory_data.products.next_page_number }}">»</a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">»</span>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    <div class="text-center text-muted">
+                        Mostrando {{ inventory_data.products.start_index }}-{{ inventory_data.products.end_index }} de {{ inventory_data.products.paginator.count }} productos
+                    </div>
+                    {% endif %}
+
+                    {% endif %}
+
+                    <!-- Reporte de Gastos -->
+                    {% if report_type == 'expenses' %}
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <div class="info-box">
+                                <span class="info-box-icon bg-red">
+                                    <i class="fas fa-dollar-sign"></i>
+                                </span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">Total Gastos</span>
+                                    <span class="info-box-number">{{ expenses_data.summary.total_expenses|ars_currency|default:"0.00" }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="info-box">
+                                <span class="info-box-icon bg-orange">
+                                    <i class="fas fa-file-invoice"></i>
+                                </span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">Cantidad</span>
+                                    <span class="info-box-number">{{ expenses_data.summary.total_count|default:"0" }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="info-box">
+                                <span class="info-box-icon bg-purple">
+                                    <i class="fas fa-chart-bar"></i>
+                                </span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">Promedio</span>
+                                    <span class="info-box-number">{{ expenses_data.summary.avg_expense|ars_currency|default:"0.00" }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tabla de Gastos -->
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Descripción</th>
+                                    <th>Monto</th>
+                                    <th>Proveedor</th>
+                                    <th>Empresa</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for expense in expenses_data.expenses %}
+                                <tr>
+                                    <td>{{ expense.date|date:"d/m/Y" }}</td>
+                                    <td>{{ expense.description|default:"" }}</td>
+                                    <td>{{ expense.amount|ars_currency }}</td>
+                                    <td>{{ expense.supplier.name|default:"N/A" }}</td>
+                                    <td>{{ expense.company.name|default:"N/A" }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center">No hay datos disponibles</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Paginación de Gastos -->
+                    {% if expenses_data.expenses.has_other_pages %}
+                    <nav aria-label="Paginación de gastos">
+                        <ul class="pagination justify-content-center">
+                            {% if expenses_data.expenses.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?report_type=expenses&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}&page={{ expenses_data.expenses.previous_page_number }}">«</a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">«</span>
+                                </li>
+                            {% endif %}
+                            
+                            {% for num in expenses_data.expenses.paginator.page_range %}
+                                {% if expenses_data.expenses.number == num %}
+                                    <li class="page-item active">
+                                        <span class="page-link">{{ num }}</span>
+                                    </li>
+                                {% elif num > expenses_data.expenses.number|add:'-3' and num < expenses_data.expenses.number|add:'3' %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?report_type=expenses&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}&page={{ num }}">{{ num }}</a>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% if expenses_data.expenses.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?report_type=expenses&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}&page={{ expenses_data.expenses.next_page_number }}">»</a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">»</span>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    <div class="text-center text-muted">
+                        Mostrando {{ expenses_data.expenses.start_index }}-{{ expenses_data.expenses.end_index }} de {{ expenses_data.expenses.paginator.count }} gastos
+                    </div>
+                    {% endif %}
+
+                    {% endif %}
+
+                    <!-- Reporte de Ganancias -->
+                    {% if report_type == 'profit' %}
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3 class="card-title">Resumen Financiero</h3>
+                                </div>
+                                <div class="card-body">
+                                    <table class="table table-borderless">
+                                        <tr>
+                                            <td><strong>Ventas Totales:</strong></td>
+                                            <td class="text-right">{{ profit_data.total_sales|ars_currency }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Costo de Ventas:</strong></td>
+                                            <td class="text-right text-danger">- {{ profit_data.total_cost|ars_currency }}</td>
+                                        </tr>
+                                        <tr class="bg-light">
+                                            <td><strong>Ganancia Bruta:</strong></td>
+                                            <td class="text-right">{{ profit_data.gross_profit|ars_currency }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Gastos:</strong></td>
+                                            <td class="text-right text-danger">- {{ profit_data.total_expenses|ars_currency }}</td>
+                                        </tr>
+                                        <tr class="bg-success text-white">
+                                            <td><strong>Ganancia Neta:</strong></td>
+                                            <td class="text-right">{{ profit_data.net_profit|ars_currency }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Margen de Ganancia:</strong></td>
+                                            <td class="text-right">{{ profit_data.profit_margin|ars_format }}%</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% endif %}
+
+                    <!-- Reporte de Productos Más Vendidos -->
+                    {% if report_type == 'top_selling' %}
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <div class="info-box">
+                                <span class="info-box-icon bg-info">
+                                    <i class="fas fa-box"></i>
+                                </span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">Productos Vendidos</span>
+                                    <span class="info-box-number">{{ top_selling_data.summary.total_products|default:0 }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="info-box">
+                                <span class="info-box-icon bg-success">
+                                    <i class="fas fa-cubes"></i>
+                                </span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">Unidades Totales</span>
+                                    <span class="info-box-number">{{ top_selling_data.summary.total_quantity|ars_format|default:0 }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="info-box">
+                                <span class="info-box-icon bg-warning">
+                                    <i class="fas fa-dollar-sign"></i>
+                                </span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">Monto Total</span>
+                                    <span class="info-box-number">{{ top_selling_data.summary.total_amount|ars_currency|default:0 }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="info-box">
+                                <span class="info-box-icon bg-secondary">
+                                    <i class="fas fa-chart-line"></i>
+                                </span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">Precio Promedio</span>
+                                    <span class="info-box-number">{{ top_selling_data.summary.avg_price|ars_currency|default:0 }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">
+                                <i class="fas fa-list"></i> Productos Más Vendidos
+                            </h3>
+                            <div class="card-tools">
+                                <div class="btn-group">
+                                    <a href="?report_type=top_selling&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}&format=csv" class="btn btn-sm btn-default">
+                                        <i class="fas fa-file-csv"></i> CSV
+                                    </a>
+                                    <a href="?report_type=top_selling&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}&format=excel" class="btn btn-sm btn-default">
+                                        <i class="fas fa-file-excel"></i> Excel
+                                    </a>
+                                    <a href="?report_type=top_selling&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}&format=pdf" class="btn btn-sm btn-default">
+                                        <i class="fas fa-file-pdf"></i> PDF
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            {% if top_selling_data.products %}
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Código</th>
+                                            <th>Producto</th>
+                                            <th class="text-right">Stock Disponible</th>
+                                            <th class="text-right">Total Vendidos</th>
+                                            <th class="text-right">Precio Promedio</th>
+                                            <th class="text-right">Total Recaudado</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for product in top_selling_data.page_obj.object_list %}
+                                        <tr>
+                                            <td>{{ forloop.counter0|add:top_selling_data.page_obj.start_index }}</td>
+                                            <td>{{ product.prod__code }}</td>
+                                            <td>{{ product.prod__name }}</td>
+                                            <td class="text-right">{{ product.prod__stock|ars_format|default:0 }}</td>
+                                            <td class="text-right">{{ product.total_quantity|ars_format }}</td>
+                                            <td class="text-right">{{ product.avg_price|ars_currency }}</td>
+                                            <td class="text-right font-weight-bold">{{ product.total_amount|ars_currency }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- Paginación -->
+                            {% if top_selling_data.page_obj.has_other_pages %}
+                            <nav aria-label="Page navigation">
+                                <ul class="pagination justify-content-center">
+                                    {% if top_selling_data.page_obj.has_previous %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?report_type=top_selling&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}&page={{ top_selling_data.page_obj.previous_page_number }}">«</a>
+                                    </li>
+                                    {% else %}
+                                    <li class="page-item disabled">
+                                        <span class="page-link">«</span>
+                                    </li>
+                                    {% endif %}
+
+                                    {% for num in top_selling_data.page_obj.paginator.page_range %}
+                                    {% if top_selling_data.page_obj.number == num %}
+                                    <li class="page-item active">
+                                        <span class="page-link">{{ num }}</span>
+                                    </li>
+                                    {% elif num > top_selling_data.page_obj.number|add:'-3' and num < top_selling_data.page_obj.number|add:'3' %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?report_type=top_selling&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}&page={{ num }}">{{ num }}</a>
+                                    </li>
+                                    {% endif %}
+                                    {% endfor %}
+
+                                    {% if top_selling_data.page_obj.has_next %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?report_type=top_selling&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}&page={{ top_selling_data.page_obj.next_page_number }}">»</a>
+                                    </li>
+                                    {% else %}
+                                    <li class="page-item disabled">
+                                        <span class="page-link">»</span>
+                                    </li>
+                                    {% endif %}
+                                </ul>
+                            </nav>
+                            {% endif %}
+                            {% else %}
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle"></i> No se encontraron productos vendidos en el período seleccionado.
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {% endif %}
+                </div>
             </div>
         </div>
     </section>
@@ -129,64 +688,44 @@
 {% block javascript %}
 <script>
 $(document).ready(function() {
-    // Manejar cambio de tipo de reporte
-    $('#report_type').on('change', function() {
-        var reportType = $(this).val();
-        
-        // Habilitar/deshabilitar campos de fecha según el tipo de reporte
-        if (reportType === 'inventory') {
-            $('#start_date, #end_date').prop('disabled', true);
-        } else {
-            $('#start_date, #end_date').prop('disabled', false);
-        }
-        
-        // Enviar formulario automáticamente
-        $('#report-filters').submit();
+    // Calcular valores totales de productos
+    $('.product-total').each(function() {
+        var stock = parseFloat($(this).data('stock'));
+        var price = parseFloat($(this).data('price'));
+        var total = stock * price;
+        $(this).text('$' + total.toFixed(2));
     });
     
-    // Validar fechas
-    $('#report-filters').on('submit', function(e) {
-        var startDate = $('#start_date').val();
-        var endDate = $('#end_date').val();
-        
-        if (startDate && endDate && startDate > endDate) {
-            e.preventDefault();
-            alert('La fecha de fin no puede ser anterior a la fecha de inicio');
-            $('#end_date').focus();
+    // Calcular valores totales con IVA de productos
+    $('.product-iva-total').each(function() {
+        var stock = parseFloat($(this).data('stock'));
+        var price = parseFloat($(this).data('price'));
+        var total = stock * price;  // pvp_final ya incluye IVA
+        $(this).text('$' + total.toFixed(2));
+    });
+    
+    // Mostrar/ocultar filtro de forma de pago según el tipo de reporte
+    $('#report_type').on('change', function() {
+        if ($(this).val() === 'sales') {
+            $('#payment-method-filter').show();
+        } else {
+            $('#payment-method-filter').hide();
         }
     });
+    
+    // Inicializar visibilidad
+    if ($('#report_type').val() !== 'sales') {
+        $('#payment-method-filter').hide();
+    }
 });
 
 function exportReport(format) {
-    var form = $('#report-filters');
-    var action = form.attr('action') || window.location.pathname;
+    const form = document.getElementById('filter-form');
+    const params = new URLSearchParams(new FormData(form));
+    params.append('format', format);
     
-    // Crear formulario temporal para exportación
-    var exportForm = $('<form>', {
-        'method': 'GET',
-        'action': '{% url "erp:export_report" %}'
-    });
-    
-    // Copiar todos los campos del formulario original
-    form.find('input, select').each(function() {
-        exportForm.append($('<input>', {
-            'type': 'hidden',
-            'name': $(this).attr('name'),
-            'value': $(this).val()
-        }));
-    });
-    
-    // Agregar formato de exportación
-    exportForm.append($('<input>', {
-        'type': 'hidden',
-        'name': 'format',
-        'value': format
-    }));
-    
-    // Enviar formulario
-    $('body').append(exportForm);
-    exportForm.submit();
-    exportForm.remove();
+    const url = '{% url "erp:export_report" %}?' + params.toString();
+    window.open(url, '_blank');
 }
 </script>
 {% endblock %}

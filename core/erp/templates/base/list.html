@@ -1,4 +1,4 @@
-{% extends 'layout.html' %}
+{% extends 'base/layout.html' %}
 {% load static %}
 {% block head %}
   <!-- head_list -->
@@ -21,18 +21,20 @@
       </h3>
     </div>
     <div class="card-body">
-      <table class="table" id="data">
-        <thead>
-          {% block columns %}
+      <div class="table-responsive">
+        <table class="table" id="data">
+          <thead>
+            {% block columns %}
 
-          {% endblock %}
-        </thead>
-        <tbody>
-          {% block rows %}
+            {% endblock %}
+          </thead>
+          <tbody>
+            {% block rows %}
 
-          {% endblock %}
-        </tbody>
-      </table>
+            {% endblock %}
+          </tbody>
+        </table>
+      </div>
     </div>
     <div class="card-footer">
       {% block buttons_list %}
