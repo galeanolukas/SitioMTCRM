@@ -1,0 +1,33 @@
+/* Estilos de botones personalizados */
+
+/* Botones primarios */
+.btn-primary {
+  background-color: var(--ml-primary);
+  border-color: var(--ml-primary);
+}
+
+.btn-primary:hover {
+  background-color: var(--ml-primary-dark);
+  border-color: var(--ml-primary-dark);
+}
+
+/* Botón outline secundario */
+.btn-outline-secondary {
+  color: var(--ml-secondary);
+  border-color: var(--ml-secondary);
+}
+
+.btn-outline-secondary:hover {
+  background-color: var(--ml-secondary);
+  border-color: var(--ml-secondary);
+  color: #fff;
+}
+
+/* Botones con iconos - mejor espaciado */
+.btn i {
+  margin-right: var(--ml-spacing-xs);
+}
+
+.btn i:last-child {
+  margin-right: 0;
+}

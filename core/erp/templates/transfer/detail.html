@@ -1,4 +1,4 @@
-{% extends 'layout.html' %}
+{% extends 'base/layout.html' %}
 
 {% block content %}
   <div class="card card-primary">
@@ -81,34 +81,36 @@
               <h5 class="card-title">Información de Transferencia</h5>
             </div>
             <div class="card-body">
-              <table class="table table-sm">
-                <tr>
-                  <td><strong>Empresa:</strong></td>
-                  <td>{{ transfer.company.name }}</td>
-                </tr>
-                <tr>
-                  <td><strong>POS Origen:</strong></td>
-                  <td>{{ transfer.origin_pos }}</td>
-                </tr>
-                <tr>
-                  <td><strong>POS Destino:</strong></td>
-                  <td>{{ transfer.destination_pos }}</td>
-                </tr>
-                <tr>
-                  <td><strong>Creado por:</strong></td>
-                  <td>{{ transfer.created_by.get_full_name|default:transfer.created_by.username }}</td>
-                </tr>
-                <tr>
-                  <td><strong>Fecha Creación:</strong></td>
-                  <td>{{ transfer.created_at|date:"d/m/Y H:i" }}</td>
-                </tr>
-                {% if transfer.updated_at != transfer.created_at %}
-                <tr>
-                  <td><strong>Última Actualización:</strong></td>
-                  <td>{{ transfer.updated_at|date:"d/m/Y H:i" }}</td>
-                </tr>
-                {% endif %}
-              </table>
+              <div class="table-responsive">
+                <table class="table table-sm">
+                  <tr>
+                    <td><strong>Empresa:</strong></td>
+                    <td>{{ transfer.company.name }}</td>
+                  </tr>
+                  <tr>
+                    <td><strong>POS Origen:</strong></td>
+                    <td>{{ transfer.origin_pos }}</td>
+                  </tr>
+                  <tr>
+                    <td><strong>POS Destino:</strong></td>
+                    <td>{{ transfer.destination_pos }}</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Creado por:</strong></td>
+                    <td>{{ transfer.created_by.get_full_name|default:transfer.created_by.username }}</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Fecha Creación:</strong></td>
+                    <td>{{ transfer.created_at|date:"d/m/Y H:i" }}</td>
+                  </tr>
+                  {% if transfer.updated_at != transfer.created_at %}
+                  <tr>
+                    <td><strong>Última Actualización:</strong></td>
+                    <td>{{ transfer.updated_at|date:"d/m/Y H:i" }}</td>
+                  </tr>
+                  {% endif %}
+                </table>
+              </div>
             </div>
           </div>
         </div>

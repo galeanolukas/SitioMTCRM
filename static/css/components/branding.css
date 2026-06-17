@@ -1,0 +1,22 @@
+/* Estilos de branding e identidad visual */
+
+/* Enlaces con estilo de marca */
+a.h1, .h1 {
+  color: var(--ml-primary);
+  text-decoration: none;
+}
+
+a.h1:hover, .h1:hover {
+  color: var(--ml-primary-dark);
+  text-decoration: underline;
+}
+
+/* Logo en sidebar */
+.brand-link {
+  background-color: var(--ml-primary);
+}
+
+.brand-text {
+  color: #fff;
+  font-weight: 700;
+}

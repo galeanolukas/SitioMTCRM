@@ -1,0 +1,27 @@
+/* Variables CSS globales del sistema */
+:root {
+  --ml-primary: #0d6efd;       /* Azul Bootstrap */
+  --ml-primary-dark: #0b5ed7;  /* Azul hover */
+  --ml-secondary: #6c757d;     /* Gris */
+  --ml-success: #10b981;       /* Verde para indicadores positivos */
+  --ml-warning: #ffc107;       /* Amarillo para advertencias */
+  --ml-danger: #dc3545;        /* Rojo para errores */
+  --ml-info: #0dcaf0;          /* Cyan para información */
+  
+  /* Espaciados */
+  --ml-spacing-xs: 0.25rem;
+  --ml-spacing-sm: 0.5rem;
+  --ml-spacing-md: 1rem;
+  --ml-spacing-lg: 1.5rem;
+  --ml-spacing-xl: 2rem;
+  
+  /* Bordes */
+  --ml-border-radius-sm: 0.25rem;
+  --ml-border-radius: 0.375rem;
+  --ml-border-radius-lg: 0.5rem;
+  
+  /* Sombras */
+  --ml-shadow-sm: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+  --ml-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+  --ml-shadow-lg: 0 1rem 3rem rgba(0, 0, 0, 0.175);
+}
