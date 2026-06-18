@@ -447,6 +447,9 @@ class CompanyForm(ModelForm):
             'phone',
             'email',
             'logo',
+            'logo_round',
+            'custom_title',
+            'logo_remote_url',
         ]
 
 class MercadoPagoConfigForm(ModelForm):

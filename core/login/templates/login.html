@@ -39,10 +39,13 @@
     width: 80px;
     height: 80px;
     margin-bottom: 20px;
-    border-radius: 50%;
+    border-radius: 10px;
     background: white;
     padding: 10px;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  }
+  .login-logo.round {
+    border-radius: 50%;
   }
   .form-control {
     border-radius: 10px;
@@ -76,11 +79,11 @@
   <div class="login-box">
     <div class="login-card">
       <div class="login-header">
-        <h1>TechVentas</h1>
+        <h1>{{ brand.name }}</h1>
       </div>
       <div class="login-body">
         <div class="text-center mb-4">
-          <img src="{% static 'img/icon.png' %}" alt="Logo" class="login-logo"/>
+          <img src="{{ brand.logo_url }}" alt="Logo" class="login-logo{% if brand.logo_round %} round{% endif %}"/>
         </div>
         <p class="text-center text-muted mb-4">Inicia sesión para continuar</p>
         {% if form.errors %}

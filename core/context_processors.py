@@ -18,8 +18,9 @@ def brand(request) -> Dict[str, dict]:
         company = Company.objects.first()
 
     data = {
-        'name': company.name if company else 'TechVentas',
+        'name': company.custom_title if company and company.custom_title else (company.name if company else 'TechVentas'),
         'logo_url': company.get_logo_url() if company else '/static/img/logo1.jpeg',
+        'logo_round': company.logo_round if company else False,
     }
     return {'brand': data}
 

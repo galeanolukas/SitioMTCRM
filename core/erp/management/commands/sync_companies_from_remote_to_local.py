@@ -1,5 +1,6 @@
 from django.core.management.base import BaseCommand
 from django.db import transaction, OperationalError
+from django.conf import settings
 import time
 
 from core.erp.models import Company
@@ -38,6 +39,11 @@ class Command(BaseCommand):
                         if not local_obj:
                             local_obj = Company.objects.using('default').filter(name=r.name).first()
 
+                        # Construir URL remota del logo si la empresa tiene logo en el servidor
+                        remote_logo_url = None
+                        if r.logo:
+                            remote_logo_url = f"{settings.REMOTE_SERVER_URL}/media/{r.logo}"
+                        
                         if local_obj is None:
                             # Crear nueva empresa local basada en la remota
                             local_obj = Company.objects.using('default').create(
@@ -51,6 +57,11 @@ class Command(BaseCommand):
                                 email=r.email,
                                 is_active=r.is_active,
                                 synced_to_server=True,
+                                logo_round=r.logo_round,
+                                custom_title=r.custom_title,
+                                logo_remote_url=remote_logo_url or r.logo_remote_url,
+                                sync_destination=r.sync_destination,
+                                local_server_url=r.local_server_url,
                             )
                         else:
                             # Actualizar datos principales desde servidor
@@ -64,6 +75,11 @@ class Command(BaseCommand):
                             local_obj.email = r.email
                             local_obj.is_active = r.is_active
                             local_obj.synced_to_server = True
+                            local_obj.logo_round = r.logo_round
+                            local_obj.custom_title = r.custom_title
+                            local_obj.logo_remote_url = remote_logo_url or r.logo_remote_url
+                            local_obj.sync_destination = r.sync_destination
+                            local_obj.local_server_url = r.local_server_url
                             local_obj.save()
 
                     synced += 1

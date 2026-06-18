@@ -48,13 +48,22 @@ class Company(models.Model):
         verbose_name='URL del Servidor Local',
         help_text='URL del servidor local para sincronización (ej: http://192.168.1.100:8000)'
     )
+    logo_round = models.BooleanField(default=False, verbose_name='Logo Redondo', help_text='Mostrar logo con forma redonda en el login')
+    custom_title = models.CharField(max_length=150, blank=True, null=True, verbose_name='Título Personalizado', help_text='Título personalizado para mostrar en el login')
+    logo_remote_url = models.CharField(max_length=500, blank=True, null=True, verbose_name='URL Remota del Logo', help_text='URL remota del logo para usar en servidores locales (ej: https://servidor.com/media/company/logo.png)')
 
     def __str__(self):
         return self.name
 
     def get_logo_url(self):
+        from django.conf import settings
+        # En modo local (no production), usar URL remota si está configurada
+        if settings.ENVIRONMENT != 'production' and self.logo_remote_url:
+            return self.logo_remote_url
+        # Si hay logo local, usarlo
         if self.logo:
             return f"{MEDIA_URL}{self.logo}"
+        # Logo por defecto
         return f"{STATIC_URL}img/logo1.jpeg"
 
     class Meta:

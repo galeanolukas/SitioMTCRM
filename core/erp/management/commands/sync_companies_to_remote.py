@@ -40,6 +40,11 @@ class Command(BaseCommand):
                             'phone': comp.phone,
                             'email': comp.email,
                             'is_active': comp.is_active,
+                            'logo_round': comp.logo_round,
+                            'custom_title': comp.custom_title,
+                            'logo_remote_url': comp.logo_remote_url,
+                            'sync_destination': comp.sync_destination,
+                            'local_server_url': comp.local_server_url,
                         }
                     )
                     if not created:
@@ -51,6 +56,11 @@ class Command(BaseCommand):
                         remote_comp.phone = comp.phone
                         remote_comp.email = comp.email
                         remote_comp.is_active = comp.is_active
+                        remote_comp.logo_round = comp.logo_round
+                        remote_comp.custom_title = comp.custom_title
+                        remote_comp.logo_remote_url = comp.logo_remote_url
+                        remote_comp.sync_destination = comp.sync_destination
+                        remote_comp.local_server_url = comp.local_server_url
                         remote_comp.save()
 
                 Company.objects.using('default').filter(pk=comp.pk).update(synced_to_server=True)
