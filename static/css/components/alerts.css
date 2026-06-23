@@ -1,0 +1,191 @@
+/* Estilos de alertas y notificaciones */
+
+/* Alertas principales */
+.alert {
+  border: none;
+  border-radius: var(--ml-border-radius, 0.25rem);
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+  position: relative;
+}
+
+.alert-heading {
+  color: inherit;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.alert-link {
+  font-weight: 700;
+  color: inherit;
+  text-decoration: underline;
+}
+
+/* Alerta primaria */
+.alert-primary {
+  color: var(--ml-primary-text, #004085);
+  background-color: var(--ml-primary-bg, #cce5ff);
+  border-left: 4px solid var(--ml-primary, #007bff);
+}
+
+.alert-primary .alert-link {
+  color: var(--ml-primary-dark, #002752);
+}
+
+/* Alerta secundaria */
+.alert-secondary {
+  color: var(--ml-secondary-text, #383d41);
+  background-color: var(--ml-secondary-bg, #e2e3e5);
+  border-left: 4px solid var(--ml-secondary, #6c757d);
+}
+
+.alert-secondary .alert-link {
+  color: var(--ml-secondary-dark, #202326);
+}
+
+/* Alerta de éxito */
+.alert-success {
+  color: var(--ml-success-text, #155724);
+  background-color: var(--ml-success-bg, #d4edda);
+  border-left: 4px solid var(--ml-success, #28a745);
+}
+
+.alert-success .alert-link {
+  color: var(--ml-success-dark, #0b2e13);
+}
+
+/* Alerta de información */
+.alert-info {
+  color: var(--ml-info-text, #0c5460);
+  background-color: var(--ml-info-bg, #d1ecf1);
+  border-left: 4px solid var(--ml-info, #17a2b8);
+}
+
+.alert-info .alert-link {
+  color: var(--ml-info-dark, #062c33);
+}
+
+/* Alerta de advertencia */
+.alert-warning {
+  color: var(--ml-warning-text, #856404);
+  background-color: var(--ml-warning-bg, #fff3cd);
+  border-left: 4px solid var(--ml-warning, #ffc107);
+}
+
+.alert-warning .alert-link {
+  color: var(--ml-warning-dark, #533f03);
+}
+
+/* Alerta de peligro/error */
+.alert-danger {
+  color: var(--ml-danger-text, #721c24);
+  background-color: var(--ml-danger-bg, #f8d7da);
+  border-left: 4px solid var(--ml-danger, #dc3545);
+}
+
+.alert-danger .alert-link {
+  color: var(--ml-danger-dark, #491217);
+}
+
+/* Alerta oscura */
+.alert-dark {
+  color: var(--ml-dark-text, #1b1e21);
+  background-color: var(--ml-dark-bg, #d6d8d9);
+  border-left: 4px solid var(--ml-dark, #343a40);
+}
+
+.alert-dark .alert-link {
+  color: var(--ml-dark-dark, #060708);
+}
+
+/* Alerta clara */
+.alert-light {
+  color: var(--ml-light-text, #818182);
+  background-color: var(--ml-light-bg, #fefefe);
+  border-left: 4px solid var(--ml-light, #f8f9fa);
+}
+
+.alert-light .alert-link {
+  color: var(--ml-light-dark, #535455);
+}
+
+/* Iconos en alertas */
+.alert i {
+  margin-right: 0.5rem;
+  font-size: 1.1rem;
+}
+
+/* Alerta con botón de cerrar */
+.alert-dismissible {
+  padding-right: 3.5rem;
+}
+
+.alert-dismissible .close {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 1rem 1.25rem;
+  color: inherit;
+  opacity: 0.8;
+}
+
+.alert-dismissible .close:hover {
+  opacity: 1;
+}
+
+/* Toasts/Notificaciones */
+.toast {
+  background-color: var(--ml-bg-white, #fff);
+  border: 1px solid var(--ml-border-color, #dee2e6);
+  border-radius: var(--ml-border-radius, 0.25rem);
+  box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(10px);
+}
+
+.toast-header {
+  border-bottom: 1px solid var(--ml-border-color, #dee2e6);
+  background-color: var(--ml-bg-light, #f8f9fa);
+  color: var(--ml-text-primary, #495057);
+}
+
+.toast-body {
+  color: var(--ml-text-primary, #495057);
+}
+
+/* Toast por tipo */
+.toast-success {
+  border-left: 4px solid var(--ml-success, #28a745);
+}
+
+.toast-error {
+  border-left: 4px solid var(--ml-danger, #dc3545);
+}
+
+.toast-warning {
+  border-left: 4px solid var(--ml-warning, #ffc107);
+}
+
+.toast-info {
+  border-left: 4px solid var(--ml-info, #17a2b8);
+}
+
+/* Responsive para alertas */
+@media (max-width: 768px) {
+  .alert {
+    padding: 0.75rem 1rem;
+    font-size: 0.9rem;
+  }
+  
+  .alert-heading {
+    font-size: 1rem;
+  }
+  
+  .alert-dismissible {
+    padding-right: 2.75rem;
+  }
+  
+  .toast {
+    max-width: 100%;
+    margin: 0.5rem;
+  }
+}

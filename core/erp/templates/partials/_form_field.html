@@ -1,0 +1,47 @@
+{% load widget_tweaks %}
+<div class="form-group">
+  {% if field.label %}
+    <label for="{{ field.id_for_label }}" class="form-label">
+      {{ field.label }}
+      {% if field.field.required %}<span class="text-danger">*</span>{% endif %}
+    </label>
+  {% endif %}
+  
+  {% if field|is_select %}
+    <select name="{{ field.name }}" id="{{ field.id_for_label }}" class="form-select {% if field.errors %}is-invalid{% endif %}">
+      <option value="">---------</option>
+      {% for choice in field.field.choices %}
+        <option value="{{ choice.0 }}" {% if field.value == choice.0 %}selected{% endif %}>{{ choice.1 }}</option>
+      {% endfor %}
+    </select>
+  {% elif field|is_checkbox %}
+    <div class="form-check">
+      <input type="checkbox" name="{{ field.name }}" id="{{ field.id_for_label }}" 
+             class="form-check-input {% if field.errors %}is-invalid{% endif %}"
+             {% if field.value %}checked{% endif %}>
+      <label class="form-check-label" for="{{ field.id_for_label }}">
+        {{ field.label }}
+      </label>
+    </div>
+  {% else %}
+    <input type="{{ field.field.widget.input_type }}" 
+           name="{{ field.name }}" 
+           id="{{ field.id_for_label }}" 
+           class="form-control {% if field.errors %}is-invalid{% endif %}"
+           value="{{ field.value|default:'' }}"
+           {% if field.field.widget.attrs.placeholder %}placeholder="{{ field.field.widget.attrs.placeholder }}"{% endif %}
+           {% if field.field.widget.attrs.required %}required{% endif %}>
+  {% endif %}
+  
+  {% if field.help_text %}
+    <small class="form-text text-muted">{{ field.help_text }}</small>
+  {% endif %}
+  
+  {% if field.errors %}
+    <div class="invalid-feedback">
+      {% for error in field.errors %}
+        {{ error }}
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>

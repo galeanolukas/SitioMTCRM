@@ -1,0 +1,276 @@
+/* Estilos de tablas */
+
+/* Tabla base */
+.table {
+  width: 100%;
+  margin-bottom: 1rem;
+  color: var(--ml-text-primary, #495057);
+  border-collapse: collapse;
+}
+
+.table thead th {
+  vertical-align: bottom;
+  border-bottom: 2px solid var(--ml-border-color, #dee2e6);
+  font-weight: 600;
+  color: var(--ml-text-primary, #495057);
+  background-color: var(--ml-bg-light, #f8f9fa);
+}
+
+.table tbody tr {
+  border-bottom: 1px solid var(--ml-border-color, #dee2e6);
+}
+
+.table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.table td,
+.table th {
+  padding: 0.75rem;
+  vertical-align: middle;
+}
+
+/* Tabla con bordes */
+.table-bordered {
+  border: 1px solid var(--ml-border-color, #dee2e6);
+}
+
+.table-bordered th,
+.table-bordered td {
+  border: 1px solid var(--ml-border-color, #dee2e6);
+}
+
+/* Tabla sin bordes */
+.table-borderless th,
+.table-borderless td,
+.table-borderless thead th,
+.table-borderless tbody + tbody {
+  border: 0;
+}
+
+/* Tabla compacta */
+.table-sm td,
+.table-sm th {
+  padding: 0.5rem;
+}
+
+/* Tabla con filas alternadas */
+.table-striped tbody tr:nth-of-type(odd) {
+  background-color: var(--ml-bg-light, #f8f9fa);
+}
+
+/* Tabla con hover en filas */
+.table-hover tbody tr:hover {
+  background-color: var(--ml-bg-hover, #f1f3f5);
+  cursor: pointer;
+}
+
+/* Tabla con colores de fondo */
+.table-primary,
+.table-primary > th,
+.table-primary > td {
+  background-color: var(--ml-primary-bg, #b8daff);
+}
+
+.table-secondary,
+.table-secondary > th,
+.table-secondary > td {
+  background-color: var(--ml-secondary-bg, #d6d8db);
+}
+
+.table-success,
+.table-success > th,
+.table-success > td {
+  background-color: var(--ml-success-bg, #c3e6cb);
+}
+
+.table-info,
+.table-info > th,
+.table-info > td {
+  background-color: var(--ml-info-bg, #bee5eb);
+}
+
+.table-warning,
+.table-warning > th,
+.table-warning > td {
+  background-color: var(--ml-warning-bg, #ffeeba);
+}
+
+.table-danger,
+.table-danger > th,
+.table-danger > td {
+  background-color: var(--ml-danger-bg, #f5c6cb);
+}
+
+.table-light,
+.table-light > th,
+.table-light > td {
+  background-color: var(--ml-light-bg, #fdfdfe);
+}
+
+.table-dark,
+.table-dark > th,
+.table-dark > td {
+  background-color: var(--ml-dark-bg, #c6c8ca);
+}
+
+/* Tabla con filas activas */
+.table-active,
+.table-active > th,
+.table-active > td {
+  background-color: var(--ml-bg-hover, #f1f3f5);
+}
+
+/* Tabla responsive */
+.table-responsive {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-responsive > .table-bordered {
+  border: 0;
+}
+
+/* Alineación de texto en tablas */
+.table .text-center {
+  text-align: center;
+}
+
+.table .text-end {
+  text-align: right;
+}
+
+.table .text-start {
+  text-align: left;
+}
+
+/* Tabla con estado */
+.table .badge {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+}
+
+/* Tabla con acciones */
+.table .btn-sm {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+}
+
+.table .action-buttons {
+  display: flex;
+  gap: 0.25rem;
+}
+
+/* Tabla con checkbox en header */
+.table .checkbox-column {
+  width: 40px;
+  text-align: center;
+}
+
+.table .checkbox-column input[type="checkbox"] {
+  transform: scale(1.2);
+}
+
+/* Tabla con imagen thumbnail */
+.table .thumbnail {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: var(--ml-border-radius, 0.25rem);
+}
+
+/* Tabla con estado de carga */
+.table-loading {
+  position: relative;
+}
+
+.table-loading::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Tabla vacía */
+.table-empty {
+  text-align: center;
+  padding: 2rem;
+  color: var(--ml-text-secondary, #6c757d);
+}
+
+.table-empty i {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+/* Tabla con filtro */
+.table-filter {
+  margin-bottom: 1rem;
+}
+
+.table-filter .form-control {
+  border-radius: var(--ml-border-radius, 0.25rem);
+}
+
+/* Responsive para tablas */
+@media (max-width: 768px) {
+  .table {
+    font-size: 0.875rem;
+  }
+  
+  .table td,
+  .table th {
+    padding: 0.5rem;
+  }
+  
+  .table thead th {
+    font-size: 0.8rem;
+  }
+  
+  .table .btn-sm {
+    padding: 0.2rem 0.4rem;
+    font-size: 0.75rem;
+  }
+  
+  .table .action-buttons {
+    flex-direction: column;
+  }
+  
+  .table .action-buttons .btn {
+    width: 100%;
+    margin-bottom: 0.25rem;
+  }
+  
+  .table .hide-mobile {
+    display: none;
+  }
+  
+  .table-responsive {
+    border: none;
+  }
+}
+
+@media (max-width: 576px) {
+  .table {
+    font-size: 0.8rem;
+  }
+  
+  .table td,
+  .table th {
+    padding: 0.4rem;
+  }
+  
+  .table .thumbnail {
+    width: 32px;
+    height: 32px;
+  }
+}

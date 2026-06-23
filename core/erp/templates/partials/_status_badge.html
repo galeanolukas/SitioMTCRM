@@ -1,0 +1,9 @@
+{% load static %}
+{% if status %}
+<span class="badge badge-{{ status.badge_class|default:'secondary' }}">
+  {% if status.icon %}
+  <i class="fas fa-{{ status.icon }} me-1"></i>
+  {% endif %}
+  {{ status.label }}
+</span>
+{% endif %}

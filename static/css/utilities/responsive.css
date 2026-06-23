@@ -163,3 +163,249 @@
     margin-right: 0.4rem !important;
   }
 }
+
+/* Responsive para formularios en móvil */
+@media (max-width: 768px) {
+  /* Formularios más compactos */
+  .form-group {
+    margin-bottom: 0.75rem;
+  }
+  
+  .form-label {
+    font-size: 0.875rem;
+    margin-bottom: 0.375rem;
+  }
+  
+  .form-control,
+  .form-select {
+    font-size: 16px; /* Prevenir zoom en iOS */
+    padding: 0.5rem 0.75rem;
+  }
+  
+  /* Botones de formulario en stack */
+  .form-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .form-actions .btn {
+    width: 100%;
+  }
+  
+  /* Formularios en filas */
+  .form-row {
+    flex-direction: column;
+  }
+  
+  .form-row .col {
+    width: 100%;
+    margin-bottom: 0.75rem;
+  }
+  
+  /* Input groups */
+  .input-group {
+    flex-direction: column;
+  }
+  
+  .input-group .form-control {
+    border-radius: var(--ml-border-radius, 0.25rem);
+  }
+  
+  .input-group .input-group-text {
+    border-radius: var(--ml-border-radius, 0.25rem);
+    margin-bottom: 0.25rem;
+  }
+  
+  /* Checkboxes y radios */
+  .form-check {
+    padding-left: 1.5rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  .form-check-input {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+}
+
+/* Responsive para sidebar en móvil - usando clases nativas de AdminLTE */
+@media (max-width: 768px) {
+  /* Forzar sidebar oculto en móvil por defecto */
+  body:not(.sidebar-open) .main-sidebar {
+    transform: translateX(-100%) !important;
+    transition: transform 0.3s ease-in-out !important;
+  }
+  
+  /* Sidebar abierto en móvil */
+  body.sidebar-open .main-sidebar {
+    transform: translateX(0) !important;
+    transition: transform 0.3s ease-in-out !important;
+  }
+  
+  /* Overlay cuando sidebar está abierto */
+  .sidebar-overlay {
+    display: none !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    background-color: rgba(0, 0, 0, 0.5) !important;
+    z-index: 1037 !important;
+  }
+  
+  .sidebar-overlay.show {
+    display: block !important;
+  }
+  
+  /* Ajustar contenido cuando sidebar está abierto */
+  body.sidebar-open .content-wrapper {
+    margin-left: 0 !important;
+  }
+  
+  /* Items del sidebar en móvil */
+  .nav-sidebar .nav-link {
+    padding: 0.75rem 1rem;
+    font-size: 0.9rem;
+  }
+  
+  .nav-sidebar .nav-icon {
+    font-size: 1rem;
+    width: 1.5rem;
+  }
+  
+  /* Submenús en móvil */
+  .nav-sidebar .nav-treeview {
+    padding-left: 0;
+  }
+  
+  .nav-sidebar .nav-treeview .nav-link {
+    padding: 0.5rem 1rem 0.5rem 2.5rem;
+    font-size: 0.875rem;
+  }
+  
+  /* User panel en móvil */
+  .user-panel {
+    padding: 0.75rem;
+  }
+  
+  .user-panel .info {
+    padding-left: 0.75rem;
+  }
+  
+  .user-panel .info a {
+    font-size: 0.875rem;
+  }
+}
+
+/* Responsive para modales en móvil */
+@media (max-width: 768px) {
+  /* Modales full width en móvil */
+  .modal-dialog {
+    margin: 0.5rem;
+    max-width: calc(100% - 1rem);
+  }
+  
+  .modal-content {
+    border-radius: var(--ml-border-radius, 0.25rem);
+  }
+  
+  /* Modal header más compacto */
+  .modal-header {
+    padding: 0.75rem 1rem;
+  }
+  
+  .modal-title {
+    font-size: 1.1rem;
+  }
+  
+  .modal-header .close {
+    padding: 0.75rem 1rem;
+  }
+  
+  /* Modal body */
+  .modal-body {
+    padding: 1rem;
+    font-size: 0.9rem;
+  }
+  
+  /* Modal footer */
+  .modal-footer {
+    padding: 0.75rem 1rem;
+  }
+  
+  /* Botones del modal en stack */
+  .modal-footer .btn {
+    width: 100%;
+    margin-bottom: 0.5rem;
+  }
+  
+  .modal-footer .btn:last-child {
+    margin-bottom: 0;
+  }
+  
+  /* Modal de tamaño grande */
+  .modal-lg .modal-dialog {
+    max-width: calc(100% - 1rem);
+  }
+  
+  /* Modal de tamaño extra grande */
+  .modal-xl .modal-dialog {
+    max-width: calc(100% - 1rem);
+  }
+  
+  /* Modal centrado verticalmente */
+  .modal-dialog-centered {
+    min-height: calc(100vh - 1rem);
+    margin: 0.5rem auto;
+  }
+}
+
+/* Responsive adicional para móviles pequeños */
+@media (max-width: 576px) {
+  /* Formularios */
+  .form-control,
+  .form-select {
+    padding: 0.5rem;
+  }
+  
+  .form-label {
+    font-size: 0.8125rem;
+  }
+  
+  /* Sidebar */
+  .main-sidebar {
+    width: 280px;
+  }
+  
+  .nav-sidebar .nav-link {
+    padding: 0.625rem 0.875rem;
+    font-size: 0.875rem;
+  }
+  
+  .nav-sidebar .nav-icon {
+    font-size: 0.875rem;
+    width: 1.25rem;
+  }
+  
+  /* Modales */
+  .modal-dialog {
+    margin: 0.25rem;
+    max-width: calc(100% - 0.5rem);
+  }
+  
+  .modal-header,
+  .modal-body,
+  .modal-footer {
+    padding: 0.75rem;
+  }
+  
+  .modal-title {
+    font-size: 1rem;
+  }
+  
+  .modal-body {
+    font-size: 0.875rem;
+  }
+}

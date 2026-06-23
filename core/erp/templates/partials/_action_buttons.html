@@ -1,0 +1,28 @@
+{% load static %}
+<div class="form-actions mt-4">
+  <a href="{{ cancel_url|default:'javascript:history.back()' }}" class="btn btn-secondary">
+    <i class="fas fa-times me-2"></i>Cancelar
+  </a>
+  
+  {% if delete_url %}
+  <a href="{{ delete_url }}" class="btn btn-danger" onclick="return confirm('¿Está seguro de eliminar este registro?');">
+    <i class="fas fa-trash me-2"></i>Eliminar
+  </a>
+  {% endif %}
+  
+  <button type="submit" class="btn btn-primary">
+    <i class="fas fa-save me-2"></i>Guardar
+  </button>
+  
+  {% if save_and_continue %}
+  <button type="submit" name="_continue" class="btn btn-info">
+    <i class="fas fa-save me-2"></i>Guardar y continuar
+  </button>
+  {% endif %}
+  
+  {% if save_and_add %}
+  <button type="submit" name="_addanother" class="btn btn-success">
+    <i class="fas fa-plus me-2"></i>Guardar y agregar otro
+  </button>
+  {% endif %}
+</div>
