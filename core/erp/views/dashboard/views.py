@@ -6,7 +6,7 @@ from django.urls import reverse_lazy
 from django.http import JsonResponse, HttpResponse, HttpResponseRedirect
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import redirect
-from django.db.models import Sum, Count
+from django.db.models import Sum, Count, Q, F
 from django.contrib.auth import get_user_model
 from django.db import connections
 from django.conf import settings
@@ -19,7 +19,7 @@ from core.erp.mixins import ValidatePermissionRequiredMixin
 from core.erp.sync_utils import run_full_sync
 from core.erp.forms import CompanyForm, SupplierForm, ExpenseForm, MercadoPagoConfigForm, AutoSyncConfigForm
 from core.utils.version_utils import get_version_info, format_version_display
-from core.erp.models import Company, Product, Sale, DetSale, Supplier, Expense, MercadoPagoConfig, SyncLog, AutoSyncConfig
+from core.erp.models import Company, Product, Sale, DetSale, Supplier, Expense, MercadoPagoConfig, SyncLog, AutoSyncConfig, Client
 from core.erp.choices import payment_method_choices
 from datetime import timedelta, date, datetime
 import csv
@@ -297,6 +297,19 @@ class DashboardView(TemplateView):
         context['active_company_id'] = self.request.session.get('company_id')
         context['panel'] = 'Panel de administrador'
         context['app_version'] = getattr(settings, 'APP_VERSION', '1.0.0')
+        
+        # Datos adicionales para el nuevo template
+        context['clients_count'] = Client.objects.filter(company_id=active_cid).count() if active_cid else Client.objects.count()
+        context['suppliers_count'] = Supplier.objects.filter(company_id=active_cid).count() if active_cid else Supplier.objects.count()
+        
+        # Ventas recientes (últimas 5)
+        context['recent_sales'] = sale_qs.order_by('-date_joined')[:5]
+        
+        # Productos con stock bajo
+        context['low_stock_products'] = prod_qs.filter(
+            Q(stock__lte=0) | Q(stock__lt=F('min_stock'))
+        ).order_by('stock')[:5]
+        
         return context
 
     def calculate_profits_data(self, active_cid):

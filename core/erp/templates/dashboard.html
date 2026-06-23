@@ -1,0 +1,527 @@
+{% extends 'base/layout.html' %}
+{% load static %}
+
+{% block title %}Dashboard - Sistema ERP{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/layouts/dashboard.css' %}">
+{% endblock %}
+
+{% block content %}
+<!-- Alerta de configuración de empresa -->
+{% if can_config and company_needs_setup %}
+<div class="alert alert-warning d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <strong><i class="fas fa-exclamation-triangle me-2"></i>Atención:</strong> Falta configurar los datos de la empresa.
+  </div>
+  <a class="btn btn-sm btn-primary" href="{% url 'erp:company_list' %}">
+    <i class="fas fa-cog me-1"></i> Ir a Configuración
+  </a>
+</div>
+{% endif %}
+
+<!-- Contenedor principal del dashboard -->
+<div class="dashboard-container">
+  
+  <!-- Filtros de período -->
+  <div class="dashboard-filters mb-4">
+    <div class="card">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+          <div>
+            <h5 class="mb-0">
+              <i class="fas fa-filter me-2"></i>
+              Período
+            </h5>
+            <small class="text-muted">{{ start_date|date:"d/m/Y" }} - {{ end_date|date:"d/m/Y" }}</small>
+          </div>
+          <div class="btn-group" role="group">
+            <a href="?time_filter=today" class="btn btn-outline-primary {% if time_filter == 'today' %}active{% endif %}">
+              Hoy
+            </a>
+            <a href="?time_filter=week" class="btn btn-outline-primary {% if time_filter == 'week' %}active{% endif %}">
+              Semana
+            </a>
+            <a href="?time_filter=month" class="btn btn-outline-primary {% if time_filter == 'month' %}active{% endif %}">
+              Mes
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tarjetas de estadísticas -->
+  <div class="dashboard-stats mb-4">
+    <div class="row g-3">
+      <!-- Usuarios -->
+      <div class="col-12 col-md-6 col-lg-3">
+        <div class="stat-card stat-card-info">
+          <div class="stat-card-icon">
+            <i class="fas fa-users"></i>
+          </div>
+          <div class="stat-card-content">
+            <div class="stat-card-value">{{ users_count }}</div>
+            <div class="stat-card-label">Usuarios</div>
+          </div>
+          <a href="{% url 'user:list' %}" class="stat-card-link">
+            <i class="fas fa-arrow-right"></i>
+          </a>
+        </div>
+      </div>
+
+      <!-- Empresas (solo superusuario) -->
+      {% if request.user.is_superuser and not active_company_id %}
+      <div class="col-12 col-md-6 col-lg-3">
+        <div class="stat-card stat-card-secondary">
+          <div class="stat-card-icon">
+            <i class="fas fa-building"></i>
+          </div>
+          <div class="stat-card-content">
+            <div class="stat-card-value">{{ companies_count }}</div>
+            <div class="stat-card-label">Empresas</div>
+          </div>
+          <a href="{% url 'erp:company_list' %}" class="stat-card-link">
+            <i class="fas fa-arrow-right"></i>
+          </a>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Productos -->
+      <div class="col-12 col-md-6 col-lg-3">
+        <div class="stat-card stat-card-success">
+          <div class="stat-card-icon">
+            <i class="fas fa-boxes"></i>
+          </div>
+          <div class="stat-card-content">
+            <div class="stat-card-value">{{ products_count }}</div>
+            <div class="stat-card-label">Productos</div>
+          </div>
+          <a href="{% url 'erp:product_list' %}" class="stat-card-link">
+            <i class="fas fa-arrow-right"></i>
+          </a>
+        </div>
+      </div>
+
+      <!-- Ventas -->
+      <div class="col-12 col-md-6 col-lg-3">
+        <div class="stat-card stat-card-warning">
+          <div class="stat-card-icon">
+            <i class="fas fa-shopping-cart"></i>
+          </div>
+          <div class="stat-card-content">
+            <div class="stat-card-value">{{ sales_count }}</div>
+            <div class="stat-card-label">Ventas</div>
+          </div>
+          <a href="{% url 'erp:sale_list' %}" class="stat-card-link">
+            <i class="fas fa-arrow-right"></i>
+          </a>
+        </div>
+      </div>
+
+      <!-- Recaudación total -->
+      <div class="col-12 col-md-6 col-lg-3">
+        <div class="stat-card stat-card-primary">
+          <div class="stat-card-icon">
+            <i class="fas fa-dollar-sign"></i>
+          </div>
+          <div class="stat-card-content">
+            <div class="stat-card-value">${{ revenue_total|floatformat:2 }}</div>
+            <div class="stat-card-label">Recaudación</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gastos -->
+      <div class="col-12 col-md-6 col-lg-3">
+        <div class="stat-card stat-card-danger">
+          <div class="stat-card-icon">
+            <i class="fas fa-receipt"></i>
+          </div>
+          <div class="stat-card-content">
+            <div class="stat-card-value">${{ expenses_total|floatformat:2 }}</div>
+            <div class="stat-card-label">Gastos</div>
+          </div>
+          <a href="{% url 'erp:expense_list' %}" class="stat-card-link">
+            <i class="fas fa-arrow-right"></i>
+          </a>
+        </div>
+      </div>
+
+      <!-- Ganancias (solo superusuario) -->
+      {% if request.user.is_superuser %}
+      <div class="col-12 col-md-6 col-lg-3">
+        <div class="stat-card stat-card-gradient">
+          <div class="stat-card-icon">
+            <i class="fas fa-chart-line"></i>
+          </div>
+          <div class="stat-card-content">
+            <div class="stat-card-value">
+              {% if not active_company_id %}
+                ${{ total_profit_all|default:0|floatformat:2 }}
+              {% else %}
+                ${{ active_company_profit|default:0|floatformat:2 }}
+              {% endif %}
+            </div>
+            <div class="stat-card-label">
+              {% if not active_company_id %}
+                Ganancias Totales
+              {% else %}
+                Ganancias {{ active_company.name|default:"Empresa" }}
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Clientes -->
+      <div class="col-12 col-md-6 col-lg-3">
+        <div class="stat-card stat-card-info">
+          <div class="stat-card-icon">
+            <i class="fas fa-user-friends"></i>
+          </div>
+          <div class="stat-card-content">
+            <div class="stat-card-value">{{ clients_count|default:0 }}</div>
+            <div class="stat-card-label">Clientes</div>
+          </div>
+          <a href="{% url 'erp:client_list' %}" class="stat-card-link">
+            <i class="fas fa-arrow-right"></i>
+          </a>
+        </div>
+      </div>
+
+      <!-- Proveedores -->
+      <div class="col-12 col-md-6 col-lg-3">
+        <div class="stat-card stat-card-secondary">
+          <div class="stat-card-icon">
+            <i class="fas fa-truck"></i>
+          </div>
+          <div class="stat-card-content">
+            <div class="stat-card-value">{{ suppliers_count|default:0 }}</div>
+            <div class="stat-card-label">Proveedores</div>
+          </div>
+          <a href="{% url 'erp:supplier_list' %}" class="stat-card-link">
+            <i class="fas fa-arrow-right"></i>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Gráficos -->
+  <div class="dashboard-charts mb-4">
+    <div class="row g-3">
+      <!-- Gráfico de recaudación -->
+      <div class="col-12 col-lg-8">
+        <div class="card chart-card">
+          <div class="card-header">
+            <h5 class="card-title mb-0">
+              <i class="fas fa-chart-area me-2"></i>
+              Recaudación últimos 7 días
+            </h5>
+          </div>
+          <div class="card-body">
+            <canvas id="revenueChart" height="300"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gráfico de formas de pago -->
+      <div class="col-12 col-lg-4">
+        <div class="card chart-card">
+          <div class="card-header">
+            <h5 class="card-title mb-0">
+              <i class="fas fa-chart-pie me-2"></i>
+              Formas de pago
+            </h5>
+          </div>
+          <div class="card-body">
+            <canvas id="paymentMethodChart" height="300"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tablas de datos recientes -->
+  <div class="dashboard-tables mb-4">
+    <div class="row g-3">
+      <!-- Ventas recientes -->
+      <div class="col-12 col-lg-6">
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0">
+              <i class="fas fa-shopping-bag me-2"></i>
+              Ventas recientes
+            </h5>
+            <a href="{% url 'erp:sale_list' %}" class="btn btn-sm btn-outline-primary">
+              Ver todas
+            </a>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover mb-0">
+                <thead>
+                  <tr>
+                    <th>Cliente</th>
+                    <th>Fecha</th>
+                    <th>Total</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for sale in recent_sales %}
+                  <tr>
+                    <td>{{ sale.cli.names|default:"Anónimo" }}</td>
+                    <td>{{ sale.date_joined|date:"d/m/Y" }}</td>
+                    <td>${{ sale.total|floatformat:2 }}</td>
+                    <td>
+                      <span class="badge bg-{{ sale.status|default:'success' }}">
+                        {{ sale.get_status_display|default:"Confirmada" }}
+                      </span>
+                    </td>
+                  </tr>
+                  {% empty %}
+                  <tr>
+                    <td colspan="4" class="text-center text-muted">
+                      No hay ventas recientes
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Productos con stock bajo -->
+      <div class="col-12 col-lg-6">
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0">
+              <i class="fas fa-exclamation-circle me-2"></i>
+              Stock bajo
+            </h5>
+            <a href="{% url 'erp:product_list' %}" class="btn btn-sm btn-outline-primary">
+              Ver todos
+            </a>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover mb-0">
+                <thead>
+                  <tr>
+                    <th>Producto</th>
+                    <th>Stock actual</th>
+                    <th>Stock mínimo</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for product in low_stock_products %}
+                  <tr>
+                    <td>{{ product.name }}</td>
+                    <td>{{ product.stock|floatformat:2 }}</td>
+                    <td>{{ product.min_stock|floatformat:2 }}</td>
+                    <td>
+                      <span class="badge bg-warning">
+                        Bajo
+                      </span>
+                    </td>
+                  </tr>
+                  {% empty %}
+                  <tr>
+                    <td colspan="4" class="text-center text-muted">
+                      No hay productos con stock bajo
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Versión -->
+  <div class="row mt-3">
+    <div class="col-12 text-end text-muted small">
+      Versión {{ app_version }}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<!-- Dashboard JS modules -->
+<script src="{% static 'js/dashboard/charts.js' %}"></script>
+<script src="{% static 'js/dashboard/filters.js' %}"></script>
+<script src="{% static 'js/dashboard/widgets.js' %}"></script>
+
+<script>
+// Datos del dashboard
+window.dashboardData = {
+  chart_labels: JSON.parse('{{ chart_labels|escapejs }}'),
+  chart_data: JSON.parse('{{ chart_data|escapejs }}'),
+  pm_labels: JSON.parse('{{ pm_labels|escapejs }}'),
+  pm_data: JSON.parse('{{ pm_data|escapejs }}')
+};
+
+// Inicializar dashboard cuando el documento esté listo
+$(document).ready(function() {
+  // Configuración global de Chart.js
+  Chart.defaults.font.family = "'Source Sans Pro', 'Helvetica Neue', Helvetica, Arial, sans-serif";
+  Chart.defaults.color = '#6c757d';
+  
+  // Crear gradiente para el gráfico de recaudación
+  const revenueCtx = document.getElementById('revenueChart');
+  if (revenueCtx) {
+    const gradient = revenueCtx.getContext('2d').createLinearGradient(0, 0, 0, 400);
+    gradient.addColorStop(0, 'rgba(13, 110, 253, 0.5)');
+    gradient.addColorStop(1, 'rgba(13, 110, 253, 0.05)');
+    
+    new Chart(revenueCtx, {
+      type: 'line',
+      data: {
+        labels: window.dashboardData.chart_labels,
+        datasets: [{
+          label: 'Recaudación',
+          data: window.dashboardData.chart_data,
+          borderColor: '#0d6efd',
+          backgroundColor: gradient,
+          borderWidth: 3,
+          tension: 0.4,
+          fill: true,
+          pointBackgroundColor: '#0d6efd',
+          pointBorderColor: '#fff',
+          pointBorderWidth: 2,
+          pointRadius: 5,
+          pointHoverRadius: 7,
+          pointHoverBackgroundColor: '#0d6efd',
+          pointHoverBorderColor: '#fff',
+          pointHoverBorderWidth: 3
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: false
+          },
+          tooltip: {
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            titleFont: { size: 14, weight: 'bold' },
+            bodyFont: { size: 13 },
+            padding: 12,
+            cornerRadius: 8,
+            displayColors: false,
+            callbacks: {
+              label: function(context) {
+                return '$' + context.parsed.y.toFixed(2);
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: {
+              display: false
+            },
+            ticks: {
+              font: { size: 12 }
+            }
+          },
+          y: {
+            beginAtZero: true,
+            grid: {
+              color: 'rgba(0, 0, 0, 0.05)'
+            },
+            ticks: {
+              font: { size: 12 },
+              callback: function(value) {
+                return '$' + value.toLocaleString();
+              }
+            }
+          }
+        },
+        interaction: {
+          intersect: false,
+          mode: 'index'
+        }
+      }
+    });
+  }
+  
+  // Gráfico de formas de pago con diseño mejorado
+  const pmCtx = document.getElementById('paymentMethodChart');
+  if (pmCtx) {
+    const colors = [
+      '#0d6efd', '#198754', '#dc3545', '#ffc107', '#20c997', '#6f42c1', '#fd7e14', '#0dcaf0', '#d63384', '#212529'
+    ];
+    
+    new Chart(pmCtx, {
+      type: 'doughnut',
+      data: {
+        labels: window.dashboardData.pm_labels,
+        datasets: [{
+          data: window.dashboardData.pm_data,
+          backgroundColor: colors,
+          borderColor: '#fff',
+          borderWidth: 3,
+          hoverOffset: 10
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '65%',
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              padding: 20,
+              font: { size: 12 },
+              usePointStyle: true,
+              pointStyle: 'circle'
+            }
+          },
+          tooltip: {
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            titleFont: { size: 14, weight: 'bold' },
+            bodyFont: { size: 13 },
+            padding: 12,
+            cornerRadius: 8,
+            callbacks: {
+              label: function(context) {
+                const total = context.dataset.data.reduce((a, b) => a + b, 0) || 1;
+                const value = context.parsed;
+                const pct = ((value / total) * 100).toFixed(1) + '%';
+                return `${context.label}: $${value.toFixed(2)} (${pct})`;
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+  
+  // Inicializar filtros
+  if (typeof initDashboardFilters === 'function') {
+    initDashboardFilters();
+  }
+  
+  // Inicializar widgets
+  if (typeof initDashboardWidgets === 'function') {
+    initDashboardWidgets();
+  }
+});
+</script>
+{% endblock %}
