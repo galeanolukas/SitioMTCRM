@@ -36,6 +36,7 @@
         </table>
       </div>
     </div>
+    {% block pagination %}{% endblock %}
     <div class="card-footer">
       {% block buttons_list %}
         <a href="{{ create_url }}" class="btn btn-primary btn-flat btnTest"><i class="fas fa-plus"></i> Nuevo registro</a>

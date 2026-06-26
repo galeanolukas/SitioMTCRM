@@ -692,6 +692,23 @@ class RemitoEntradaForm(ModelForm):
                 self.fields['company'].required = False
         elif 'company' in self.fields:
             self.fields['company'].queryset = Company.objects.filter(is_active=True)
+
+        # Auto-generar número de remito si está vacío
+        if not self.initial.get('numero') and not self.data.get('numero'):
+            last_remito = RemitoEntrada.objects.order_by('-id').first()
+            if last_remito and last_remito.numero:
+                try:
+                    num = int(last_remito.numero.split('-')[-1]) + 1
+                    self.initial['numero'] = f"R-{num:06d}"
+                except (ValueError, IndexError):
+                    self.initial['numero'] = f"R-000001"
+            else:
+                self.initial['numero'] = "R-000001"
+
+        # Fecha por defecto: hoy
+        if not self.initial.get('fecha') and not self.data.get('fecha'):
+            from datetime import date
+            self.initial['fecha'] = date.today()
     
     class Meta:
         model = RemitoEntrada

@@ -36,6 +36,11 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
         qs = Sale.objects.all().select_related('cli')
         if active_cid:
             qs = qs.filter(company_id=active_cid)
+        # Filtrar por pos_id para mostrar solo ventas y presupuestos de este POS
+        import socket
+        current_pos_id = socket.gethostname() or 'pos_default'
+        # Incluir ventas sin pos_id (compatibilidad) y ventas con el mismo pos_id
+        qs = qs.filter(Q(pos_id__isnull=True) | Q(pos_id='') | Q(pos_id=current_pos_id))
         from django.db.models import Sum
         context['recent_sales'] = qs.annotate(items=Sum('detsale__cant')).order_by('-id')[:10]
         # Estado de caja para el usuario/empresa actual

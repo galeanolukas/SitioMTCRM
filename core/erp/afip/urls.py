@@ -13,4 +13,5 @@ urlpatterns = [
     path('delete/<int:pk>/', views.AfipConfigDeleteView.as_view(), name='delete'),
     path('test/', views.AfipTestView.as_view(), name='test'),
     path('dashboard/', views.AfipDashboardView.as_view(), name='dashboard'),
+    path('vouchers/', views.AfipVouchersListView.as_view(), name='vouchers'),
 ]

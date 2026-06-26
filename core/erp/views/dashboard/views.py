@@ -87,7 +87,7 @@ def sync_data_view(request):
     return JsonResponse({'ok': ok, 'errors': errors}, status=status)
 
 class DashboardView(TemplateView):
-    template_name = 'dashboard.html'
+    template_name = 'base/dashboard.html'
 
     def dispatch(self, request, *args, **kwargs):
         print(f"DEBUG Dashboard: User: {request.user.username if request.user.is_authenticated else 'Anonymous'}, Authenticated: {request.user.is_authenticated}")
@@ -904,7 +904,7 @@ class SupplierView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Template
 class CompanyUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, UpdateView):
     model = Company
     form_class = CompanyForm
-    template_name = 'form.html'
+    template_name = 'base/form.html'
     success_url = reverse_lazy('erp:company')
     permission_required = 'erp.change_company'
 
@@ -926,7 +926,7 @@ class CompanyUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Upd
 class MercadoPagoConfigUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, UpdateView):
     model = MercadoPagoConfig
     form_class = MercadoPagoConfigForm
-    template_name = 'form.html'
+    template_name = 'base/form.html'
     success_url = reverse_lazy('erp:dashboard')
     permission_required = 'erp.change_company'
 
@@ -974,7 +974,7 @@ class MercadoPagoConfigUpdateView(LoginRequiredMixin, ValidatePermissionRequired
 class AutoSyncConfigUpdateView(LoginRequiredMixin, UpdateView):
     model = AutoSyncConfig
     form_class = AutoSyncConfigForm
-    template_name = 'form.html'
+    template_name = 'base/form.html'
     success_url = reverse_lazy('erp:dashboard')
 
     def dispatch(self, request, *args, **kwargs):

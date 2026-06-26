@@ -7,7 +7,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from core.erp.mixins import ValidatePermissionRequiredMixin
 from django.http import JsonResponse
 from django.urls import reverse_lazy
-from core.erp.models import AfipConfig, Company
+from core.erp.models import AfipConfig, Company, Sale
 from .client import AfipClient
 
 
@@ -174,4 +174,66 @@ class AfipDashboardView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Tem
             except Exception as e:
                 data = {'success': False, 'error': str(e)}
         
+        return JsonResponse(data)
+
+
+class AfipVouchersListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView):
+    """Lista de comprobantes electrónicos emitidos (ventas con CAE)"""
+    model = Sale
+    template_name = 'afip/vouchers.html'
+    permission_required = 'erp.view_afipconfig'
+    paginate_by = 25
+
+    def get_queryset(self):
+        active_cid = self.request.session.get('company_id')
+        if not active_cid:
+            active_cid = getattr(self.request.user, 'company_id', None)
+
+        qs = Sale.objects.select_related('cli', 'company').filter(
+            afip_cae__isnull=False
+        ).exclude(afip_cae='')
+
+        if active_cid:
+            qs = qs.filter(company_id=active_cid)
+
+        return qs.order_by('-date_joined')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Comprobantes AFIP'
+        context['entity'] = 'Comprobantes AFIP'
+        context['list_url'] = reverse_lazy('erp:afip:vouchers')
+
+        qs = context.get('object_list') or []
+        for sale in qs:
+            if sale.afip_error:
+                sale.afip_status = 'error'
+            elif sale.afip_cae:
+                sale.afip_status = 'ok'
+            else:
+                sale.afip_status = 'pending'
+
+        return context
+
+    def post(self, request, *args, **kwargs):
+        action = request.POST.get('action')
+        data = {}
+
+        if action == 'retry_invoice':
+            sale_id = request.POST.get('sale_id')
+            try:
+                sale = Sale.objects.get(pk=sale_id)
+                if sale.afip_cae:
+                    data = {'success': False, 'error': 'Esta venta ya tiene CAE asignado'}
+                else:
+                    result = sale.emitir_factura_afip()
+                    if result:
+                        data = {'success': True, 'message': 'Factura emitida correctamente', 'cae': sale.afip_cae}
+                    else:
+                        data = {'success': False, 'error': sale.afip_error or 'Error al emitir factura'}
+            except Sale.DoesNotExist:
+                data = {'success': False, 'error': 'Venta no encontrada'}
+            except Exception as e:
+                data = {'success': False, 'error': str(e)}
+
         return JsonResponse(data)

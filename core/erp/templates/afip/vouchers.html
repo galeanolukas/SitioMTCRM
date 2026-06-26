@@ -1,0 +1,132 @@
+{% extends 'base/list.html' %}
+{% load static %}
+{% load currency_filters %}
+
+{% block head_list %}
+  <script src="{% static 'afip/vouchers.js' %}"></script>
+{% endblock %}
+
+{% block columns %}
+  <tr>
+    <th style="width: 10%;">Fecha</th>
+    <th style="width: 8%;">Comp.</th>
+    <th style="width: 10%;">N° Comprobante</th>
+    <th style="width: 20%;">Cliente</th>
+    <th style="width: 10%;">Total</th>
+    <th style="width: 12%;">CAE</th>
+    <th style="width: 10%;">Vto. CAE</th>
+    <th style="width: 8%;">Estado</th>
+    <th style="width: 12%;">Acciones</th>
+  </tr>
+{% endblock %}
+
+{% block rows %}
+  {% for sale in object_list %}
+  <tr>
+    <td>{{ sale.date_joined|date:"d/m/Y H:i" }}</td>
+    <td>
+      <span class="badge badge-info">{{ sale.invoice_type|default:"B" }}</span>
+    </td>
+    <td>{{ sale.invoice_number|default:"-" }}</td>
+    <td>{{ sale.cli.names|default:"Consumidor Final" }}</td>
+    <td class="text-right">{{ sale.total|currency }}</td>
+    <td>
+      {% if sale.afip_cae %}
+        <span class="font-monospace">{{ sale.afip_cae }}</span>
+      {% else %}
+        -
+      {% endif %}
+    </td>
+    <td>{{ sale.afip_cae_vto|date:"d/m/Y"|default:"-" }}</td>
+    <td>
+      {% if sale.afip_status == 'ok' %}
+        <span class="badge badge-success">CAE OK</span>
+      {% elif sale.afip_status == 'error' %}
+        <span class="badge badge-danger" title="{{ sale.afip_error }}">Error</span>
+      {% else %}
+        <span class="badge badge-warning">Pendiente</span>
+      {% endif %}
+    </td>
+    <td>
+      <a href="{% url 'erp:sale_ticket_print' sale.pk %}" class="btn btn-info btn-sm" title="Ver ticket">
+        <i class="fas fa-eye"></i>
+      </a>
+      {% if sale.afip_status == 'error' or sale.afip_status == 'pending' %}
+        <button class="btn btn-warning btn-sm btn-retry-invoice" data-sale-id="{{ sale.pk }}" title="Reintentar facturación">
+          <i class="fas fa-redo"></i>
+        </button>
+      {% endif %}
+    </td>
+  </tr>
+  {% empty %}
+  <tr>
+    <td class="text-center" colspan="9" style="text-align: center !important;">No hay comprobantes AFIP emitidos</td>
+    <td style="display:none;"></td>
+    <td style="display:none;"></td>
+    <td style="display:none;"></td>
+    <td style="display:none;"></td>
+    <td style="display:none;"></td>
+    <td style="display:none;"></td>
+    <td style="display:none;"></td>
+    <td style="display:none;"></td>
+  </tr>
+  {% endfor %}
+{% endblock %}
+
+{% block pagination %}
+  {% if is_paginated %}
+    <div class="card-footer">
+      <div class="d-flex justify-content-between align-items-center">
+        <div class="text-muted">
+          Mostrando {{ page_obj.start_index }}-{{ page_obj.end_index }} de {{ page_obj.paginator.count }} registros
+        </div>
+        <nav aria-label="Paginación">
+          <ul class="pagination pagination-sm mb-0">
+            {% if page_obj.has_previous %}
+              <li class="page-item">
+                <a class="page-link" href="?page=1">&laquo;</a>
+              </li>
+              <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">&lsaquo;</a>
+              </li>
+            {% else %}
+              <li class="page-item disabled"><span class="page-link">&laquo;</span></li>
+              <li class="page-item disabled"><span class="page-link">&lsaquo;</span></li>
+            {% endif %}
+
+            {% for num in page_obj.paginator.page_range %}
+              {% if page_obj.number == num %}
+                <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+              {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                <li class="page-item">
+                  <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                </li>
+              {% endif %}
+            {% endfor %}
+
+            {% if page_obj.has_next %}
+              <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}">&rsaquo;</a>
+              </li>
+              <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">&raquo;</a>
+              </li>
+            {% else %}
+              <li class="page-item disabled"><span class="page-link">&rsaquo;</span></li>
+              <li class="page-item disabled"><span class="page-link">&raquo;</span></li>
+            {% endif %}
+          </ul>
+        </nav>
+      </div>
+    </div>
+  {% endif %}
+{% endblock %}
+
+{% block buttons_list %}
+  <a href="{% url 'erp:afip:dashboard' %}" class="btn btn-info btn-flat">
+    <i class="fas fa-tachometer-alt"></i> Dashboard
+  </a>
+  <a href="{% url 'erp:afip:vouchers' %}" class="btn btn-success btn-flat">
+    <i class="fas fa-sync"></i> Actualizar
+  </a>
+{% endblock %}

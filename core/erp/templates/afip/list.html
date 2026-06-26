@@ -56,6 +56,7 @@
 {% block buttons_list %}
   <a href="{% url 'erp:afip:create' %}" class="btn btn-primary btn-flat"><i class="fas fa-plus"></i> Nuevo registro</a>
   <a href="{% url 'erp:afip:dashboard' %}" class="btn btn-info btn-flat"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+  <a href="{% url 'erp:afip:vouchers' %}" class="btn btn-secondary btn-flat"><i class="fas fa-file-invoice"></i> Comprobantes</a>
   <a href="{% url 'erp:afip:test' %}" class="btn btn-secondary btn-flat"><i class="fas fa-vial"></i> Probar Conexión</a>
   <a href="{% url 'erp:afip:list' %}" class="btn btn-success btn-flat"><i class="fas fa-sync"></i> Actualizar</a>
 {% endblock %}

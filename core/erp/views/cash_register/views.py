@@ -2,7 +2,7 @@ from django.views.generic import ListView, CreateView, UpdateView, DetailView, D
 from django.urls import reverse_lazy
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.utils import timezone
-from django.db.models import Sum, Q
+from django.db.models import Sum, Q, F
 from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect
 from django.http import JsonResponse
@@ -16,6 +16,7 @@ class CashRegisterListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
     model = CashRegister
     template_name = 'cash_register/list.html'
     permission_required = 'erp.view_cash_register'
+    paginate_by = 25
     
     def get_queryset(self):
         # Determinar empresa activa igual que en la creación de caja
@@ -23,7 +24,7 @@ class CashRegisterListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
         if not active_cid:
             active_cid = getattr(self.request.user, 'company_id', None)
 
-        qs = CashRegister.objects.all()
+        qs = CashRegister.objects.select_related('user', 'company').all()
         if active_cid:
             qs = qs.filter(company_id=active_cid)
         return qs.order_by('-date', '-created_at')
@@ -33,45 +34,34 @@ class CashRegisterListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
         qs = context.get('object_list') or []
 
         # Calcular totales en vivo para todas las cajas (abiertas y cerradas)
+        from datetime import date as date_class
+        current_date = date_class.today()
+
         for cr in qs:
-            if cr.is_closed:
-                # Si está cerrada, filtrar ventas solo del día de la caja
-                sales_qs = Sale.objects.filter(
-                    date_joined__date=cr.date,
-                    company_id=cr.company_id,
-                )
-            else:
-                # Si está abierta, filtrar ventas del día actual (usando fecha local)
-                from datetime import date
-                current_date = date.today()  # Fecha local del sistema
-                sales_qs = Sale.objects.filter(
-                    date_joined__date=current_date,  # Ventas del día actual
-                    company_id=cr.company_id,
-                )
+            # Una sola query con agregación condicional en vez de 4 separadas
+            sales_date = cr.date if cr.is_closed else current_date
+            sales_agg = Sale.objects.filter(
+                date_joined__date=sales_date,
+                company_id=cr.company_id,
+            ).aggregate(
+                live_cash=Sum('total', filter=Q(payment_method='cash')),
+                live_card=Sum('total', filter=Q(payment_method='card')),
+                live_transfer=Sum('total', filter=Q(payment_method='transfer')),
+                live_mp=Sum('total', filter=Q(payment_method='mp')),
+            )
 
-            live_cash = sales_qs.filter(payment_method='cash').aggregate(total=Sum('total'))['total'] or 0
-            live_card = sales_qs.filter(payment_method='card').aggregate(total=Sum('total'))['total'] or 0
-            live_transfer = sales_qs.filter(payment_method='transfer').aggregate(total=Sum('total'))['total'] or 0
-            live_mp = sales_qs.filter(payment_method='mp').aggregate(total=Sum('total'))['total'] or 0
-
-            # Para cajas abiertas, incluir gastos desde la fecha de apertura hasta ahora
-            if cr.is_closed:
-                # Si está cerrada, filtrar gastos solo del día de la caja
-                expenses_qs = Expense.objects.filter(
-                    company_id=cr.company_id,
-                    date=cr.date,
-                )
-            else:
-                # Si está abierta, filtrar gastos del día actual (usando fecha local)
-                from datetime import date
-                current_date = date.today()  # Fecha local del sistema
-                expenses_qs = Expense.objects.filter(
-                    company_id=cr.company_id,
-                    date=current_date,  # Gastos del día actual
-                )
-            live_expenses = expenses_qs.aggregate(total=Sum('amount'))['total'] or 0
-
+            live_cash = sales_agg['live_cash'] or 0
+            live_card = sales_agg['live_card'] or 0
+            live_transfer = sales_agg['live_transfer'] or 0
+            live_mp = sales_agg['live_mp'] or 0
             live_total_sales = live_cash + live_card + live_transfer + live_mp
+
+            # Una sola query para gastos
+            expenses_date = cr.date if cr.is_closed else current_date
+            live_expenses = Expense.objects.filter(
+                company_id=cr.company_id,
+                date=expenses_date,
+            ).aggregate(total=Sum('amount'))['total'] or 0
 
             # Asignar valores como atributos dinámicos (sin guardar en BD)
             cr.live_cash_sales = live_cash
