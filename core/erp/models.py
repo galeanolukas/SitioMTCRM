@@ -815,8 +815,8 @@ class Expense(models.Model):
         return item
 
     class Meta:
-        verbose_name = 'Gasto'
-        verbose_name_plural = 'Gastos'
+        verbose_name = 'Gasto/Compra'
+        verbose_name_plural = 'Gastos/Compras'
         ordering = ['-date', '-id']
 
 

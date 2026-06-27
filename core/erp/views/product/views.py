@@ -12,44 +12,14 @@ import os
 from datetime import datetime
 
 # Importar librerías para manejo de Excel/CSV
-try:
-    import numpy
-    NUMPY_AVAILABLE = True
-except ImportError as e:
-    numpy = None
-    NUMPY_AVAILABLE = False
-    print(f"ERROR: No se pudo importar numpy: {e}")
-    print("SOLUCIÓN: Activa el entorno virtual y ejecuta: pip install numpy")
-except Exception as e:
-    numpy = None
-    NUMPY_AVAILABLE = False
-    print(f"ERROR inesperado al importar numpy: {e}")
+import numpy
+NUMPY_AVAILABLE = True
 
-try:
-    import pandas as pd
-    PANDAS_AVAILABLE = True
-except ImportError as e:
-    pd = None
-    PANDAS_AVAILABLE = False
-    print(f"ERROR: No se pudo importar pandas: {e}")
-    print("SOLUCIÓN: Activa el entorno virtual y ejecuta: pip install pandas")
-except Exception as e:
-    pd = None
-    PANDAS_AVAILABLE = False
-    print(f"ERROR inesperado al importar pandas: {e}")
+import pandas as pd
+PANDAS_AVAILABLE = True
 
-try:
-    import openpyxl
-    OPENPYXL_AVAILABLE = True
-except ImportError as e:
-    openpyxl = None
-    OPENPYXL_AVAILABLE = False
-    print(f"ERROR: No se pudo importar openpyxl: {e}")
-    print("SOLUCIÓN: Activa el entorno virtual y ejecuta: pip install openpyxl")
-except Exception as e:
-    openpyxl = None
-    OPENPYXL_AVAILABLE = False
-    print(f"ERROR inesperado al importar openpyxl: {e}")
+import openpyxl
+OPENPYXL_AVAILABLE = True
 
 from core.erp.forms import ProductForm
 from core.erp.models import Product, Category, Company
@@ -872,7 +842,8 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
             ctx = {
                 'columns': columns,
                 'unit_choices': Product.UNIT_CHOICES,
-                'fields': ['name', 'cat', 'pvp', 'iva_rate', 'pvp_final', 'unit', 'stock', 'company'],  # Eliminado 'code' de la lista
+                'fields': ['name', 'cat', 'pvp', 'iva_rate', 'pvp_final', 'unit', 'stock', 'company'],
+                'entity_type': request.POST.get('entity_type', 'product'),
             }
             return self.render_to_response(ctx)
 
@@ -1090,17 +1061,198 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
         # Paso 2: importar usando mapeo
         if action == 'import':
             import_logger.info(f"Usuario {request.user.username} iniciando proceso de importación")
-            
+
             import_cols = request.session.get('import_cols')
             import_json = request.session.get('import_df')
             if not import_json or not import_cols:
                 import_logger.error(f"Sesión de importación no encontrada para usuario {request.user.username}")
                 messages.error(request, 'Sesión de importación no encontrada. Analice el archivo nuevamente.')
                 return self.get(request, *args, **kwargs)
-            
+
             df = pd.read_json(import_json)
             import_logger.info(f"DataFrame cargado desde sesión - Filas: {len(df)}, Columnas: {len(df.columns)}")
-            
+
+            # Dispatch por tipo de entidad
+            entity_type = request.POST.get('entity_type', 'product')
+
+            # --- Importar clientes ---
+            if entity_type == 'client':
+                from core.erp.models import Client
+                map_names = request.POST.get('map_names')
+                map_surnames = request.POST.get('map_surnames')
+                map_dni = request.POST.get('map_dni')
+                map_cuit_cuil = request.POST.get('map_cuit_cuil')
+                map_email = request.POST.get('map_email')
+                map_telefono = request.POST.get('map_telefono')
+                map_address = request.POST.get('map_address')
+                map_ciudad = request.POST.get('map_ciudad')
+                map_provincia = request.POST.get('map_provincia')
+                map_condicion_iva = request.POST.get('map_condicion_iva')
+
+                active_cid = request.session.get('company_id')
+                if not request.user.is_superuser:
+                    active_cid = active_cid or getattr(request.user, 'company_id', None)
+
+                created, updated = 0, 0
+                errors = []
+                iva_map = {'ri': 'RI', 'responsable inscripto': 'RI', 'm': 'M', 'monotributista': 'M',
+                           'cf': 'CF', 'consumidor final': 'CF', 'ex': 'EX', 'exento': 'EX',
+                           'nc': 'NC', 'no categorizado': 'NC'}
+
+                for idx, row in df.iterrows():
+                    try:
+                        raw_names = row.get(map_names) if map_names else None
+                        names = str(raw_names).strip() if raw_names is not None and not pd.isna(raw_names) else ''
+                        if not names:
+                            errors.append(f'Fila {idx+1}: Nombre vacío.')
+                            continue
+
+                        raw_dni = row.get(map_dni) if map_dni else None
+                        dni = str(raw_dni).strip() if raw_dni is not None and not pd.isna(raw_dni) else ''
+                        if not dni:
+                            errors.append(f'Fila {idx+1}: DNI vacío.')
+                            continue
+                        if dni.endswith('.0'):
+                            dni = dni[:-2]
+
+                        surnames = ''
+                        if map_surnames and not pd.isna(row.get(map_surnames)):
+                            surnames = str(row.get(map_surnames)).strip()
+
+                        cuit_cuil = ''
+                        if map_cuit_cuil and not pd.isna(row.get(map_cuit_cuil)):
+                            cuit_cuil = str(row.get(map_cuit_cuil)).strip()
+
+                        email = ''
+                        if map_email and not pd.isna(row.get(map_email)):
+                            email = str(row.get(map_email)).strip()
+
+                        telefono = ''
+                        if map_telefono and not pd.isna(row.get(map_telefono)):
+                            telefono = str(row.get(map_telefono)).strip()
+
+                        address = ''
+                        if map_address and not pd.isna(row.get(map_address)):
+                            address = str(row.get(map_address)).strip()
+
+                        ciudad = ''
+                        if map_ciudad and not pd.isna(row.get(map_ciudad)):
+                            ciudad = str(row.get(map_ciudad)).strip()
+
+                        provincia = ''
+                        if map_provincia and not pd.isna(row.get(map_provincia)):
+                            provincia = str(row.get(map_provincia)).strip()
+
+                        condicion_iva = 'CF'
+                        if map_condicion_iva and not pd.isna(row.get(map_condicion_iva)):
+                            iva_text = str(row.get(map_condicion_iva)).strip().lower()
+                            condicion_iva = iva_map.get(iva_text, 'CF')
+
+                        client = Client.objects.filter(dni=dni).first()
+                        if client is None:
+                            client = Client(
+                                names=names, surnames=surnames, dni=dni,
+                                cuit_cuil=cuit_cuil or None, email=email or None,
+                                telefono=telefono or None, address=address or None,
+                                ciudad=ciudad or None, provincia=provincia or None,
+                                condicion_iva=condicion_iva, company_id=active_cid,
+                            )
+                            client.save()
+                            created += 1
+                        else:
+                            client.names = names
+                            if surnames: client.surnames = surnames
+                            if cuit_cuil: client.cuit_cuil = cuit_cuil
+                            if email: client.email = email
+                            if telefono: client.telefono = telefono
+                            if address: client.address = address
+                            if ciudad: client.ciudad = ciudad
+                            if provincia: client.provincia = provincia
+                            client.condicion_iva = condicion_iva
+                            if active_cid: client.company_id = active_cid
+                            client.save()
+                            updated += 1
+                    except Exception as e:
+                        errors.append(f'Fila {idx+1}: {e}')
+                        import_logger.error(f"Error procesando cliente fila {idx+1}: {e}")
+
+                ctx = {'result': True, 'created': created, 'updated': updated, 'errors': errors}
+                for k in ('import_cols', 'import_df'):
+                    request.session.pop(k, None)
+                return self.render_to_response(ctx)
+
+            # --- Importar proveedores ---
+            if entity_type == 'supplier':
+                from core.erp.models import Supplier
+                map_name = request.POST.get('map_supplier_name')
+                map_cuit = request.POST.get('map_supplier_cuit')
+                map_address = request.POST.get('map_supplier_address')
+                map_phone = request.POST.get('map_supplier_phone')
+                map_email = request.POST.get('map_supplier_email')
+
+                active_cid = request.session.get('company_id')
+                if not request.user.is_superuser:
+                    active_cid = active_cid or getattr(request.user, 'company_id', None)
+
+                created, updated = 0, 0
+                errors = []
+
+                for idx, row in df.iterrows():
+                    try:
+                        raw_name = row.get(map_name) if map_name else None
+                        name = str(raw_name).strip() if raw_name is not None and not pd.isna(raw_name) else ''
+                        if not name:
+                            errors.append(f'Fila {idx+1}: Nombre vacío.')
+                            continue
+
+                        cuit = ''
+                        if map_cuit and not pd.isna(row.get(map_cuit)):
+                            cuit = str(row.get(map_cuit)).strip()
+
+                        address = ''
+                        if map_address and not pd.isna(row.get(map_address)):
+                            address = str(row.get(map_address)).strip()
+
+                        phone = ''
+                        if map_phone and not pd.isna(row.get(map_phone)):
+                            phone = str(row.get(map_phone)).strip()
+
+                        email = ''
+                        if map_email and not pd.isna(row.get(map_email)):
+                            email = str(row.get(map_email)).strip()
+
+                        supplier = None
+                        if cuit:
+                            supplier = Supplier.objects.filter(cuit=cuit).first()
+                        if supplier is None:
+                            supplier = Supplier.objects.filter(name__iexact=name).first()
+
+                        if supplier is None:
+                            supplier = Supplier(
+                                name=name, cuit=cuit or None, address=address or None,
+                                phone=phone or None, email=email or None, company_id=active_cid,
+                            )
+                            supplier.save()
+                            created += 1
+                        else:
+                            supplier.name = name
+                            if cuit: supplier.cuit = cuit
+                            if address: supplier.address = address
+                            if phone: supplier.phone = phone
+                            if email: supplier.email = email
+                            if active_cid: supplier.company_id = active_cid
+                            supplier.save()
+                            updated += 1
+                    except Exception as e:
+                        errors.append(f'Fila {idx+1}: {e}')
+                        import_logger.error(f"Error procesando proveedor fila {idx+1}: {e}")
+
+                ctx = {'result': True, 'created': created, 'updated': updated, 'errors': errors}
+                for k in ('import_cols', 'import_df'):
+                    request.session.pop(k, None)
+                return self.render_to_response(ctx)
+
+            # --- Importar productos (default) ---
             # Mapeo desde POST
             map_name = request.POST.get('map_name')
             map_code = request.POST.get('map_code')
@@ -1111,7 +1263,32 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
             map_unit = request.POST.get('map_unit')
             map_stock = request.POST.get('map_stock')
             map_company = request.POST.get('map_company')
-            
+
+            def parse_number(val):
+                """Parsea valores numéricos en formato argentino o internacional.
+                Ej: '$ 5300,00' -> 5300.0, '4240,00' -> 4240.0, '21%' -> 21.0
+                """
+                if val is None or (isinstance(val, float) and pd.isna(val)):
+                    return None
+                if isinstance(val, (int, float)) and not pd.isna(val):
+                    return float(val)
+                s = str(val).strip()
+                if not s:
+                    return None
+                # Remover símbolos de moneda, espacios, y %
+                s = s.replace('$', '').replace('€', '').replace('%', '').strip()
+                # Si tiene punto como separador de miles y coma como decimal (formato AR)
+                # Ej: '5.300,00' -> '5300.00'
+                if ',' in s and '.' in s:
+                    s = s.replace('.', '').replace(',', '.')
+                elif ',' in s:
+                    # Solo coma como separador decimal: '5300,00' -> '5300.00'
+                    s = s.replace(',', '.')
+                try:
+                    return float(s)
+                except ValueError:
+                    return None
+
             import_logger.info(f"Mapeo de columnas - name: {map_name}, code: {map_code}, cat: {map_cat}, pvp: {map_pvp}, stock: {map_stock}")
 
             # Validar que los campos mínimos estén mapeados
@@ -1235,10 +1412,9 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                     if pd.isna(raw_pvp):
                         errors.append(f'Fila {idx+1}: Precio vacío.')
                         continue
-                    try:
-                        pvp = float(raw_pvp)
-                    except Exception:
-                        errors.append(f'Fila {idx+1}: Precio no numérico.')
+                    pvp = parse_number(raw_pvp)
+                    if pvp is None:
+                        errors.append(f'Fila {idx+1}: Precio no numérico ({raw_pvp}).')
                         continue
 
                     # Stock obligatorio
@@ -1246,26 +1422,32 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                     if pd.isna(raw_stock):
                         errors.append(f'Fila {idx+1}: Stock vacío.')
                         continue
-                    try:
-                        stock = float(raw_stock)
-                    except Exception:
-                        errors.append(f'Fila {idx+1}: Stock no numérico.')
+                    stock = parse_number(raw_stock)
+                    if stock is None:
+                        errors.append(f'Fila {idx+1}: Stock no numérico ({raw_stock}).')
                         continue
 
                     # Campos opcionales
-                    iva_rate = None
+                    iva_rate = 0  # Default: 0 (exento / no gravado)
                     if map_iva and not pd.isna(row.get(map_iva)):
-                        try:
-                            iva_rate = float(row.get(map_iva))
-                        except Exception:
-                            errors.append(f'Fila {idx+1}: IVA no numérico, se ignora.')
+                        parsed = parse_number(row.get(map_iva))
+                        if parsed is not None:
+                            iva_rate = parsed
+                        else:
+                            # Mapear valores de texto comunes de IVA
+                            iva_text = str(row.get(map_iva)).strip().lower()
+                            iva_map = {'exento': 0, 'exenta': 0, 'no gravado': 0,
+                                       'no gravada': 0, '0': 0, '21': 0.21, '21%': 0.21,
+                                       '10.5': 0.105, '10.5%': 0.105, '27': 0.27, '27%': 0.27,
+                                       'iva 21': 0.21, 'iva 10.5': 0.105, 'iva 27': 0.27,
+                                       'responsable inscripto': 0.21}
+                            iva_rate = iva_map.get(iva_text, 0)  # Default 0 si no se reconoce
 
                     pvp_final = None
                     if map_pvp_final and not pd.isna(row.get(map_pvp_final)):
-                        try:
-                            pvp_final = float(row.get(map_pvp_final))
-                        except Exception:
-                            errors.append(f'Fila {idx+1}: Precio final no numérico, se ignora.')
+                        pvp_final = parse_number(row.get(map_pvp_final))
+                        if pvp_final is None:
+                            errors.append(f'Fila {idx+1}: Precio final no numérico ({row.get(map_pvp_final)}), se ignora.')
 
                     unit = 'unit'
                     if map_unit and not pd.isna(row.get(map_unit)):

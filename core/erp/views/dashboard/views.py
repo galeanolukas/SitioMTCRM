@@ -672,8 +672,8 @@ class ExpenseListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListV
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx['title'] = 'Gastos'
-        ctx['entity'] = 'Gastos'
+        ctx['title'] = 'Gastos/Compras'
+        ctx['entity'] = 'Gastos/Compras'
         ctx['list_url'] = reverse_lazy('erp:expense_list')
         ctx['create_url'] = reverse_lazy('erp:expense_create')
         return ctx
@@ -685,6 +685,13 @@ class ExpenseCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Cre
     template_name = 'expense/create.html'
     success_url = reverse_lazy('erp:expense_list')
     permission_required = 'erp.add_expense'
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['title'] = 'Nuevo Gasto/Compra'
+        ctx['entity'] = 'Gastos/Compras'
+        ctx['list_url'] = reverse_lazy('erp:expense_list')
+        return ctx
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -702,7 +709,7 @@ class ExpenseCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Cre
                 return self.form_invalid(form)
             
             # Éxito
-            messages.success(self.request, 'Gasto creado correctamente')
+            messages.success(self.request, 'Gasto/Compra creado correctamente')
             return HttpResponseRedirect(reverse_lazy('erp:expense_list'))
             
         except Exception as e:
@@ -720,6 +727,13 @@ class ExpenseUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Upd
     success_url = reverse_lazy('erp:expense_list')
     permission_required = 'erp.change_expense'
 
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['title'] = 'Editar Gasto/Compra'
+        ctx['entity'] = 'Gastos/Compras'
+        ctx['list_url'] = reverse_lazy('erp:expense_list')
+        return ctx
+
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         kwargs['request'] = self.request
@@ -736,7 +750,7 @@ class ExpenseUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Upd
                 return self.form_invalid(form)
             
             # Éxito
-            messages.success(self.request, 'Gasto actualizado correctamente')
+            messages.success(self.request, 'Gasto/Compra actualizado correctamente')
             return HttpResponseRedirect(self.get_success_url())
             
         except Exception as e:
@@ -752,7 +766,7 @@ class ExpenseDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Del
 
     def delete(self, request, *args, **kwargs):
         response = super().delete(request, *args, **kwargs)
-        messages.success(self.request, 'Gasto eliminado correctamente')
+        messages.success(self.request, 'Gasto/Compra eliminado correctamente')
         return response
 
 

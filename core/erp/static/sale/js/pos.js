@@ -649,7 +649,9 @@
 
   // Evento para abrir modal de selección de cliente
   $('#btnSelectClient').on('click', function() {
-    $('#clientSelectModal').modal('show');
+    const modalEl = document.getElementById('clientSelectModal');
+    const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+    modal.show();
     loadClients();
   });
 
@@ -667,7 +669,9 @@
     $('#selectedClientId').val(clientId);
     $('#selectedClientName').text(clientName);
     
-    $('#clientSelectModal').modal('hide');
+    const modalEl = document.getElementById('clientSelectModal');
+    const modal = bootstrap.Modal.getInstance(modalEl);
+    if (modal) modal.hide();
     showToast('success', 'Cliente seleccionado: ' + clientName);
   });
 
@@ -675,7 +679,9 @@
   $('#btnClearClient').on('click', function() {
     $('#selectedClientId').val('');
     $('#selectedClientName').text('Anónimo');
-    $('#clientSelectModal').modal('hide');
+    const modalEl = document.getElementById('clientSelectModal');
+    const modal = bootstrap.Modal.getInstance(modalEl);
+    if (modal) modal.hide();
     showToast('info', 'Cliente limpiado');
   });
 

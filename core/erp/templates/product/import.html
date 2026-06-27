@@ -44,21 +44,32 @@
         {% csrf_token %}
         <input type="hidden" name="action" id="importAction" value="analyze">
         <div class="mb-3">
+          <label class="form-label"><strong>Tipo de entidad a importar</strong></label>
+          <select name="entity_type" id="entityType" class="form-control form-control-lg">
+            <option value="product">Productos</option>
+            <option value="client">Clientes</option>
+            <option value="supplier">Proveedores</option>
+          </select>
+        </div>
+        <div class="mb-3">
           <label class="form-label">Archivo (CSV / Excel)</label>
           <input type="file" name="file" class="form-control" required>
         </div>
-        <div class="mb-3">
+        <div class="mb-3" id="hintProduct">
           <small class="text-muted">
-            Puedes usar archivos de ejemplo como referencia para armar tu plantilla:
-            <a href="/media/sample_products_import.csv" target="_blank">Descargar ejemplo básico CSV</a> |
-            <a href="/media/sample_products_import_complete.csv" target="_blank">Descargar ejemplo completo CSV</a>
-            <br>
             <strong>Columnas básicas:</strong> code, name, categoria, pvp, unit, stock<br>
             <strong>Columnas completas:</strong> code, name, categoria, pvp, iva_rate, pvp_final, unit, stock, company
           </small>
         </div>
-        <div class="mb-3">
-          <small class="text-muted d-block mb-1">También puedes descargar el inventario actual en Excel:</small>
+        <div class="mb-3" id="hintClient" style="display:none;">
+          <small class="text-muted">
+            <strong>Columnas:</strong> names, surnames, dni, cuit_cuil, email, telefono, address, ciudad, provincia, condicion_iva
+          </small>
+        </div>
+        <div class="mb-3" id="hintSupplier" style="display:none;">
+          <small class="text-muted">
+            <strong>Columnas:</strong> name, cuit, address, phone, email
+          </small>
         </div>
         <div class="mb-3">
           <label class="form-label">Separador (solo CSV)</label>
@@ -78,20 +89,47 @@
 
     {% if columns %}
     <hr>
-    <h5>Mapear columnas</h5>
-    <div class="alert alert-info">
+    <h5>Mapear columnas <span class="badge bg-secondary" id="entityBadge">{{ entity_type|default:"product" }}</span></h5>
+    <input type="hidden" id="currentEntityType" value="{{ entity_type|default:'product' }}">
+
+    <!-- Info Productos -->
+    <div class="alert alert-info" id="infoProduct">
       <h6><i class="fas fa-info-circle"></i> Información importante:</h6>
       <ul class="mb-0">
         <li><strong>Campos obligatorios (*)</strong>: Código, Nombre, Precio y Stock deben estar mapeados</li>
-        <li><strong>Comportamiento con duplicados</strong>: Si un producto con el mismo <strong>código</strong> ya existe, se <strong>actualizará</strong>. Si no existe, se <strong>creará</strong> uno nuevo</li>
-        <li><strong>Campos opcionales</strong>: Categoría, IVA, Precio Final, Unidad y Empresa son opcionales</li>
+        <li><strong>Comportamiento con duplicados</strong>: Si un producto con el mismo <strong>código</strong> ya existe, se <strong>actualizará</strong></li>
+        <li><strong>Campos opcionales</strong>: Categoría, IVA, Precio Final, Unidad y Empresa</li>
         <li><strong>Precio Final</strong>: Si se deja vacío, se calculará automáticamente como: Precio × (1 + IVA)</li>
       </ul>
     </div>
+
+    <!-- Info Clientes -->
+    <div class="alert alert-info" id="infoClient" style="display:none;">
+      <h6><i class="fas fa-info-circle"></i> Importación de Clientes:</h6>
+      <ul class="mb-0">
+        <li><strong>Campos obligatorios (*)</strong>: Nombre y DNI</li>
+        <li><strong>Duplicados</strong>: Si el DNI ya existe, se actualiza el cliente</li>
+        <li><strong>Condición IVA</strong>: Mapear valores: RI, M, CF, EX, NC</li>
+      </ul>
+    </div>
+
+    <!-- Info Proveedores -->
+    <div class="alert alert-info" id="infoSupplier" style="display:none;">
+      <h6><i class="fas fa-info-circle"></i> Importación de Proveedores:</h6>
+      <ul class="mb-0">
+        <li><strong>Campos obligatorios (*)</strong>: Nombre</li>
+        <li><strong>Duplicados</strong>: Si el CUIT ya existe, se actualiza el proveedor</li>
+        <li><strong>Campos opcionales</strong>: CUIT, Dirección, Teléfono, Email</li>
+      </ul>
+    </div>
+
     <form method="post">
       {% csrf_token %}
       <input type="hidden" name="action" value="import">
-      <div class="row">
+      <input type="hidden" name="entity_type" value="{{ entity_type|default:'product' }}">
+
+      <!-- Campos Productos -->
+      <div id="fieldsProduct" class="row">
         <div class="col-md-4">
           <label>Código (code) <span class="text-danger">*</span></label>
           <select name="map_code" class="form-control" required>
@@ -161,9 +199,124 @@
           <small class="text-muted">Solo para superusuarios</small>
         </div>
       </div>
+
+      <!-- Campos Clientes -->
+      <div id="fieldsClient" class="row" style="display:none;">
+        <div class="col-md-4">
+          <label>Nombres (names) <span class="text-danger">*</span></label>
+          <select name="map_names" class="form-control" required>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label>Apellidos (surnames)</label>
+          <select name="map_surnames" class="form-control">
+            <option value="">-- Ninguna --</option>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label>DNI <span class="text-danger">*</span></label>
+          <select name="map_dni" class="form-control" required>
+            <option value="">-- Ninguna --</option>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+          <small class="text-muted">Usado como identificador único</small>
+        </div>
+        <div class="col-md-4">
+          <label>CUIT/CUIL</label>
+          <select name="map_cuit_cuil" class="form-control">
+            <option value="">-- Ninguna --</option>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label>Email</label>
+          <select name="map_email" class="form-control">
+            <option value="">-- Ninguna --</option>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label>Teléfono</label>
+          <select name="map_telefono" class="form-control">
+            <option value="">-- Ninguna --</option>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label>Dirección</label>
+          <select name="map_address" class="form-control">
+            <option value="">-- Ninguna --</option>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label>Ciudad</label>
+          <select name="map_ciudad" class="form-control">
+            <option value="">-- Ninguna --</option>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label>Provincia</label>
+          <select name="map_provincia" class="form-control">
+            <option value="">-- Ninguna --</option>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label>Condición IVA</label>
+          <select name="map_condicion_iva" class="form-control">
+            <option value="">-- Ninguna --</option>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+          <small class="text-muted">RI, M, CF, EX, NC</small>
+        </div>
+      </div>
+
+      <!-- Campos Proveedores -->
+      <div id="fieldsSupplier" class="row" style="display:none;">
+        <div class="col-md-4">
+          <label>Nombre (name) <span class="text-danger">*</span></label>
+          <select name="map_supplier_name" class="form-control" required>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label>CUIT</label>
+          <select name="map_supplier_cuit" class="form-control">
+            <option value="">-- Ninguna --</option>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+          <small class="text-muted">Usado como identificador único si existe</small>
+        </div>
+        <div class="col-md-4">
+          <label>Dirección</label>
+          <select name="map_supplier_address" class="form-control">
+            <option value="">-- Ninguna --</option>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label>Teléfono</label>
+          <select name="map_supplier_phone" class="form-control">
+            <option value="">-- Ninguna --</option>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label>Email</label>
+          <select name="map_supplier_email" class="form-control">
+            <option value="">-- Ninguna --</option>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+
       <div class="mt-3">
-        <button class="btn btn-success"><i class="fas fa-upload"></i> Importar productos</button>
-        <small class="text-muted ml-2">Se crearán nuevos productos o actualizarán los existentes según el código</small>
+        <button class="btn btn-success" id="importBtn"><i class="fas fa-upload"></i> Importar</button>
+        <small class="text-muted ml-2" id="importHint">Se crearán nuevos productos o actualizarán los existentes según el código</small>
       </div>
     </form>
     {% endif %}
@@ -266,6 +419,62 @@
 function showFileImport() {
   document.getElementById('fileImportSection').style.display = 'block';
 }
+
+function toggleEntityFields() {
+  var type = document.getElementById('entityType').value;
+  var hints = ['hintProduct', 'hintClient', 'hintSupplier'];
+  var infos = ['infoProduct', 'infoClient', 'infoSupplier'];
+  var fields = ['fieldsProduct', 'fieldsClient', 'fieldsSupplier'];
+  var labels = {product: 'Productos', client: 'Clientes', supplier: 'Proveedores'};
+  var hintsMap = {product: 'hintProduct', client: 'hintClient', supplier: 'hintSupplier'};
+  var infosMap = {product: 'infoProduct', client: 'infoClient', supplier: 'infoSupplier'};
+  var fieldsMap = {product: 'fieldsProduct', client: 'fieldsClient', supplier: 'fieldsSupplier'};
+
+  hints.forEach(function(id) { document.getElementById(id).style.display = 'none'; });
+  infos.forEach(function(id) { document.getElementById(id).style.display = 'none'; });
+  fields.forEach(function(id) {
+    var el = document.getElementById(id);
+    el.style.display = 'none';
+    // Desactivar required de campos ocultos
+    el.querySelectorAll('select[required]').forEach(function(sel) {
+      sel.removeAttribute('required');
+    });
+  });
+
+  var activeFields = document.getElementById(fieldsMap[type]);
+  activeFields.style.display = 'flex';
+  // Reactivar required solo para campos visibles marcados con *
+  activeFields.querySelectorAll('select').forEach(function(sel) {
+    var label = sel.closest('.col-md-4, .col-md-6');
+    if (label && label.querySelector('.text-danger')) {
+      sel.setAttribute('required', 'required');
+    }
+  });
+
+  var btn = document.getElementById('importBtn');
+  var hint = document.getElementById('importHint');
+  var badge = document.getElementById('entityBadge');
+  if (badge) badge.textContent = labels[type];
+  if (btn) btn.innerHTML = '<i class="fas fa-upload"></i> Importar ' + labels[type].toLowerCase();
+  if (hint) {
+    if (type === 'product') hint.textContent = 'Se crearán nuevos productos o actualizarán los existentes según el código';
+    else if (type === 'client') hint.textContent = 'Se crearán nuevos clientes o actualizarán los existentes según el DNI';
+    else if (type === 'supplier') hint.textContent = 'Se crearán nuevos proveedores o actualizarán los existentes según el CUIT';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  var sel = document.getElementById('entityType');
+  if (sel) {
+    sel.addEventListener('change', toggleEntityFields);
+    toggleEntityFields();
+  }
+  var current = document.getElementById('currentEntityType');
+  if (current && current.value !== 'product') {
+    if (sel) sel.value = current.value;
+    toggleEntityFields();
+  }
+});
 
 function importFromServer() {
   const modal = new bootstrap.Modal(document.getElementById('serverImportModal'));

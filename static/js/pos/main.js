@@ -49,34 +49,10 @@ function initButtons() {
   if (btnClear) {
     btnClear.addEventListener('click', clearPos);
   }
-  
-  // Botón producto genérico
-  const btnGeneric = document.getElementById('btnGenericProduct');
-  if (btnGeneric) {
-    btnGeneric.addEventListener('click', showGenericProductModal);
-  }
-  
-  // Botón seleccionar cliente
-  const btnClient = document.getElementById('btnSelectClient');
-  if (btnClient) {
-    btnClient.addEventListener('click', showClientModal);
-  }
-  
-  // Botones de checkout
-  const btnCheckout = document.getElementById('btnCheckout');
-  if (btnCheckout) {
-    btnCheckout.addEventListener('click', processSale);
-  }
-  
-  const btnEmployeeAccount = document.getElementById('btnEmployeeAccount');
-  if (btnEmployeeAccount) {
-    btnEmployeeAccount.addEventListener('click', processEmployeeAccount);
-  }
-  
-  const btnCreateBudget = document.getElementById('btnCreateBudget');
-  if (btnCreateBudget) {
-    btnCreateBudget.addEventListener('click', processBudget);
-  }
+
+  // Nota: Los botones de producto genérico, cliente, checkout,
+  // cuenta corriente y presupuesto se manejan en pos.js para evitar
+  // handlers duplicados que causan dobles backdrops de modal.
 }
 
 /**

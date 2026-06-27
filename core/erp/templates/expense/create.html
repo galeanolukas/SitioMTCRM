@@ -4,62 +4,243 @@
   <div class="container-fluid">
     <div class="card card-outline card-primary">
       <div class="card-header">
-        <h3 class="card-title">{{ object.pk|yesno:"Editar gasto,Nuevo gasto" }}</h3>
+        <h3 class="card-title"><i class="fas fa-file-invoice-dollar mr-1"></i> {{ object.pk|yesno:"Editar Gasto/Compra,Nuevo Gasto/Compra" }}</h3>
+        <div class="card-tools">
+          <a href="{% url 'erp:expense_list' %}" class="btn btn-tool">
+            <i class="fas fa-list mr-1"></i> Volver al listado
+          </a>
+        </div>
       </div>
       <div class="card-body">
-        <form method="post" enctype="multipart/form-data">
+        <form method="post" enctype="multipart/form-data" id="expenseForm">
           {% csrf_token %}
+
+          <!-- Sección 1: Datos principales -->
+          <h6 class="text-primary mb-3"><i class="fas fa-info-circle mr-1"></i> Datos del gasto</h6>
           <div class="row">
             <div class="col-md-3">
-              <label>Fecha</label>
+              <label>Fecha <span class="text-danger">*</span></label>
               {{ form.date }}
             </div>
-            <div class="col-md-5">
-              <label>Proveedor (opcional)</label>
-              {{ form.supplier }}
+            <div class="col-md-3">
+              <label>Hora</label>
+              {{ form.time }}
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
+              <label>Importe <span class="text-danger">*</span></label>
+              <div class="input-group">
+                <span class="input-group-text">$</span>
+                {{ form.amount }}
+              </div>
+            </div>
+            <div class="col-md-3">
               <label>Pagado por</label>
               {{ form.payer }}
             </div>
           </div>
+
           <div class="row mt-3">
-            <div class="col-md-4">
+            <div class="col-md-6">
+              <label>Proveedor (opcional)</label>
+              {{ form.supplier }}
+            </div>
+            <div class="col-md-6">
               <label>Descripción</label>
               {{ form.description }}
             </div>
-            <div class="col-md-4">
+          </div>
+
+          <!-- Sección 2: Motivo recurrente (botones rápidos) -->
+          <hr class="my-4">
+          <h6 class="text-primary mb-3"><i class="fas fa-tag mr-1"></i> Motivo recurrente (opcional)</h6>
+          <div class="mb-2">
+            <small class="text-muted d-block mb-2">Seleccioná un motivo para autocompletar la descripción:</small>
+            <div class="d-flex flex-wrap gap-2" id="quickReasons">
+              <button type="button" class="btn btn-sm btn-outline-info reason-btn" data-reason="alquiler" data-desc="Alquiler">
+                <i class="fas fa-home mr-1"></i> Alquiler
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-info reason-btn" data-reason="habilitacion_comercial" data-desc="Habilitación comercial">
+                <i class="fas fa-store mr-1"></i> Habilitación
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-info reason-btn" data-reason="boletas_luz" data-desc="Boletas de luz">
+                <i class="fas fa-bolt mr-1"></i> Luz
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-info reason-btn" data-reason="servicio_internet" data-desc="Servicio de internet">
+                <i class="fas fa-wifi mr-1"></i> Internet
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-info reason-btn" data-reason="bidon_agua" data-desc="Bidón de agua">
+                <i class="fas fa-tint mr-1"></i> Agua
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-info reason-btn" data-reason="combustible" data-desc="Combustible">
+                <i class="fas fa-gas-pump mr-1"></i> Combustible
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-info reason-btn" data-reason="comision_ventas" data-desc="Comisión de ventas">
+                <i class="fas fa-percentage mr-1"></i> Comisión
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-info reason-btn" data-reason="bolserios" data-desc="Bolseríos">
+                <i class="fas fa-box mr-1"></i> Bolseríos
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-info reason-btn" data-reason="libreria" data-desc="Librería">
+                <i class="fas fa-book mr-1"></i> Librería
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-secondary reason-btn" data-reason="" data-desc="">
+                <i class="fas fa-times mr-1"></i> Limpiar
+              </button>
+            </div>
+          </div>
+          <div class="row mt-2">
+            <div class="col-md-6">
               <label>Motivo recurrente</label>
               {{ form.recurring_reason }}
             </div>
-            <div class="col-md-4">
-              <label>Importe</label>
-              {{ form.amount }}
-            </div>
           </div>
-          <div class="row mt-3">
+
+          <!-- Sección 3: Comprobante -->
+          <hr class="my-4">
+          <h6 class="text-primary mb-3"><i class="fas fa-paperclip mr-1"></i> Comprobante (PDF/Imagen)</h6>
+          <div class="row">
             <div class="col-md-8">
-              <label>Comprobante (PDF/Imagen)</label>
-              {{ form.receipt }}
+              <div class="form-group">
+                <div id="dropZone" class="border rounded p-4 text-center" style="border-style: dashed; border-width: 2px; cursor: pointer; transition: all 0.3s;">
+                  <i class="fas fa-cloud-upload-alt fa-2x text-muted mb-2 d-block"></i>
+                  <span class="text-muted">Arrastrá un archivo aquí o <strong>hacé clic para seleccionar</strong></span>
+                  <small class="text-muted d-block mt-1">PDF, JPG, PNG (máx. 5MB)</small>
+                  {{ form.receipt }}
+                </div>
+                <div id="filePreview" class="mt-2" style="display: none;">
+                  <div class="d-flex align-items-center">
+                    <i class="fas fa-file-alt text-success mr-2"></i>
+                    <span id="fileName" class="text-truncate"></span>
+                    <button type="button" class="btn btn-sm btn-outline-danger ml-2" onclick="clearFile()">
+                      <i class="fas fa-times"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
             <div class="col-md-4">
               {% if object.receipt %}
-                <a class="btn btn-outline-secondary mt-4" target="_blank" href="{{ object.receipt.url }}">
-                  <i class="fas fa-file"></i> Ver comprobante actual
-                </a>
+                <label class="d-block">Comprobante actual:</label>
+                <div class="border rounded p-2 text-center">
+                  {% if object.receipt.name|lower|slice:"-4:" == ".pdf" %}
+                    <a href="{{ object.receipt.url }}" target="_blank" class="btn btn-outline-danger">
+                      <i class="fas fa-file-pdf fa-2x d-block mb-1"></i> Ver PDF
+                    </a>
+                  {% else %}
+                    <a href="{{ object.receipt.url }}" target="_blank">
+                      <img src="{{ object.receipt.url }}" alt="Comprobante" class="img-fluid" style="max-height: 120px;">
+                    </a>
+                  {% endif %}
+                </div>
               {% endif %}
             </div>
           </div>
+
           {% if form.company %}{{ form.company }}{% endif %}
-          <div class="mt-4">
+
+          <!-- Botones -->
+          <hr class="my-4">
+          <div class="d-flex justify-content-end gap-2">
+            <a class="btn btn-secondary" href="{% url 'erp:expense_list' %}">
+              <i class="fas fa-times mr-1"></i> Cancelar
+            </a>
             <button type="submit" class="btn btn-primary">
-              <i class="fas fa-save mr-1"></i> Guardar
+              <i class="fas fa-save mr-1"></i> {{ object.pk|yesno:"Actualizar,Guardar" }}
             </button>
-            <a class="btn btn-secondary" href="{% url 'erp:expense_list' %}">Cancelar</a>
           </div>
         </form>
       </div>
     </div>
   </div>
 </div>
+
+<script>
+// Botones de motivo recurrente
+document.querySelectorAll('.reason-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var reason = this.dataset.reason;
+    var desc = this.dataset.desc;
+    var reasonField = document.getElementById('id_recurring_reason');
+    var descField = document.getElementById('id_description');
+
+    if (reasonField) reasonField.value = reason;
+    if (descField && desc && !descField.value) {
+      descField.value = desc;
+    } else if (descField && !reason) {
+      descField.value = '';
+      if (reasonField) reasonField.value = '';
+    }
+
+    // Marcar botón activo
+    document.querySelectorAll('.reason-btn').forEach(function(b) {
+      b.classList.remove('active', 'btn-info');
+      b.classList.add('btn-outline-info');
+    });
+    if (reason) {
+      this.classList.remove('btn-outline-info');
+      this.classList.add('btn-info', 'active');
+    }
+  });
+});
+
+// Drag & drop comprobante
+var dropZone = document.getElementById('dropZone');
+var fileInput = document.getElementById('id_receipt');
+var filePreview = document.getElementById('filePreview');
+var fileName = document.getElementById('fileName');
+
+if (dropZone && fileInput) {
+  dropZone.addEventListener('click', function(e) {
+    if (e.target.tagName !== 'INPUT') fileInput.click();
+  });
+
+  dropZone.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    dropZone.classList.add('border-primary', 'bg-light');
+  });
+
+  dropZone.addEventListener('dragleave', function(e) {
+    e.preventDefault();
+    dropZone.classList.remove('border-primary', 'bg-light');
+  });
+
+  dropZone.addEventListener('drop', function(e) {
+    e.preventDefault();
+    dropZone.classList.remove('border-primary', 'bg-light');
+    if (e.dataTransfer.files.length) {
+      fileInput.files = e.dataTransfer.files;
+      showFilePreview(e.dataTransfer.files[0]);
+    }
+  });
+
+  fileInput.addEventListener('change', function() {
+    if (this.files && this.files[0]) {
+      showFilePreview(this.files[0]);
+    }
+  });
+
+  // Ocultar el input nativo
+  fileInput.style.opacity = '0';
+  fileInput.style.position = 'absolute';
+  fileInput.style.top = '0';
+  fileInput.style.left = '0';
+  fileInput.style.width = '100%';
+  fileInput.style.height = '100%';
+  fileInput.style.cursor = 'pointer';
+}
+
+function showFilePreview(file) {
+  if (filePreview && fileName) {
+    fileName.textContent = file.name + ' (' + (file.size / 1024).toFixed(0) + ' KB)';
+    filePreview.style.display = 'block';
+  }
+}
+
+function clearFile() {
+  if (fileInput) {
+    fileInput.value = '';
+    if (filePreview) filePreview.style.display = 'none';
+  }
+}
+</script>
 {% endblock %}
