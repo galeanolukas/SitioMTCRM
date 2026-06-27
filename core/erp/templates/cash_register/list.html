@@ -51,14 +51,7 @@
         </tr>
     {% empty %}
         <tr>
-            <td class="text-center">No hay cierres de caja registrados</td>
-            <td></td>
-            <td></td>
-            <td></td>
-            <td></td>
-            <td></td>
-            <td></td>
-            <td></td>
+            <td colspan="8" class="text-center">No hay cierres de caja registrados</td>
         </tr>
     {% endfor %}
 {% endblock %}
@@ -114,11 +107,9 @@
 
 {# Botones de pie: Nueva Apertura + Actualizar #}
 {% block buttons_list %}
-    {% if perms.erp.add_cashregister %}
-        <a href="{{ create_url }}" class="btn btn-primary btn-flat">
-            <i class="fas fa-plus"></i> Nueva Apertura
-        </a>
-    {% endif %}
+    <a href="{{ create_url }}" class="btn btn-primary btn-flat">
+        <i class="fas fa-plus"></i> Nueva Apertura
+    </a>
     <a href="{{ list_url }}" class="btn btn-success btn-flat">
         <i class="fas fa-sync"></i> Actualizar
     </a>

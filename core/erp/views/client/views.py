@@ -120,6 +120,24 @@ class ClientCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Crea
             if action == 'add':
                 form = self.get_form()
                 data = form.save()
+            elif action == 'search_cuit':
+                cuit = request.POST.get('cuit', '').strip()
+                if not cuit:
+                    data = {'error': 'Debe ingresar un CUIT'}
+                else:
+                    from core.erp.afip.client import AfipClient
+                    active_cid = request.session.get('company_id')
+                    if not active_cid:
+                        active_cid = getattr(request.user, 'company_id', None)
+                    try:
+                        client = AfipClient(company_id=active_cid)
+                        result = client.get_taxpayer_data(cuit)
+                        if 'error' in result:
+                            data = {'error': result['error']}
+                        else:
+                            data = result
+                    except Exception as e:
+                        data = {'error': f'No se pudo consultar AFIP: {str(e)}'}
             else:
                 data['error'] = 'No ha ingresado a ninguna opción'
         except Exception as e:
@@ -158,6 +176,24 @@ class ClientUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Upda
             if action == 'edit':
                 form = self.get_form()
                 data = form.save()
+            elif action == 'search_cuit':
+                cuit = request.POST.get('cuit', '').strip()
+                if not cuit:
+                    data = {'error': 'Debe ingresar un CUIT'}
+                else:
+                    from core.erp.afip.client import AfipClient
+                    active_cid = request.session.get('company_id')
+                    if not active_cid:
+                        active_cid = getattr(request.user, 'company_id', None)
+                    try:
+                        client = AfipClient(company_id=active_cid)
+                        result = client.get_taxpayer_data(cuit)
+                        if 'error' in result:
+                            data = {'error': result['error']}
+                        else:
+                            data = result
+                    except Exception as e:
+                        data = {'error': f'No se pudo consultar AFIP: {str(e)}'}
             else:
                 data['error'] = 'No ha ingresado a ninguna opción'
         except Exception as e:

@@ -33,6 +33,9 @@ class LoginFormView(LoginView):
         # Llamar al método form_valid del padre para hacer el login
         response = super().form_valid(form)
         
+        # Sesión persistente: no expira hasta logout manual
+        self.request.session.set_expiry(0)
+        
         # Asegurar que la sincronización esté activada para operadores
         if not self.request.user.is_superuser:
             try:

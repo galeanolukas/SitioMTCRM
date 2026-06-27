@@ -1,0 +1,272 @@
+/* Factura profesional - WeasyPrint */
+@page {
+    size: A4;
+    margin: 1.2cm 1.5cm;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Helvetica', 'Arial', sans-serif;
+    font-size: 11px;
+    color: #2c3e50;
+    line-height: 1.5;
+}
+
+/* Header */
+.invoice-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    border-bottom: 3px solid #2c3e50;
+    padding-bottom: 15px;
+    margin-bottom: 20px;
+}
+
+.company-info {
+    flex: 1;
+}
+
+.company-logo {
+    max-height: 70px;
+    max-width: 200px;
+    margin-bottom: 8px;
+}
+
+.company-name {
+    font-size: 18px;
+    font-weight: bold;
+    color: #2c3e50;
+    margin-bottom: 4px;
+}
+
+.company-details {
+    font-size: 10px;
+    color: #7f8c8d;
+    line-height: 1.6;
+}
+
+.invoice-info {
+    text-align: right;
+    min-width: 200px;
+}
+
+.invoice-type {
+    font-size: 22px;
+    font-weight: bold;
+    color: #2c3e50;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 4px;
+}
+
+.invoice-type-badge {
+    display: inline-block;
+    background: #2c3e50;
+    color: #fff;
+    padding: 4px 16px;
+    font-size: 16px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+}
+
+.invoice-number {
+    font-size: 14px;
+    font-weight: bold;
+    color: #2c3e50;
+    margin-bottom: 2px;
+}
+
+.invoice-date {
+    font-size: 10px;
+    color: #7f8c8d;
+}
+
+/* Client section */
+.client-section {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    padding: 12px 16px;
+    margin-bottom: 20px;
+}
+
+.section-title {
+    font-size: 11px;
+    font-weight: bold;
+    text-transform: uppercase;
+    color: #2c3e50;
+    border-bottom: 2px solid #2c3e50;
+    padding-bottom: 4px;
+    margin-bottom: 8px;
+    letter-spacing: 1px;
+}
+
+.client-data {
+    display: flex;
+    justify-content: space-between;
+}
+
+.client-column {
+    flex: 1;
+}
+
+.client-field {
+    margin-bottom: 3px;
+    font-size: 10px;
+}
+
+.client-label {
+    font-weight: bold;
+    color: #2c3e50;
+}
+
+/* Products table */
+.products-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+    font-size: 10px;
+}
+
+.products-table thead th {
+    background: #2c3e50;
+    color: #fff;
+    padding: 8px 6px;
+    text-align: left;
+    font-weight: bold;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border: 1px solid #2c3e50;
+}
+
+.products-table tbody td {
+    padding: 6px;
+    border: 1px solid #e0e0e0;
+    vertical-align: middle;
+}
+
+.products-table tbody tr:nth-child(even) {
+    background: #f8f9fa;
+}
+
+.text-center {
+    text-align: center;
+}
+
+.product-code {
+    text-align: center;
+    font-family: 'Courier New', monospace;
+    font-size: 9px;
+}
+
+.product-description {
+    font-weight: 500;
+}
+
+.product-quantity {
+    text-align: center;
+}
+
+.product-price {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.product-subtotal {
+    text-align: right;
+    font-weight: bold;
+    white-space: nowrap;
+}
+
+/* Totals */
+.totals-section {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 20px;
+}
+
+.totals-table {
+    width: 280px;
+    border-collapse: collapse;
+    font-size: 11px;
+}
+
+.totals-table td {
+    padding: 6px 12px;
+}
+
+.totals-label {
+    text-align: right;
+    color: #7f8c8d;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.totals-value {
+    text-align: right;
+    font-weight: 500;
+    border-bottom: 1px solid #e9ecef;
+    white-space: nowrap;
+}
+
+.total-row .totals-label {
+    font-size: 14px;
+    font-weight: bold;
+    color: #2c3e50;
+    border-bottom: 2px solid #2c3e50;
+    border-top: 2px solid #2c3e50;
+    padding-top: 8px;
+}
+
+.total-row .totals-value {
+    font-size: 14px;
+    font-weight: bold;
+    color: #2c3e50;
+    border-bottom: 2px solid #2c3e50;
+    border-top: 2px solid #2c3e50;
+    padding-top: 8px;
+}
+
+/* Observations */
+.observations {
+    font-size: 10px;
+    color: #7f8c8d;
+    margin-top: 10px;
+    padding: 8px 12px;
+    background: #f8f9fa;
+    border-left: 3px solid #2c3e50;
+}
+
+/* Footer */
+.invoice-footer {
+    margin-top: 30px;
+    padding-top: 15px;
+    border-top: 1px solid #e9ecef;
+    text-align: center;
+    font-size: 9px;
+    color: #95a5a6;
+}
+
+.invoice-footer .observations {
+    background: none;
+    border-left: none;
+    border-top: 1px solid #e9ecef;
+    padding: 8px 0;
+    margin-bottom: 8px;
+}
+
+.mt-15 {
+    margin-top: 15px;
+}
+
+.clearfix::after {
+    content: "";
+    display: table;
+    clear: both;
+}

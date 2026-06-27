@@ -118,6 +118,47 @@ class AfipClient:
         except Exception as e:
             return {'error': str(e)}
     
+    def get_last_voucher_number(self, pto_vta, cbte_tipo):
+        """
+        Obtiene el último número de comprobante autorizado para un punto de venta
+        y tipo de comprobante, usando FECompUltimoAutorizado.
+        
+        Args:
+            pto_vta: Punto de venta (int)
+            cbte_tipo: Tipo de comprobante (int, ej: 6=Factura B)
+        
+        Returns:
+            int: Último número autorizado, o 0 si no hay comprobantes previos
+        """
+        try:
+            ws = self.get_web_service('wsfe')
+            ta = ws.getTokenAuthorization()
+            data = {
+                "authRequest": {
+                    "token": ta["token"],
+                    "sign": ta["sign"],
+                    "cuitRepresentada": self.config['CUIT']
+                },
+                "PtoVta": pto_vta,
+                "CbteTipo": cbte_tipo
+            }
+            result = ws.executeRequest("FECompUltimoAutorizado", data)
+            # El resultado trae FERespuestaConsulta con cbte_nro
+            if isinstance(result, dict):
+                # AFIP SDK puede devolver la respuesta en distintas claves
+                cbte_nro = result.get('CbteNro') or result.get('cbte_nro')
+                if cbte_nro is not None:
+                    return int(cbte_nro)
+                # Buscar en respuestas anidadas
+                for key in ('FERespuestaConsulta', 'response'):
+                    if key in result and isinstance(result[key], dict):
+                        cbte_nro = result[key].get('CbteNro') or result[key].get('cbte_nro')
+                        if cbte_nro is not None:
+                            return int(cbte_nro)
+            return 0
+        except Exception as e:
+            return {'error': str(e)}
+    
     def get_invoice_types(self):
         """
         Obtiene los tipos de comprobantes disponibles
@@ -225,5 +266,83 @@ class AfipClient:
             }
             result = ws.executeRequest("FEParamGetTiposMonedas", data)
             return {'types': result}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_taxpayer_data(self, cuit):
+        """
+        Consulta el Padrón de AFIP para obtener datos de un contribuyente.
+        Usa RegisterScopeTen (Padrón Alcance 10) del AFIP SDK.
+        
+        Args:
+            cuit: CUIT del contribuyente (con o sin guiones)
+        
+        Returns:
+            Dict con datos del contribuyente: razon_social, domicilio, etc.
+            o {'error': ...} si falla
+        """
+        try:
+            cuit_clean = str(cuit).replace('-', '').strip()
+            taxpayer = self.afip.RegisterScopeTen
+            result = taxpayer.getTaxpayerDetails(int(cuit_clean))
+
+            if isinstance(result, dict) and 'persona' in result:
+                persona = result['persona']
+                data_dict = {
+                    'cuit': cuit_clean,
+                    'razon_social': '',
+                    'domicilio': '',
+                    'localidad': '',
+                    'provincia': '',
+                    'codigo_postal': '',
+                    'telefono': '',
+                    'email': '',
+                    'impuestos': [],
+                    'actividades': [],
+                }
+
+                if 'razonSocial' in persona:
+                    data_dict['razon_social'] = persona.get('razonSocial', '')
+
+                if 'domicilioFiscal' in persona:
+                    dom = persona['domicilioFiscal']
+                    calle = dom.get('calle', '')
+                    numero = dom.get('numero', '')
+                    data_dict['domicilio'] = f"{calle} {numero}".strip()
+                    data_dict['localidad'] = dom.get('localidad', {}).get('nombre', '') if isinstance(dom.get('localidad'), dict) else dom.get('localidad', '')
+                    data_dict['provincia'] = dom.get('provincia', {}).get('nombre', '') if isinstance(dom.get('provincia'), dict) else dom.get('provincia', '')
+                    data_dict['codigo_postal'] = str(dom.get('codPostal', ''))
+
+                if 'telefono' in persona:
+                    data_dict['telefono'] = persona.get('telefono', '')
+
+                if 'email' in persona:
+                    data_dict['email'] = persona.get('email', '')
+
+                if 'impuestos' in persona:
+                    data_dict['impuestos'] = persona.get('impuestos', [])
+
+                if 'actividades' in persona:
+                    data_dict['actividades'] = persona.get('actividades', [])
+
+                # Determinar condición IVA
+                impuestos = data_dict['impuestos']
+                if isinstance(impuestos, list):
+                    imp_ids = [str(i.get('idImpuesto', '')) for i in impuestos if isinstance(i, dict)]
+                else:
+                    imp_ids = []
+
+                # 32 = IVA Responsable Inscripto, 33 = Monotributo
+                if '32' in imp_ids:
+                    data_dict['condicion_iva'] = 'RI'
+                elif '33' in imp_ids:
+                    data_dict['condicion_iva'] = 'M'
+                else:
+                    data_dict['condicion_iva'] = 'CF'
+
+                return {'success': True, 'data': data_dict}
+
+            return {'error': 'No se encontraron datos para el CUIT ingresado'}
+
         except Exception as e:
             return {'error': str(e)}

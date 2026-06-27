@@ -511,6 +511,15 @@ class Sale(models.Model):
             
             # Preparar datos del voucher
             fecha_afip = datetime.now().strftime('%Y%m%d')
+            
+            # Obtener el último número de comprobante autorizado en AFIP
+            last_nro = client.get_last_voucher_number(config_obj.punto_venta, config_obj.tipo_comprobante)
+            if isinstance(last_nro, dict) and 'error' in last_nro:
+                self.afip_error = f"Error al obtener último número: {last_nro['error']}"
+                self.save(update_fields=['afip_error'])
+                return False
+            next_nro = last_nro + 1
+            
             voucher_data = {
                 'CantReg': 1,
                 'PtoVta': config_obj.punto_venta,
@@ -518,8 +527,8 @@ class Sale(models.Model):
                 'Concepto': 1,  # Productos
                 'DocTipo': 80 if self.cli and self.cli.cuit else 99,  # CUIT o Doc exterior
                 'DocNro': int(self.cli.cuit.replace('-', '')) if self.cli and self.cli.cuit else 0,
-                'CbteDesde': 1,
-                'CbteHasta': 1,
+                'CbteDesde': next_nro,
+                'CbteHasta': next_nro,
                 'CbteFch': int(fecha_afip),
                 'ImpTotal': float(self.total),
                 'ImpTotConc': 0.0,
@@ -543,9 +552,10 @@ class Sale(models.Model):
             # Guardar resultado AFIP
             self.afip_cae = result.get('CAE', '')
             self.afip_cae_vto = datetime.strptime(result.get('CAEFchVto', ''), '%Y-%m-%d').date() if result.get('CAEFchVto') else None
+            self.afip_voucher_number = next_nro
             self.afip_result = result
             self.is_invoiced = True
-            self.save(update_fields=['afip_cae', 'afip_cae_vto', 'afip_result', 'is_invoiced'])
+            self.save(update_fields=['afip_cae', 'afip_cae_vto', 'afip_voucher_number', 'afip_result', 'is_invoiced'])
             
             return True
             

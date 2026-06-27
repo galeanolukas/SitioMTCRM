@@ -292,18 +292,21 @@ AUTH_USER_MODEL = 'user.User'
 
 # Configuración de sesiones
 # Tiempo de expiración de la cookie de sesión (en segundos)
-# 604800 segundos = 7 días (aumentado para evitar cierre prematuro)
-SESSION_COOKIE_AGE = 604800
+# 2592000 segundos = 30 días
+SESSION_COOKIE_AGE = 2592000
 
 # La sesión NO expira al cerrar el navegador
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 
-# NO guardar la sesión en cada solicitud (evita problemas de concurrencia en SQLite)
-SESSION_SAVE_EVERY_REQUEST = False
+# Guardar la sesión en cada solicitud (renueva el contador de expiración)
+SESSION_SAVE_EVERY_REQUEST = True
 
 # Configuración adicional para mayor duración de sesión
 # No requerir renovación de sesión por inactividad
 SESSION_INACTIVITY_TIMEOUT = None  # Desactivado
+
+# CSRF cookie con misma duración que la sesión
+CSRF_COOKIE_AGE = 2592000
 
 # Usar caché basada en archivos para sesiones (compartido entre procesos uWSGI)
 SESSION_ENGINE = 'django.contrib.sessions.backends.cache'

@@ -1,1 +1,110 @@
 {% extends 'base/form.html' %}
+
+{% block form_javascript %}
+<script>
+$(function () {
+    // Agregar botón de consulta CUIT al lado del campo cuit_cuil
+    var cuitField = $('#id_cuit_cuil');
+    if (cuitField.length) {
+        var cuitWrapper = cuitField.closest('.form-group');
+        cuitWrapper.append(
+            '<div class="mt-2">' +
+            '<button type="button" class="btn btn-info btn-flat btn-sm" id="btnSearchCuit">' +
+            '<i class="fas fa-search"></i> Consultar AFIP' +
+            '</button>' +
+            '<small class="text-muted d-block mt-1">Ingresa el CUIT y presiona el botón para autocompletar los datos desde el padrón de AFIP</small>' +
+            '</div>'
+        );
+
+        $('#btnSearchCuit').on('click', function () {
+            var cuit = cuitField.val().trim();
+            if (!cuit) {
+                alert('Debe ingresar un CUIT primero');
+                return;
+            }
+
+            var btn = $(this);
+            btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Consultando...');
+
+            var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+            var token = csrfToken ? csrfToken.value : '';
+
+            var formData = new FormData();
+            formData.append('action', 'search_cuit');
+            formData.append('cuit', cuit);
+
+            fetch(window.location.pathname, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': token
+                }
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                btn.prop('disabled', false).html('<i class="fas fa-search"></i> Consultar AFIP');
+
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                    return;
+                }
+
+                if (data.success && data.data) {
+                    var info = data.data;
+
+                    if (info.razon_social) {
+                        // Si hay razón social, usarla como nombre
+                        if (!$('#id_names').val()) {
+                            $('#id_names').val(info.razon_social);
+                        }
+                    }
+
+                    if (info.domicilio) {
+                        $('#id_address').val(info.domicilio);
+                    }
+                    if (info.localidad) {
+                        $('#id_ciudad').val(info.localidad);
+                    }
+                    if (info.provincia) {
+                        $('#id_provincia').val(info.provincia);
+                    }
+                    if (info.codigo_postal) {
+                        $('#id_codigo_postal').val(info.codigo_postal);
+                    }
+                    if (info.telefono) {
+                        $('#id_telefono').val(info.telefono);
+                    }
+                    if (info.email) {
+                        $('#id_email').val(info.email);
+                    }
+                    if (info.condicion_iva) {
+                        $('#id_condicion_iva').val(info.condicion_iva);
+                    }
+
+                    // CUIT formateado sin guiones
+                    if (info.cuit) {
+                        cuitField.val(info.cuit);
+                    }
+
+                    alert('Datos cargados desde AFIP correctamente');
+                } else {
+                    alert('No se encontraron datos para el CUIT ingresado');
+                }
+            })
+            .catch(function (err) {
+                btn.prop('disabled', false).html('<i class="fas fa-search"></i> Consultar AFIP');
+                alert('Error de conexión: ' + err);
+            });
+        });
+
+        // También permitir consultar con Enter en el campo CUIT
+        cuitField.on('keypress', function (e) {
+            if (e.which === 13) {
+                e.preventDefault();
+                $('#btnSearchCuit').click();
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
