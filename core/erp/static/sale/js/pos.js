@@ -587,12 +587,26 @@
       };
     });
     const clientId = $('#selectedClientId').val() || null;
+    const clientName = $('#selectedClientName').text() || 'Anónimo';
+    const items_with_names = items.map(it => {
+      const net = parseFloat(it.price) || 0;
+      const cant = parseFloat(it.cant) || 0;
+      return {
+        id: it.id,
+        name: it.name || 'Producto',
+        cant,
+        price: net,
+        pvp: net,
+        subtotal: net * cant,
+      };
+    });
     return {
       subtotal_neto,
       iva_total,
-      items_net,
+      items_net: items_with_names,
       items_final,
       client_id: clientId,
+      client_name: clientName,
     };
   }
 
@@ -685,6 +699,25 @@
     showToast('info', 'Cliente limpiado');
   });
 
+  function showAfipInfo(resp) {
+    const infoBox = document.getElementById('afipInfoBox');
+    const errorBox = document.getElementById('afipErrorBox');
+    if (!infoBox || !errorBox) return;
+    infoBox.style.display = 'none';
+    errorBox.style.display = 'none';
+    if (resp.afip_error) {
+      errorBox.style.display = '';
+      document.getElementById('afipErrorText').textContent = 'AFIP: ' + resp.afip_error;
+    } else if (resp.afip_cae) {
+      infoBox.style.display = '';
+      document.getElementById('afipCaeText').textContent = resp.afip_cae;
+      document.getElementById('afipVtoText').textContent = resp.afip_cae_vto || '-';
+      if (resp.afip_qr) {
+        document.getElementById('afipQrImg').src = resp.afip_qr;
+      }
+    }
+  }
+
   function doCreateSale() {
     const calc = buildPayload(false); // Ticket sin IVA
     const subtotal = calc.subtotal_neto;
@@ -708,6 +741,7 @@
           lastSaleId = resp.id;
           flashSummary();
           showToast('success', 'Venta registrada correctamente.');
+          showAfipInfo(resp);
           const modalEl = document.getElementById('printTicketModal');
           if (modalEl) {
             const modal = new bootstrap.Modal(modalEl);
@@ -748,6 +782,7 @@
           lastSaleId = resp.id;
           flashSummary();
           showToast('success', 'Factura generada correctamente.');
+          showAfipInfo(resp);
           const modalEl = document.getElementById('printTicketModal');
           if (modalEl) {
             const modal = new bootstrap.Modal(modalEl);
@@ -786,8 +821,8 @@
         <tr>
           <td>${item.name}</td>
           <td class="text-center">${item.cant}</td>
-          <td class="text-end">$${fmt(item.pvp)}</td>
-          <td class="text-end">$${fmt(item.cant * item.pvp)}</td>
+          <td class="text-end">${fmt(item.pvp)}</td>
+          <td class="text-end">${fmt(item.cant * item.pvp)}</td>
         </tr>
       `;
       tbody.append(row);
@@ -795,18 +830,22 @@
     
     // Llenar totales
     $('#budgetConfirmItemsCount').text(calc.items_net.length);
-    $('#budgetConfirmSubtotal').text('$' + fmt(subtotal));
+    $('#budgetConfirmSubtotal').text(fmt(subtotal));
     $('#budgetConfirmIva').text('$0.00');
-    $('#budgetConfirmTotal').text('$' + fmt(total));
+    $('#budgetConfirmTotal').text(fmt(total));
     
     // Guardar datos para enviar después de confirmar
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const dateStr = now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate()) + ' ' + pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());
     window.budgetPayload = {
       cli: calc.client_id,
-      items: calc.items_net,
+      products: calc.items_net.map(it => ({ id: it.id, cant: it.cant, price: it.price, subtotal: it.subtotal })),
       subtotal, iva, total,
       payment_method: payMethod,
       is_budget: true,
       budget_notes: budgetNotes,
+      date_joined: dateStr,
       sale_token: 'budget_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
     };
     
@@ -1227,6 +1266,7 @@
 
   // Botón para crear presupuesto (solo para usuarios Servidor Local)
   $('#btnCreateBudget').on('click', function() {
+    console.log('[DEBUG] btnCreateBudget click, items.length=', items.length);
     if (items.length === 0) {
       showToast('warning', 'Debe agregar productos antes de crear un presupuesto');
       return;
@@ -1237,6 +1277,7 @@
 
   // Botón para confirmar creación de presupuesto
   $('#btnConfirmBudget').on('click', function() {
+    console.log('[DEBUG] btnConfirmBudget click, budgetPayload=', window.budgetPayload);
     if (!window.budgetPayload) {
       showToast('error', 'Error: no hay datos del presupuesto');
       return;
@@ -1247,8 +1288,10 @@
     modal.hide();
     
     // Enviar datos al backend
-    ajaxAction('add', { action: 'add', vents: JSON.stringify(window.budgetPayload) })
+    console.log('[DEBUG] Enviando presupuesto al backend...');
+    ajaxAction('create_sale', { action: 'create_sale', sale: JSON.stringify(window.budgetPayload), sale_token: window.budgetPayload.sale_token })
       .done(resp => {
+        console.log('[DEBUG] Respuesta del backend:', resp);
         if (resp && resp.id) {
           lastSaleId = resp.id;
           flashSummary();
@@ -1266,6 +1309,7 @@
         }
       })
       .fail(jq => {
+        console.error('[DEBUG] Error AJAX presupuesto:', jq.responseText, jq.status, jq.statusText);
         showToast('error', 'Error al crear presupuesto: ' + (jq.responseJSON ? jq.responseJSON.error : jq.statusText));
       });
   });

@@ -16,7 +16,7 @@ class CashRegisterListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
     model = CashRegister
     template_name = 'cash_register/list.html'
     permission_required = 'erp.view_cash_register'
-    paginate_by = 25
+    paginate_by = 10
     
     def get_queryset(self):
         # Determinar empresa activa igual que en la creación de caja

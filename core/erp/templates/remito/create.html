@@ -1,6 +1,11 @@
 {% extends 'vtc/body.html' %}
 {% load static %}
 
+{% block head %}
+<link href="{% static 'lib/select2-4.0.13/css/select2.min.css' %}" rel="stylesheet" />
+<link href="{% static 'lib/select2-4.0.13/css/select2-bootstrap-5-theme.min.css' %}" rel="stylesheet" />
+{% endblock %}
+
 {% block content %}
 <div class="content-wrapper">
   <section class="content-header">
@@ -64,7 +69,7 @@
             <div class="row mb-3">
               <div class="col-md-4">
                 <select id="productSelect" class="form-select">
-                  <option value="">Seleccione un producto...</option>
+                  <option value="">Buscar producto...</option>
                 </select>
               </div>
               <div class="col-md-2">
@@ -119,27 +124,56 @@
 
 <input type="hidden" id="remitoId" value="{% if form.instance.id %}{{ form.instance.id }}{% endif %}">
 
+<script src="{% static 'lib/select2-4.0.13/js/select2.min.js' %}"></script>
 <script>
 let detalles = [];
 
-// Cargar productos
-function cargarProductos() {
-  fetch('/erp/product/list/?action=searchdata', {
-    method: 'POST',
-    headers: {
-      'X-CSRFToken': getCookie('csrftoken'),
+// Inicializar Select2 con búsqueda AJAX
+function initProductSelect() {
+  $('#productSelect').select2({
+    theme: 'bootstrap-5',
+    placeholder: 'Buscar producto...',
+    allowClear: true,
+    language: {
+      inputTooShort: function() { return 'Escriba al menos 2 caracteres'; },
+      noResults: function() { return 'No se encontraron productos'; },
+      searching: function() { return 'Buscando...'; }
     },
-  })
-  .then(response => response.json())
-  .then(data => {
-    const select = document.getElementById('productSelect');
-    select.innerHTML = '<option value="">Seleccione un producto...</option>';
-    data.forEach(prod => {
-      const option = document.createElement('option');
-      option.value = prod.id;
-      option.textContent = `${prod.name} - $${prod.pvp_final}`;
-      select.appendChild(option);
-    });
+    ajax: {
+      url: '/erp/product/list/',
+      type: 'POST',
+      delay: 300,
+      data: function(params) {
+        return {
+          action: 'searchdata',
+          term: params.term || ''
+        };
+      },
+      headers: {
+        'X-CSRFToken': getCookie('csrftoken')
+      },
+      processResults: function(data) {
+        return {
+          results: data.map(function(prod) {
+            return {
+              id: prod.id,
+              text: prod.name + ' - $' + prod.pvp_final,
+              price: prod.pvp_final
+            };
+          })
+        };
+      },
+      cache: true
+    },
+    minimumInputLength: 0
+  });
+
+  // Auto-completar precio al seleccionar producto
+  $('#productSelect').on('select2:select', function(e) {
+    const data = e.params.data;
+    if (data.price) {
+      document.getElementById('precioUnitario').value = data.price;
+    }
   });
 }
 
@@ -269,7 +303,7 @@ document.getElementById('remitoForm').addEventListener('submit', function(e) {
   });
 });
 
-// Cargar productos al inicio
-cargarProductos();
+// Inicializar Select2 al cargar la página
+document.addEventListener('DOMContentLoaded', initProductSelect);
 </script>
 {% endblock %}

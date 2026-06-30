@@ -318,8 +318,8 @@ class Client(models.Model):
     
     company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa', null=True, blank=True)
     names = models.CharField(max_length=150, verbose_name='Nombres')
-    surnames = models.CharField(max_length=150, verbose_name='Apellidos')
-    dni = models.CharField(max_length=10, unique=True, verbose_name='Dni')
+    surnames = models.CharField(max_length=150, null=True, blank=True, verbose_name='Apellidos')
+    dni = models.CharField(max_length=15, null=True, blank=True, verbose_name='Dni')
     cuit_cuil = models.CharField(max_length=13, null=True, blank=True, verbose_name='CUIT/CUIL')
     condicion_iva = models.CharField(max_length=2, choices=CONDICION_IVA_CHOICES, default='CF', verbose_name='Condición IVA')
     date_birthday = models.DateField(default=timezone.now, verbose_name='Fecha de nacimiento')
@@ -419,6 +419,7 @@ class Sale(models.Model):
     afip_voucher_number = models.IntegerField(null=True, blank=True, verbose_name='Número de Comprobante AFIP')
     afip_result = models.JSONField(default=dict, blank=True, verbose_name='Resultado AFIP')
     afip_error = models.TextField(blank=True, null=True, verbose_name='Error AFIP')
+    afip_qr = models.TextField(blank=True, null=True, verbose_name='Código QR AFIP (base64 PNG)')
     synced_to_server = models.BooleanField(default=False, verbose_name='Sincronizado con servidor')
     local_sale_id = models.PositiveIntegerField(blank=True, null=True, verbose_name='ID de venta local', help_text='ID de la venta en la base de datos local para evitar duplicados')
     local_uuid = models.CharField(max_length=64, blank=True, null=True, db_index=True, verbose_name='UUID local', help_text='UUID para sincronización (índice para búsquedas rápidas)')
@@ -555,7 +556,9 @@ class Sale(models.Model):
             self.afip_voucher_number = next_nro
             self.afip_result = result
             self.is_invoiced = True
-            self.save(update_fields=['afip_cae', 'afip_cae_vto', 'afip_voucher_number', 'afip_result', 'is_invoiced'])
+            # Generar código QR
+            self.afip_qr = self._generate_afip_qr(config_obj, next_nro)
+            self.save(update_fields=['afip_cae', 'afip_cae_vto', 'afip_voucher_number', 'afip_result', 'is_invoiced', 'afip_qr'])
             
             return True
             
@@ -563,6 +566,76 @@ class Sale(models.Model):
             self.afip_error = str(e)
             self.save(update_fields=['afip_error'])
             return False
+
+    def _generate_afip_qr(self, config_obj, nro_cbte):
+        """
+        Genera el código QR de AFIP como base64 PNG.
+        El QR contiene una URL con los datos del comprobante codificados en base64.
+        """
+        import base64
+        import json as json_mod
+        import io
+        try:
+            # Construir el payload según especificación AFIP
+            cuit_clean = str(config_obj.cuit or self.company.cuit or '').replace('-', '')
+            fecha_cbte = self.date_joined.strftime('%Y-%m-%d') if self.date_joined else datetime.now().strftime('%Y-%m-%d')
+
+            # Tipo y número de documento del receptor
+            if self.cli and self.cli.cuit_cuil:
+                doc_tipo = 80  # CUIT
+                doc_nro = int(str(self.cli.cuit_cuil).replace('-', ''))
+            elif self.cli and self.cli.dni:
+                doc_tipo = 96  # DNI
+                doc_nro = int(str(self.cli.dni).replace('-', ''))
+            else:
+                doc_tipo = 99  # Sin documento
+                doc_nro = 0
+
+            payload = {
+                "ver": 1,
+                "fecha": fecha_cbte,
+                "cuit": int(cuit_clean) if cuit_clean else 0,
+                "ptoVta": config_obj.punto_venta,
+                "tipoCmp": config_obj.tipo_comprobante,
+                "nroCmp": nro_cbte,
+                "importe": float(self.total),
+                "moneda": "PES",
+                "ctz": 1,
+                "tipoDocRec": doc_tipo,
+                "nroDocRec": doc_nro,
+                "tipoCodAut": "E",
+                "codAut": int(self.afip_cae) if self.afip_cae else 0,
+            }
+
+            # Codificar payload en base64
+            payload_json = json_mod.dumps(payload, separators=(',', ':'))
+            payload_b64 = base64.b64encode(payload_json.encode('utf-8')).decode('utf-8')
+
+            # URL del QR de AFIP
+            qr_url = f"https://www.afip.gob.ar/fe/qr/?p={payload_b64}"
+
+            # Generar imagen QR
+            import qrcode
+            qr = qrcode.QRCode(
+                version=1,
+                error_correction=qrcode.constants.ERROR_CORRECT_M,
+                box_size=6,
+                border=2,
+            )
+            qr.add_data(qr_url)
+            qr.make(fit=True)
+
+            img = qr.make_image(fill_color='black', back_color='white')
+            buffer = io.BytesIO()
+            img.save(buffer, format='PNG')
+            qr_b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+
+            return f"data:image/png;base64,{qr_b64}"
+
+        except Exception as e:
+            import logging
+            logging.getLogger('erp').error(f"Error generando QR AFIP: {e}")
+            return None
 
     def next_sequential_for_pos_type(self):
         """

@@ -1,18 +1,59 @@
-/**
- * Archivo principal de estilos personalizados
- * Importa módulos CSS organizados por categoría
- */
+:root {
+  --ml-primary: #0d6efd;       /* Azul Bootstrap */
+  --ml-primary-dark: #0b5ed7;  /* Azul hover */
+  --ml-secondary: #6c757d;     /* Gris */
+}
 
-/* Variables CSS globales */
-@import url('utilities/variables.css');
+/* Botones primarios */
+.btn-primary {
+  background-color: var(--ml-primary);
+  border-color: var(--ml-primary);
+}
+.btn-primary:hover {
+  background-color: var(--ml-primary-dark);
+  border-color: var(--ml-primary-dark);
+}
 
-/* Componentes */
-@import url('components/buttons.css');
-@import url('components/cards.css');
-@import url('components/branding.css');
+/* Botón outline secundario */
+.btn-outline-secondary {
+  color: var(--ml-secondary);
+  border-color: var(--ml-secondary);
+}
+.btn-outline-secondary:hover {
+  background-color: var(--ml-secondary);
+  border-color: var(--ml-secondary);
+  color: #fff;
+}
 
-/* Layouts */
-@import url('layouts/login.css');
+/* Card outline AdminLTE */
+.card-outline.card-primary {
+  border-top: 3px solid var(--ml-primary);
+}
 
-/* Utilidades */
-@import url('utilities/responsive.css');
+/* Branding */
+a.h1, .h1 {
+  color: var(--ml-primary);
+  text-decoration: none;
+}
+
+/* Fondo y caja de login/home minimalista */
+.login-page {
+  background-color: #f5f6f8;
+}
+.login-box {
+  width: 100%;
+  max-width: 380px;
+  margin: 2rem auto;
+}
+
+/* Limitar crecimiento de cards de gráficos */
+.chart-card {
+  max-height: 420px;
+}
+.chart-card .card-body {
+  overflow: auto;
+}
+
+@media (max-width: 576px) {
+  .chart-card { max-height: 360px; }
+}

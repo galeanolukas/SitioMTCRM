@@ -115,6 +115,18 @@
     <div class="center small muted">
       DOCUMENTO NO FISCAL
     </div>
+
+    {% if sale.afip_cae %}
+    <div class="line"></div>
+    <div class="center small lh">
+      <div class="bold">CAE: {{ sale.afip_cae }}</div>
+      <div>Vto. CAE: {{ sale.afip_cae_vto|date:"d/m/Y" }}</div>
+      {% if sale.afip_qr %}
+      <img src="{{ sale.afip_qr }}" alt="QR AFIP" style="width: 25mm; height: 25mm; margin: 2mm auto;" />
+      {% endif %}
+    </div>
+    {% endif %}
+
     <div class="center small">
       Muchas gracias por su compra
     </div>

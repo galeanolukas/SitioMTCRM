@@ -4,6 +4,14 @@
     <script src="{% static 'client/js/list.js' %}"></script>
 {% endblock %}
 
+{% block buttons_list %}
+    <a class="btn btn-primary btn-flat btnAdd" style="color: white;"><i class="fas fa-plus"></i> Nuevo registro</a>
+    <a href="{{ list_url }}" class="btn btn-success btn-flat"><i class="fas fa-sync"></i> Actualizar</a>
+    <button type="button" class="btn btn-danger btn-flat" id="btnDeleteAllClients">
+        <i class="fas fa-trash-alt"></i> Eliminar todos
+    </button>
+{% endblock %}
+
 {% block columns %}
     <tr>
         <th scope="col" style="width: 10%;">Nro</th>
@@ -17,5 +25,60 @@
 {% endblock %}
 
 {% block javascript %}
+    <!-- Modal de Creación/Edición de Cliente -->
+    <div class="modal fade" id="myModalClient" tabindex="-1" aria-labelledby="myModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="myModalLabel">
+              <i class="fas fa-search"></i> <span></span>
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <form method="post" action="." enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="modal-body">
+              <div id="error-block"></div>
+              <div class="container-fluid">
+                <input name="action" type="hidden" value="add" />
+                <input name="id" id="id" type="hidden" value="0" />
+                {% for field in form.visible_fields %}
+                  <div class="form-group mb-3">
+                    <label for="{{ field.id_for_label }}">{{ field.label }}:</label>
+                    {{ field }}
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+              <button type="submit" class="btn btn-primary btn-flat">
+                <i class="fas fa-save"></i> Guardar
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
 
+    <script type="application/javascript">
+        $(function () {
+            $('#btnDeleteAllClients').on('click', function () {
+                var parameters = new FormData();
+                parameters.append('action', 'delete_all');
+                submit_with_ajax(
+                    window.location.pathname,
+                    'Eliminar todos los clientes',
+                    '¿Está seguro de que desea eliminar <strong>TODOS</strong> los clientes? Esta acción no se puede deshacer.',
+                    parameters,
+                    function (data) {
+                        if (data.deleted !== undefined) {
+                            message_success('Se eliminaron ' + data.deleted + ' clientes correctamente.');
+                        }
+                        tblClient.ajax.reload();
+                    }
+                );
+            });
+        });
+    </script>
 {% endblock %}

@@ -122,7 +122,10 @@
       <!-- Movimientos recientes debajo del POS -->
       <div class="card card-outline card-secondary pos-card-secondary">
         <div class="card-header d-flex justify-content-between align-items-center">
-          <h3 class="card-title mb-0"><i class="fas fa-history me-2"></i>Movimientos recientes</h3>
+          <h3 class="card-title mb-0">
+            <i class="fas fa-history me-2"></i>
+            {% if is_local_server_user %}Cola de Presupuestos{% else %}Movimientos recientes{% endif %}
+          </h3>
           <a href="{% url 'erp:sale_list' %}" class="btn btn-xs btn-outline-secondary">
             <i class="fas fa-list"></i> Ver todas / Anular
           </a>
@@ -178,14 +181,16 @@
                         <i class="fas fa-print"></i>
                       </a>
                     {% endif %}
-                    <a href="{% url 'erp:sale_delete' s.id %}" class="btn btn-xs btn-outline-danger" title="Anular venta">
+                    <a href="{% url 'erp:sale_delete' s.id %}" class="btn btn-xs btn-outline-danger" title="Anular">
                       <i class="fas fa-ban"></i>
                     </a>
                   </div>
                 </td>
               </tr>
               {% empty %}
-              <tr><td colspan="7" class="text-center text-muted p-2">Sin movimientos</td></tr>
+              <tr><td colspan="7" class="text-center text-muted p-2">
+                {% if is_local_server_user %}Sin presupuestos en cola{% else %}Sin movimientos{% endif %}
+              </td></tr>
               {% endfor %}
             </tbody>
           </table>
@@ -402,6 +407,19 @@
       </div>
       <div class="modal-body">
         <p>La venta se registró correctamente. ¿Desea imprimir el ticket ahora?</p>
+        <div id="afipInfoBox" style="display:none;">
+          <hr>
+          <div class="text-center">
+            <img id="afipQrImg" src="" alt="QR AFIP" style="max-width: 150px; max-height: 150px;" class="mb-2" />
+            <div class="small">
+              <strong>CAE: </strong><span id="afipCaeText"></span><br>
+              <strong>Vto.: </strong><span id="afipVtoText"></span>
+            </div>
+          </div>
+        </div>
+        <div id="afipErrorBox" style="display:none;" class="alert alert-warning mt-2 small">
+          <i class="fas fa-exclamation-triangle"></i> <span id="afipErrorText"></span>
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">No</button>

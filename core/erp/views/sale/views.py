@@ -42,7 +42,19 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
         # Incluir ventas sin pos_id (compatibilidad) y ventas con el mismo pos_id
         qs = qs.filter(Q(pos_id__isnull=True) | Q(pos_id='') | Q(pos_id=current_pos_id))
         from django.db.models import Sum
-        context['recent_sales'] = qs.annotate(items=Sum('detsale__cant')).order_by('-id')[:10]
+        # Determinar si el usuario está en el grupo "Servidor Local" para enviar presupuestos
+        is_local_server_user = self.request.user.groups.filter(name='Servidor Local').exists()
+        context['is_local_server_user'] = is_local_server_user
+        if is_local_server_user:
+            # Para Servidor Local: mostrar solo presupuestos como cola
+            qs = qs.filter(is_budget=True, status='budget')
+            context['recent_sales'] = qs.annotate(items=Sum('detsale__cant')).order_by('-id')[:20]
+            print(f"[DEBUG] POS get_context: is_local_server_user=True, presupuestos en cola: {context['recent_sales'].count()}, pos_id={current_pos_id}")
+            for s in context['recent_sales']:
+                print(f"[DEBUG]   Presupuesto: id={s.id}, cli={s.cli}, total={s.total}, pos_id={s.pos_id}, date={s.date_joined}")
+        else:
+            context['recent_sales'] = qs.annotate(items=Sum('detsale__cant')).order_by('-id')[:10]
+            print(f"[DEBUG] POS get_context: is_local_server_user=False, ventas recientes: {len(context['recent_sales'])}, pos_id={current_pos_id}")
         # Estado de caja para el usuario/empresa actual
         cr_qs = CashRegister.objects.filter(user=self.request.user, is_closed=False)
         if active_cid:
@@ -54,9 +66,6 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
         is_operator = self.request.user.groups.filter(name='operadores').exists()
         context['is_operator'] = is_operator
         context['pos_locked_by_cash'] = is_operator and not current_cr
-        # Determinar si el usuario está en el grupo "Servidor Local" para enviar presupuestos
-        is_local_server_user = self.request.user.groups.filter(name='Servidor Local').exists()
-        context['is_local_server_user'] = is_local_server_user
         return context
 
     def post(self, request, *args, **kwargs):
@@ -262,36 +271,39 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 if request.session.get(f'processed_sale_{sale_token}'):
                     return JsonResponse({'error': 'Venta ya procesada', 'duplicate': True}, status=400)
                 
-                # Bloquear registro de ventas para operadores sin caja abierta
-                is_operator = request.user.groups.filter(name='operadores').exists()
-                active_cid = request.session.get('company_id')
-                if not request.user.is_superuser:
-                    active_cid = active_cid or getattr(request.user, 'company_id', None)
-                cr_qs = CashRegister.objects.filter(user=request.user, is_closed=False)
-                if active_cid:
-                    cr_qs = cr_qs.filter(company_id=active_cid)
-                current_cr = cr_qs.order_by('-created_at').first()
-                if is_operator and not current_cr:
-                    return JsonResponse({'error': 'Debe abrir una caja antes de registrar ventas.'}, status=400)
-                    
                 payload = json.loads(request.POST.get('sale') or '{}')
-                with transaction.atomic():
-                    items = payload.get('items', [])
-                    # Validar stock con cantidades decimales (solo si el producto controla stock)
-                    for it in items:
-                        prod = Product.objects.select_for_update().get(pk=it['id'])
-                        raw_cant = it.get('cant', 1)
-                        cant = Decimal(str(raw_cant or '1'))
-                        if cant <= 0:
-                            raise Exception("Cantidad inválida")
-                        if getattr(prod, 'track_stock', True) and prod.stock < cant:
-                            raise Exception(f"Stock insuficiente para {prod.name}. Disponible: {format(prod.stock, '.2f')} {prod.get_unit_display()}, requerido: {format(cant, '.2f')} {prod.get_unit_display()}")
-                    sale = Sale()
-                    # Asignar empresa activa a la venta
+                is_budget = payload.get('is_budget', False)
+                print(f"[DEBUG] create_sale: is_budget={is_budget}, payload keys={list(payload.keys())}")
+                
+                # Los presupuestos NO requieren caja abierta
+                if not is_budget:
+                    is_operator = request.user.groups.filter(name='operadores').exists()
                     active_cid = request.session.get('company_id')
                     if not request.user.is_superuser:
                         active_cid = active_cid or getattr(request.user, 'company_id', None)
-                    else:
+                    cr_qs = CashRegister.objects.filter(user=request.user, is_closed=False)
+                    if active_cid:
+                        cr_qs = cr_qs.filter(company_id=active_cid)
+                    current_cr = cr_qs.order_by('-created_at').first()
+                    if is_operator and not current_cr:
+                        return JsonResponse({'error': 'Debe abrir una caja antes de registrar ventas.'}, status=400)
+                
+                with transaction.atomic():
+                    items = payload.get('products', payload.get('items', []))
+                    # Validar stock solo si NO es presupuesto
+                    if not is_budget:
+                        for it in items:
+                            prod = Product.objects.select_for_update().get(pk=it['id'])
+                            raw_cant = it.get('cant', 1)
+                            cant = Decimal(str(raw_cant or '1'))
+                            if cant <= 0:
+                                raise Exception("Cantidad inválida")
+                            if getattr(prod, 'track_stock', True) and prod.stock < cant:
+                                raise Exception(f"Stock insuficiente para {prod.name}. Disponible: {format(prod.stock, '.2f')} {prod.get_unit_display()}, requerido: {format(cant, '.2f')} {prod.get_unit_display()}")
+                    
+                    sale = Sale()
+                    active_cid = request.session.get('company_id')
+                    if not request.user.is_superuser:
                         active_cid = active_cid or getattr(request.user, 'company_id', None)
                     if active_cid:
                         sale.company_id = active_cid
@@ -301,26 +313,24 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     sale.total = float(payload.get('total', 0))
                     sale.payment_method = payload.get('payment_method') or 'cash'
                     
-                    # Para tickets (sin factura), asegurar que IVA sea 0 y total sea igual a subtotal
-                    if not payload.get('invoice_number'):
-                        sale.iva = 0.0
-                        sale.total = sale.subtotal
+                    if is_budget:
+                        sale.status = 'budget'
+                        sale.is_budget = True
+                        sale.budget_notes = payload.get('budget_notes', '')
+                        import socket
+                        sale.pos_id = socket.gethostname() or 'pos_default'
+                        print(f"[DEBUG] Presupuesto configurado: pos_id={sale.pos_id}")
+                    else:
+                        if not payload.get('invoice_number'):
+                            sale.iva = 0.0
+                            sale.total = sale.subtotal
                     
-                    # Guardar detalles de pagos combinados si existen
                     if 'combined_payments' in payload and payload['combined_payments']:
                         sale.payment_details = payload['combined_payments']
                     
-                    # Establecer zona horaria local
-                    import pytz
-                    sale.local_timezone = 'America/Argentina/Buenos_Aires'
-                    
-                    # Agregar UUID único para identificar esta venta en sincronización
-                    import uuid
-                    sale.local_uuid = str(uuid.uuid4())
-                    
                     sale.save()
+                    print(f"[DEBUG] Sale guardada: id={sale.id}, is_budget={sale.is_budget}, status={sale.status}")
                     
-                    # Marcar token como procesado
                     request.session[f'processed_sale_{sale_token}'] = True
                     request.session.save()
                     
@@ -335,14 +345,23 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                             subtotal=float(it.get('subtotal', 0)),
                         )
                         det.save()
-                        prod = Product.objects.filter(pk=det.prod_id).first()
-                        if prod and getattr(prod, 'track_stock', True):
-                            Product.objects.filter(pk=det.prod_id).update(
-                                stock=F('stock') - cant,
-                                stock_modified_locally=timezone.now(),  # Marcar modificación de stock
-                                synced_to_server=False  # Marcar para sincronizar
-                            )
-                    data = {'id': sale.id}
+                        if not is_budget:
+                            prod = Product.objects.filter(pk=det.prod_id).first()
+                            if prod and getattr(prod, 'track_stock', True):
+                                Product.objects.filter(pk=det.prod_id).update(
+                                    stock=F('stock') - cant,
+                                    stock_modified_locally=timezone.now(),
+                                    synced_to_server=False
+                                )
+                    data = {
+                        'id': sale.id,
+                        'is_budget': sale.is_budget,
+                        'local_uuid': sale.local_uuid,
+                        'afip_cae': sale.afip_cae or '',
+                        'afip_cae_vto': sale.afip_cae_vto.strftime('%d/%m/%Y') if sale.afip_cae_vto else '',
+                        'afip_qr': sale.afip_qr or '',
+                        'afip_error': sale.afip_error or '',
+                    }
             elif action == 'invoice':
                 from decimal import Decimal
                 # Prevenir duplicación con token de sesión
@@ -424,7 +443,14 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                                 stock_modified_locally=timezone.now(),  # Marcar modificación de stock
                                 synced_to_server=False  # Marcar para sincronizar
                             )
-                    data = {'id': sale.id, 'invoice_url': reverse_lazy('erp:invoice_pdf', kwargs={'pk': sale.id})}
+                    data = {
+                        'id': sale.id,
+                        'invoice_url': reverse_lazy('erp:invoice_pdf', kwargs={'pk': sale.id}),
+                        'afip_cae': sale.afip_cae or '',
+                        'afip_cae_vto': sale.afip_cae_vto.strftime('%d/%m/%Y') if sale.afip_cae_vto else '',
+                        'afip_qr': sale.afip_qr or '',
+                        'afip_error': sale.afip_error or '',
+                    }
             elif action == 'import_quickorder':
                 qo_id = request.POST.get('quickorder_id') or ''
                 pref_id = request.POST.get('preference_id') or ''
@@ -696,6 +722,7 @@ class SaleCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Create
                 with transaction.atomic():
                     vents = json.loads(request.POST['vents'])
                     is_budget = vents.get('is_budget', False)
+                    print(f"[DEBUG] action=add, is_budget={is_budget}, vents keys={list(vents.keys())}, products={vents.get('products', 'MISSING')}, date_joined={vents.get('date_joined', 'MISSING')}")
 
                     # Validación de stock suficiente (solo si no es presupuesto)
                     if not is_budget:
@@ -762,7 +789,7 @@ class SaleCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Create
                         det.sale_id = sale.id
                         det.prod_id = i['id']
                         det.cant = cant
-                        det.price = float(i['pvp'])
+                        det.price = float(i.get('pvp', i['price']))
                         det.subtotal = float(i['subtotal'])
                         det.save()
                         
@@ -775,6 +802,7 @@ class SaleCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Create
                                 synced_to_server=False  # Marcar para sincronizar
                             )
                 
+                print(f"[DEBUG] Presupuesto creado OK: id={sale.id}, is_budget={sale.is_budget}, status={sale.status}, pos_id={sale.pos_id}, local_uuid={sale.local_uuid}")
                 data = {'id': sale.id, 'is_budget': sale.is_budget, 'local_uuid': sale.local_uuid}
             
             elif action == 'send_budget_to_local':
@@ -786,6 +814,7 @@ class SaleCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Create
             else:
                 data['error'] = 'No ha ingresado a ninguna opción'
         except Exception as e:
+            print(f"[DEBUG] ERROR en POS post action={request.POST.get('action')}: {e}")
             data['error'] = str(e)
         return JsonResponse(data, safe=False)
 

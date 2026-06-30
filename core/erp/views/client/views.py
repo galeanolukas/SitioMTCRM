@@ -76,11 +76,34 @@ class ClientListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListVi
                 qs = Client.objects.filter(is_active=True)
                 for i in qs:
                     data.append(i.toJSON())
+            elif action == 'add':
+                form = ClientForm(request.POST)
+                if form.is_valid():
+                    form.save()
+                else:
+                    data['error'] = form.errors
+            elif action == 'edit':
+                cli = Client.objects.get(pk=request.POST['id'])
+                form = ClientForm(request.POST, instance=cli)
+                if form.is_valid():
+                    form.save()
+                else:
+                    data['error'] = form.errors
             elif action == 'delete':
                 obj = Client.objects.get(pk=request.POST['id'])
                 obj.is_active = False
                 obj.synced_to_server = False
                 obj.save()
+            elif action == 'delete_all':
+                active_cid = request.session.get('company_id')
+                if not request.user.is_superuser:
+                    active_cid = active_cid or getattr(request.user, 'company_id', None)
+                qs = Client.objects.filter(is_active=True)
+                if active_cid:
+                    qs = qs.filter(company_id=active_cid)
+                count = qs.count()
+                qs.update(is_active=False, synced_to_server=False)
+                data['deleted'] = count
             else:
                 data['error'] = 'Ha ocurrido un error'
         except Exception as e:
@@ -93,6 +116,7 @@ class ClientListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListVi
         context['create_url'] = reverse_lazy('erp:client_create')
         context['list_url'] = reverse_lazy('erp:client_list')
         context['entity'] = 'Clientes'
+        context['form'] = ClientForm()
         return context
     
 class ClientCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, CreateView):

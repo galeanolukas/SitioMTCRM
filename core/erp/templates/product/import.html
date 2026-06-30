@@ -325,36 +325,36 @@
     <hr>
     <div class="alert alert-info">
       <h5><i class="fas fa-check-circle"></i> Resultados de la importación</h5>
-      <div class="row">
+      <div class="row g-3 mt-1">
         <div class="col-md-3">
-          <div class="card bg-success text-white">
-            <div class="card-body text-center">
-              <h4>{{ created }}</h4>
-              <small>Productos creados</small>
+          <div class="card border-0 shadow-sm" style="background: #28a745;">
+            <div class="card-body text-center py-4">
+              <h2 class="fw-bold mb-1" style="color: #fff; font-size: 2.5rem;">{{ created }}</h2>
+              <span style="color: #fff; font-size: 0.9rem; opacity: 0.9;">Productos creados</span>
             </div>
           </div>
         </div>
         <div class="col-md-3">
-          <div class="card bg-warning text-white">
-            <div class="card-body text-center">
-              <h4>{{ updated }}</h4>
-              <small>Productos actualizados</small>
+          <div class="card border-0 shadow-sm" style="background: #ffc107;">
+            <div class="card-body text-center py-4">
+              <h2 class="fw-bold mb-1" style="color: #212529; font-size: 2.5rem;">{{ updated }}</h2>
+              <span style="color: #212529; font-size: 0.9rem; opacity: 0.8;">Productos actualizados</span>
             </div>
           </div>
         </div>
         <div class="col-md-3">
-          <div class="card bg-info text-white">
-            <div class="card-body text-center">
-              <h4>{{ created|add:updated }}</h4>
-              <small>Total procesados</small>
+          <div class="card border-0 shadow-sm" style="background: #17a2b8;">
+            <div class="card-body text-center py-4">
+              <h2 class="fw-bold mb-1" style="color: #fff; font-size: 2.5rem;">{{ created|add:updated }}</h2>
+              <span style="color: #fff; font-size: 0.9rem; opacity: 0.9;">Total procesados</span>
             </div>
           </div>
         </div>
         <div class="col-md-3">
-          <div class="card {% if errors and errors|length %}bg-danger{% else %}bg-secondary{% endif %} text-white">
-            <div class="card-body text-center">
-              <h4>{{ errors|length }}</h4>
-              <small>Errores</small>
+          <div class="card border-0 shadow-sm" style="background: {% if errors and errors|length %}#dc3545{% else %}#6c757d{% endif %};">
+            <div class="card-body text-center py-4">
+              <h2 class="fw-bold mb-1" style="color: #fff; font-size: 2.5rem;">{{ errors|length }}</h2>
+              <span style="color: #fff; font-size: 0.9rem; opacity: 0.9;">Errores</span>
             </div>
           </div>
         </div>

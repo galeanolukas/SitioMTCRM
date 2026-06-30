@@ -96,25 +96,33 @@ function submit_with_ajax(url, title, content, parameters, callback) {
         if (typeof callback === 'function') {
           callback(data);
         }
-        $('#ajaxModal').modal('hide');
+        var modalEl = document.getElementById('ajaxModal');
+        var modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
         return;
       }
       message_error(data.error);
-      $('#ajaxModal').modal('hide');
+      var modalEl = document.getElementById('ajaxModal');
+      var modal = bootstrap.Modal.getInstance(modalEl);
+      if (modal) modal.hide();
     }).fail(function (jqXHR, textStatus, errorThrown) {
       alert(textStatus + ': ' + errorThrown);
-      $('#ajaxModal').modal('hide');
+      var modalEl = document.getElementById('ajaxModal');
+      var modal = bootstrap.Modal.getInstance(modalEl);
+      if (modal) modal.hide();
     }).always(function (data) {
       
     });
   });
   
-  // Mostrar el modal de Bootstrap
-  $('#ajaxModal').modal('show');
+  // Mostrar el modal de Bootstrap 5
+  var modalEl = document.getElementById('ajaxModal');
+  var modal = new bootstrap.Modal(modalEl);
+  modal.show();
 
-  $('#ajaxModal').on('hidden.bs.modal', function () {
+  modalEl.addEventListener('hidden.bs.modal', function () {
     $('#ajaxModalConfirm').off('click');
-    $(this).remove(); // Limpiar el DOM cuando se oculta
+    modalEl.remove(); // Limpiar el DOM cuando se oculta
   });
   
 }
@@ -145,20 +153,24 @@ function alert_action(title, content, callback) {
   // Agregar el modal al cuerpo del documento
   $('body').append(modal);
   
-  // Mostrar el modal de Bootstrap cuando se haga clic en el botón
+  // Mostrar el modal de Bootstrap 5 cuando se haga clic en el botón
   $('#ajaxModalConfirm').on('click', function () {
     if (typeof callback === 'function') {
       callback();
     }
-    $('#ajaxModal').modal('hide');
+    var modalEl = document.getElementById('ajaxModal');
+    var modal = bootstrap.Modal.getInstance(modalEl);
+    if (modal) modal.hide();
   });
   
-  // Mostrar el modal de Bootstrap
-  $('#ajaxModal').modal('show');
+  // Mostrar el modal de Bootstrap 5
+  var modalEl = document.getElementById('ajaxModal');
+  var modal = new bootstrap.Modal(modalEl);
+  modal.show();
   
   // Eliminar el contenido del modal cuando se oculte
-  $('#ajaxModal').on('hidden.bs.modal', function () {
-    $(this).remove(); // Elimina el modal del DOM
+  modalEl.addEventListener('hidden.bs.modal', function () {
+    modalEl.remove(); // Elimina el modal del DOM
   });
 
   

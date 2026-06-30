@@ -90,7 +90,9 @@ $(function () {
         console.log('x');
         modal_title.find('i').removeClass().addClass('fas fa-plus');
         $('form')[0].reset();
-        $('#myModalClient').modal('show');
+        const modalEl = document.getElementById('myModalClient');
+        const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+        modal.show();
     });
 
     $('#data tbody')
@@ -107,7 +109,9 @@ $(function () {
             $('input[name="date_birthday"]').val(data.date_birthday);
             $('input[name="address"]').val(data.address);
             $('select[name="gender"]').val(data.gender.id);
-            $('#myModalClient').modal('show');
+            const modalEl = document.getElementById('myModalClient');
+            const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+            modal.show();
         })
         .on('click', 'a[rel="delete"]', function () {
             var tr = tblClient.cell($(this).closest('td, li')).index();
@@ -128,7 +132,9 @@ $(function () {
         e.preventDefault();
         var parameters = new FormData(this);
         submit_with_ajax(window.location.pathname, 'Notificación', '¿Estas seguro de realizar la siguiente acción?', parameters, function () {
-            $('#myModalClient').modal('hide');
+            const modalEl = document.getElementById('myModalClient');
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
             tblClient.ajax.reload();
         });
     });

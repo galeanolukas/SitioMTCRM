@@ -23,14 +23,28 @@ class ProfileUpdateView(LoginRequiredMixin, UpdateView):
 
 class UserAdminUpdateView(LoginRequiredMixin, UpdateView):
     model = get_user_model()
-    fields = ["first_name", "last_name", "email", "phone", "image", "company"]
-    template_name = "user/profile_form.html"
+    fields = ["first_name", "last_name", "email", "phone", "image", "company", "is_active", "is_superuser"]
+    template_name = "user/user_edit.html"
     success_url = reverse_lazy("user:list")
 
     def dispatch(self, request, *args, **kwargs):
         if not request.user.is_superuser:
             return redirect('erp:dashboard')
         return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['title'] = 'Editar Usuario'
+        ctx['entity'] = 'Usuarios'
+        ctx['list_url'] = reverse_lazy('user:list')
+        from core.erp.models import Company
+        ctx['companies'] = Company.objects.filter(is_active=True)
+        ctx['groups'] = Group.objects.all()
+        return ctx
+
+    def form_valid(self, form):
+        messages.success(self.request, f"Usuario '{form.instance.username}' actualizado correctamente.")
+        return super().form_valid(form)
 
 class UserPasswordChangeView(LoginRequiredMixin, PasswordChangeView):
     template_name = "user/password_change_form.html"
