@@ -1,0 +1,50 @@
+{% extends 'base/list.html' %}
+{% load static %}
+
+{% block columns %}
+<tr>
+    <th>Nombre</th>
+    <th>Descuento (%)</th>
+    <th>Productos con override</th>
+    <th>Estado</th>
+    <th>Acciones</th>
+</tr>
+{% endblock %}
+
+{% block rows %}
+{% for pl in object_list %}
+<tr>
+    <td>{{ pl.name }}</td>
+    <td>{{ pl.discount_percentage }}%</td>
+    <td>{{ pl.products.count }}</td>
+    <td>
+        {% if pl.is_active %}
+            <span class="badge bg-success">Activa</span>
+        {% else %}
+            <span class="badge bg-secondary">Inactiva</span>
+        {% endif %}
+    </td>
+    <td>
+        <a href="{% url 'erp:pricelist_edit' pl.pk %}" class="btn btn-primary btn-sm" title="Editar">
+            <i class="fas fa-edit"></i>
+        </a>
+        <a href="{% url 'erp:pricelist_delete' pl.pk %}" class="btn btn-danger btn-sm" title="Eliminar">
+            <i class="fas fa-trash"></i>
+        </a>
+    </td>
+</tr>
+{% empty %}
+<tr>
+    <td colspan="5" class="text-center">No hay listas de precios creadas</td>
+</tr>
+{% endfor %}
+{% endblock %}
+
+{% block buttons_list %}
+<a href="{% url 'erp:pricelist_create' %}" class="btn btn-primary btn-flat">
+    <i class="fas fa-plus"></i> Nueva Lista
+</a>
+<a href="{{ list_url }}" class="btn btn-success btn-flat">
+    <i class="fas fa-sync"></i> Actualizar
+</a>
+{% endblock %}

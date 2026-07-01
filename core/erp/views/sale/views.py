@@ -211,6 +211,32 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 # Obtener categorías existentes
                 categories = Category.objects.all().order_by('name')
                 data = [{'id': cat.id, 'name': cat.name, 'desc': cat.desc or ''} for cat in categories]
+            elif action == 'get_client_prices':
+                client_id = request.POST.get('client_id')
+                if not client_id:
+                    data = {'has_price_list': False}
+                else:
+                    from core.erp.models import Client, PriceList
+                    client = Client.objects.filter(pk=client_id).first()
+                    if client and client.precio_lista_id and client.precio_lista.is_active:
+                        pl = client.precio_lista
+                        # Devolver info de la lista + precios ajustados para los productos del carrito
+                        product_ids = request.POST.get('product_ids', '')
+                        product_ids = [int(pid) for pid in product_ids.split(',') if pid]
+                        prices = {}
+                        for pid in product_ids:
+                            prod = Product.objects.filter(pk=pid).first()
+                            if prod:
+                                adjusted = pl.get_price_for_product(prod)
+                                prices[str(pid)] = float(adjusted)
+                        data = {
+                            'has_price_list': True,
+                            'list_name': pl.name,
+                            'discount_percentage': float(pl.discount_percentage),
+                            'prices': prices,
+                        }
+                    else:
+                        data = {'has_price_list': False}
             elif action == 'get_employees':
                 # Obtener lista de empleados para cuenta corriente
                 from django.contrib.auth import get_user_model

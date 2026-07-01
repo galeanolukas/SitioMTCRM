@@ -69,6 +69,22 @@
 
     <div class="line"></div>
 
+    <!-- Datos del cliente -->
+    <div class="small lh">
+      {% if sale.cli %}
+        <div class="bold">CLIENTE</div>
+        {{ sale.cli.names }} {% if sale.cli.surnames %}{{ sale.cli.surnames }}{% endif %}<br>
+        {% if sale.cli.cuit_cuil %}CUIT/CUIL: {{ sale.cli.cuit_cuil }}<br>{% endif %}
+        {% if sale.cli.dni %}DNI: {{ sale.cli.dni }}<br>{% endif %}
+        {% if sale.cli.condicion_iva %}Cond. IVA: {{ sale.cli.get_condicion_iva_display }}<br>{% endif %}
+        {% if sale.cli.address %}Dirección: {{ sale.cli.address }}{% endif %}
+      {% else %}
+        <div class="bold">CONSUMIDOR FINAL</div>
+      {% endif %}
+    </div>
+
+    <div class="line"></div>
+
     <!-- Datos del comprobante -->
     <div class="small lh">
       Cód. 083 - TIQUE<br>

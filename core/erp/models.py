@@ -335,6 +335,7 @@ class Client(models.Model):
     limite_credito = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name='Límite de Crédito')
     descuento_habitual = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True, verbose_name='Descuento Habitual (%)')
     observaciones = models.TextField(null=True, blank=True, verbose_name='Observaciones')
+    precio_lista = models.ForeignKey('PriceList', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Lista de precios')
     synced_to_server = models.BooleanField(default=False, verbose_name='Sincronizado con servidor')
     is_active = models.BooleanField(default=True, verbose_name='Activo')
 
@@ -354,12 +355,85 @@ class Client(models.Model):
         item['condicion_iva'] = {'id': self.condicion_iva, 'name': self.get_condicion_iva_display()}
         item['tipo_cliente'] = {'id': self.tipo_cliente, 'name': self.get_tipo_cliente_display()}
         item['date_birthday'] = self.date_birthday.strftime('%Y-%m-%d')
+        # Agregar info de lista de precios
+        if self.precio_lista:
+            item['precio_lista'] = {
+                'id': self.precio_lista.id,
+                'name': self.precio_lista.name,
+                'discount_percentage': float(self.precio_lista.discount_percentage)
+            }
+        else:
+            item['precio_lista'] = None
         return item
 
     class Meta:
         verbose_name = 'Cliente'
         verbose_name_plural = 'Clientes'
         ordering = ['id']
+
+
+class PriceList(models.Model):
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa', null=True, blank=True)
+    name = models.CharField(max_length=100, verbose_name='Nombre')
+    discount_percentage = models.DecimalField(default=0, max_digits=5, decimal_places=2, verbose_name='Descuento (%)')
+    is_active = models.BooleanField(default=True, verbose_name='Activa')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de creación')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Fecha de actualización')
+
+    def __str__(self):
+        return f"{self.name} ({self.discount_percentage}%)"
+
+    def save(self, *args, **kwargs):
+        if not self.company_id:
+            user = get_current_user()
+            if user and not user.is_anonymous:
+                self.company_id = getattr(user, 'company_id', None)
+        super().save(*args, **kwargs)
+
+    def get_price_for_product(self, product):
+        """Devuelve el precio para un producto dado.
+        Si hay un PriceListProduct con precio fijo, usa ese.
+        Si no, aplica el descuento porcentual al pvp del producto.
+        Si el producto está marcado como excepción sin precio, devuelve el pvp original.
+        """
+        from decimal import Decimal
+        try:
+            plp = self.products.select_related('product').get(product=product)
+            if plp.is_exception:
+                return product.pvp
+            if plp.fixed_price is not None:
+                return plp.fixed_price
+            # excepción con descuento override
+            if plp.discount_override is not None:
+                discount = plp.discount_override
+            else:
+                discount = self.discount_percentage
+            return (Decimal(product.pvp) * (Decimal('1') - discount / Decimal('100'))).quantize(Decimal('0.01'))
+        except PriceListProduct.DoesNotExist:
+            # No hay override: aplicar descuento general
+            return (Decimal(product.pvp) * (Decimal('1') - self.discount_percentage / Decimal('100'))).quantize(Decimal('0.01'))
+
+    class Meta:
+        verbose_name = 'Lista de Precios'
+        verbose_name_plural = 'Listas de Precios'
+        ordering = ['name']
+
+
+class PriceListProduct(models.Model):
+    price_list = models.ForeignKey(PriceList, on_delete=models.CASCADE, related_name='products', verbose_name='Lista de precios')
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, verbose_name='Producto')
+    fixed_price = models.DecimalField(max_digits=9, decimal_places=2, null=True, blank=True, verbose_name='Precio fijo (override)')
+    discount_override = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True, verbose_name='Descuento override (%)')
+    is_exception = models.BooleanField(default=False, verbose_name='Excepción (no aplicar descuento)')
+
+    def __str__(self):
+        return f"{self.product.name} - {self.price_list.name}"
+
+    class Meta:
+        verbose_name = 'Producto en Lista'
+        verbose_name_plural = 'Productos en Lista'
+        unique_together = [['price_list', 'product']]
+        ordering = ['product__name']
 
 
 class Supplier(models.Model):

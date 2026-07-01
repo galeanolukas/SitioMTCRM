@@ -1,15 +1,26 @@
 {% extends 'base/layout.html' %}
 {% load static %}
 
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid py-3">
   <div class="card card-outline card-primary">
     <div class="card-header d-flex justify-content-between align-items-center">
-      <h3 class="card-title mb-0">Etiquetas QR por categoría</h3>
+      <h3 class="card-title mb-0">Etiquetas de Productos</h3>
     </div>
     <div class="card-body">
       <form method="get" class="row g-2 mb-3">
-        <div class="col-sm-8 col-md-6 col-lg-4">
+        <div class="col-sm-4 col-md-3 col-lg-2">
+          <label class="form-label">Tipo de etiqueta</label>
+          <select name="label_type" class="form-select" id="labelTypeSelector">
+            <option value="qr" {% if request.GET.label_type != 'barcode' %}selected{% endif %}>Código QR</option>
+            <option value="barcode" {% if request.GET.label_type == 'barcode' %}selected{% endif %}>Código de barras</option>
+          </select>
+        </div>
+        <div class="col-sm-4 col-md-3 col-lg-2">
           <label class="form-label">Categoría</label>
           <select name="cat" class="form-select" onchange="this.form.submit()">
             <option value="">Todas</option>
@@ -38,11 +49,25 @@
             <div class="mb-1">${{ p.pvp_final|floatformat:2 }}</div>
             <div class="mb-1 text-muted">{{ p.cat.name }}</div>
             <div class="mb-1">
-              <img
-                src="https://api.qrserver.com/v1/create-qr-code/?size=140x140&data={{ request.scheme }}://{{ request.get_host }}{% url 'erp:product_public_detail' p.qr_token %}"
-                alt="QR {{ p.name }}"
-                style="width: 100%; max-width: 140px; height: auto;"
-              >
+              {% if request.GET.label_type == 'barcode' %}
+                <svg id="barcode-{{ p.id }}" class="barcode" style="max-width: 100%;"></svg>
+                <script>
+                  JsBarcode("#barcode-{{ p.id }}", "{{ p.code|default:p.id }}", {
+                    format: "CODE128",
+                    width: 1.5,
+                    height: 35,
+                    displayValue: true,
+                    fontSize: 9,
+                    margin: 1
+                  });
+                </script>
+              {% else %}
+                <img
+                  src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data={{ request.scheme }}://{{ request.get_host }}{% url 'erp:product_public_detail' p.qr_token %}"
+                  alt="QR {{ p.name }}"
+                  style="width: 100%; max-width: 120px; height: auto;"
+                >
+              {% endif %}
             </div>
             {% if p.code %}
             <div class="mt-1 text-muted">Cod: {{ p.code }}</div>
@@ -53,6 +78,39 @@
         <div class="col-12 text-center text-muted">No hay productos para esta selección.</div>
         {% endfor %}
       </div>
+
+      <!-- Paginación -->
+      {% if page_obj.has_other_pages %}
+      <nav class="mt-4">
+        <ul class="pagination justify-content-center">
+          {% if page_obj.has_previous %}
+            <li class="page-item">
+              <a class="page-link" href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}&label_type={{ request.GET.label_type|default:'qr' }}&cat={{ request.GET.cat|default:'' }}">Anterior</a>
+            </li>
+          {% else %}
+            <li class="page-item disabled"><span class="page-link">Anterior</span></li>
+          {% endif %}
+          
+          {% for num in page_obj.paginator.page_range %}
+            {% if page_obj.number == num %}
+              <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+              <li class="page-item">
+                <a class="page-link" href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ num }}&label_type={{ request.GET.label_type|default:'qr' }}&cat={{ request.GET.cat|default:'' }}">{{ num }}</a>
+              </li>
+            {% endif %}
+          {% endfor %}
+          
+          {% if page_obj.has_next %}
+            <li class="page-item">
+              <a class="page-link" href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}&label_type={{ request.GET.label_type|default:'qr' }}&cat={{ request.GET.cat|default:'' }}">Siguiente</a>
+            </li>
+          {% else %}
+            <li class="page-item disabled"><span class="page-link">Siguiente</span></li>
+          {% endif %}
+        </ul>
+      </nav>
+      {% endif %}
     </div>
   </div>
 </div>

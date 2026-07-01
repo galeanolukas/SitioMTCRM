@@ -86,6 +86,14 @@
           </a>
         </li>
         {% endif %}
+        {% if request.user.is_superuser or perms.erp.view_pricelist %}
+        <li class="nav-item">
+          <a href="{% url 'erp:pricelist_list' %}" class="nav-link">
+            <i class="fas fa-tags nav-icon"></i>
+            <p>Listas de Precios</p>
+          </a>
+        </li>
+        {% endif %}
         {% if request.user.is_superuser or perms.erp.view_invoice %}
         <li class="nav-item">
           <a href="{% url 'erp:invoice_list' %}" class="nav-link">

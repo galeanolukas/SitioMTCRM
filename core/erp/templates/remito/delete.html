@@ -1,0 +1,27 @@
+{% extends 'vtc/body.html' %}
+{% block content %}
+<div class="content-wrapper">
+  <section class="content">
+    <div class="container-fluid">
+      <div class="card card-outline card-danger">
+        <div class="card-header">
+          <h3 class="card-title"><i class="fas fa-exclamation-triangle me-2"></i> Eliminar Remito</h3>
+        </div>
+        <div class="card-body">
+          <p>¿Estás seguro de que querés eliminar el remito <strong>{{ object }}</strong>?</p>
+          <p class="text-muted">Esta acción no se puede deshacer.</p>
+          <form method="post">
+            {% csrf_token %}
+            <a href="{% url 'erp:remito_list' %}" class="btn btn-outline-secondary">
+              <i class="fas fa-times me-1"></i> Cancelar
+            </a>
+            <button type="submit" class="btn btn-danger">
+              <i class="fas fa-trash me-1"></i> Sí, eliminar
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}

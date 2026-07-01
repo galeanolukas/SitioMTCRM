@@ -2,7 +2,7 @@
   const $input = $('#barcodeInput');
   const $tbody = $('#posItems tbody');
   const $suggest = $('#suggestions');
-  const $tItems = $('#tItems'), $tSubtotal = $('#tSubtotal'), $tIva = $('#tIva'), $tTotal = $('#tTotal');
+  const $tItems = $('#tItems'), $tSubtotal = $('#tSubtotal'), $tIva = $('#tIva'), $tTotal = $('#tTotal'), $tSavings = $('#tSavings');
   const $summaryCard = $('#posSummaryCard');
 
   const getIvaRate = (forInvoice = false) => {
@@ -13,6 +13,8 @@
   let selectedIndex = -1;
   let lastSaleId = null; // ID de la última venta registrada (para ticket)
   let pendingWeightProduct = null; // Producto pendiente de ingresar peso
+  let originalPrices = {}; // Precios originales para restaurar al cambiar cliente
+  let currentPriceList = null; // Lista de precios activa del cliente seleccionado
 
   function csrftoken() {
     const name = 'csrftoken';
@@ -77,6 +79,7 @@
   function recalc() {
     let subtotal = 0;
     let iva = 0;
+    let originalSubtotal = 0; // Subtotal sin descuento de lista
     
     // Calcular totales
     items.forEach(it => {
@@ -84,6 +87,11 @@
       const cant = parseFloat(it.cant) || 0;
       it.subtotal = price * cant;
       subtotal += it.subtotal;
+      
+      // Calcular subtotal original (sin descuento de lista)
+      const origPrice = originalPrices[it.id] || price;
+      originalSubtotal += origPrice * cant;
+      
       let rate = (typeof it.iva_rate !== 'undefined' && !isNaN(parseFloat(it.iva_rate))) ? parseFloat(it.iva_rate) : getIvaRate();
       // Convert to decimal if it's in percentage format (> 1)
       if (rate > 1) {
@@ -93,12 +101,22 @@
     });
     
     const total = subtotal + iva;
+    const savings = originalSubtotal - subtotal;
     
     // Actualizar totales
     $tItems.text(items.length);
     $tSubtotal.text(fmt(subtotal));
     $tIva.text(fmt(iva));
     $tTotal.text(fmt(total));
+    
+    // Mostrar/ocultar ahorro por lista
+    if (currentPriceList && savings > 0.01) {
+      $('#priceListSavingsRow').show();
+      $('#priceListName').text('(' + currentPriceList.list_name + ')');
+      $tSavings.text(fmt(savings));
+    } else {
+      $('#priceListSavingsRow').hide();
+    }
     
     // Renderizar items
     render();
@@ -217,6 +235,32 @@
         unit: prod.unit || 'unit',
         prod_data: prod // Guardar datos completos del producto para validación de stock
       };
+      // Si hay lista de precios activa, obtener precio ajustado
+      if (currentPriceList && currentPriceList.has_price_list) {
+        // Hacer request para obtener el precio de este producto específico
+        $.ajax({
+          url: window.location.pathname,
+          type: 'POST',
+          data: {
+            action: 'get_client_prices',
+            client_id: $('#selectedClientId').val(),
+            product_ids: String(prod.id),
+            csrfmiddlewaretoken: csrftoken()
+          },
+          dataType: 'json',
+          async: false, // Sincrónico para aplicar el precio antes de agregar al carrito
+          success: function(resp) {
+            if (resp.has_price_list && resp.prices && resp.prices[String(prod.id)] !== undefined) {
+              const adjusted = resp.prices[String(prod.id)];
+              originalPrices[prod.id] = finalPrice;
+              const ratio = adjusted / finalPrice;
+              finalPrice = adjusted;
+              it.price = adjusted;
+              it.pvp_final = it.pvp_final * ratio;
+            }
+          }
+        });
+      }
       items.push(it);
     }
     
@@ -687,12 +731,94 @@
     const modal = bootstrap.Modal.getInstance(modalEl);
     if (modal) modal.hide();
     showToast('success', 'Cliente seleccionado: ' + clientName);
+    
+    // Aplicar lista de precios si el cliente tiene una
+    applyClientPriceList(clientId);
   });
+
+  // Guardar precios originales para poder restaurar al limpiar cliente
+  // (declarados arriba junto a items)
+
+  function applyClientPriceList(clientId) {
+    if (!clientId) return;
+    $.ajax({
+      url: window.location.pathname,
+      type: 'POST',
+      data: {
+        action: 'get_client_prices',
+        client_id: clientId,
+        product_ids: '', // Enviar vacío para obtener info de lista sin precios específicos
+        csrfmiddlewaretoken: csrftoken()
+      },
+      dataType: 'json',
+      success: function(resp) {
+        if (resp.has_price_list) {
+          currentPriceList = resp;
+          // Si hay items en el carrito, recalcular sus precios
+          if (items.length > 0) {
+            const productIds = items.map(it => it.id).join(',');
+            // Obtener precios para los productos actuales
+            $.ajax({
+              url: window.location.pathname,
+              type: 'POST',
+              data: {
+                action: 'get_client_prices',
+                client_id: clientId,
+                product_ids: productIds,
+                csrfmiddlewaretoken: csrftoken()
+              },
+              dataType: 'json',
+              success: function(resp2) {
+                if (resp2.has_price_list) {
+                  items.forEach(it => {
+                    if (!originalPrices[it.id]) {
+                      originalPrices[it.id] = it.price;
+                    }
+                    const adjusted = resp2.prices[String(it.id)];
+                    if (adjusted !== undefined) {
+                      const ratio = adjusted / (originalPrices[it.id] || adjusted);
+                      it.price = adjusted;
+                      it.pvp_final = (it.pvp_final || 0) * ratio;
+                    }
+                  });
+                  recalc();
+                  showToast('info', 'Lista de precios aplicada: ' + resp.list_name + ' (' + resp.discount_percentage + '%)');
+                }
+              }
+            });
+          } else {
+            showToast('info', 'Lista de precios activa: ' + resp.list_name + ' (' + resp.discount_percentage + '%)');
+          }
+        } else {
+          restoreOriginalPrices();
+        }
+      },
+      error: function() {
+        // Silencioso: si falla, no bloquea la venta
+      }
+    });
+  }
+
+  function restoreOriginalPrices() {
+    if (Object.keys(originalPrices).length === 0) return;
+    items.forEach(it => {
+      if (originalPrices[it.id] !== undefined) {
+        const orig = originalPrices[it.id];
+        const ratio = orig / (it.price || orig);
+        it.price = orig;
+        it.pvp_final = (it.pvp_final || 0) * ratio;
+      }
+    });
+    originalPrices = {};
+    currentPriceList = null;
+    recalc();
+  }
 
   // Evento para limpiar cliente
   $('#btnClearClient').on('click', function() {
     $('#selectedClientId').val('');
     $('#selectedClientName').text('Anónimo');
+    restoreOriginalPrices();
     const modalEl = document.getElementById('clientSelectModal');
     const modal = bootstrap.Modal.getInstance(modalEl);
     if (modal) modal.hide();

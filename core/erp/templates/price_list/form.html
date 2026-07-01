@@ -1,0 +1,251 @@
+{% extends 'vtc/body.html' %}
+{% load static %}
+
+{% block content %}
+<div class="content-wrapper">
+  <section class="content-header">
+    <div class="container-fluid">
+      <div class="row mb-2">
+        <div class="col-sm-6">
+          <h1 class="m-0">{{ title }}</h1>
+        </div>
+        <div class="col-sm-6">
+          <ol class="breadcrumb float-sm-right">
+            <li class="breadcrumb-item"><a href="{% url 'erp:dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'erp:pricelist_list' %}">Listas de Precios</a></li>
+            <li class="breadcrumb-item active">{{ action|capfirst }}</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="content">
+    <div class="container-fluid">
+      {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+      {% endif %}
+
+      <div class="row">
+        <!-- Formulario principal -->
+        <div class="col-md-5">
+          <div class="card card-outline card-primary">
+            <div class="card-header">
+              <h3 class="card-title"><i class="fas fa-tag me-2"></i> Datos de la Lista</h3>
+            </div>
+            <div class="card-body">
+              <form method="post">
+                {% csrf_token %}
+                <div class="mb-3">
+                  <label class="form-label fw-bold">Nombre</label>
+                  <input type="text" name="name" class="form-control" value="{{ form.name.value|default:'' }}" required>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label fw-bold">Descuento general (%)</label>
+                  <input type="number" name="discount_percentage" class="form-control" step="0.01" min="0" max="100" value="{{ form.discount_percentage.value|default:'0' }}" required>
+                  <div class="form-text">Se aplica a todos los productos salvo excepciones.</div>
+                </div>
+                <div class="mb-3">
+                  <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="id_is_active" name="is_active" {% if form.is_active.value %}checked{% endif %}>
+                    <label class="form-check-label" for="id_is_active">Lista activa</label>
+                  </div>
+                </div>
+                <div class="d-flex justify-content-end gap-2">
+                  <a href="{% url 'erp:pricelist_list' %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-times me-1"></i> Cancelar
+                  </a>
+                  <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-1"></i> Guardar
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- Gestión de overrides (solo en edición) -->
+        {% if action == 'edit' %}
+        <div class="col-md-7">
+          <div class="card card-outline card-info">
+            <div class="card-header">
+              <h3 class="card-title"><i class="fas fa-list me-2"></i> Productos con Precio Especial</h3>
+            </div>
+            <div class="card-body">
+              <!-- Buscar producto para agregar -->
+              <div class="input-group mb-3">
+                <input type="text" id="productSearch" class="form-control" placeholder="Buscar producto para agregar...">
+                <button class="btn btn-outline-primary" id="btnSearchProduct" type="button">
+                  <i class="fas fa-search"></i>
+                </button>
+              </div>
+              <div id="searchResults" class="mb-3"></div>
+
+              <!-- Modal para configurar override -->
+              <div class="modal fade" id="overrideModal" tabindex="-1">
+                <div class="modal-dialog">
+                  <div class="modal-content">
+                    <div class="modal-header">
+                      <h5 class="modal-title">Configurar precio para <span id="overrideProductName"></span></h5>
+                      <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                      <input type="hidden" id="overrideProductId">
+                      <div class="mb-2">
+                        <label class="form-label">Precio fijo (opcional)</label>
+                        <input type="number" id="overrideFixedPrice" class="form-control" step="0.01" min="0">
+                        <div class="form-text">Si se setea, ignora el descuento general.</div>
+                      </div>
+                      <div class="mb-2">
+                        <label class="form-label">Descuento override % (opcional)</label>
+                        <input type="number" id="overrideDiscount" class="form-control" step="0.01" min="0" max="100">
+                        <div class="form-text">Descuento específico para este producto (reemplaza al general).</div>
+                      </div>
+                      <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="overrideException">
+                        <label class="form-check-label" for="overrideException">Excepción (no aplicar descuento, precio base)</label>
+                      </div>
+                    </div>
+                    <div class="modal-footer">
+                      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                      <button type="button" class="btn btn-primary" id="btnSaveOverride">Agregar</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Tabla de overrides -->
+              <div class="table-responsive">
+                <table class="table table-sm table-striped" id="overridesTable">
+                  <thead>
+                    <tr>
+                      <th>Producto</th>
+                      <th>Precio base</th>
+                      <th>Precio fijo</th>
+                      <th>Desc. override</th>
+                      <th>Excepción</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for ov in overrides %}
+                    <tr id="ov-row-{{ ov.id }}">
+                      <td>{{ ov.product.name }}</td>
+                      <td>${{ ov.product.pvp }}</td>
+                      <td>{% if ov.fixed_price %}${{ ov.fixed_price }}{% else %}-{% endif %}</td>
+                      <td>{% if ov.discount_override %}{{ ov.discount_override }}%{% else %}-{% endif %}</td>
+                      <td>{% if ov.is_exception %}<i class="fas fa-check text-warning"></i>{% endif %}</td>
+                      <td>
+                        <button class="btn btn-danger btn-sm btn-remove-override" data-plp-id="{{ ov.id }}">
+                          <i class="fas fa-times"></i>
+                        </button>
+                      </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="6" class="text-center text-muted">Sin productos con precio especial</td></tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+</div>
+
+{% if action == 'edit' %}
+<script>
+const manageUrl = "{% url 'erp:pricelist_manage' object.pk %}";
+const csrfToken = "{{ csrf_token }}";
+
+document.getElementById('btnSearchProduct')?.addEventListener('click', function() {
+  const q = document.getElementById('productSearch').value.trim();
+  if (!q) return;
+  fetch(manageUrl, {
+    method: 'POST',
+    headers: {'X-CSRFToken': csrfToken, 'Content-Type': 'application/x-www-form-urlencoded'},
+    body: new URLSearchParams({action: 'search_products', q: q})
+  })
+  .then(r => r.json())
+  .then(data => {
+    const container = document.getElementById('searchResults');
+    container.innerHTML = '';
+    if (data.results && data.results.length) {
+      data.results.forEach(p => {
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-outline-info btn-sm me-2 mb-1';
+        btn.innerHTML = `${p.name} ($${p.pvp})`;
+        btn.onclick = () => openOverrideModal(p);
+        container.appendChild(btn);
+      });
+    } else {
+      container.innerHTML = '<span class="text-muted">No se encontraron productos.</span>';
+    }
+  });
+});
+
+function openOverrideModal(product) {
+  document.getElementById('overrideProductName').textContent = product.name;
+  document.getElementById('overrideProductId').value = product.id;
+  document.getElementById('overrideFixedPrice').value = '';
+  document.getElementById('overrideDiscount').value = '';
+  document.getElementById('overrideException').checked = false;
+  new bootstrap.Modal(document.getElementById('overrideModal')).show();
+}
+
+document.getElementById('btnSaveOverride')?.addEventListener('click', function() {
+  const productId = document.getElementById('overrideProductId').value;
+  const fixedPrice = document.getElementById('overrideFixedPrice').value;
+  const discountOverride = document.getElementById('overrideDiscount').value;
+  const isException = document.getElementById('overrideException').checked;
+
+  fetch(manageUrl, {
+    method: 'POST',
+    headers: {'X-CSRFToken': csrfToken, 'Content-Type': 'application/x-www-form-urlencoded'},
+    body: new URLSearchParams({
+      action: 'add_product',
+      product_id: productId,
+      fixed_price: fixedPrice,
+      discount_override: discountOverride,
+      is_exception: isException ? 'on' : '',
+    })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) {
+      bootstrap.Modal.getInstance(document.getElementById('overrideModal')).hide();
+      location.reload();
+    } else {
+      alert(data.error || 'Error al agregar producto');
+    }
+  });
+});
+
+document.querySelectorAll('.btn-remove-override').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const plpId = this.dataset.plpId;
+    if (!confirm('¿Quitar este producto de la lista?')) return;
+    fetch(manageUrl, {
+      method: 'POST',
+      headers: {'X-CSRFToken': csrfToken, 'Content-Type': 'application/x-www-form-urlencoded'},
+      body: new URLSearchParams({action: 'remove_product', plp_id: plpId})
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        document.getElementById('ov-row-' + plpId)?.remove();
+      }
+    });
+  });
+});
+</script>
+{% endif %}
+{% endblock %}

@@ -217,6 +217,7 @@ class ProductUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Upd
 class ProductLabelsView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView):
     permission_required = 'erp.view_product'
     template_name = 'product/labels.html'
+    paginate_by = 20
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -232,9 +233,17 @@ class ProductLabelsView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Tem
         for p in qs:
             if not p.qr_token:
                 p.save()
-        ctx['products'] = qs.order_by('cat__name', 'name')
+        
+        # Paginación
+        from django.core.paginator import Paginator
+        paginator = Paginator(qs.order_by('cat__name', 'name'), self.paginate_by)
+        page_number = self.request.GET.get('page', 1)
+        page_obj = paginator.get_page(page_number)
+        
+        ctx['products'] = page_obj
+        ctx['page_obj'] = page_obj
         ctx['categories'] = Category.objects.all().order_by('name')
-        ctx['title'] = 'Etiquetas QR de Productos'
+        ctx['title'] = 'Etiquetas de Productos'
         ctx['entity'] = 'Productos'
         return ctx
 

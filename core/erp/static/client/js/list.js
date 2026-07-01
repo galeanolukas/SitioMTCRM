@@ -56,7 +56,16 @@ function getData() {
             {"data": "surnames"},
             {"data": "dni"},
             {"data": "date_birthday"},
-            {"data": "gender.name"},
+            {
+                "data": "precio_lista",
+                "render": function (data, type, row) {
+                    console.log('precio_lista data:', data, 'row:', row);
+                    if (data && typeof data === 'object' && data.name) {
+                        return `<span class="badge bg-info">${data.name}</span> <small class="text-muted">(${data.discount_percentage}%)</small>`;
+                    }
+                    return '<span class="text-muted">-</span>';
+                }
+            },
             {"data": "id"},
         ],
         columnDefs: [

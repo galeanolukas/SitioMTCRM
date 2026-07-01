@@ -76,6 +76,11 @@ from core.erp.views.catalogo.views import (
     CatalogoConfigDeleteView,
 )
 from core.erp.views.api.budget_views import receive_budget, confirm_budget
+from core.erp.views.price_list.views import (
+    PriceListListView, PriceListCreateView,
+    PriceListUpdateView, PriceListDeleteView,
+    PriceListProductManageView,
+)
 
 # Importar vistas de descuentos (comentado temporalmente para evitar errores de importación)
 # from core.erp.views.discount.views import (
@@ -187,6 +192,12 @@ urlpatterns = [
     path('cash-register/movement/add/<int:cash_register_id>/', CashMovementCreateView.as_view(), name='cash_movement_create'),
     path('cash-register/movement/delete/<int:pk>/', CashMovementDeleteView.as_view(), name='cash_movement_delete'),
     path('cash-register/delete/<int:pk>/', CashRegisterDeleteView.as_view(), name='cash_register_delete'),
+    # Listas de Precios
+    path('price-list/', PriceListListView.as_view(), name='pricelist_list'),
+    path('price-list/add/', PriceListCreateView.as_view(), name='pricelist_create'),
+    path('price-list/edit/<int:pk>/', PriceListUpdateView.as_view(), name='pricelist_edit'),
+    path('price-list/delete/<int:pk>/', PriceListDeleteView.as_view(), name='pricelist_delete'),
+    path('price-list/<int:pk>/manage/', PriceListProductManageView.as_view(), name='pricelist_manage'),
     # sync toggle
     path('sync/toggle/', SyncToggleView.as_view(), name='sync_toggle'),
     # sync status (public for all authenticated users)
