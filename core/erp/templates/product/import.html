@@ -198,6 +198,30 @@
           </select>
           <small class="text-muted">Solo para superusuarios</small>
         </div>
+        <div class="col-md-4 mt-2">
+          <label>Proveedor (supplier) - opcional</label>
+          <select name="map_supplier" class="form-control">
+            <option value="">-- Ninguna --</option>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+          <small class="text-muted">Nombre del proveedor. Si no existe, se ignora.</small>
+        </div>
+        <div class="col-md-4 mt-2">
+          <label>Código Proveedor (codigo_proveedor) - opcional</label>
+          <select name="map_codigo_proveedor" class="form-control">
+            <option value="">-- Ninguna --</option>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+          <small class="text-muted">Código del producto en el proveedor</small>
+        </div>
+        <div class="col-md-4 mt-2">
+          <label>Margen de ganancia (%) - opcional</label>
+          <select name="map_margin" class="form-control">
+            <option value="">-- Ninguna --</option>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+          <small class="text-muted">Ej: 30 para 30%. Default: 0</small>
+        </div>
       </div>
 
       <!-- Campos Clientes -->

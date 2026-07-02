@@ -22,7 +22,7 @@ import openpyxl
 OPENPYXL_AVAILABLE = True
 
 from core.erp.forms import ProductForm
-from core.erp.models import Product, Category, Company
+from core.erp.models import Product, Category, Company, Supplier
 from core.erp.mixins import ValidatePermissionRequiredMixin
 from core.erp.services.server_sync_service import ServerSyncService
 
@@ -1270,6 +1270,9 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
             map_unit = request.POST.get('map_unit')
             map_stock = request.POST.get('map_stock')
             map_company = request.POST.get('map_company')
+            map_supplier = request.POST.get('map_supplier')
+            map_codigo_proveedor = request.POST.get('map_codigo_proveedor')
+            map_margin = request.POST.get('map_margin')
 
             def parse_number(val):
                 """Parsea valores numéricos en formato argentino o internacional.
@@ -1363,6 +1366,20 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                 # Generar nuevo código con 3 dígitos
                 new_num = max_num + 1
                 return f"{prefix}{new_num:03d}"
+
+            # Pre-cargar proveedores por nombre para evitar queries repetidas
+            supplier_names = set()
+            if map_supplier:
+                for _, row in df.iterrows():
+                    if pd.isna(row.get(map_supplier)):
+                        continue
+                    sname = str(row[map_supplier]).strip()
+                    if sname:
+                        supplier_names.add(sname)
+            existing_suppliers = Supplier.objects.filter(name__in=supplier_names)
+            if active_cid:
+                existing_suppliers = existing_suppliers.filter(company_id=active_cid)
+            suppliers_by_name = {s.name: s for s in existing_suppliers}
 
             # Pre-cargar categorías por nombre y empresa
             cat_names = set()
@@ -1492,6 +1509,31 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                         elif not company_id:
                             import_logger.warning(f"Fila {idx+1}: No se pudo determinar empresa para el producto '{code}'")
 
+                    # Proveedor (opcional): buscar por nombre, si no existe se ignora
+                    supplier_obj = None
+                    if map_supplier and not pd.isna(row.get(map_supplier)):
+                        sup_name = str(row.get(map_supplier)).strip()
+                        if sup_name:
+                            supplier_obj = suppliers_by_name.get(sup_name)
+                            if not supplier_obj:
+                                supplier_obj = Supplier.objects.filter(name__iexact=sup_name).first()
+                                if supplier_obj:
+                                    suppliers_by_name[sup_name] = supplier_obj
+
+                    # Código de proveedor (opcional)
+                    codigo_prov = None
+                    if map_codigo_proveedor and not pd.isna(row.get(map_codigo_proveedor)):
+                        raw_cod = str(row.get(map_codigo_proveedor)).strip()
+                        if raw_cod:
+                            codigo_prov = raw_cod
+
+                    # Margen de ganancia (opcional, default 0)
+                    margin_pct = 0
+                    if map_margin and not pd.isna(row.get(map_margin)):
+                        parsed_margin = parse_number(row.get(map_margin))
+                        if parsed_margin is not None:
+                            margin_pct = parsed_margin
+
                     # Upsert por código
                     prod = products_by_code.get(code)
                     if prod is None:
@@ -1505,6 +1547,11 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                             company_id=company_id,
                             synced_to_server=False,  # Marcar para sincronizar
                         )
+                        if supplier_obj:
+                            prod.supplier = supplier_obj
+                        if codigo_prov:
+                            prod.codigo_proveedor = codigo_prov
+                        prod.margin_percentage = margin_pct
                         if iva_rate is not None:
                             prod.iva_rate = iva_rate
                         # Solo asignar pvp_final si se proporcionó un valor
@@ -1526,6 +1573,11 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                             prod.pvp_final = pvp_final
                         prod.unit = unit
                         prod.stock = stock
+                        if supplier_obj:
+                            prod.supplier = supplier_obj
+                        if codigo_prov:
+                            prod.codigo_proveedor = codigo_prov
+                        prod.margin_percentage = margin_pct
                         prod.stock_modified_locally = timezone.now()  # Marcar modificación de stock
                         if company_id:
                             prod.company_id = company_id
