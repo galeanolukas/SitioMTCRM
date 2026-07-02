@@ -1333,6 +1333,18 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
 
             existing_products = Product.objects.filter(code__in=codes_in_file)
             products_by_code = {p.code: p for p in existing_products}
+
+            # Pre-cargar productos existentes por nombre para evitar violacion de unique
+            names_in_file = set()
+            for _, row in df.iterrows():
+                raw_n = row.get(map_name)
+                if pd.isna(raw_n):
+                    continue
+                n = str(raw_n).strip()
+                if n:
+                    names_in_file.add(n)
+            existing_by_name = Product.objects.filter(name__in=names_in_file)
+            products_by_name = {p.name: p for p in existing_by_name}
             
             # Función para generar código automático si está vacío
             def generate_auto_code(name, company_id=None):
@@ -1533,8 +1545,14 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                         if parsed_margin is not None:
                             margin_pct = parsed_margin
 
-                    # Upsert por código
+                    # Upsert: primero por código, luego por nombre (unique constraint)
                     prod = products_by_code.get(code)
+                    if prod is None and name:
+                        prod = products_by_name.get(name)
+                        if prod is None:
+                            prod = Product.objects.filter(name=name).first()
+                            if prod:
+                                products_by_name[name] = prod
                     if prod is None:
                         prod = Product(
                             code=code,
