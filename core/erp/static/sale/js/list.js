@@ -191,35 +191,6 @@ $(function () {
 
     const detailRows = [];
 
-    // Botón Eliminar todos
-    $('#btnDeleteAll').on('click', function () {
-        new bootstrap.Modal(document.getElementById('modalDeleteAll')).show();
-    });
-
-    $('#btnConfirmDeleteAll').on('click', function () {
-        var btn = $(this);
-        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Eliminando...');
-        $.ajax({
-            url: window.location.pathname,
-            type: 'POST',
-            data: { 'action': 'delete_all' },
-            headers: { 'X-CSRFToken': getCookie('csrftoken') },
-            dataType: 'json'
-        }).done(function (resp) {
-            bootstrap.Modal.getInstance(document.getElementById('modalDeleteAll')).hide();
-            if (resp.success) {
-                tblSale.ajax.reload(null, false);
-                alert('Se eliminaron ' + resp.count + ' ventas correctamente.');
-            } else {
-                alert(resp.error || 'Error al eliminar las ventas');
-            }
-        }).fail(function (jqXHR, textStatus, errorThrown) {
-            alert('Error: ' + (jqXHR.responseJSON ? jqXHR.responseJSON.error : textStatus));
-        }).always(function () {
-            btn.prop('disabled', false).html('<i class="fas fa-trash-alt"></i> Sí, eliminar todas');
-        });
-    });
-
     $('#data tbody')
         .on('click', 'a[rel="invoice"]', function () {
             var tr = tblSale.cell($(this).closest('td, li')).index();

@@ -4,6 +4,14 @@
     <script src="{% static 'category/js/list.js' %}"></script>
 {% endblock %}
 
+{% block buttons_list %}
+    <a href="{{ create_url }}" class="btn btn-primary btn-flat"><i class="fas fa-plus"></i> Nuevo registro</a>
+    <a href="{{ list_url }}" class="btn btn-success btn-flat"><i class="fas fa-sync"></i> Actualizar</a>
+    <button type="button" class="btn btn-danger btn-flat" id="btnDeleteAll" data-bs-toggle="modal" data-bs-target="#modalDeleteAll">
+        <i class="fas fa-trash-alt"></i> Eliminar todos
+    </button>
+{% endblock %}
+
 {% block columns %}
     <tr>
         <th scope="col" style="width: 1%;">Nro</th>
@@ -19,5 +27,70 @@
 {% endblock %}
 
 {% block javascript %}
+<script type="application/javascript">
+$(function () {
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
 
+    $(document).on('click', '#btnConfirmDeleteAll', function () {
+        var btn = $(this);
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Eliminando...');
+        $.ajax({
+            url: window.location.pathname,
+            type: 'POST',
+            data: {
+                'action': 'delete_all',
+                'csrfmiddlewaretoken': getCookie('csrftoken')
+            },
+            dataType: 'json'
+        }).done(function (resp) {
+            $('#modalDeleteAll').modal('hide');
+            if (resp.success) {
+                $('#data').DataTable().ajax.reload(null, false);
+                alert('Se eliminaron ' + resp.count + ' categorías correctamente.');
+            } else {
+                alert(resp.error || 'Error al eliminar las categorías');
+            }
+        }).fail(function (jqXHR, textStatus, errorThrown) {
+            alert('Error: ' + (jqXHR.responseJSON ? jqXHR.responseJSON.error : textStatus));
+        }).always(function () {
+            btn.prop('disabled', false).html('<i class="fas fa-trash-alt"></i> Sí, eliminar todas');
+        });
+    });
+});
+</script>
+
+<!-- Modal confirmación eliminar todos -->
+<div class="modal fade" id="modalDeleteAll" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-danger">
+        <h5 class="modal-title text-white"><i class="fas fa-exclamation-triangle"></i> Eliminar todas las categorías</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p>¿Está seguro que desea eliminar <strong>todas</strong> las categorías?</p>
+        <p class="text-danger small"><i class="fas fa-warning"></i> Esta acción no se puede deshacer.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-flat" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-danger btn-flat" id="btnConfirmDeleteAll">
+          <i class="fas fa-trash-alt"></i> Sí, eliminar todas
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}

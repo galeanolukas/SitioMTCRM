@@ -108,14 +108,12 @@ class ProductListView(ValidatePermissionRequiredMixin, LoginRequiredMixin, ListV
                 if not request.user.is_superuser:
                     active_cid = active_cid or getattr(request.user, 'company_id', None)
                 
-                if not active_cid:
-                    data = {'error': 'No se puede determinar la empresa activa'}
-                else:
-                    qs = Product.objects.filter(company_id=active_cid)
-                    count = qs.count()
-                    qs.delete()
-                    data = {'success': f'Se eliminaron {count} productos correctamente'}
-                    print(f"DEBUG Product: Deleted {count} products from company {active_cid}")
+                qs = Product.objects.all()
+                if active_cid:
+                    qs = qs.filter(company_id=active_cid)
+                count = qs.count()
+                qs.delete()
+                data = {'success': True, 'count': count}
             else:
                 data = {'error': 'Ha ocurrido un error'}
         except Exception as e:

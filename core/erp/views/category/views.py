@@ -37,6 +37,11 @@ class CategoryListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, List
                 qs = self.get_queryset()
                 for i in qs:
                     data.append(i.toJSON())
+            elif action == "delete_all":
+                qs = self.get_queryset()
+                count = qs.count()
+                qs.delete()
+                data = {'success': True, 'count': count}
             else:
                 data["error"] = "Ha ocurrido un error"
         except Exception as e:
