@@ -1,116 +1,73 @@
-{% extends 'vtc/body.html' %}
+{% extends 'base/list.html' %}
+{% load static %}
 {% load currency_filters %}
-{% block content %}
-<div class="content p-3">
-  <div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-2">
-      <h3 class="mb-0">{{ title }}</h3>
-      <div class="d-flex gap-2">
-        <button type="button" class="btn btn-warning" onclick="deleteDuplicateExpenses()">
-          <i class="fas fa-trash-alt mr-1"></i> Eliminar Duplicados
-        </button>
-        <a href="{% url 'erp:expense_export' %}?format=pdf{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}" class="btn btn-danger">
-          <i class="fas fa-file-pdf mr-1"></i> Exportar PDF
-        </a>
-        <a href="{% url 'erp:expense_export' %}?format=excel{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}" class="btn btn-success">
-          <i class="fas fa-file-excel mr-1"></i> Exportar Excel
-        </a>
-        <a href="{% url 'erp:expense_export' %}?format=csv{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}" class="btn btn-info">
-          <i class="fas fa-file-csv mr-1"></i> Exportar CSV
-        </a>
-        <a class="btn btn-primary" href="{% url 'erp:expense_create' %}">
-          <i class="fas fa-plus mr-1"></i> Nuevo Gasto/Compra
-        </a>
-      </div>
-    </div>
 
-    <!-- Date Range Filters -->
-    <div class="card mb-3">
-      <div class="card-body">
-        <form method="GET" class="row g-3">
-          <div class="col-md-3">
-            <label for="period" class="form-label">Período</label>
-            <select name="period" id="period" class="form-select" onchange="handlePeriodChange()">
-              <option value="">Personalizado</option>
-              <option value="today" {% if request.GET.period == 'today' %}selected{% endif %}>Hoy</option>
-              <option value="week" {% if request.GET.period == 'week' %}selected{% endif %}>Esta semana</option>
-              <option value="month" {% if request.GET.period == 'month' %}selected{% endif %}>Este mes</option>
-            </select>
-          </div>
-          <div class="col-md-3">
-            <label for="start_date" class="form-label">Fecha Inicio</label>
-            <input type="date" name="start_date" id="start_date" class="form-control" value="{{ request.GET.start_date }}">
-          </div>
-          <div class="col-md-3">
-            <label for="end_date" class="form-label">Fecha Fin</label>
-            <input type="date" name="end_date" id="end_date" class="form-control" value="{{ request.GET.end_date }}">
-          </div>
-          <div class="col-md-3">
-            <label class="form-label">&nbsp;</label>
-            <div class="d-flex gap-2">
-              <button type="submit" class="btn btn-outline-primary">
-                <i class="fas fa-filter mr-1"></i> Filtrar
-              </button>
-              <a href="{% url 'erp:expense_list' %}" class="btn btn-outline-secondary">
-                <i class="fas fa-times mr-1"></i> Limpiar
-              </a>
-            </div>
-          </div>
-        </form>
-      </div>
-    </div>
+{% block head_list %}
+    <script src="{% static 'expense/js/list.js' %}"></script>
+{% endblock %}
 
-    <div class="card">
-      <div class="card-body table-responsive p-0">
-        <table class="table table-hover">
-          <thead>
-            <tr>
-              <th>Fecha</th>
-              <th>Proveedor</th>
-              <th>Descripción</th>
-              <th class="text-right">Importe</th>
-              <th>Pagado por</th>
-              <th>Comprobante</th>
-              <th class="text-right">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for obj in object_list %}
-            <tr>
-              <td>{{ obj.date|date:"Y-m-d" }}</td>
-              <td>{{ obj.supplier.name|default:"—" }}</td>
-              <td>{{ obj.description|default:"—" }}</td>
-              <td class="text-right">{{ obj.amount|currency }}</td>
-              <td>{{ obj.payer|default:"—" }}</td>
-              <td>
-                {% if obj.receipt %}
-                  <a href="{{ obj.receipt.url }}" target="_blank" class="btn btn-sm btn-outline-secondary">
+{% block buttons_list %}
+    <button type="button" class="btn btn-warning btn-flat" onclick="deleteDuplicateExpenses()">
+        <i class="fas fa-trash-alt"></i> Eliminar Duplicados
+    </button>
+    <a href="{% url 'erp:expense_export' %}?format=pdf{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}" class="btn btn-danger btn-flat">
+        <i class="fas fa-file-pdf"></i> Exportar PDF
+    </a>
+    <a href="{% url 'erp:expense_export' %}?format=excel{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}" class="btn btn-success btn-flat">
+        <i class="fas fa-file-excel"></i> Exportar Excel
+    </a>
+    <a href="{% url 'erp:expense_export' %}?format=csv{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}" class="btn btn-info btn-flat">
+        <i class="fas fa-file-csv"></i> Exportar CSV
+    </a>
+    <a class="btn btn-primary btn-flat" href="{% url 'erp:expense_create' %}">
+        <i class="fas fa-plus"></i> Nuevo Gasto/Compra
+    </a>
+{% endblock %}
+
+{% block columns %}
+    <tr>
+        <th scope="col" style="width: 12%;">Fecha</th>
+        <th scope="col" style="width: 18%;">Proveedor</th>
+        <th scope="col" style="width: 25%;">Descripción</th>
+        <th scope="col" style="width: 12%;">Importe</th>
+        <th scope="col" style="width: 12%;">Pagado por</th>
+        <th scope="col" style="width: 10%;">Comprobante</th>
+        <th scope="col" style="width: 11%;">Acciones</th>
+    </tr>
+{% endblock %}
+
+{% block rows %}
+    {% for obj in object_list %}
+    <tr>
+        <td>{{ obj.date|date:"Y-m-d" }}</td>
+        <td>{{ obj.supplier.name|default:"—" }}</td>
+        <td>{{ obj.description|default:"—" }}</td>
+        <td class="text-right">{{ obj.amount|currency }}</td>
+        <td>{{ obj.payer|default:"—" }}</td>
+        <td>
+            {% if obj.receipt %}
+                <a href="{{ obj.receipt.url }}" target="_blank" class="btn btn-sm btn-info btn-flat">
                     <i class="fas fa-file"></i> Ver
-                  </a>
-                {% else %}
-                  —
-                {% endif %}
-              </td>
-              <td class="text-right">
-                <a href="{% url 'erp:expense_update' obj.id %}" class="btn btn-sm btn-info">
-                  <i class="fas fa-edit"></i>
                 </a>
-                <a href="{% url 'erp:expense_delete' obj.id %}" class="btn btn-sm btn-danger">
-                  <i class="fas fa-trash"></i>
-                </a>
-              </td>
-            </tr>
-            {% empty %}
-            <tr><td colspan="7" class="text-center text-muted p-3">Sin registros</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
+            {% else %}
+                —
+            {% endif %}
+        </td>
+        <td class="text-center">
+            <a href="{% url 'erp:expense_update' obj.id %}" class="btn btn-sm btn-warning btn-flat" title="Editar">
+                <i class="fas fa-edit"></i>
+            </a>
+            <a href="{% url 'erp:expense_delete' obj.id %}" class="btn btn-sm btn-danger btn-flat" title="Eliminar">
+                <i class="fas fa-trash"></i>
+            </a>
+        </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="7" class="text-center text-muted p-3">Sin registros</td></tr>
+    {% endfor %}
+{% endblock %}
 
-  </div>
-</div>
-
+{% block javascript %}
 <script>
 function handlePeriodChange() {
     const period = document.getElementById('period').value;
@@ -157,13 +114,11 @@ function deleteDuplicateExpenses() {
         return;
     }
     
-    // Mostrar loading
     const btn = event.target;
     const originalText = btn.innerHTML;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Eliminando...';
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Eliminando...';
     btn.disabled = true;
     
-    // Enviar solicitud AJAX
     fetch('.', {
         method: 'POST',
         headers: {
@@ -176,7 +131,6 @@ function deleteDuplicateExpenses() {
     .then(data => {
         if (data.success) {
             alert(data.message || 'Operación completada');
-            // Recargar la página para mostrar los cambios
             location.reload();
         } else {
             alert('Error: ' + (data.error || 'Ha ocurrido un error desconocido'));
@@ -187,13 +141,11 @@ function deleteDuplicateExpenses() {
         alert('Error de conexión. Por favor, inténtelo nuevamente.');
     })
     .finally(() => {
-        // Restaurar botón
         btn.innerHTML = originalText;
         btn.disabled = false;
     });
 }
 
-// Función para obtener CSRF token
 function getCookie(name) {
     let cookieValue = null;
     if (document.cookie && document.cookie !== '') {
@@ -209,5 +161,4 @@ function getCookie(name) {
     return cookieValue;
 }
 </script>
-
 {% endblock %}

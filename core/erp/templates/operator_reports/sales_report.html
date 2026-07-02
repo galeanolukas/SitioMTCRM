@@ -1,4 +1,4 @@
-{% extends 'vtc/body.html' %}
+{% extends 'base/form.html' %}
 {% load static %}
 
 <!-- CSS responsive para tabla y botones -->
@@ -6,24 +6,16 @@
 <link rel="stylesheet" href="{% static 'operator_reports/css/buttons-layout.css' %}">
 
 {% block content %}
-<div class="container-fluid">
-    <div class="content-header">
-        <div class="row mb-2">
-            <div class="col-sm-6">
-                <h1 class="m-0">Planilla de Ventas</h1>
-            </div>
-            <div class="col-sm-6">
-                <ol class="breadcrumb float-sm-right">
-                    <li class="breadcrumb-item"><a href="{% url 'erp:dashboard' %}">Inicio</a></li>
-                    <li class="breadcrumb-item active">Planilla de Ventas</li>
-                </ol>
-            </div>
-        </div>
+<div class="card card-primary">
+    <div class="card-header">
+        <h3 class="card-title">
+            <i class="fas fa-chart-line"></i>
+            Planilla de Ventas
+        </h3>
     </div>
-
-    <section class="content">
+    <div class="card-body">
         <!-- Filtros -->
-        <div class="card">
+        <div class="card card-default mb-3">
             <div class="card-header">
                 <h3 class="card-title">Filtros</h3>
             </div>
@@ -79,7 +71,7 @@
                         <div class="col-md-2">
                             <div class="form-group">
                                 <label>&nbsp;</label>
-                                <button type="button" class="btn generate-btn btn-block" onclick="getReport()">
+                                <button type="button" class="btn btn-primary btn-flat btn-block" onclick="getReport()">
                                     <i class="fas fa-search"></i> Generar
                                 </button>
                             </div>
@@ -103,13 +95,14 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
                     
                     <!-- Fila para botones adicionales (Cta. Corriente) -->
                     {% if request.user.is_superuser or perms.erp.manage_employee_accounts %}
                     <div class="row mt-2">
                         <div class="col-12">
                             <div class="d-flex justify-content-end">
-                                <a href="{% url 'erp:employee_account_list' %}" class="btn cta-btn" title="Cuentas Corrientes de Empleados">
+                                <a href="{% url 'erp:employee_account_list' %}" class="btn btn-info btn-flat" title="Cuentas Corrientes de Empleados">
                                     <i class="fas fa-user-clock"></i> Cta. Corriente
                                 </a>
                             </div>
@@ -121,7 +114,7 @@
         </div>
 
         <!-- Tabla de Ventas -->
-        <div class="card">
+        <div class="card card-default">
             <div class="card-header">
                 <h3 class="card-title">Registro de Ventas</h3>
             </div>
@@ -187,7 +180,7 @@
                                         Conforme con el registro
                                     </label>
                                 </div>
-                                <button type="button" class="btn btn-primary mt-2" onclick="saveConformity()">
+                                <button type="button" class="btn btn-primary btn-flat mt-2" onclick="saveConformity()">
                                     <i class="fas fa-save"></i> Guardar Conformidad
                                 </button>
                             </div>
@@ -196,7 +189,7 @@
                 </div>
             </div>
         </div>
-    </section>
+    </div>
 </div>
 
 <script>

@@ -1,66 +1,60 @@
-{% extends 'vtc/body.html' %}
-{% block content %}
-<div class="card">
-  <div class="card-header d-flex justify-content-between align-items-center">
-    <h3 class="card-title">Usuarios {% if request.session.company_id %}(Empresa activa){% endif %}</h3>
-    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalCreateUser">
-      <i class="fas fa-plus"></i> Nuevo Usuario
-    </button>
-  </div>
-  <div class="card-body">
-    <div class="table-responsive">
-      <table class="table table-sm table-striped">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Usuario</th>
-            <th>Nombre</th>
-            <th>Email</th>
-            <th>Empresa</th>
-            <th>Superuser</th>
-            <th>Activo</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for u in users %}
-          <tr>
-            <td>{{ u.id }}</td>
-            <td>{{ u.username }}</td>
-            <td>{{ u.get_full_name|default:u.username }}</td>
-            <td>{{ u.email }}</td>
-            <td>{% if u.company %}{{ u.company.name }}{% else %}-{% endif %}</td>
-            <td>{{ u.is_superuser|yesno:"Sí,No" }}</td>
-            <td>{{ u.is_active|yesno:"Sí,No" }}</td>
-            <td>
-              <div class="d-flex gap-1">
-                <a href="{% url 'user:edit' u.id %}" class="btn btn-sm btn-primary" title="Editar perfil y empresa">
-                  <i class="fas fa-user-edit"></i>
-                </a>
-                <form method="post" action="{% url 'user:toggle_active' u.id %}" style="display:inline-block;">
-                  {% csrf_token %}
-                  <button class="btn btn-sm {% if u.is_active %}btn-warning{% else %}btn-success{% endif %}" {% if u.id == request.user.id %}disabled title="No puedes desactivarte a ti mismo"{% else %}title="{% if u.is_active %}Desactivar{% else %}Activar{% endif %} usuario"{% endif %}>
-                    {% if u.is_active %}<i class="fas fa-ban"></i>{% else %}<i class="fas fa-check"></i>{% endif %}
-                  </button>
-                </form>
-                <form method="post" action="{% url 'user:delete' u.id %}" style="display:inline-block;" onsubmit="return confirm('¿Eliminar usuario {{ u.username }}? Esta acción no se puede deshacer.');">
-                  {% csrf_token %}
-                  <button class="btn btn-sm btn-danger" {% if u.id == request.user.id %}disabled title="No puedes eliminarte a ti mismo"{% else %}title="Eliminar usuario"{% endif %}>
-                    <i class="fas fa-trash-alt"></i>
-                  </button>
-                </form>
-              </div>
-            </td>
-          </tr>
-          {% empty %}
-          <tr><td colspan="8" class="text-center">Sin usuarios</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-</div>
+{% extends 'base/list.html' %}
 
+{% block buttons_list %}
+  <button class="btn btn-primary btn-flat" data-bs-toggle="modal" data-bs-target="#modalCreateUser">
+    <i class="fas fa-plus"></i> Nuevo Usuario
+  </button>
+{% endblock %}
+
+{% block columns %}
+  <tr>
+    <th scope="col" style="width: 8%;">ID</th>
+    <th scope="col" style="width: 15%;">Usuario</th>
+    <th scope="col" style="width: 15%;">Nombre</th>
+    <th scope="col" style="width: 20%;">Email</th>
+    <th scope="col" style="width: 12%;">Empresa</th>
+    <th scope="col" style="width: 8%;">Superuser</th>
+    <th scope="col" style="width: 8%;">Activo</th>
+    <th scope="col" style="width: 14%;">Acciones</th>
+  </tr>
+{% endblock %}
+
+{% block rows %}
+  {% for u in users %}
+  <tr>
+    <td>{{ u.id }}</td>
+    <td>{{ u.username }}</td>
+    <td>{{ u.get_full_name|default:u.username }}</td>
+    <td>{{ u.email }}</td>
+    <td>{% if u.company %}{{ u.company.name }}{% else %}-{% endif %}</td>
+    <td>{{ u.is_superuser|yesno:"Sí,No" }}</td>
+    <td>{{ u.is_active|yesno:"Sí,No" }}</td>
+    <td class="text-center">
+      <div class="d-flex gap-1 justify-content-center">
+        <a href="{% url 'user:edit' u.id %}" class="btn btn-sm btn-primary btn-flat" title="Editar perfil y empresa">
+          <i class="fas fa-user-edit"></i>
+        </a>
+        <form method="post" action="{% url 'user:toggle_active' u.id %}" style="display:inline-block;">
+          {% csrf_token %}
+          <button class="btn btn-sm {% if u.is_active %}btn-warning{% else %}btn-success{% endif %} btn-flat" {% if u.id == request.user.id %}disabled title="No puedes desactivarte a ti mismo"{% else %}title="{% if u.is_active %}Desactivar{% else %}Activar{% endif %} usuario"{% endif %}>
+            {% if u.is_active %}<i class="fas fa-ban"></i>{% else %}<i class="fas fa-check"></i>{% endif %}
+          </button>
+        </form>
+        <form method="post" action="{% url 'user:delete' u.id %}" style="display:inline-block;" onsubmit="return confirm('¿Eliminar usuario {{ u.username }}? Esta acción no se puede deshacer.');">
+          {% csrf_token %}
+          <button class="btn btn-sm btn-danger btn-flat" {% if u.id == request.user.id %}disabled title="No puedes eliminarte a ti mismo"{% else %}title="Eliminar usuario"{% endif %}>
+            <i class="fas fa-trash-alt"></i>
+          </button>
+        </form>
+      </div>
+    </td>
+  </tr>
+  {% empty %}
+  <tr><td colspan="8" class="text-center">Sin usuarios</td></tr>
+  {% endfor %}
+{% endblock %}
+
+{% block javascript %}
 <!-- Modal para crear usuario -->
 <div class="modal fade" id="modalCreateUser" tabindex="-1" aria-labelledby="modalCreateUserLabel" aria-hidden="true">
   <div class="modal-dialog">
@@ -123,7 +117,7 @@
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="submit" class="btn btn-primary">
+          <button type="submit" class="btn btn-primary btn-flat">
             <i class="fas fa-save"></i> Guardar
           </button>
         </div>

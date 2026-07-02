@@ -1,9 +1,9 @@
-{% extends 'vtc/body.html' %}
+{% extends 'base/form.html' %}
 {% load static %}
 {% block content %}
-<div class="card">
+<div class="card card-primary">
   <div class="card-header">
-    <h3 class="card-title">Importar inventario</h3>
+    <h3 class="card-title"><i class="fas fa-file-import"></i> Importar inventario</h3>
   </div>
   <div class="card-body">
     <!-- Botones principales -->
@@ -15,7 +15,7 @@
               <i class="fas fa-file-excel"></i> Importar desde Archivo
             </h5>
             <p class="card-text">Importa productos desde un archivo Excel o CSV</p>
-            <button type="button" class="btn btn-primary" onclick="showFileImport()">
+            <button type="button" class="btn btn-primary btn-flat" onclick="showFileImport()">
               <i class="fas fa-upload"></i> Importar Archivo
             </button>
           </div>
@@ -28,7 +28,7 @@
               <i class="fas fa-download"></i> Importar del Servidor
             </h5>
             <p class="card-text">Importa productos desde el servidor remoto</p>
-            <button type="button" class="btn btn-success" onclick="importFromServer()">
+            <button type="button" class="btn btn-success btn-flat" onclick="importFromServer()">
               <i class="fas fa-cloud-download-alt"></i> Importar del Servidor
             </button>
           </div>
@@ -82,8 +82,8 @@
             <option value="analyze_supplier">Analizar lista de proveedor</option>
           </select>
         </div>
-        <button type="submit" class="btn btn-primary">Enviar</button>
-        <a href="{% url 'erp:product_list' %}" class="btn btn-secondary ml-2">Volver</a>
+        <button type="submit" class="btn btn-primary btn-flat">Enviar</button>
+        <a href="{% url 'erp:product_list' %}" class="btn btn-secondary btn-flat ml-2">Volver</a>
       </form>
     </div>
 
@@ -315,7 +315,7 @@
       </div>
 
       <div class="mt-3">
-        <button class="btn btn-success" id="importBtn"><i class="fas fa-upload"></i> Importar</button>
+        <button class="btn btn-success btn-flat" id="importBtn"><i class="fas fa-upload"></i> Importar</button>
         <small class="text-muted ml-2" id="importHint">Se crearán nuevos productos o actualizarán los existentes según el código</small>
       </div>
     </form>
@@ -414,7 +414,9 @@
     </div>
   </div>
 </div>
+{% endblock %}
 
+{% block javascript %}
 <script>
 function showFileImport() {
   document.getElementById('fileImportSection').style.display = 'block';
@@ -639,5 +641,4 @@ function executeImport() {
   }, 2000);
 }
 </script>
-
 {% endblock %}

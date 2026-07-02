@@ -1,309 +1,425 @@
-{% extends 'vtc/body.html' %}
+{% extends 'base/form.html' %}
 {% load static %}
 
-{% block head %}
-<link href="{% static 'lib/select2-4.0.13/css/select2.min.css' %}" rel="stylesheet" />
-<link href="{% static 'lib/select2-4.0.13/css/select2-bootstrap-5-theme.min.css' %}" rel="stylesheet" />
+{% block head_form %}
+  <link href="{% static 'lib/select2-4.0.13/css/select2.min.css' %}" rel="stylesheet" />
+  <link href="{% static 'lib/select2-4.0.13/css/select2-bootstrap-5-theme.min.css' %}" rel="stylesheet" />
+  <script src="{% static 'lib/select2-4.0.13/js/select2.min.js' %}"></script>
+  <script src="{% static 'lib/select2-4.0.13/js/i18n/es.js' %}"></script>
 {% endblock %}
 
 {% block content %}
-<div class="content-wrapper">
-  <section class="content-header">
-    <div class="container-fluid">
-      <div class="row mb-2">
-        <div class="col-sm-6">
-          <h1 class="m-0">{{ title }}</h1>
-        </div>
-        <div class="col-sm-6">
-          <ol class="breadcrumb float-sm-right">
-            <li class="breadcrumb-item"><a href="{% url 'erp:launcher' %}">Inicio</a></li>
-            <li class="breadcrumb-item"><a href="{{ list_url }}">{{ entity }}</a></li>
-            <li class="breadcrumb-item active">{{ title }}</li>
-          </ol>
-        </div>
+  <form method="post" action="." enctype="multipart/form-data">
+    <div class="card card-primary">
+      <div class="card-header">
+        <h3 class="card-title">
+          {% if action == 'add' %}
+            <i class="fas fa-plus"></i>
+          {% else %}
+            <i class="fas fa-edit"></i>
+          {% endif %}
+          {{ title }}
+        </h3>
       </div>
-    </div>
-  </section>
+      <div class="card-body">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="{{ action }}" />
+        <div id="error-block"></div>
+        <div id="success-block"></div>
 
-  <section class="content">
-    <div class="container-fluid">
-      <div class="card">
-        <div class="card-body">
-          <form method="post" id="remitoForm">
-            {% csrf_token %}
-            <div class="row">
-              <div class="col-md-6">
-                <div class="form-group">
-                  <label>{{ form.supplier.label }}</label>
-                  {{ form.supplier }}
-                </div>
-              </div>
-              <div class="col-md-6">
-                <div class="form-group">
-                  <label>{{ form.numero.label }}</label>
-                  {{ form.numero }}
-                </div>
-              </div>
-            </div>
-            <div class="row">
-              <div class="col-md-6">
-                <div class="form-group">
-                  <label>{{ form.fecha.label }}</label>
-                  {{ form.fecha }}
-                </div>
-              </div>
-              <div class="col-md-6">
-                <div class="form-group">
-                  <label>{{ form.estado.label }}</label>
-                  {{ form.estado }}
-                </div>
-              </div>
-            </div>
+        <div class="row">
+          <div class="col-md-4">
             <div class="form-group">
-              <label>{{ form.observaciones.label }}</label>
-              {{ form.observaciones }}
+              <label>{{ form.tipo.label }}</label>
+              {{ form.tipo }}
             </div>
-
-            <hr>
-            <h4>Productos</h4>
-            <div class="row mb-3">
-              <div class="col-md-4">
-                <select id="productSelect" class="form-select">
-                  <option value="">Buscar producto...</option>
-                </select>
-              </div>
-              <div class="col-md-2">
-                <input type="number" id="cantidad" class="form-control" placeholder="Cantidad" step="0.001" min="0">
-              </div>
-              <div class="col-md-2">
-                <input type="number" id="precioUnitario" class="form-control" placeholder="Precio" step="0.01" min="0">
-              </div>
-              <div class="col-md-2">
-                <button type="button" onclick="agregarProducto()" class="btn btn-primary">
-                  <i class="fas fa-plus"></i> Agregar
-                </button>
-              </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-group">
+              <label>{{ form.supplier.label }}</label>
+              {{ form.supplier }}
             </div>
-
-            <table class="table table-bordered">
-              <thead>
-                <tr>
-                  <th>Producto</th>
-                  <th>Cantidad</th>
-                  <th>Precio Unitario</th>
-                  <th>Subtotal</th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
-              <tbody id="detallesTable">
-                <!-- Se llenará dinámicamente -->
-              </tbody>
-              <tfoot>
-                <tr>
-                  <th colspan="3" class="text-end">Total:</th>
-                  <th id="totalGeneral">$0.00</th>
-                  <th></th>
-                </tr>
-              </tfoot>
-            </table>
-
-            <div class="form-group mt-3">
-              <button type="submit" class="btn btn-success">
-                <i class="fas fa-save"></i> Guardar
-              </button>
-              <a href="{{ list_url }}" class="btn btn-secondary">
-                <i class="fas fa-times"></i> Cancelar
-              </a>
+          </div>
+          <div class="col-md-4">
+            <div class="form-group">
+              <label>{{ form.numero.label }}</label>
+              {{ form.numero }}
             </div>
-          </form>
+          </div>
         </div>
+        <div class="row">
+          <div class="col-md-6">
+            <div class="form-group">
+              <label>{{ form.fecha.label }}</label>
+              {{ form.fecha }}
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="form-group">
+              <label>{{ form.estado.label }}</label>
+              {{ form.estado }}
+            </div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>{{ form.observaciones.label }}</label>
+          {{ form.observaciones }}
+        </div>
+
+        <hr>
+        <h4>Productos</h4>
+        <div class="row mb-3">
+          <div class="col-md-4">
+            <select id="productSelect" class="form-select select2">
+              <option value="">Buscar producto...</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <input type="number" id="cantidad" class="form-control" placeholder="Cantidad" step="0.001" min="0">
+          </div>
+          <div class="col-md-2">
+            <input type="number" id="precioUnitario" class="form-control" placeholder="Precio" step="0.01" min="0">
+          </div>
+          <div class="col-md-2">
+            <button type="button" onclick="agregarProducto()" class="btn btn-primary btn-flat">
+              <i class="fas fa-plus"></i> Agregar
+            </button>
+          </div>
+          <div class="col-md-2">
+            <button type="button" onclick="mostrarModalNuevoProducto()" class="btn btn-success btn-flat">
+              <i class="fas fa-plus-circle"></i> Nuevo Producto
+            </button>
+          </div>
+        </div>
+
+        <table class="table table-bordered">
+          <thead>
+            <tr>
+              <th>Producto</th>
+              <th>Cantidad</th>
+              <th>Precio Unitario</th>
+              <th>Subtotal</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="detallesTable">
+            <!-- Se llenará dinámicamente -->
+          </tbody>
+          <tfoot>
+            <tr>
+              <th colspan="3" class="text-end">Total:</th>
+              <th id="totalGeneral">$0.00</th>
+              <th></th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <div class="card-footer">
+        <button type="submit" class="btn btn-primary btn-flat"><i class="fas fa-save"></i> Guardar registro</button>
+        <a href="{{ list_url }}" class="btn btn-danger btn-flat"><i class="fas fa-times"></i> Cancelar</a>
       </div>
     </div>
-  </section>
-</div>
+  </form>
 
-<input type="hidden" id="remitoId" value="{% if form.instance.id %}{{ form.instance.id }}{% endif %}">
+  <script>
+    let detalles = [];
 
-<script src="{% static 'lib/select2-4.0.13/js/select2.min.js' %}"></script>
+    $('form').on('submit', function (e) {
+      e.preventDefault();
+      
+      if (detalles.length === 0) {
+        alert('Agregue al menos un producto');
+        return;
+      }
+
+      const formData = new FormData(this);
+      
+      fetch(this.action, {
+        method: 'POST',
+        body: formData,
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.id) {
+          // Guardar detalles
+          const remitoId = data.id;
+          let promises = detalles.map(det => {
+            return fetch('/erp/remito/agregar-detalle/', {
+              method: 'POST',
+              headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                remito_id: remitoId,
+                prod_id: det.prod_id,
+                cantidad: det.cantidad,
+                precio_unitario: det.precio_unitario
+              })
+            });
+          });
+
+          Promise.all(promises)
+            .then(() => {
+              alert('Remito guardado exitosamente');
+              location.href = '{{ list_url }}';
+            })
+            .catch(error => {
+              alert('Error al guardar detalles: ' + error);
+            });
+        } else {
+          alert('Error al guardar remito');
+        }
+      })
+      .catch(error => {
+        // Si no es JSON, es un redirect normal
+        this.submit();
+      });
+    });
+  </script>
+{% endblock %}
+
+{% block javascript %}
 <script>
-let detalles = [];
-
-// Inicializar Select2 con búsqueda AJAX
-function initProductSelect() {
-  $('#productSelect').select2({
-    theme: 'bootstrap-5',
-    placeholder: 'Buscar producto...',
-    allowClear: true,
-    language: {
-      inputTooShort: function() { return 'Escriba al menos 2 caracteres'; },
-      noResults: function() { return 'No se encontraron productos'; },
-      searching: function() { return 'Buscando...'; }
-    },
-    ajax: {
-      url: '/erp/product/list/',
-      type: 'POST',
-      delay: 300,
-      data: function(params) {
-        return {
-          action: 'searchdata',
-          term: params.term || ''
-        };
-      },
-      headers: {
-        'X-CSRFToken': getCookie('csrftoken')
-      },
-      processResults: function(data) {
-        return {
-          results: data.map(function(prod) {
-            return {
-              id: prod.id,
-              text: prod.name + ' - $' + prod.pvp_final,
-              price: prod.pvp_final
-            };
-          })
-        };
-      },
-      cache: true
-    },
-    minimumInputLength: 0
-  });
-
-  // Auto-completar precio al seleccionar producto
-  $('#productSelect').on('select2:select', function(e) {
-    const data = e.params.data;
-    if (data.price) {
-      document.getElementById('precioUnitario').value = data.price;
-    }
-  });
-}
-
-function agregarProducto() {
-  const productId = document.getElementById('productSelect').value;
-  const cantidad = parseFloat(document.getElementById('cantidad').value);
-  const precioUnitario = parseFloat(document.getElementById('precioUnitario').value);
-
-  if (!productId || !cantidad || !precioUnitario) {
-    alert('Complete todos los campos');
-    return;
-  }
-
-  const producto = document.getElementById('productSelect').options[document.getElementById('productSelect').selectedIndex];
-  const subtotal = cantidad * precioUnitario;
-
-  const detalle = {
-    temp_id: Date.now(),
-    prod_id: productId,
-    prod_name: producto.textContent,
-    cantidad: cantidad,
-    precio_unitario: precioUnitario,
-    subtotal: subtotal
-  };
-
-  detalles.push(detalle);
-  renderDetalles();
-}
-
-function renderDetalles() {
-  const tbody = document.getElementById('detallesTable');
-  tbody.innerHTML = '';
-  let total = 0;
-
-  detalles.forEach((det, index) => {
-    total += det.subtotal;
-    const row = `
-      <tr>
-        <td>${det.prod_name}</td>
-        <td>${det.cantidad.toFixed(3)}</td>
-        <td>$${det.precio_unitario.toFixed(2)}</td>
-        <td>$${det.subtotal.toFixed(2)}</td>
-        <td>
-          <button type="button" onclick="eliminarDetalle(${det.temp_id})" class="btn btn-sm btn-danger">
-            <i class="fas fa-trash"></i>
-          </button>
-        </td>
-      </tr>
-    `;
-    tbody.innerHTML += row;
-  });
-
-  document.getElementById('totalGeneral').textContent = '$' + total.toFixed(2);
-}
-
-function eliminarDetalle(tempId) {
-  detalles = detalles.filter(d => d.temp_id !== tempId);
-  renderDetalles();
-}
-
-function getCookie(name) {
-  let cookieValue = null;
-  if (document.cookie && document.cookie !== '') {
-    const cookies = document.cookie.split(';');
-    for (let i = 0; i < cookies.length; i++) {
-      const cookie = cookies[i].trim();
-      if (cookie.substring(0, name.length + 1) === (name + '=')) {
-        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-        break;
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
       }
     }
-  }
-  return cookieValue;
-}
-
-// Guardar remito con detalles
-document.getElementById('remitoForm').addEventListener('submit', function(e) {
-  e.preventDefault();
-  
-  if (detalles.length === 0) {
-    alert('Agregue al menos un producto');
-    return;
+    return cookieValue;
   }
 
-  const formData = new FormData(this);
-  
-  fetch(this.action, {
-    method: 'POST',
-    body: formData,
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.id) {
-      // Guardar detalles
-      const remitoId = data.id;
-      let promises = detalles.map(det => {
-        return fetch('/erp/remito/agregar-detalle/', {
-          method: 'POST',
-          headers: {
-            'X-CSRFToken': getCookie('csrftoken'),
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            remito_id: remitoId,
-            prod_id: det.prod_id,
-            cantidad: det.cantidad,
-            precio_unitario: det.precio_unitario
-          })
-        });
-      });
+  $(function () {
+    // Inicializar select2
+    $('.select2').select2({
+      theme: 'bootstrap-5',
+      language: 'es',
+      placeholder: 'Buscar producto...',
+      allowClear: true
+    });
 
-      Promise.all(promises)
-        .then(() => {
-          alert('Remito guardado exitosamente');
-          window.location.href = '{{ list_url }}';
-        })
-        .catch(error => {
-          alert('Error al guardar detalles: ' + error);
-        });
-    } else {
-      alert('Error al guardar remito');
-    }
-  })
-  .catch(error => {
-    // Si no es JSON, es un redirect normal
-    this.submit();
+    // Inicializar Select2 con búsqueda AJAX
+    $('#productSelect').select2({
+      theme: 'bootstrap-5',
+      placeholder: 'Buscar producto...',
+      allowClear: true,
+      language: {
+        inputTooShort: function() { return 'Escriba al menos 2 caracteres'; },
+        noResults: function() { return 'No se encontraron productos'; },
+        searching: function() { return 'Buscando...'; }
+      },
+      ajax: {
+        url: '/erp/product/list/',
+        type: 'POST',
+        delay: 300,
+        data: function(params) {
+          return {
+            action: 'searchdata',
+            term: params.term || ''
+          };
+        },
+        headers: {
+          'X-CSRFToken': getCookie('csrftoken')
+        },
+        processResults: function(data) {
+          return {
+            results: data.map(function(prod) {
+              return {
+                id: prod.id,
+                text: prod.name + ' - $' + prod.pvp_final,
+                price: prod.pvp_final
+              };
+            })
+          };
+        },
+        cache: true
+      },
+      minimumInputLength: 0
+    });
+
+    // Auto-completar precio al seleccionar producto
+    $('#productSelect').on('select2:select', function(e) {
+      const data = e.params.data;
+      const tipo = $('#id_tipo').val();
+      if (tipo === 'entrada' && data.price) {
+        // Para entrada, usar precio de costo si está disponible
+        // Por ahora usamos el precio de venta como referencia
+        document.getElementById('precioUnitario').value = data.price;
+      } else if (data.price) {
+        document.getElementById('precioUnitario').value = data.price;
+      }
+    });
   });
-});
 
-// Inicializar Select2 al cargar la página
-document.addEventListener('DOMContentLoaded', initProductSelect);
+  function agregarProducto() {
+    const productId = document.getElementById('productSelect').value;
+    const cantidad = parseFloat(document.getElementById('cantidad').value);
+    const precioUnitario = parseFloat(document.getElementById('precioUnitario').value);
+
+    if (!productId || !cantidad || !precioUnitario) {
+      alert('Complete todos los campos');
+      return;
+    }
+
+    const producto = document.getElementById('productSelect').options[document.getElementById('productSelect').selectedIndex];
+    const subtotal = cantidad * precioUnitario;
+
+    const detalle = {
+      temp_id: Date.now(),
+      prod_id: productId,
+      prod_name: producto.textContent,
+      cantidad: cantidad,
+      precio_unitario: precioUnitario,
+      subtotal: subtotal
+    };
+
+    detalles.push(detalle);
+    renderDetalles();
+  }
+
+  function renderDetalles() {
+    const tbody = document.getElementById('detallesTable');
+    tbody.innerHTML = '';
+    let total = 0;
+
+    detalles.forEach((det, index) => {
+      total += det.subtotal;
+      const row = `
+        <tr>
+          <td>${det.prod_name}</td>
+          <td>${det.cantidad.toFixed(3)}</td>
+          <td>$${det.precio_unitario.toFixed(2)}</td>
+          <td>$${det.subtotal.toFixed(2)}</td>
+          <td>
+            <button type="button" onclick="eliminarDetalle(${det.temp_id})" class="btn btn-sm btn-danger btn-flat">
+              <i class="fas fa-trash"></i>
+            </button>
+          </td>
+        </tr>
+      `;
+      tbody.innerHTML += row;
+    });
+
+    document.getElementById('totalGeneral').textContent = '$' + total.toFixed(2);
+  }
+
+  function eliminarDetalle(tempId) {
+    detalles = detalles.filter(d => d.temp_id !== tempId);
+    renderDetalles();
+  }
+
+  function mostrarModalNuevoProducto() {
+    const tipo = document.getElementById('id_tipo').value;
+    if (tipo !== 'entrada') {
+      alert('Solo se pueden crear productos nuevos en remitos de entrada');
+      return;
+    }
+    
+    // Cargar categorías
+    fetch('/erp/category/list/', {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': getCookie('csrftoken'),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ action: 'searchdata', term: '' })
+    })
+    .then(response => response.json())
+    .then(data => {
+      const select = document.getElementById('nuevoProductoCategoria');
+      select.innerHTML = '<option value="">Seleccione categoría...</option>';
+      data.forEach(cat => {
+        const option = document.createElement('option');
+        option.value = cat.id;
+        option.textContent = cat.name;
+        select.appendChild(option);
+      });
+    });
+    
+    $('#modalNuevoProducto').modal('show');
+  }
+
+  function crearNuevoProducto() {
+    const nombre = document.getElementById('nuevoProductoNombre').value;
+    const categoria = document.getElementById('nuevoProductoCategoria').value;
+    const precioCosto = document.getElementById('nuevoProductoPrecioCosto').value;
+    
+    if (!nombre || !categoria || !precioCosto) {
+      alert('Complete todos los campos');
+      return;
+    }
+    
+    const formData = new FormData();
+    formData.append('action', 'add');
+    formData.append('name', nombre);
+    formData.append('category', categoria);
+    formData.append('cost_price', precioCosto);
+    formData.append('pvp', (parseFloat(precioCosto) * 1.3).toFixed(2));
+    formData.append('stock', 0);
+    
+    fetch('/erp/product/create/', {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': getCookie('csrftoken'),
+      },
+      body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.id) {
+        // Agregar producto al select y seleccionarlo
+        const option = new Option(nombre + ' - $' + data.pvp, data.id, true, true);
+        $('#productSelect').append(option).trigger('change');
+        document.getElementById('precioUnitario').value = precioCosto;
+        $('#modalNuevoProducto').modal('hide');
+        // Limpiar formulario
+        document.getElementById('nuevoProductoNombre').value = '';
+        document.getElementById('nuevoProductoPrecioCosto').value = '';
+      } else {
+        alert('Error al crear producto: ' + (data.error || 'Error desconocido'));
+      }
+    })
+    .catch(error => alert('Error: ' + error));
+  }
 </script>
+
+<!-- Modal para crear nuevo producto -->
+<div class="modal fade" id="modalNuevoProducto" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Crear Nuevo Producto</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group mb-3">
+          <label>Nombre del Producto</label>
+          <input type="text" id="nuevoProductoNombre" class="form-control" placeholder="Nombre">
+        </div>
+        <div class="form-group mb-3">
+          <label>Categoría</label>
+          <select id="nuevoProductoCategoria" class="form-select">
+            <option value="">Seleccione categoría...</option>
+            <!-- Se llenará dinámicamente -->
+          </select>
+        </div>
+        <div class="form-group mb-3">
+          <label>Precio de Costo</label>
+          <input type="number" id="nuevoProductoPrecioCosto" class="form-control" placeholder="0.00" step="0.01" min="0">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" onclick="crearNuevoProducto()" class="btn btn-success">Crear</button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}

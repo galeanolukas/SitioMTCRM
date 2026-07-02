@@ -1,215 +1,195 @@
-{% extends 'vtc/body.html' %}
+{% extends 'base/form.html' %}
 {% load static %}
 
 {% block content %}
-<div class="content-wrapper">
-  <section class="content-header">
-    <div class="container-fluid">
-      <div class="row mb-2">
-        <div class="col-sm-6">
-          <h1 class="m-0">{{ title|default:"Editar Usuario" }}</h1>
+{% if messages %}
+  {% for message in messages %}
+  <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+    {{ message }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  </div>
+  {% endfor %}
+{% endif %}
+
+<div class="row">
+  <!-- Columna izquierda: Avatar e info -->
+  <div class="col-md-4">
+    <div class="card card-primary">
+      <div class="card-header text-center">
+        <h3 class="card-title">Información del Usuario</h3>
+      </div>
+      <div class="card-body text-center">
+        <div class="mb-3">
+          {% if object.image %}
+            <img src="{{ object.get_image }}" alt="Avatar" class="rounded-circle img-fluid" style="width: 120px; height: 120px; object-fit: cover; border: 3px solid var(--ml-primary, #0d6efd);">
+          {% else %}
+            <div class="rounded-circle d-inline-flex align-items-center justify-content-center bg-primary text-white mx-auto" style="width: 120px; height: 120px; font-size: 48px;">
+              <i class="fas fa-user"></i>
+            </div>
+          {% endif %}
         </div>
-        <div class="col-sm-6">
-          <ol class="breadcrumb float-sm-right">
-            <li class="breadcrumb-item"><a href="{% url 'erp:dashboard' %}">Dashboard</a></li>
-            <li class="breadcrumb-item"><a href="{{ list_url }}">Usuarios</a></li>
-            <li class="breadcrumb-item active">Editar</li>
-          </ol>
+        <h5 class="mb-1">{{ object.get_full_name|default:object.username }}</h5>
+        <p class="text-muted mb-2"><i class="fas fa-user-tag"></i> {{ object.username }}</p>
+        <div class="d-flex justify-content-center gap-2 flex-wrap mb-3">
+          {% if object.is_superuser %}
+            <span class="badge bg-danger"><i class="fas fa-crown"></i> Superusuario</span>
+          {% else %}
+            <span class="badge bg-secondary"><i class="fas fa-user"></i> Operador</span>
+          {% endif %}
+          {% if object.is_active %}
+            <span class="badge bg-success"><i class="fas fa-check-circle"></i> Activo</span>
+          {% else %}
+            <span class="badge bg-warning"><i class="fas fa-pause-circle"></i> Inactivo</span>
+          {% endif %}
+        </div>
+        <div class="text-start small">
+          <div class="mb-1">
+            <i class="fas fa-envelope text-muted"></i>
+            {% if object.email %}{{ object.email }}{% else %}<span class="text-muted">Sin email</span>{% endif %}
+          </div>
+          <div class="mb-1">
+            <i class="fas fa-phone text-muted"></i>
+            {% if object.phone %}{{ object.phone }}{% else %}<span class="text-muted">Sin teléfono</span>{% endif %}
+          </div>
+          <div class="mb-1">
+            <i class="fas fa-building text-muted"></i>
+            {% if object.company %}{{ object.company.name }}{% else %}<span class="text-muted">Sin empresa</span>{% endif %}
+          </div>
+          <div class="mb-1">
+            <i class="fas fa-calendar text-muted"></i>
+            Registrado: {{ object.date_joined|date:"d/m/Y" }}
+          </div>
+          <div class="mb-1">
+            <i class="fas fa-sign-in-alt text-muted"></i>
+            Último acceso: {% if object.last_login %}{{ object.last_login|date:"d/m/Y H:i" }}{% else %}Nunca{% endif %}
+          </div>
         </div>
       </div>
     </div>
-  </section>
+  </div>
 
-  <section class="content">
-    <div class="container-fluid">
-      {% if messages %}
-        {% for message in messages %}
-        <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
-          {{ message }}
-          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-        {% endfor %}
-      {% endif %}
+  <!-- Columna derecha: Formulario -->
+  <div class="col-md-8">
+    <div class="card card-primary">
+      <div class="card-header">
+        <h3 class="card-title">
+          <i class="fas fa-edit"></i>
+          Editar Datos
+        </h3>
+      </div>
+      <div class="card-body">
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
 
-      <div class="row">
-        <!-- Columna izquierda: Avatar e info -->
-        <div class="col-md-4">
-          <div class="card card-outline card-primary">
-            <div class="card-header text-center">
-              <h3 class="card-title">Información del Usuario</h3>
-            </div>
-            <div class="card-body text-center">
+          {% if form.non_field_errors %}
+          <div class="alert alert-danger">
+            {{ form.non_field_errors }}
+          </div>
+          {% endif %}
+
+          <div class="row">
+            <div class="col-md-6">
               <div class="mb-3">
-                {% if object.image %}
-                  <img src="{{ object.get_image }}" alt="Avatar" class="rounded-circle img-fluid" style="width: 120px; height: 120px; object-fit: cover; border: 3px solid var(--ml-primary, #0d6efd);">
-                {% else %}
-                  <div class="rounded-circle d-inline-flex align-items-center justify-content-center bg-primary text-white mx-auto" style="width: 120px; height: 120px; font-size: 48px;">
-                    <i class="fas fa-user"></i>
-                  </div>
-                {% endif %}
+                <label class="form-label fw-bold" for="id_first_name">
+                  <i class="fas fa-user"></i> Nombre
+                </label>
+                <input type="text" id="id_first_name" name="first_name" class="form-control" placeholder="Nombre" value="{{ form.first_name.value|default:'' }}">
               </div>
-              <h5 class="mb-1">{{ object.get_full_name|default:object.username }}</h5>
-              <p class="text-muted mb-2"><i class="fas fa-user-tag me-1"></i> {{ object.username }}</p>
-              <div class="d-flex justify-content-center gap-2 flex-wrap mb-3">
-                {% if object.is_superuser %}
-                  <span class="badge bg-danger"><i class="fas fa-crown me-1"></i> Superusuario</span>
-                {% else %}
-                  <span class="badge bg-secondary"><i class="fas fa-user me-1"></i> Operador</span>
-                {% endif %}
-                {% if object.is_active %}
-                  <span class="badge bg-success"><i class="fas fa-check-circle me-1"></i> Activo</span>
-                {% else %}
-                  <span class="badge bg-warning"><i class="fas fa-pause-circle me-1"></i> Inactivo</span>
-                {% endif %}
-              </div>
-              <div class="text-start small">
-                <div class="mb-1">
-                  <i class="fas fa-envelope text-muted me-2"></i>
-                  {% if object.email %}{{ object.email }}{% else %}<span class="text-muted">Sin email</span>{% endif %}
-                </div>
-                <div class="mb-1">
-                  <i class="fas fa-phone text-muted me-2"></i>
-                  {% if object.phone %}{{ object.phone }}{% else %}<span class="text-muted">Sin teléfono</span>{% endif %}
-                </div>
-                <div class="mb-1">
-                  <i class="fas fa-building text-muted me-2"></i>
-                  {% if object.company %}{{ object.company.name }}{% else %}<span class="text-muted">Sin empresa</span>{% endif %}
-                </div>
-                <div class="mb-1">
-                  <i class="fas fa-calendar text-muted me-2"></i>
-                  Registrado: {{ object.date_joined|date:"d/m/Y" }}
-                </div>
-                <div class="mb-1">
-                  <i class="fas fa-sign-in-alt text-muted me-2"></i>
-                  Último acceso: {% if object.last_login %}{{ object.last_login|date:"d/m/Y H:i" }}{% else %}Nunca{% endif %}
-                </div>
+            </div>
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label class="form-label fw-bold" for="id_last_name">
+                  <i class="fas fa-user"></i> Apellido
+                </label>
+                <input type="text" id="id_last_name" name="last_name" class="form-control" placeholder="Apellido" value="{{ form.last_name.value|default:'' }}">
               </div>
             </div>
           </div>
-        </div>
 
-        <!-- Columna derecha: Formulario -->
-        <div class="col-md-8">
-          <div class="card card-outline card-primary">
-            <div class="card-header">
-              <h3 class="card-title"><i class="fas fa-edit me-2"></i> Editar Datos</h3>
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label class="form-label fw-bold" for="id_email">
+                  <i class="fas fa-envelope"></i> Email
+                </label>
+                <input type="email" id="id_email" name="email" class="form-control" placeholder="email@ejemplo.com" value="{{ form.email.value|default:'' }}">
+              </div>
             </div>
-            <div class="card-body">
-              <form method="post" enctype="multipart/form-data">
-                {% csrf_token %}
-
-                {% if form.non_field_errors %}
-                <div class="alert alert-danger">
-                  {{ form.non_field_errors }}
-                </div>
-                {% endif %}
-
-                <div class="row">
-                  <div class="col-md-6">
-                    <div class="mb-3">
-                      <label class="form-label fw-bold" for="id_first_name">
-                        <i class="fas fa-user me-1"></i> Nombre
-                      </label>
-                      <input type="text" id="id_first_name" name="first_name" class="form-control" placeholder="Nombre" value="{{ form.first_name.value|default:'' }}">
-                    </div>
-                  </div>
-                  <div class="col-md-6">
-                    <div class="mb-3">
-                      <label class="form-label fw-bold" for="id_last_name">
-                        <i class="fas fa-user me-1"></i> Apellido
-                      </label>
-                      <input type="text" id="id_last_name" name="last_name" class="form-control" placeholder="Apellido" value="{{ form.last_name.value|default:'' }}">
-                    </div>
-                  </div>
-                </div>
-
-                <div class="row">
-                  <div class="col-md-6">
-                    <div class="mb-3">
-                      <label class="form-label fw-bold" for="id_email">
-                        <i class="fas fa-envelope me-1"></i> Email
-                      </label>
-                      <input type="email" id="id_email" name="email" class="form-control" placeholder="email@ejemplo.com" value="{{ form.email.value|default:'' }}">
-                    </div>
-                  </div>
-                  <div class="col-md-6">
-                    <div class="mb-3">
-                      <label class="form-label fw-bold" for="id_phone">
-                        <i class="fas fa-phone me-1"></i> Teléfono
-                      </label>
-                      <input type="text" id="id_phone" name="phone" class="form-control" placeholder="+54 11 1234-5678" value="{{ form.phone.value|default:'' }}">
-                    </div>
-                  </div>
-                </div>
-
-                <div class="row">
-                  <div class="col-md-6">
-                    <div class="mb-3">
-                      <label class="form-label fw-bold" for="id_company">
-                        <i class="fas fa-building me-1"></i> Empresa
-                      </label>
-                      <select id="id_company" name="company" class="form-select">
-                        <option value="">-- Sin empresa --</option>
-                        {% for c in companies %}
-                          <option value="{{ c.id }}" {% if form.company.value|add:0 == c.id %}selected{% endif %}>{{ c.name }}</option>
-                        {% endfor %}
-                      </select>
-                    </div>
-                  </div>
-                  <div class="col-md-6">
-                    <div class="mb-3">
-                      <label class="form-label fw-bold" for="id_image">
-                        <i class="fas fa-image me-1"></i> Foto de Perfil
-                      </label>
-                      <input type="file" id="id_image" name="image" class="form-control" accept="image/*">
-                      <div class="form-text">Formatos: JPG, PNG. Tamaño máximo recomendado: 2MB.</div>
-                    </div>
-                  </div>
-                </div>
-
-                <hr>
-
-                <div class="row">
-                  <div class="col-md-6">
-                    <div class="mb-3">
-                      <label class="form-label fw-bold">
-                        <i class="fas fa-toggle-on me-1"></i> Estado
-                      </label>
-                      <div class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="id_is_active" name="is_active" {% if form.is_active.value %}checked{% endif %}>
-                        <label class="form-check-label" for="id_is_active">Usuario activo</label>
-                      </div>
-                      <div class="form-text">Si está inactivo, el usuario no puede iniciar sesión.</div>
-                    </div>
-                  </div>
-                  <div class="col-md-6">
-                    <div class="mb-3">
-                      <label class="form-label fw-bold">
-                        <i class="fas fa-crown me-1"></i> Permisos
-                      </label>
-                      <div class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="id_is_superuser" name="is_superuser" {% if form.is_superuser.value %}checked{% endif %}>
-                        <label class="form-check-label" for="id_is_superuser">Superusuario</label>
-                      </div>
-                      <div class="form-text">Acceso total a todas las funciones del sistema.</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="d-flex justify-content-end gap-2 mt-3">
-                  <a href="{{ list_url }}" class="btn btn-outline-secondary">
-                    <i class="fas fa-times me-1"></i> Cancelar
-                  </a>
-                  <button type="submit" class="btn btn-primary">
-                    <i class="fas fa-save me-1"></i> Guardar Cambios
-                  </button>
-                </div>
-              </form>
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label class="form-label fw-bold" for="id_phone">
+                  <i class="fas fa-phone"></i> Teléfono
+                </label>
+                <input type="text" id="id_phone" name="phone" class="form-control" placeholder="+54 11 1234-5678" value="{{ form.phone.value|default:'' }}">
+              </div>
             </div>
           </div>
-        </div>
+
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label class="form-label fw-bold" for="id_company">
+                  <i class="fas fa-building"></i> Empresa
+                </label>
+                <select id="id_company" name="company" class="form-select">
+                  <option value="">-- Sin empresa --</option>
+                  {% for c in companies %}
+                    <option value="{{ c.id }}" {% if form.company.value|add:0 == c.id %}selected{% endif %}>{{ c.name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label class="form-label fw-bold" for="id_image">
+                  <i class="fas fa-image"></i> Foto de Perfil
+                </label>
+                <input type="file" id="id_image" name="image" class="form-control" accept="image/*">
+                <div class="form-text">Formatos: JPG, PNG. Tamaño máximo recomendado: 2MB.</div>
+              </div>
+            </div>
+          </div>
+
+          <hr>
+
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label class="form-label fw-bold">
+                  <i class="fas fa-toggle-on"></i> Estado
+                </label>
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" id="id_is_active" name="is_active" {% if form.is_active.value %}checked{% endif %}>
+                  <label class="form-check-label" for="id_is_active">Usuario activo</label>
+                </div>
+                <div class="form-text">Si está inactivo, el usuario no puede iniciar sesión.</div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label class="form-label fw-bold">
+                  <i class="fas fa-crown"></i> Permisos
+                </label>
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" id="id_is_superuser" name="is_superuser" {% if form.is_superuser.value %}checked{% endif %}>
+                  <label class="form-check-label" for="id_is_superuser">Superusuario</label>
+                </div>
+                <div class="form-text">Acceso total a todas las funciones del sistema.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-end gap-2 mt-3">
+            <a href="{{ list_url }}" class="btn btn-secondary btn-flat">
+              <i class="fas fa-times"></i> Cancelar
+            </a>
+            <button type="submit" class="btn btn-primary btn-flat">
+              <i class="fas fa-save"></i> Guardar Cambios
+            </button>
+          </div>
+        </form>
       </div>
     </div>
-  </section>
+  </div>
 </div>
 {% endblock %}

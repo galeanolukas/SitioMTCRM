@@ -5,23 +5,26 @@ from django.db import transaction
 from django.contrib import messages
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
-from core.erp.models import RemitoEntrada, DetalleRemitoEntrada, Product, Supplier
-from core.erp.forms import RemitoEntradaForm
+from core.erp.models import Remito, DetalleRemito, Product, Supplier
+from core.erp.forms import RemitoForm
 import json
 
 
-class RemitoEntradaListView(LoginRequiredMixin, PermissionRequiredMixin, ListView):
-    model = RemitoEntrada
+class RemitoListView(LoginRequiredMixin, PermissionRequiredMixin, ListView):
+    model = Remito
     template_name = 'remito/list.html'
-    permission_required = 'erp.view_remitoentrada'
+    permission_required = 'erp.view_remito'
     paginate_by = 20
 
     def get_queryset(self):
         queryset = super().get_queryset()
         # Filtros
+        tipo = self.request.GET.get('tipo')
         supplier_id = self.request.GET.get('supplier')
         estado = self.request.GET.get('estado')
         
+        if tipo:
+            queryset = queryset.filter(tipo=tipo)
         if supplier_id:
             queryset = queryset.filter(supplier_id=supplier_id)
         if estado:
@@ -31,18 +34,40 @@ class RemitoEntradaListView(LoginRequiredMixin, PermissionRequiredMixin, ListVie
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['title'] = 'Remitos de Entrada'
+        context['title'] = 'Remitos'
         context['entity'] = 'Remito'
+        context['create_url'] = reverse_lazy('erp:remito_create')
+        context['list_url'] = reverse_lazy('erp:remito_list')
         context['suppliers'] = Supplier.objects.filter(is_active=True)
-        context['estados'] = RemitoEntrada.ESTADO_CHOICES
+        context['estados'] = Remito.ESTADO_CHOICES
+        context['tipos'] = Remito.TIPO_CHOICES
         return context
 
+    def post(self, request, *args, **kwargs):
+        action = request.POST.get('action')
+        if action == 'searchdata':
+            data = []
+            queryset = self.get_queryset()
+            for obj in queryset:
+                item = {
+                    'id': obj.id,
+                    'numero': obj.numero,
+                    'tipo': obj.tipo,
+                    'supplier': {'name': obj.supplier.name if obj.supplier else '-'},
+                    'fecha': obj.fecha.isoformat() if obj.fecha else None,
+                    'estado': obj.estado,
+                    'created_by': {'username': obj.created_by.username if obj.created_by else '-'},
+                }
+                data.append(item)
+            return JsonResponse(data, safe=False)
+        return JsonResponse({'error': 'Acción no válida'}, status=400)
 
-class RemitoEntradaCreateView(LoginRequiredMixin, PermissionRequiredMixin, CreateView):
-    model = RemitoEntrada
+
+class RemitoCreateView(LoginRequiredMixin, PermissionRequiredMixin, CreateView):
+    model = Remito
     template_name = 'remito/create.html'
-    form_class = RemitoEntradaForm
-    permission_required = 'erp.add_remitoentrada'
+    form_class = RemitoForm
+    permission_required = 'erp.add_remito'
     success_url = reverse_lazy('erp:remito_list')
 
     def form_valid(self, form):
@@ -52,31 +77,31 @@ class RemitoEntradaCreateView(LoginRequiredMixin, PermissionRequiredMixin, Creat
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['title'] = 'Nuevo Remito de Entrada'
+        context['title'] = 'Nuevo Remito'
         context['entity'] = 'Remito'
         context['list_url'] = self.success_url
         return context
 
 
-class RemitoEntradaDetailView(LoginRequiredMixin, PermissionRequiredMixin, DetailView):
-    model = RemitoEntrada
+class RemitoDetailView(LoginRequiredMixin, PermissionRequiredMixin, DetailView):
+    model = Remito
     template_name = 'remito/detail.html'
-    permission_required = 'erp.view_remitoentrada'
+    permission_required = 'erp.view_remito'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = f'Detalle Remito {self.object.numero}'
         context['entity'] = 'Remito'
-        context['detalles'] = self.object.detallesremitoentrada_set.select_related('prod')
+        context['detalles'] = self.object.detalleremito_set.select_related('prod')
         context['total'] = sum(d.subtotal for d in context['detalles'])
         return context
 
 
-class RemitoEntradaUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateView):
-    model = RemitoEntrada
+class RemitoUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateView):
+    model = Remito
     template_name = 'remito/create.html'
-    form_class = RemitoEntradaForm
-    permission_required = 'erp.change_remitoentrada'
+    form_class = RemitoForm
+    permission_required = 'erp.change_remito'
     success_url = reverse_lazy('erp:remito_list')
 
     def form_valid(self, form):
@@ -85,16 +110,16 @@ class RemitoEntradaUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Updat
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['title'] = 'Editar Remito de Entrada'
+        context['title'] = 'Editar Remito'
         context['entity'] = 'Remito'
         context['list_url'] = self.success_url
         return context
 
 
-class RemitoEntradaDeleteView(LoginRequiredMixin, PermissionRequiredMixin, DeleteView):
-    model = RemitoEntrada
-    template_name = 'delete.html'
-    permission_required = 'erp.delete_remitoentrada'
+class RemitoDeleteView(LoginRequiredMixin, PermissionRequiredMixin, DeleteView):
+    model = Remito
+    template_name = 'remito/delete.html'
+    permission_required = 'erp.delete_remito'
     success_url = reverse_lazy('erp:remito_list')
 
     def delete(self, request, *args, **kwargs):
@@ -108,19 +133,26 @@ class RemitoEntradaDeleteView(LoginRequiredMixin, PermissionRequiredMixin, Delet
 
 def procesar_remito(request, pk):
     """Procesar un remito: actualizar stock de productos"""
-    if not request.user.has_perm('erp.manage_remitos_entrada'):
+    if not request.user.has_perm('erp.manage_remitos'):
         return JsonResponse({'error': 'No tiene permisos'}, status=403)
     
-    remito = get_object_or_404(RemitoEntrada, pk=pk)
+    remito = get_object_or_404(Remito, pk=pk)
     
     if remito.estado != 'pending':
         return JsonResponse({'error': 'El remito ya fue procesado'}, status=400)
     
     try:
         with transaction.atomic():
-            for detalle in remito.detallesremitoentrada_set.all():
+            for detalle in remito.detalleremito_set.all():
                 producto = detalle.prod
-                producto.stock += detalle.cantidad
+                if remito.tipo == 'entrada':
+                    # Entrada: sumar stock
+                    producto.stock += detalle.cantidad
+                else:
+                    # Salida: restar stock
+                    producto.stock -= detalle.cantidad
+                    if producto.stock < 0:
+                        return JsonResponse({'error': f'Stock insuficiente para {producto.name}'}, status=400)
                 producto.save()
             
             remito.estado = 'processed'
@@ -133,21 +165,26 @@ def procesar_remito(request, pk):
 
 def anular_remito(request, pk):
     """Anular un remito procesado: revertir stock"""
-    if not request.user.has_perm('erp.manage_remitos_entrada'):
+    if not request.user.has_perm('erp.manage_remitos'):
         return JsonResponse({'error': 'No tiene permisos'}, status=403)
     
-    remito = get_object_or_404(RemitoEntrada, pk=pk)
+    remito = get_object_or_404(Remito, pk=pk)
     
     if remito.estado != 'processed':
         return JsonResponse({'error': 'Solo se pueden anular remitos procesados'}, status=400)
     
     try:
         with transaction.atomic():
-            for detalle in remito.detallesremitoentrada_set.all():
+            for detalle in remito.detalleremito_set.all():
                 producto = detalle.prod
-                producto.stock -= detalle.cantidad
-                if producto.stock < 0:
-                    return JsonResponse({'error': f'Stock insuficiente para {producto.name}'}, status=400)
+                if remito.tipo == 'entrada':
+                    # Entrada anulado: restar stock
+                    producto.stock -= detalle.cantidad
+                    if producto.stock < 0:
+                        return JsonResponse({'error': f'Stock insuficiente para {producto.name}'}, status=400)
+                else:
+                    # Salida anulado: sumar stock
+                    producto.stock += detalle.cantidad
                 producto.save()
             
             remito.estado = 'cancelled'
@@ -160,7 +197,7 @@ def anular_remito(request, pk):
 
 def agregar_detalle_remito(request):
     """Agregar un producto al remito (AJAX)"""
-    if not request.user.has_perm('erp.manage_remitos_entrada'):
+    if not request.user.has_perm('erp.manage_remitos'):
         return JsonResponse({'error': 'No tiene permisos'}, status=403)
     
     if request.method == 'POST':
@@ -171,10 +208,14 @@ def agregar_detalle_remito(request):
         precio_unitario = data.get('precio_unitario')
         
         try:
-            remito = RemitoEntrada.objects.get(pk=remito_id)
+            remito = Remito.objects.get(pk=remito_id)
             producto = Product.objects.get(pk=prod_id)
             
-            detalle = DetalleRemitoEntrada(
+            # Si es entrada y no se especifica precio, usar precio de costo
+            if remito.tipo == 'entrada' and not precio_unitario:
+                precio_unitario = producto.cost_price or 0
+            
+            detalle = DetalleRemito(
                 remito=remito,
                 prod=producto,
                 cantidad=cantidad,
@@ -191,17 +232,17 @@ def agregar_detalle_remito(request):
 
 def eliminar_detalle_remito(request, detalle_id):
     """Eliminar un detalle del remito (AJAX)"""
-    if not request.user.has_perm('erp.manage_remitos_entrada'):
+    if not request.user.has_perm('erp.manage_remitos'):
         return JsonResponse({'error': 'No tiene permisos'}, status=403)
     
     try:
-        detalle = DetalleRemitoEntrada.objects.get(pk=detalle_id)
+        detalle = DetalleRemito.objects.get(pk=detalle_id)
         if detalle.remito.estado != 'pending':
             return JsonResponse({'error': 'No se puede modificar un remito procesado'}, status=400)
         
         detalle.delete()
         return JsonResponse({'success': True})
-    except DetalleRemitoEntrada.DoesNotExist:
+    except DetalleRemito.DoesNotExist:
         return JsonResponse({'error': 'Detalle no encontrado'}, status=404)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)

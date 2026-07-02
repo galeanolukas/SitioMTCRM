@@ -1,179 +1,112 @@
-{% extends 'vtc/body.html' %}
+{% extends 'base/list.html' %}
 {% load static %}
 
-{% block content %}
-<div class="content-wrapper">
-  <section class="content-header">
-    <div class="container-fluid">
-      <div class="row mb-2">
-        <div class="col-sm-6">
-          <h1 class="m-0">{{ title }}</h1>
-        </div>
-        <div class="col-sm-6">
-          <ol class="breadcrumb float-sm-right">
-            <li class="breadcrumb-item"><a href="{% url 'erp:launcher' %}">Inicio</a></li>
-            <li class="breadcrumb-item active">{{ entity }}</li>
-          </ol>
-        </div>
-      </div>
-    </div>
-  </section>
+{% block head_list %}
+    <script src="{% static 'remito/js/list.js' %}"></script>
+{% endblock %}
 
-  <section class="content">
-    <div class="container-fluid">
-      <div class="card">
-        <div class="card-header">
-          <h3 class="card-title">Listado de {{ entity }}</h3>
-          <div class="card-tools">
-            <a href="{% url 'erp:remito_create' %}" class="btn btn-sm btn-primary">
-              <i class="fas fa-plus"></i> Nuevo
+{% block buttons_list %}
+    <a href="{% url 'erp:remito_create' %}" class="btn btn-primary btn-flat"><i class="fas fa-plus"></i> Nuevo</a>
+    <a href="{% url 'erp:remito_list' %}" class="btn btn-success btn-flat"><i class="fas fa-sync"></i> Actualizar</a>
+{% endblock %}
+
+{% block columns %}
+    <tr>
+        <th scope="col" style="width: 10%;">Número</th>
+        <th scope="col" style="width: 10%;">Tipo</th>
+        <th scope="col" style="width: 20%;">Proveedor</th>
+        <th scope="col" style="width: 12%;">Fecha</th>
+        <th scope="col" style="width: 12%;">Estado</th>
+        <th scope="col" style="width: 13%;">Creado por</th>
+        <th scope="col" style="width: 23%;">Opciones</th>
+    </tr>
+{% endblock %}
+
+{% block rows %}
+    {% for obj in object_list %}
+    <tr>
+        <td>{{ obj.numero }}</td>
+        <td>
+            {% if obj.tipo == 'entrada' %}
+                <span class="badge bg-success">Entrada</span>
+            {% else %}
+                <span class="badge bg-warning">Salida</span>
+            {% endif %}
+        </td>
+        <td>{{ obj.supplier.name|default:"-" }}</td>
+        <td>{{ obj.fecha|date:"d/m/Y" }}</td>
+        <td>
+            {% if obj.estado == 'pending' %}
+                <span class="badge bg-warning">Pendiente</span>
+            {% elif obj.estado == 'processed' %}
+                <span class="badge bg-success">Procesado</span>
+            {% elif obj.estado == 'cancelled' %}
+                <span class="badge bg-danger">Anulado</span>
+            {% endif %}
+        </td>
+        <td>{{ obj.created_by.username|default:"-" }}</td>
+        <td>
+            <a href="{% url 'erp:remito_detail' obj.id %}" class="btn btn-sm btn-info btn-flat" title="Ver detalle">
+                <i class="fas fa-eye"></i>
             </a>
-          </div>
-        </div>
-        <div class="card-body">
-          <form method="GET" class="row g-3 mb-3">
-            <div class="col-md-3">
-              <select name="supplier" class="form-select">
-                <option value="">Todos los proveedores</option>
-                {% for supplier in suppliers %}
-                  <option value="{{ supplier.id }}" {% if request.GET.supplier == supplier.id|stringformat:"s" %}selected{% endif %}>
-                    {{ supplier.name }}
-                  </option>
-                {% endfor %}
-              </select>
-            </div>
-            <div class="col-md-3">
-              <select name="estado" class="form-select">
-                <option value="">Todos los estados</option>
-                {% for estado_value, estado_label in estados %}
-                  <option value="{{ estado_value }}" {% if request.GET.estado == estado_value %}selected{% endif %}>
-                    {{ estado_label }}
-                  </option>
-                {% endfor %}
-              </select>
-            </div>
-            <div class="col-md-3">
-              <button type="submit" class="btn btn-primary">
-                <i class="fas fa-filter"></i> Filtrar
-              </button>
-              <a href="{% url 'erp:remito_list' %}" class="btn btn-secondary">
-                <i class="fas fa-times"></i> Limpiar
-              </a>
-            </div>
-          </form>
+            {% if obj.estado == 'pending' %}
+            <a href="{% url 'erp:remito_update' obj.id %}" class="btn btn-sm btn-warning btn-flat" title="Editar">
+                <i class="fas fa-edit"></i>
+            </a>
+            <a href="{% url 'erp:remito_delete' obj.id %}" class="btn btn-sm btn-danger btn-flat" title="Eliminar">
+                <i class="fas fa-trash"></i>
+            </a>
+            {% elif obj.estado == 'processed' %}
+            <button onclick="anularRemito({{ obj.id }})" class="btn btn-sm btn-danger btn-flat" title="Anular">
+                <i class="fas fa-undo"></i>
+            </button>
+            {% endif %}
+        </td>
+    </tr>
+    {% empty %}
+    <tr>
+        <td colspan="7" class="text-center">No hay registros</td>
+    </tr>
+    {% endfor %}
+{% endblock %}
 
-          <div class="table-responsive">
-            <table class="table table-bordered table-striped">
-              <thead>
-                <tr>
-                  <th>Número</th>
-                  <th>Proveedor</th>
-                  <th>Fecha</th>
-                  <th>Estado</th>
-                  <th>Creado por</th>
-                  <th>Opciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for obj in object_list %}
-                <tr>
-                  <td>{{ obj.numero }}</td>
-                  <td>{{ obj.supplier.name }}</td>
-                  <td>{{ obj.fecha|date:"d/m/Y" }}</td>
-                  <td>
-                    {% if obj.estado == 'pending' %}
-                      <span class="badge bg-warning">Pendiente</span>
-                    {% elif obj.estado == 'processed' %}
-                      <span class="badge bg-success">Procesado</span>
-                    {% elif obj.estado == 'cancelled' %}
-                      <span class="badge bg-danger">Anulado</span>
-                    {% endif %}
-                  </td>
-                  <td>{{ obj.created_by.username|default:"-" }}</td>
-                  <td>
-                    <a href="{% url 'erp:remito_detail' obj.id %}" class="btn btn-sm btn-info">
-                      <i class="fas fa-eye"></i>
-                    </a>
-                    {% if obj.estado == 'pending' %}
-                    <a href="{% url 'erp:remito_update' obj.id %}" class="btn btn-sm btn-warning">
-                      <i class="fas fa-edit"></i>
-                    </a>
-                    <a href="{% url 'erp:remito_delete' obj.id %}" class="btn btn-sm btn-danger">
-                      <i class="fas fa-trash"></i>
-                    </a>
-                    {% elif obj.estado == 'processed' %}
-                    <button onclick="anularRemito({{ obj.id }})" class="btn btn-sm btn-danger">
-                      <i class="fas fa-undo"></i>
-                    </button>
-                    {% endif %}
-                  </td>
-                </tr>
-                {% empty %}
-                <tr>
-                  <td colspan="6" class="text-center">No hay registros</td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-
-          {% if is_paginated %}
-          <div class="pagination">
-            <span class="page-links">
-              {% if page_obj.has_previous %}
-                <a href="?page={{ page_obj.previous_page_number }}{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">Anterior</a>
-              {% endif %}
-              <span class="page-current">
-                Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
-              </span>
-              {% if page_obj.has_next %}
-                <a href="?page={{ page_obj.next_page_number }}{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}">Siguiente</a>
-              {% endif %}
-            </span>
-          </div>
-          {% endif %}
-        </div>
-      </div>
-    </div>
-  </section>
-</div>
-
+{% block javascript %}
 <script>
 function anularRemito(id) {
-  if (confirm('¿Está seguro de anular este remito? Esto revertirá el stock.')) {
-    fetch(`/erp/remito/anular/${id}/`, {
-      method: 'POST',
-      headers: {
-        'X-CSRFToken': getCookie('csrftoken'),
-        'Content-Type': 'application/json',
-      },
-    })
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        alert(data.message);
-        location.reload();
-      } else {
-        alert('Error: ' + data.error);
-      }
-    })
-    .catch(error => alert('Error: ' + error));
-  }
+    if (confirm('¿Está seguro de anular este remito? Esto revertirá el stock.')) {
+        fetch(`/erp/remito/anular/${id}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+                'Content-Type': 'application/json',
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                location.reload();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch(error => alert('Error: ' + error));
+    }
 }
 
 function getCookie(name) {
-  let cookieValue = null;
-  if (document.cookie && document.cookie !== '') {
-    const cookies = document.cookie.split(';');
-    for (let i = 0; i < cookies.length; i++) {
-      const cookie = cookies[i].trim();
-      if (cookie.substring(0, name.length + 1) === (name + '=')) {
-        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-        break;
-      }
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
     }
-  }
-  return cookieValue;
+    return cookieValue;
 }
 </script>
 {% endblock %}

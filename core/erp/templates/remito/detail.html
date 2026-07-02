@@ -1,208 +1,198 @@
-{% extends 'vtc/body.html' %}
+{% extends 'base/form.html' %}
 {% load static %}
 
 {% block content %}
-<div class="content-wrapper">
-  <section class="content-header">
-    <div class="container-fluid">
-      <div class="row mb-2">
-        <div class="col-sm-6">
-          <h1 class="m-0">{{ title }}</h1>
-        </div>
-        <div class="col-sm-6">
-          <ol class="breadcrumb float-sm-right">
-            <li class="breadcrumb-item"><a href="{% url 'erp:launcher' %}">Inicio</a></li>
-            <li class="breadcrumb-item"><a href="{% url 'erp:remito_list' %}">Remitos</a></li>
-            <li class="breadcrumb-item active">Detalle</li>
-          </ol>
-        </div>
+  <div class="card card-primary">
+    <div class="card-header">
+      <h3 class="card-title">
+        <i class="fas fa-file-alt"></i>
+        {{ title }}
+      </h3>
+      <div class="card-tools">
+        {% if object.estado == 'pending' %}
+        <button onclick="procesarRemito({{ object.id }})" class="btn btn-sm btn-success btn-flat">
+          <i class="fas fa-check"></i> Procesar
+        </button>
+        <a href="{% url 'erp:remito_update' object.id %}" class="btn btn-sm btn-warning btn-flat">
+          <i class="fas fa-edit"></i> Editar
+        </a>
+        <a href="{% url 'erp:remito_delete' object.id %}" class="btn btn-sm btn-danger btn-flat">
+          <i class="fas fa-trash"></i> Eliminar
+        </a>
+        {% elif object.estado == 'processed' %}
+        <button onclick="anularRemito({{ object.id }})" class="btn btn-sm btn-danger btn-flat">
+          <i class="fas fa-undo"></i> Anular
+        </button>
+        {% endif %}
+        <a href="{% url 'erp:remito_list' %}" class="btn btn-sm btn-secondary btn-flat">
+          <i class="fas fa-arrow-left"></i> Volver
+        </a>
       </div>
     </div>
-  </section>
-
-  <section class="content">
-    <div class="container-fluid">
-      <div class="card">
-        <div class="card-header">
-          <h3 class="card-title">Información del Remito</h3>
-          <div class="card-tools">
-            {% if object.estado == 'pending' %}
-            <button onclick="procesarRemito({{ object.id }})" class="btn btn-sm btn-success">
-              <i class="fas fa-check"></i> Procesar
-            </button>
-            <a href="{% url 'erp:remito_update' object.id %}" class="btn btn-sm btn-warning">
-              <i class="fas fa-edit"></i> Editar
-            </a>
-            <a href="{% url 'erp:remito_delete' object.id %}" class="btn btn-sm btn-danger">
-              <i class="fas fa-trash"></i> Eliminar
-            </a>
-            {% elif object.estado == 'processed' %}
-            <button onclick="anularRemito({{ object.id }})" class="btn btn-sm btn-danger">
-              <i class="fas fa-undo"></i> Anular
-            </button>
-            {% endif %}
-            <a href="{% url 'erp:remito_list' %}" class="btn btn-sm btn-secondary">
-              <i class="fas fa-arrow-left"></i> Volver
-            </a>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-6">
+          <div class="table-responsive">
+            <table class="table table-sm">
+              <tr>
+                <th style="width: 40%;">Número:</th>
+                <td>{{ object.numero }}</td>
+              </tr>
+              <tr>
+                <th>Tipo:</th>
+                <td>
+                  {% if object.tipo == 'entrada' %}
+                    <span class="badge bg-success">Entrada</span>
+                  {% else %}
+                    <span class="badge bg-warning">Salida</span>
+                  {% endif %}
+                </td>
+              </tr>
+              <tr>
+                <th>Proveedor:</th>
+                <td>{{ object.supplier.name|default:"-" }}</td>
+              </tr>
+              <tr>
+                <th>Fecha:</th>
+                <td>{{ object.fecha|date:"d/m/Y" }}</td>
+              </tr>
+              <tr>
+                <th>Estado:</th>
+                <td>
+                  {% if object.estado == 'pending' %}
+                    <span class="badge bg-warning">Pendiente</span>
+                  {% elif object.estado == 'processed' %}
+                    <span class="badge bg-success">Procesado</span>
+                  {% elif object.estado == 'cancelled' %}
+                    <span class="badge bg-danger">Anulado</span>
+                  {% endif %}
+                </td>
+              </tr>
+            </table>
           </div>
         </div>
-        <div class="card-body">
-          <div class="row">
-            <div class="col-md-6">
-              <div class="table-responsive">
-                <table class="table table-sm">
-                  <tr>
-                    <th>Número:</th>
-                    <td>{{ object.numero }}</td>
-                  </tr>
-                  <tr>
-                    <th>Proveedor:</th>
-                    <td>{{ object.supplier.name }}</td>
-                  </tr>
-                  <tr>
-                    <th>Fecha:</th>
-                    <td>{{ object.fecha|date:"d/m/Y" }}</td>
-                  </tr>
-                  <tr>
-                    <th>Estado:</th>
-                    <td>
-                      {% if object.estado == 'pending' %}
-                        <span class="badge bg-warning">Pendiente</span>
-                      {% elif object.estado == 'processed' %}
-                        <span class="badge bg-success">Procesado</span>
-                      {% elif object.estado == 'cancelled' %}
-                        <span class="badge bg-danger">Anulado</span>
-                      {% endif %}
-                    </td>
-                  </tr>
-                </table>
-              </div>
-            </div>
-            <div class="col-md-6">
-              <div class="table-responsive">
-                <table class="table table-sm">
-                  <tr>
-                    <th>Creado por:</th>
-                    <td>{{ object.created_by.username|default:"-" }}</td>
-                  </tr>
-                  <tr>
-                    <th>Fecha de creación:</th>
-                    <td>{{ object.created_at|date:"d/m/Y H:i" }}</td>
-                  </tr>
-                  <tr>
-                    <th>Última actualización:</th>
-                    <td>{{ object.updated_at|date:"d/m/Y H:i" }}</td>
-                  </tr>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          {% if object.observaciones %}
-          <div class="mt-3">
-            <h5>Observaciones</h5>
-            <p>{{ object.observaciones }}</p>
-          </div>
-          {% endif %}
-
-          <hr>
-          <h4>Productos</h4>
+        <div class="col-md-6">
           <div class="table-responsive">
-            <table class="table table-bordered">
-              <thead>
-                <tr>
-                  <th>Producto</th>
-                  <th>Cantidad</th>
-                  <th>Precio Unitario</th>
-                  <th>Subtotal</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for detalle in detalles %}
-                <tr>
-                  <td>{{ detalle.prod.name }}</td>
-                  <td>{{ detalle.cantidad|floatformat:3 }} {{ detalle.prod.get_unit_display }}</td>
-                  <td>${{ detalle.precio_unitario|floatformat:2 }}</td>
-                  <td>${{ detalle.subtotal|floatformat:2 }}</td>
-                </tr>
-                {% empty %}
-                <tr>
-                  <td colspan="4" class="text-center">No hay productos</td>
-                </tr>
-                {% endfor %}
-              </tbody>
-              <tfoot>
-                <tr>
-                  <th colspan="3" class="text-end">Total:</th>
-                  <th>${{ total|floatformat:2 }}</th>
-                </tr>
-              </tfoot>
+            <table class="table table-sm">
+              <tr>
+                <th style="width: 40%;">Creado por:</th>
+                <td>{{ object.created_by.username|default:"-" }}</td>
+              </tr>
+              <tr>
+                <th>Fecha de creación:</th>
+                <td>{{ object.created_at|date:"d/m/Y H:i" }}</td>
+              </tr>
+              <tr>
+                <th>Última actualización:</th>
+                <td>{{ object.updated_at|date:"d/m/Y H:i" }}</td>
+              </tr>
             </table>
           </div>
         </div>
       </div>
+
+      {% if object.observaciones %}
+      <div class="mt-3">
+        <h5>Observaciones</h5>
+        <p>{{ object.observaciones }}</p>
+      </div>
+      {% endif %}
+
+      <hr>
+      <h4>Productos</h4>
+      <div class="table-responsive">
+        <table class="table table-bordered">
+          <thead>
+            <tr>
+              <th>Producto</th>
+              <th>Cantidad</th>
+              <th>Precio Unitario</th>
+              <th>Subtotal</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for detalle in detalles %}
+            <tr>
+              <td>{{ detalle.prod.name }}</td>
+              <td>{{ detalle.cantidad|floatformat:3 }}</td>
+              <td>${{ detalle.precio_unitario|floatformat:2 }}</td>
+              <td>${{ detalle.subtotal|floatformat:2 }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="4" class="text-center">No hay productos</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr>
+              <th colspan="3" class="text-end">Total:</th>
+              <th>${{ total|floatformat:2 }}</th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
     </div>
-  </section>
-</div>
+  </div>
 
-<script>
-function procesarRemito(id) {
-  if (confirm('¿Está seguro de procesar este remito? Esto actualizará el stock de los productos.')) {
-    fetch(`/erp/remito/procesar/${id}/`, {
-      method: 'POST',
-      headers: {
-        'X-CSRFToken': getCookie('csrftoken'),
-        'Content-Type': 'application/json',
-      },
-    })
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        alert(data.message);
-        location.reload();
-      } else {
-        alert('Error: ' + data.error);
-      }
-    })
-    .catch(error => alert('Error: ' + error));
-  }
-}
-
-function anularRemito(id) {
-  if (confirm('¿Está seguro de anular este remito? Esto revertirá el stock de los productos.')) {
-    fetch(`/erp/remito/anular/${id}/`, {
-      method: 'POST',
-      headers: {
-        'X-CSRFToken': getCookie('csrftoken'),
-        'Content-Type': 'application/json',
-      },
-    })
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        alert(data.message);
-        location.reload();
-      } else {
-        alert('Error: ' + data.error);
-      }
-    })
-    .catch(error => alert('Error: ' + error));
-  }
-}
-
-function getCookie(name) {
-  let cookieValue = null;
-  if (document.cookie && document.cookie !== '') {
-    const cookies = document.cookie.split(';');
-    for (let i = 0; i < cookies.length; i++) {
-      const cookie = cookies[i].trim();
-      if (cookie.substring(0, name.length + 1) === (name + '=')) {
-        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-        break;
-      }
+  <script>
+  function procesarRemito(id) {
+    if (confirm('¿Está seguro de procesar este remito? Esto actualizará el stock de los productos.')) {
+      fetch(`/erp/remito/procesar/${id}/`, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': getCookie('csrftoken'),
+          'Content-Type': 'application/json',
+        },
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          alert(data.message);
+          location.reload();
+        } else {
+          alert('Error: ' + data.error);
+        }
+      })
+      .catch(error => alert('Error: ' + error));
     }
   }
-  return cookieValue;
-}
-</script>
+
+  function anularRemito(id) {
+    if (confirm('¿Está seguro de anular este remito? Esto revertirá el stock de los productos.')) {
+      fetch(`/erp/remito/anular/${id}/`, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': getCookie('csrftoken'),
+          'Content-Type': 'application/json',
+        },
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          alert(data.message);
+          location.reload();
+        } else {
+          alert('Error: ' + data.error);
+        }
+      })
+      .catch(error => alert('Error: ' + error));
+    }
+  }
+
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+  </script>
 {% endblock %}

@@ -2,7 +2,7 @@ from django.forms import *
 from django.forms.widgets import CheckboxInput
 from datetime import datetime
 from django.core.exceptions import ValidationError
-from core.erp.models import Category, Product, Client, Sale, Company, Supplier, Expense, MercadoPagoConfig, AutoSyncConfig, InternalTransfer, InternalTransferDetail, RemitoEntrada
+from core.erp.models import Category, Product, Client, Sale, Company, Supplier, Expense, MercadoPagoConfig, AutoSyncConfig, InternalTransfer, InternalTransferDetail, RemitoEntrada, Remito
 
 from django.contrib.auth.forms import AuthenticationForm
 
@@ -713,6 +713,50 @@ class RemitoEntradaForm(ModelForm):
     class Meta:
         model = RemitoEntrada
         fields = ['supplier', 'numero', 'fecha', 'estado', 'observaciones']
+        widgets = {
+            'fecha': DateInput(attrs={'type': 'date'}),
+            'observaciones': Textarea(attrs={'rows': 3}),
+        }
+
+
+class RemitoForm(ModelForm):
+    def __init__(self, *args, **kwargs):
+        self.request = kwargs.pop('request', None)
+        super().__init__(*args, **kwargs)
+        for form in self.visible_fields():
+            form.field.widget.attrs["class"] = "form-control"
+            form.field.widget.attrs["autocomplete"] = "off"
+        
+        # Manejar campo company según usuario
+        if 'company' in self.fields and self.request and hasattr(self.request, 'user') and not getattr(self.request.user, 'is_superuser', False):
+            if getattr(self.request.user, 'company_id', None):
+                self.fields['company'].queryset = Company.objects.filter(pk=self.request.user.company_id, is_active=True)
+                self.fields['company'].initial = self.request.user.company
+                self.fields['company'].widget = HiddenInput()
+                self.fields['company'].required = False
+        elif 'company' in self.fields:
+            self.fields['company'].queryset = Company.objects.filter(is_active=True)
+
+        # Auto-generar número de remito si está vacío
+        if not self.initial.get('numero') and not self.data.get('numero'):
+            last_remito = Remito.objects.order_by('-id').first()
+            if last_remito and last_remito.numero:
+                try:
+                    num = int(last_remito.numero.split('-')[-1]) + 1
+                    self.initial['numero'] = f"R-{num:06d}"
+                except (ValueError, IndexError):
+                    self.initial['numero'] = f"R-000001"
+            else:
+                self.initial['numero'] = "R-000001"
+
+        # Fecha por defecto: hoy
+        if not self.initial.get('fecha') and not self.data.get('fecha'):
+            from datetime import date
+            self.initial['fecha'] = date.today()
+    
+    class Meta:
+        model = Remito
+        fields = ['tipo', 'supplier', 'numero', 'fecha', 'estado', 'observaciones']
         widgets = {
             'fecha': DateInput(attrs={'type': 'date'}),
             'observaciones': Textarea(attrs={'rows': 3}),
