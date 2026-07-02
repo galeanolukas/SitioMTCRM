@@ -131,7 +131,7 @@
       <!-- Campos Productos -->
       <div id="fieldsProduct" class="row">
         <div class="col-md-4">
-          <label>Código (code) <span class="text-danger">*</span></label>
+          <label>Código Barras (code) <span class="text-danger">*</span></label>
           <select name="map_code" class="form-control" required>
             {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
           </select>
@@ -555,7 +555,7 @@ function importFromServer() {
               <thead>
                 <tr>
                   <th>Nombre</th>
-                  <th>Código</th>
+                  <th>Código Barras</th>
                   <th>Precio</th>
                   <th>Stock</th>
                   <th>Unidad</th>

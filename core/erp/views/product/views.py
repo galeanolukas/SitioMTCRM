@@ -1537,6 +1537,13 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                     if map_codigo_proveedor and not pd.isna(row.get(map_codigo_proveedor)):
                         raw_cod = str(row.get(map_codigo_proveedor)).strip()
                         if raw_cod:
+                            # Limpiar .0 si es numérico (ej: "123.0" -> "123")
+                            if raw_cod.endswith('.0'):
+                                raw_cod = raw_cod[:-2]
+                            if '.' in raw_cod:
+                                parts = raw_cod.split('.')
+                                if len(parts) == 2 and parts[1] == '0':
+                                    raw_cod = parts[0]
                             codigo_prov = raw_cod
 
                     # Margen de ganancia (opcional, default 0)
