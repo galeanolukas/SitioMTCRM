@@ -22,26 +22,28 @@ class Command(BaseCommand):
         for cli in pending:
             try:
                 with transaction.atomic(using='remote'):
-                    # Usamos DNI como clave natural si existe, sino username/ID
-                    lookup = {}
+                    # Buscar cliente remoto por DNI o por ID
+                    qs = Client.objects.using('remote')
                     if cli.dni:
-                        lookup['dni'] = cli.dni
+                        remote_qs = qs.filter(dni=cli.dni)
                     else:
-                        lookup['id'] = cli.id
+                        remote_qs = qs.filter(id=cli.id)
 
-                    remote_cli, created = Client.objects.using('remote').get_or_create(
-                        **lookup,
-                        defaults={
-                            'company_id': cli.company_id,
-                            'names': cli.names,
-                            'surnames': cli.surnames,
-                            'date_birthday': cli.date_birthday,
-                            'address': cli.address,
-                            'gender': cli.gender,
-                            'is_active': cli.is_active,
-                        }
-                    )
-                    if not created:
+                    remote_cli = remote_qs.first()
+                    created = remote_cli is None
+
+                    if created:
+                        remote_cli = Client.objects.using('remote').create(
+                            company_id=cli.company_id,
+                            names=cli.names,
+                            surnames=cli.surnames,
+                            dni=cli.dni,
+                            date_birthday=cli.date_birthday,
+                            address=cli.address,
+                            gender=cli.gender,
+                            is_active=cli.is_active,
+                        )
+                    else:
                         remote_cli.company_id = cli.company_id
                         remote_cli.names = cli.names
                         remote_cli.surnames = cli.surnames
@@ -49,7 +51,7 @@ class Command(BaseCommand):
                         remote_cli.address = cli.address
                         remote_cli.gender = cli.gender
                         remote_cli.is_active = cli.is_active
-                        remote_cli.save()
+                        remote_cli.save(using='remote')
 
                 Client.objects.using('default').filter(pk=cli.pk).update(synced_to_server=True)
                 synced += 1

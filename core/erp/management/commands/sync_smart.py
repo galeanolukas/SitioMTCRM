@@ -51,28 +51,27 @@ class Command(BaseCommand):
             try:
                 with transaction.atomic(using='remote'):
                     # Buscar cliente remoto por DNI o nombre
-                    lookup = {}
+                    qs = Client.objects.using('remote')
                     if client.dni:
-                        lookup['dni'] = client.dni
+                        remote_qs = qs.filter(dni=client.dni)
                     else:
-                        lookup['names'] = client.names
-                        lookup['surnames'] = client.surnames
-                    
-                    remote_client, created = Client.objects.using('remote').get_or_create(
-                        **lookup,
-                        defaults={
-                            'company_id': client.company_id,
-                            'names': client.names,
-                            'surnames': client.surnames,
-                            'date_birthday': client.date_birthday,
-                            'address': client.address,
-                            'gender': client.gender,
-                            'is_active': client.is_active,
-                        }
-                    )
-                    
-                    if not created:
-                        # Actualizar datos si es necesario
+                        remote_qs = qs.filter(names=client.names, surnames=client.surnames)
+
+                    remote_client = remote_qs.first()
+                    created = remote_client is None
+
+                    if created:
+                        remote_client = Client.objects.using('remote').create(
+                            company_id=client.company_id,
+                            names=client.names,
+                            surnames=client.surnames,
+                            dni=client.dni,
+                            date_birthday=client.date_birthday,
+                            address=client.address,
+                            gender=client.gender,
+                            is_active=client.is_active,
+                        )
+                    else:
                         remote_client.company_id = client.company_id
                         remote_client.names = client.names
                         remote_client.surnames = client.surnames
@@ -81,7 +80,7 @@ class Command(BaseCommand):
                         remote_client.gender = client.gender
                         remote_client.is_active = client.is_active
                         remote_client.save(using='remote')
-                    
+
                     # Marcar como sincronizado
                     client.synced_to_server = True
                     client.save(using='default')
@@ -160,30 +159,29 @@ class Command(BaseCommand):
             try:
                 with transaction.atomic(using='remote'):
                     # Buscar por code o nombre
-                    lookup = {}
+                    qs = Product.objects.using('remote')
                     if product.code:
-                        lookup['code'] = product.code
+                        remote_qs = qs.filter(code=product.code)
                     else:
-                        lookup['name'] = product.name
-                    
-                    remote_product, created = Product.objects.using('remote').get_or_create(
-                        **lookup,
-                        defaults={
-                            'company_id': product.company_id,
-                            'name': product.name,
-                            'cat_id': product.cat_id,
-                            'supplier_id': product.supplier_id,
-                            'pvp': product.pvp,
-                            'iva_rate': product.iva_rate,
-                            'pvp_final': product.pvp_final,
-                            'unit': product.unit,
-                            'stock': product.stock,
-                            'synced_to_server': True
-                        }
-                    )
-                    
-                    if not created:
-                        # Actualizar datos
+                        remote_qs = qs.filter(name=product.name)
+
+                    remote_product = remote_qs.first()
+                    created = remote_product is None
+
+                    if created:
+                        remote_product = Product.objects.using('remote').create(
+                            company_id=product.company_id,
+                            name=product.name,
+                            cat_id=product.cat_id,
+                            supplier_id=product.supplier_id,
+                            pvp=product.pvp,
+                            iva_rate=product.iva_rate,
+                            pvp_final=product.pvp_final,
+                            unit=product.unit,
+                            stock=product.stock,
+                            synced_to_server=True,
+                        )
+                    else:
                         remote_product.company_id = product.company_id
                         remote_product.name = product.name
                         remote_product.cat_id = product.cat_id
@@ -195,7 +193,7 @@ class Command(BaseCommand):
                         remote_product.stock = product.stock
                         remote_product.synced_to_server = True
                         remote_product.save(using='remote')
-                    
+
                     # Marcar como sincronizado
                     product.synced_to_server = True
                     product.save(using='default')

@@ -70,3 +70,5 @@ migration_server_safe.py
 sync_service_compatible.py
 /core/erp/migrations
 /core/user/migrations
+staticfiles/
+cache/

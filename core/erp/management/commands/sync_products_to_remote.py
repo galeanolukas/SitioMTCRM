@@ -49,10 +49,12 @@ class Command(BaseCommand):
                     # Asegurar categoria en remoto
                     remote_cat = None
                     if prod.cat_id:
-                        remote_cat, _ = Category.objects.using('remote').get_or_create(
-                            name=prod.cat.name,
-                            defaults={'desc': prod.cat.desc},
-                        )
+                        remote_cat = Category.objects.using('remote').filter(name=prod.cat.name).first()
+                        if not remote_cat:
+                            remote_cat = Category.objects.using('remote').create(
+                                name=prod.cat.name,
+                                desc=prod.cat.desc,
+                            )
 
                     # Resolver proveedor en remoto si existe con mismo ID
                     remote_supplier = None
@@ -66,21 +68,11 @@ class Command(BaseCommand):
                     # 3) Si no tiene código, buscar por nombre directamente
                     remote_prod = None
                     if prod.code:
-                        # Intentar encontrar por código
-                        try:
-                            remote_prod = Product.objects.using('remote').get(code=prod.code)
-                        except Product.DoesNotExist:
-                            # Si no encuentra por código, intentar por nombre
-                            try:
-                                remote_prod = Product.objects.using('remote').get(name=prod.name)
-                            except Product.DoesNotExist:
-                                pass
+                        remote_prod = Product.objects.using('remote').filter(code=prod.code).first()
+                        if not remote_prod:
+                            remote_prod = Product.objects.using('remote').filter(name=prod.name).first()
                     else:
-                        # Si no tiene código, buscar por nombre
-                        try:
-                            remote_prod = Product.objects.using('remote').get(name=prod.name)
-                        except Product.DoesNotExist:
-                            pass
+                        remote_prod = Product.objects.using('remote').filter(name=prod.name).first()
 
                     # Si no se encontró, crear nuevo
                     if not remote_prod:

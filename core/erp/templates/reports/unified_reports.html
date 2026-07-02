@@ -38,6 +38,7 @@
                                         <option value="expenses" {% if report_type == 'expenses' %}selected{% endif %}>Gastos</option>
                                         <option value="profit" {% if report_type == 'profit' %}selected{% endif %}>Ganancias</option>
                                         <option value="top_selling" {% if report_type == 'top_selling' %}selected{% endif %}>Productos Más Vendidos</option>
+                                        <option value="iva_ventas" {% if report_type == 'iva_ventas' %}selected{% endif %}>Libro de IVA Ventas</option>
                                     </select>
                                 </div>
                             </div>
@@ -130,6 +131,12 @@
                             <a class="nav-link {% if report_type == 'top_selling' %}active{% endif %}" 
                                href="?report_type=top_selling&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}">
                                 <i class="fas fa-box"></i> Productos Más Vendidos
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if report_type == 'iva_ventas' %}active{% endif %}" 
+                               href="?report_type=iva_ventas&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}">
+                                <i class="fas fa-file-invoice"></i> Libro de IVA Ventas
                             </a>
                         </li>
                     </ul>
@@ -672,6 +679,125 @@
                             {% else %}
                             <div class="alert alert-info">
                                 <i class="fas fa-info-circle"></i> No se encontraron productos vendidos en el período seleccionado.
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {% endif %}
+
+                    <!-- Reporte Libro de IVA Ventas -->
+                    {% if report_type == 'iva_ventas' %}
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <div class="info-box">
+                                <span class="info-box-icon bg-blue">
+                                    <i class="fas fa-file-invoice"></i>
+                                </span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">Comprobantes</span>
+                                    <span class="info-box-number">{{ iva_ventas_data.totals.count }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="info-box">
+                                <span class="info-box-icon bg-green">
+                                    <i class="fas fa-dollar-sign"></i>
+                                </span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">Neto Gravado Total</span>
+                                    <span class="info-box-number">${{ iva_ventas_data.totals.neto_21|floatformat:2 }} + ${{ iva_ventas_data.totals.neto_105|floatformat:2 }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="info-box">
+                                <span class="info-box-icon bg-warning">
+                                    <i class="fas fa-percent"></i>
+                                </span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">IVA Total</span>
+                                    <span class="info-box-number">${{ iva_ventas_data.totals.iva_21|floatformat:2 }} + ${{ iva_ventas_data.totals.iva_105|floatformat:2 }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="info-box">
+                                <span class="info-box-icon bg-danger">
+                                    <i class="fas fa-calculator"></i>
+                                </span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">Total Facturado</span>
+                                    <span class="info-box-number">${{ iva_ventas_data.totals.total|floatformat:2 }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title"><i class="fas fa-file-invoice"></i> Libro de IVA Ventas</h3>
+                        </div>
+                        <div class="card-body p-0">
+                            {% if iva_ventas_data.rows %}
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-striped table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Fecha</th>
+                                            <th>Tipo</th>
+                                            <th>PV</th>
+                                            <th>N° Comp.</th>
+                                            <th>Cliente</th>
+                                            <th>CUIT/CUIL</th>
+                                            <th class="text-right">Neto 21%</th>
+                                            <th class="text-right">Neto 10.5%</th>
+                                            <th class="text-right">Neto 0%</th>
+                                            <th class="text-right">IVA 21%</th>
+                                            <th class="text-right">IVA 10.5%</th>
+                                            <th class="text-right">Total</th>
+                                            <th>CAE</th>
+                                            <th>Vto CAE</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for row in iva_ventas_data.rows %}
+                                        <tr>
+                                            <td>{{ row.fecha }}</td>
+                                            <td>{{ row.tipo }}</td>
+                                            <td>{{ row.punto_venta }}</td>
+                                            <td>{{ row.numero }}</td>
+                                            <td>{{ row.cliente }}</td>
+                                            <td>{{ row.cuit }}</td>
+                                            <td class="text-right">{{ row.neto_21|floatformat:2 }}</td>
+                                            <td class="text-right">{{ row.neto_105|floatformat:2 }}</td>
+                                            <td class="text-right">{{ row.neto_0|floatformat:2 }}</td>
+                                            <td class="text-right">{{ row.iva_21|floatformat:2 }}</td>
+                                            <td class="text-right">{{ row.iva_105|floatformat:2 }}</td>
+                                            <td class="text-right">{{ row.total|floatformat:2 }}</td>
+                                            <td>{{ row.cae }}</td>
+                                            <td>{{ row.cae_vto }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                    <tfoot>
+                                        <tr class="font-weight-bold bg-light">
+                                            <td colspan="6">TOTALES</td>
+                                            <td class="text-right">{{ iva_ventas_data.totals.neto_21|floatformat:2 }}</td>
+                                            <td class="text-right">{{ iva_ventas_data.totals.neto_105|floatformat:2 }}</td>
+                                            <td class="text-right">{{ iva_ventas_data.totals.neto_0|floatformat:2 }}</td>
+                                            <td class="text-right">{{ iva_ventas_data.totals.iva_21|floatformat:2 }}</td>
+                                            <td class="text-right">{{ iva_ventas_data.totals.iva_105|floatformat:2 }}</td>
+                                            <td class="text-right">{{ iva_ventas_data.totals.total|floatformat:2 }}</td>
+                                            <td colspan="2"></td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                            {% else %}
+                            <div class="alert alert-info m-3">
+                                <i class="fas fa-info-circle"></i> No se encontraron comprobantes facturados en el período seleccionado.
                             </div>
                             {% endif %}
                         </div>

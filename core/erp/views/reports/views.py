@@ -105,6 +105,8 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
             context['profit_data'] = self.get_profit_data(company_id, start_date, end_date)
         elif report_type == 'top_selling':
             context['top_selling_data'] = self.get_top_selling_data(company_id, start_date, end_date, page)
+        elif report_type == 'iva_ventas':
+            context['iva_ventas_data'] = self.get_iva_ventas_data(company_id, start_date, end_date)
         
         # Agregar logs de cambios para opción de deshacer
         if report_type in ['inventory_enhanced', 'sales_by_period', 'product_sales']:
@@ -489,6 +491,104 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
             'page_obj': products_page,
         }
     
+    def get_iva_ventas_data(self, company_id, start_date, end_date):
+        """Libro de IVA Ventas: ventas facturadas con desglose por alícuota"""
+        from decimal import Decimal
+
+        start_datetime = timezone.make_aware(datetime.strptime(start_date, '%Y-%m-%d'))
+        end_datetime = timezone.make_aware(datetime.strptime(end_date, '%Y-%m-%d')) + timedelta(days=1, seconds=-1)
+
+        filters = {
+            'date_joined__range': [start_datetime, end_datetime],
+            'is_invoiced': True,
+        }
+        if company_id:
+            filters['company_id'] = company_id
+
+        sales = Sale.objects.filter(**filters).select_related('cli', 'company').order_by('date_joined')
+
+        rows = []
+        totals = {
+            'neto_21': Decimal('0.00'),
+            'neto_105': Decimal('0.00'),
+            'neto_0': Decimal('0.00'),
+            'iva_21': Decimal('0.00'),
+            'iva_105': Decimal('0.00'),
+            'total': Decimal('0.00'),
+            'count': 0,
+        }
+
+        for sale in sales:
+            # Calcular neto e IVA por alícuota a partir de los detalles
+            neto_21 = Decimal('0.00')
+            neto_105 = Decimal('0.00')
+            neto_0 = Decimal('0.00')
+            iva_21 = Decimal('0.00')
+            iva_105 = Decimal('0.00')
+
+            for det in sale.detsale_set.all():
+                rate = det.prod.iva_rate if det.prod and det.prod.iva_rate else Decimal('0')
+                if rate > Decimal('1.0'):
+                    rate = rate / Decimal('100.0')
+                if rate == Decimal('0.21'):
+                    neto_21 += det.subtotal
+                    iva_21 += det.iva_amount
+                elif rate == Decimal('0.105'):
+                    neto_105 += det.subtotal
+                    iva_105 += det.iva_amount
+                else:
+                    neto_0 += det.subtotal
+
+            cli_name = ''
+            cli_doc = ''
+            if sale.cli:
+                cli_name = f"{sale.cli.names or ''} {sale.cli.surnames or ''}".strip() or 'Consumidor Final'
+                cli_doc = sale.cli.cuit_cuil or sale.cli.dni or ''
+
+            comp_number = ''
+            if sale.afip_voucher_number:
+                comp_number = f"{sale.invoice_type or ''} {sale.invoice_pos or '0001'}-{sale.afip_voucher_number:08d}"
+            elif sale.invoice_number:
+                comp_number = f"{sale.invoice_type or ''} {sale.invoice_pos or '0001'}-{sale.invoice_number}"
+
+            rows.append({
+                'fecha': sale.date_joined.strftime('%d/%m/%Y'),
+                'tipo': sale.invoice_type or '',
+                'punto_venta': sale.invoice_pos or '',
+                'numero': sale.afip_voucher_number or sale.invoice_number or '',
+                'cliente': cli_name,
+                'cuit': cli_doc,
+                'neto_21': float(neto_21),
+                'neto_105': float(neto_105),
+                'neto_0': float(neto_0),
+                'iva_21': float(iva_21),
+                'iva_105': float(iva_105),
+                'total': float(sale.total),
+                'cae': sale.afip_cae or '',
+                'cae_vto': sale.afip_cae_vto.strftime('%d/%m/%Y') if sale.afip_cae_vto else '',
+            })
+
+            totals['neto_21'] += neto_21
+            totals['neto_105'] += neto_105
+            totals['neto_0'] += neto_0
+            totals['iva_21'] += iva_21
+            totals['iva_105'] += iva_105
+            totals['total'] += sale.total
+            totals['count'] += 1
+
+        return {
+            'rows': rows,
+            'totals': {
+                'neto_21': float(totals['neto_21']),
+                'neto_105': float(totals['neto_105']),
+                'neto_0': float(totals['neto_0']),
+                'iva_21': float(totals['iva_21']),
+                'iva_105': float(totals['iva_105']),
+                'total': float(totals['total']),
+                'count': totals['count'],
+            },
+        }
+
     def get_sales_by_period_data(self, company_id, period_type='daily', start_date=None, end_date=None):
         """Reporte de ventas con agregación por período (diario/semanal/mensual)"""
         # Convertir strings a datetime para el rango completo
@@ -837,6 +937,9 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
             elif report_type == 'top_selling':
                 data = self.get_top_selling_export_data(company_id, start_date, end_date)
                 filename = f'productos_mas_vendidos_{start_date}_al_{end_date}'
+            elif report_type == 'iva_ventas':
+                data = self.get_iva_ventas_export_data(company_id, start_date, end_date)
+                filename = f'libro_iva_ventas_{start_date}_al_{end_date}'
             
             # Exportar según formato
             if export_format == 'excel':
@@ -903,7 +1006,12 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
         unified_view = UnifiedReportsView()
         # Para exportación, necesitamos todos los datos sin paginación
         return unified_view.get_top_selling_data(company_id, start_date, end_date, page=1)
-    
+
+    def get_iva_ventas_export_data(self, company_id, start_date, end_date):
+        """Obtener datos para exportación del Libro de IVA Ventas"""
+        unified_view = UnifiedReportsView()
+        return unified_view.get_iva_ventas_data(company_id, start_date, end_date)
+
     def export_to_csv(self, data, filename, report_type, period_info=None):
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = f'attachment; filename="{filename}.csv"'
@@ -1078,6 +1186,30 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
             writer.writerow(['Número Total de Ventas', data['summary']['total_sales']])
             writer.writerow(['Monto Total Recaudado', data['summary']['total_amount']])
             writer.writerow(['Precio Promedio General', data['summary']['avg_price']])
+
+        elif report_type == 'iva_ventas':
+            writer.writerow(['LIBRO DE IVA VENTAS'])
+            writer.writerow([])
+            headers = ['Fecha', 'Tipo', 'Punto Venta', 'N° Comprobante', 'Cliente', 'CUIT/CUIL',
+                       'Neto 21%', 'Neto 10.5%', 'Neto 0%', 'IVA 21%', 'IVA 10.5%', 'Total', 'CAE', 'Vto CAE']
+            writer.writerow(headers)
+            for row in data['rows']:
+                writer.writerow([
+                    row['fecha'], row['tipo'], row['punto_venta'], row['numero'],
+                    row['cliente'], row['cuit'],
+                    row['neto_21'], row['neto_105'], row['neto_0'],
+                    row['iva_21'], row['iva_105'], row['total'],
+                    row['cae'], row['cae_vto'],
+                ])
+            writer.writerow([])
+            writer.writerow(['TOTALES'])
+            writer.writerow(['Neto 21%', data['totals']['neto_21']])
+            writer.writerow(['Neto 10.5%', data['totals']['neto_105']])
+            writer.writerow(['Neto 0%', data['totals']['neto_0']])
+            writer.writerow(['IVA 21%', data['totals']['iva_21']])
+            writer.writerow(['IVA 10.5%', data['totals']['iva_105']])
+            writer.writerow(['Total', data['totals']['total']])
+            writer.writerow(['Cantidad Comprobantes', data['totals']['count']])
         
         return response
     
@@ -1362,6 +1494,51 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
             ws.append(['Monto Total Recaudado', data['summary']['total_amount']])
             row += 1
             ws.append(['Precio Promedio General', data['summary']['avg_price']])
+
+        elif report_type == 'iva_ventas':
+            # Título del reporte
+            ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=14)
+            ws.cell(row=row, column=1, value='LIBRO DE IVA VENTAS')
+            ws.cell(row=row, column=1).font = title_font
+            ws.cell(row=row, column=1).alignment = title_alignment
+            row += 2
+
+            headers = ['Fecha', 'Tipo', 'Punto Venta', 'N° Comprobante', 'Cliente', 'CUIT/CUIL',
+                       'Neto 21%', 'Neto 10.5%', 'Neto 0%', 'IVA 21%', 'IVA 10.5%', 'Total', 'CAE', 'Vto CAE']
+            ws.append(headers)
+
+            for cell in ws[row]:
+                cell.font = header_font
+                cell.alignment = header_alignment
+
+            for r in data['rows']:
+                row += 1
+                ws.append([
+                    r['fecha'], r['tipo'], r['punto_venta'], r['numero'],
+                    r['cliente'], r['cuit'],
+                    r['neto_21'], r['neto_105'], r['neto_0'],
+                    r['iva_21'], r['iva_105'], r['total'],
+                    r['cae'], r['cae_vto'],
+                ])
+
+            # Totales
+            row += 2
+            ws.append(['TOTALES'])
+            ws.cell(row=row, column=1).font = summary_font
+            row += 1
+            ws.append(['Neto 21%', data['totals']['neto_21']])
+            row += 1
+            ws.append(['Neto 10.5%', data['totals']['neto_105']])
+            row += 1
+            ws.append(['Neto 0%', data['totals']['neto_0']])
+            row += 1
+            ws.append(['IVA 21%', data['totals']['iva_21']])
+            row += 1
+            ws.append(['IVA 10.5%', data['totals']['iva_105']])
+            row += 1
+            ws.append(['Total', data['totals']['total']])
+            row += 1
+            ws.append(['Cantidad Comprobantes', data['totals']['count']])
         
         # Ajustar ancho de columnas
         for column in ws.columns:

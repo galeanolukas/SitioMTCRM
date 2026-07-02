@@ -22,29 +22,32 @@ class Command(BaseCommand):
         for sup in pending:
             try:
                 with transaction.atomic(using='remote'):
-                    lookup = {}
+                    qs = Supplier.objects.using('remote')
                     if sup.cuit:
-                        lookup['cuit'] = sup.cuit
+                        remote_qs = qs.filter(cuit=sup.cuit)
                     else:
-                        lookup['name'] = sup.name
+                        remote_qs = qs.filter(name=sup.name)
 
-                    remote_sup, created = Supplier.objects.using('remote').get_or_create(
-                        **lookup,
-                        defaults={
-                            'company_id': sup.company_id,
-                            'address': sup.address,
-                            'phone': sup.phone,
-                            'email': sup.email,
-                            'is_active': sup.is_active,
-                        }
-                    )
-                    if not created:
+                    remote_sup = remote_qs.first()
+                    created = remote_sup is None
+
+                    if created:
+                        remote_sup = Supplier.objects.using('remote').create(
+                            company_id=sup.company_id,
+                            name=sup.name,
+                            cuit=sup.cuit,
+                            address=sup.address,
+                            phone=sup.phone,
+                            email=sup.email,
+                            is_active=sup.is_active,
+                        )
+                    else:
                         remote_sup.company_id = sup.company_id
                         remote_sup.address = sup.address
                         remote_sup.phone = sup.phone
                         remote_sup.email = sup.email
                         remote_sup.is_active = sup.is_active
-                        remote_sup.save()
+                        remote_sup.save(using='remote')
 
                 Supplier.objects.using('default').filter(pk=sup.pk).update(synced_to_server=True)
                 synced += 1
