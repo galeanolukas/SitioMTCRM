@@ -73,7 +73,12 @@ class ClientListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListVi
             action = request.POST['action']
             if action == 'searchdata':
                 data = []
+                active_cid = request.session.get('company_id')
+                if not request.user.is_superuser:
+                    active_cid = active_cid or getattr(request.user, 'company_id', None)
                 qs = Client.objects.filter(is_active=True)
+                if active_cid:
+                    qs = qs.filter(company_id=active_cid)
                 for i in qs:
                     data.append(i.toJSON())
             elif action == 'add':
