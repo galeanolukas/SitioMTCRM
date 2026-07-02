@@ -1108,6 +1108,35 @@ class SaleListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView
                 
                 return JsonResponse(response_data)
                 
+            elif action == 'delete_all':
+                from django.db import transaction
+                from django.db.models import F
+                from django.utils import timezone
+                try:
+                    with transaction.atomic():
+                        active_cid = request.session.get('company_id')
+                        if not request.user.is_superuser:
+                            active_cid = active_cid or getattr(request.user, 'company_id', None)
+                        qs = Sale.objects.all()
+                        if active_cid:
+                            qs = qs.filter(company_id=active_cid)
+                        count = 0
+                        for sale in qs:
+                            for d in sale.detsale_set.all():
+                                prod = Product.objects.filter(pk=d.prod_id).first()
+                                if prod and getattr(prod, 'track_stock', True):
+                                    Product.objects.filter(pk=d.prod_id).update(
+                                        stock=F('stock') + d.cant,
+                                        stock_modified_locally=timezone.now(),
+                                        synced_to_server=False
+                                    )
+                            sale.delete()
+                            count += 1
+                        data = {'success': True, 'count': count}
+                except Exception as e:
+                    data = {'error': str(e)}
+                return JsonResponse(data)
+                
             return JsonResponse({'error': 'Acción no válida'}, status=400)
             
         except Exception as e:

@@ -5,6 +5,14 @@
   <script src="{% static 'sale/js/list.js' %}"></script>
 {% endblock %}
 
+{% block buttons_list %}
+  <a href="{{ create_url }}" class="btn btn-primary btn-flat"><i class="fas fa-plus"></i> Nuevo registro</a>
+  <a href="{{ list_url }}" class="btn btn-success btn-flat"><i class="fas fa-sync"></i> Actualizar</a>
+  <button type="button" class="btn btn-danger btn-flat" id="btnDeleteAll">
+    <i class="fas fa-trash-alt"></i> Eliminar todos
+  </button>
+{% endblock %}
+
 {% block columns %}
   <tr>
     <th scope="col" style="width: 05%;"></th>
@@ -81,6 +89,28 @@
               </ul>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal confirmación eliminar todos -->
+  <div class="modal fade" id="modalDeleteAll" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header bg-danger">
+          <h5 class="modal-title text-white"><i class="fas fa-exclamation-triangle"></i> Eliminar todas las ventas</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p>¿Está seguro que desea eliminar <strong>todas</strong> las ventas?</p>
+          <p class="text-danger small"><i class="fas fa-warning"></i> Esta acción restaurará el stock de los productos y no se puede deshacer.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-flat" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-danger btn-flat" id="btnConfirmDeleteAll">
+            <i class="fas fa-trash-alt"></i> Sí, eliminar todas
+          </button>
         </div>
       </div>
     </div>
