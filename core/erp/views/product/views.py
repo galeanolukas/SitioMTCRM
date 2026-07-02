@@ -1190,7 +1190,6 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
 
             # --- Importar proveedores ---
             if entity_type == 'supplier':
-                from core.erp.models import Supplier
                 map_name = request.POST.get('map_supplier_name')
                 map_cuit = request.POST.get('map_supplier_cuit')
                 map_address = request.POST.get('map_supplier_address')
