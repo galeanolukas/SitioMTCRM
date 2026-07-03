@@ -29,11 +29,11 @@ echo "[1/5] Eliminando base de datos..."
 rm -f db.sqlite3
 echo "Base de datos eliminada."
 
-# 2. Eliminar migraciones
+# 2. Eliminar migraciones (SOLO del proyecto, NO del entorno virtual DJENV)
 echo "[2/5] Eliminando migraciones..."
-find . -path "*/migrations/*.py" ! -name "__init__.py" -delete
-find . -name "*.pyc" -delete
-find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+find ./core -path "*/migrations/*.py" ! -name "__init__.py" -delete 2>/dev/null || true
+find . -path "./DJENV" -prune -o -name "*.pyc" -delete 2>/dev/null || true
+find . -path "./DJENV" -prune -o -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 echo "Migraciones eliminadas."
 
 # 3. Eliminar archivos estáticos
@@ -42,12 +42,12 @@ rm -rf staticfiles
 rm -rf core/static
 echo "Archivos estáticos eliminados."
 
-# 4. Eliminar archivos de caché
+# 4. Eliminar archivos de caché (excluyendo DJENV)
 echo "[4/5] Eliminando archivos de caché..."
-find . -name "*.pyc" -delete
-find . -name "*.pyo" -delete
-find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
-find . -name ".pytest_cache" -type d -exec rm -rf {} + 2>/dev/null || true
+find . -path "./DJENV" -prune -o -name "*.pyc" -delete 2>/dev/null || true
+find . -path "./DJENV" -prune -o -name "*.pyo" -delete 2>/dev/null || true
+find . -path "./DJENV" -prune -o -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+find . -path "./DJENV" -prune -o -name ".pytest_cache" -type d -exec rm -rf {} + 2>/dev/null || true
 echo "Caché eliminado."
 
 # 5. Eliminar archivos temporales

@@ -30,16 +30,29 @@ if ! command -v git &> /dev/null; then
     echo
 fi
 
-# 1) Crear entorno virtual DJENV si no existe
+# 1) Crear o recrear entorno virtual DJENV
+# Verificar si DJENV existe y está funcional
+RECREATE_VENV=false
 if [ ! -d "DJENV" ]; then
     echo "Creando entorno virtual DJENV..."
+    RECREATE_VENV=true
+else
+    # Verificar que DJENV tenga Python funcional
+    if ! DJENV/bin/python -c "import django" &>/dev/null; then
+        echo "Entorno virtual DJENV está dañado o incompleto. Recreando..."
+        rm -rf DJENV
+        RECREATE_VENV=true
+    else
+        echo "Entorno virtual DJENV ya existe y funciona correctamente."
+    fi
+fi
+
+if [ "$RECREATE_VENV" = true ]; then
     python3 -m venv DJENV
     if [ $? -ne 0 ]; then
         echo "Error al crear el entorno virtual DJENV. Verifica que Python3 esté instalado."
         exit 1
     fi
-else
-    echo "Entorno virtual DJENV ya existe."
 fi
 
 # 2) Activar entorno virtual DJENV
@@ -94,68 +107,21 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Verificar y crear company_id si falta (evita el error del servidor)
-echo "Verificando estructura de tablas críticas..."
+# 5) Crear superusuario automáticamente si no existe ninguno
+echo "Verificando si existe un superusuario..."
 python manage.py shell -c "
-from django.db import connection
-try:
-    with connection.cursor() as cursor:
-        # Verificar si erp_category tiene company_id
-        cursor.execute('PRAGMA table_info(erp_category)')
-        columns = [row[1] for row in cursor.fetchall()]
-        if 'company_id' not in columns:
-            print('Agregando company_id a erp_category...')
-            cursor.execute('ALTER TABLE erp_category ADD COLUMN company_id INTEGER')
-            print('✓ company_id agregado a erp_category')
-        
-        # Verificar si erp_product tiene company_id
-        cursor.execute('PRAGMA table_info(erp_product)')
-        columns = [row[1] for row in cursor.fetchall()]
-        if 'company_id' not in columns:
-            print('Agregando company_id a erp_product...')
-            cursor.execute('ALTER TABLE erp_product ADD COLUMN company_id INTEGER')
-            print('✓ company_id agregado a erp_product')
-        
-        # Verificar si erp_company existe
-        cursor.execute(\"SELECT name FROM sqlite_master WHERE type='table' AND name='erp_company'\")
-        if not cursor.fetchone():
-            print('Creando tabla erp_company...')
-            cursor.execute('''
-                CREATE TABLE erp_company (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name VARCHAR(200) NOT NULL,
-                    ruc VARCHAR(20),
-                    address TEXT,
-                    phone VARCHAR(50),
-                    email VARCHAR(100),
-                    is_active BOOLEAN DEFAULT 1,
-                    date_joined TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    date_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            print('✓ Tabla erp_company creada')
-            
-            # Insertar empresa por defecto
-            cursor.execute('INSERT INTO erp_company (name, ruc) VALUES (?, ?)', ['Mi Empresa', ''])
-            print('✓ Empresa por defecto creada')
-        
-        # Asignar company_id por defecto si es NULL
-        cursor.execute('UPDATE erp_category SET company_id = 1 WHERE company_id IS NULL')
-        cursor.execute('UPDATE erp_product SET company_id = 1 WHERE company_id IS NULL')
-        print('✓ company_id asignado por defecto donde faltaba')
-        
-        print('✓ Estructura de tablas verificada y corregida')
-except Exception as e:
-    print(f'Error verificando tablas: {e}')
-" 2>/dev/null
+from django.contrib.auth.models import User
+if not User.objects.filter(is_superuser=True).exists():
+    User.objects.create_superuser('admin', 'admin@example.com', 'admin123')
+    print('SUPERUSER_CREATED')
+else:
+    print('SUPERUSER_EXISTS')
+" 2>/dev/null | grep -q 'SUPERUSER_CREATED' && echo "✓ Superusuario creado: admin / admin123" || echo "✓ Superusuario ya existe"
 
 echo
 echo "============================================"
 echo "Instalación terminada."
 echo "============================================"
-echo "Si es la primera vez, crea un superusuario con:"
-echo "  python manage.py createsuperuser"
-echo
 echo "Para iniciar el POS local:"
 echo "  source DJENV/bin/activate"
 echo "  python manage.py runserver 0.0.0.0:8000"
@@ -166,24 +132,6 @@ echo "  1) Cierre el POS."
 echo "  2) Ejecute: ./actualizar_pos.sh"
 echo "  3) Vuelva a iniciar con ./lanzar_pos.sh"
 echo "============================================"
-
-# Preguntar si desea iniciar el programa automáticamente
-read -p "¿Desea iniciar el programa automáticamente? (s/n): " start_program
-
-if [[ $start_program =~ ^[Ss]$ ]]; then
-    echo
-    echo "Iniciando el programa..."
-    echo "El servidor se iniciará en: http://127.0.0.1:8000/"
-    echo "Presione Ctrl+C para detener el servidor."
-    echo
-    python manage.py runserver 0.0.0.0:8000
-else
-    echo
-    echo "Para iniciar manualmente:"
-    echo "  source DJENV/bin/activate"
-    echo "  python manage.py runserver 0.0.0.0:8000"
-    echo "y luego abra: http://localhost:8000/erp/sale/pos/"
-fi
 
 # Crear acceso directo (launcher) en el escritorio para el POS local
 LAUNCHER_TARGET="$(pwd)/lanzar_pos.sh"
