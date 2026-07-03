@@ -157,7 +157,7 @@ class Command(BaseCommand):
         
         for product in local_products:
             try:
-                # Buscar por code primero, luego por nombre (exacto y case-insensitive)
+                # Buscar por code, nombre exacto, iexact, icontains
                 remote_product = None
                 if product.code:
                     remote_product = Product.objects.using('remote').filter(code=product.code).first()
@@ -165,6 +165,8 @@ class Command(BaseCommand):
                     remote_product = Product.objects.using('remote').filter(name=product.name).first()
                 if not remote_product:
                     remote_product = Product.objects.using('remote').filter(name__iexact=product.name).first()
+                if not remote_product:
+                    remote_product = Product.objects.using('remote').filter(name__icontains=product.name.strip()).first()
 
                 if remote_product:
                     # Actualizar producto existente
@@ -180,19 +182,39 @@ class Command(BaseCommand):
                     remote_product.synced_to_server = True
                     remote_product.save(using='remote')
                 else:
-                    # Crear nuevo producto
-                    Product.objects.using('remote').create(
-                        company_id=product.company_id,
-                        name=product.name,
-                        cat_id=product.cat_id,
-                        supplier_id=product.supplier_id,
-                        pvp=product.pvp,
-                        iva_rate=product.iva_rate,
-                        pvp_final=product.pvp_final,
-                        unit=product.unit,
-                        stock=product.stock,
-                        synced_to_server=True,
-                    )
+                    # Crear nuevo producto (con fallback si duplicate key)
+                    try:
+                        Product.objects.using('remote').create(
+                            company_id=product.company_id,
+                            name=product.name,
+                            cat_id=product.cat_id,
+                            supplier_id=product.supplier_id,
+                            pvp=product.pvp,
+                            iva_rate=product.iva_rate,
+                            pvp_final=product.pvp_final,
+                            unit=product.unit,
+                            stock=product.stock,
+                            synced_to_server=True,
+                        )
+                    except Exception as create_err:
+                        if 'duplicate key' in str(create_err).lower() or 'unique constraint' in str(create_err).lower():
+                            remote_product = Product.objects.using('remote').filter(name__icontains=product.name.strip()).first()
+                            if remote_product:
+                                remote_product.company_id = product.company_id
+                                remote_product.name = product.name
+                                remote_product.cat_id = product.cat_id
+                                remote_product.supplier_id = product.supplier_id
+                                remote_product.pvp = product.pvp
+                                remote_product.iva_rate = product.iva_rate
+                                remote_product.pvp_final = product.pvp_final
+                                remote_product.unit = product.unit
+                                remote_product.stock = product.stock
+                                remote_product.synced_to_server = True
+                                remote_product.save(using='remote')
+                            else:
+                                raise
+                        else:
+                            raise
 
                 # Marcar como sincronizado
                 product.synced_to_server = True
