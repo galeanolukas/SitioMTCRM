@@ -1206,10 +1206,13 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
 
                 for idx, row in df.iterrows():
                     try:
+                        # Saltar filas completamente vacías
+                        if row.isna().all():
+                            continue
+
                         raw_name = row.get(map_name) if map_name else None
                         name = str(raw_name).strip() if raw_name is not None and not pd.isna(raw_name) else ''
                         if not name:
-                            errors.append(f'Fila {idx+1}: Nombre vacío.')
                             continue
 
                         cuit = ''
@@ -1411,6 +1414,15 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
 
             for idx, row in df.iterrows():
                 try:
+                    # Saltar filas completamente vacías (basura al final del Excel)
+                    if row.isna().all():
+                        continue
+
+                    # Saltar filas sin nombre (filas basura con algunos campos pero sin nombre)
+                    raw_name_check = row.get(map_name)
+                    if pd.isna(raw_name_check) or str(raw_name_check).strip() == '':
+                        continue
+
                     # Código: si está vacío, generar automático; si tiene valor, limpiar .0
                     raw_code = row.get(map_code)
                     code = None
