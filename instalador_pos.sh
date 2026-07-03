@@ -37,8 +37,8 @@ if [ ! -d "DJENV" ]; then
     echo "Creando entorno virtual DJENV..."
     RECREATE_VENV=true
 else
-    # Verificar que DJENV tenga Python funcional
-    if ! DJENV/bin/python -c "import django" &>/dev/null; then
+    # Verificar que DJENV tenga Django completo (incluido módulo de migraciones)
+    if ! DJENV/bin/python -c "from django.db.migrations.migration import Migration" &>/dev/null; then
         echo "Entorno virtual DJENV está dañado o incompleto. Recreando..."
         rm -rf DJENV
         RECREATE_VENV=true
