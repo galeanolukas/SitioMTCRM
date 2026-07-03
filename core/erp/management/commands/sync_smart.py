@@ -158,29 +158,51 @@ class Command(BaseCommand):
         for product in local_products:
             try:
                 with transaction.atomic(using='remote'):
-                    # Buscar por code o nombre
-                    qs = Product.objects.using('remote')
+                    # Buscar por code primero, luego por nombre (exacto y case-insensitive)
+                    remote_product = None
                     if product.code:
-                        remote_qs = qs.filter(code=product.code)
-                    else:
-                        remote_qs = qs.filter(name=product.name)
+                        remote_product = Product.objects.using('remote').filter(code=product.code).first()
+                    if not remote_product:
+                        remote_product = Product.objects.using('remote').filter(name=product.name).first()
+                    if not remote_product:
+                        remote_product = Product.objects.using('remote').filter(name__iexact=product.name).first()
 
-                    remote_product = remote_qs.first()
                     created = remote_product is None
 
                     if created:
-                        remote_product = Product.objects.using('remote').create(
-                            company_id=product.company_id,
-                            name=product.name,
-                            cat_id=product.cat_id,
-                            supplier_id=product.supplier_id,
-                            pvp=product.pvp,
-                            iva_rate=product.iva_rate,
-                            pvp_final=product.pvp_final,
-                            unit=product.unit,
-                            stock=product.stock,
-                            synced_to_server=True,
-                        )
+                        try:
+                            remote_product = Product.objects.using('remote').create(
+                                company_id=product.company_id,
+                                name=product.name,
+                                cat_id=product.cat_id,
+                                supplier_id=product.supplier_id,
+                                pvp=product.pvp,
+                                iva_rate=product.iva_rate,
+                                pvp_final=product.pvp_final,
+                                unit=product.unit,
+                                stock=product.stock,
+                                synced_to_server=True,
+                            )
+                        except Exception as create_err:
+                            if 'duplicate key' in str(create_err).lower() or 'unique constraint' in str(create_err).lower():
+                                remote_product = Product.objects.using('remote').filter(name__iexact=product.name).first()
+                                if remote_product:
+                                    # Actualizar en lugar de crear
+                                    remote_product.company_id = product.company_id
+                                    remote_product.name = product.name
+                                    remote_product.cat_id = product.cat_id
+                                    remote_product.supplier_id = product.supplier_id
+                                    remote_product.pvp = product.pvp
+                                    remote_product.iva_rate = product.iva_rate
+                                    remote_product.pvp_final = product.pvp_final
+                                    remote_product.unit = product.unit
+                                    remote_product.stock = product.stock
+                                    remote_product.synced_to_server = True
+                                    remote_product.save(using='remote')
+                                else:
+                                    raise
+                            else:
+                                raise
                     else:
                         remote_product.company_id = product.company_id
                         remote_product.name = product.name

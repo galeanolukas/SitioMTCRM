@@ -64,17 +64,18 @@ class Command(BaseCommand):
 
                     # Lógica mejorada de búsqueda:
                     # 1) Si tiene código, buscar por código primero
-                    # 2) Si no encuentra por código, buscar por nombre
+                    # 2) Si no encuentra por código, buscar por nombre (case-insensitive)
                     # 3) Si no tiene código, buscar por nombre directamente
                     remote_prod = None
                     if prod.code:
                         remote_prod = Product.objects.using('remote').filter(code=prod.code).first()
-                        if not remote_prod:
-                            remote_prod = Product.objects.using('remote').filter(name=prod.name).first()
-                    else:
+                    if not remote_prod:
+                        # Buscar por nombre exacto primero, luego case-insensitive
                         remote_prod = Product.objects.using('remote').filter(name=prod.name).first()
+                        if not remote_prod:
+                            remote_prod = Product.objects.using('remote').filter(name__iexact=prod.name).first()
 
-                    # Si no se encontró, crear nuevo
+                    # Si no se encontró, crear nuevo (con manejo de duplicate key)
                     if not remote_prod:
                         defaults = {
                             'company_id': remote_company.id if remote_company else None,
@@ -93,8 +94,19 @@ class Command(BaseCommand):
                         if prod.code:
                             defaults['code'] = prod.code
 
-                        remote_prod = Product.objects.using('remote').create(**defaults)
-                        created = True
+                        try:
+                            remote_prod = Product.objects.using('remote').create(**defaults)
+                            created = True
+                        except Exception as create_err:
+                            # Si falla por duplicate key, buscar por nombre y actualizar
+                            if 'duplicate key' in str(create_err).lower() or 'unique constraint' in str(create_err).lower():
+                                remote_prod = Product.objects.using('remote').filter(name__iexact=prod.name).first()
+                                if remote_prod:
+                                    created = False
+                                else:
+                                    raise
+                            else:
+                                raise
                     else:
                         # Actualizar producto existente
                         created = False
