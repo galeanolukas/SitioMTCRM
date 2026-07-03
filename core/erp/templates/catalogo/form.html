@@ -1,27 +1,132 @@
-{% extends 'base/form.html' %}
+{% extends 'base/layout.html' %}
 {% load static %}
 
-{% block head_form %}
+{% block head %}
   <script src="{% static 'catalogo/form.js' %}"></script>
 {% endblock %}
 
-{% block javascript %}
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      const autoSyncCheckbox = document.getElementById('id_auto_sync');
-      const syncIntervalField = document.getElementById('id_sync_interval_hours');
-      
-      if (autoSyncCheckbox && syncIntervalField) {
-        autoSyncCheckbox.addEventListener('change', function() {
-          syncIntervalField.disabled = !this.checked;
-          if (!this.checked) {
-            syncIntervalField.value = 24;
-          }
+{% block content %}
+<div class="row">
+    <div class="col-12 col-lg-10 mx-auto">
+        <div class="card card-primary card-outline">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="fas fa-{% if action == 'add' %}plus{% else %}edit{% endif %}"></i>
+                    {% if action == 'add' %}Nueva Configuración de Catálogo{% else %}Editar Configuración de Catálogo{% endif %}
+                </h3>
+            </div>
+            <form method="post" action="." enctype="multipart/form-data" id="catalogo-form">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="{{ action }}" />
+
+                <div class="card-body">
+                    <div id="error-block" class="alert alert-danger" style="display:none;"></div>
+                    <div id="success-block" class="alert alert-success" style="display:none;"></div>
+
+                    <!-- Sección: Conexión -->
+                    <div class="form-group">
+                        <label for="{{ form.company.id_for_label }}">
+                            <i class="fas fa-building text-primary"></i> {{ form.company.label }}
+                        </label>
+                        {{ form.company }}
+                        <small class="form-text text-muted">Empresa a la que pertenece esta configuración</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="{{ form.catalogo_url.id_for_label }}">
+                            <i class="fas fa-globe text-primary"></i> {{ form.catalogo_url.label }}
+                        </label>
+                        {{ form.catalogo_url }}
+                        <small class="form-text text-muted">URL del catálogo externo (ej: https://catalogo.example.com)</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="{{ form.api_key.id_for_label }}">
+                            <i class="fas fa-key text-primary"></i> {{ form.api_key.label }}
+                        </label>
+                        {{ form.api_key }}
+                        <small class="form-text text-muted">Clave de API para autenticación con el catálogo</small>
+                    </div>
+
+                    <hr>
+                    <h6 class="text-muted mb-3"><i class="fas fa-cog"></i> Opciones de Sincronización</h6>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <div class="custom-control custom-checkbox">
+                                    {{ form.is_active }}
+                                    <label class="custom-control-label" for="{{ form.is_active.id_for_label }}">
+                                        <i class="fas fa-check-circle text-success"></i> {{ form.is_active.label }}
+                                    </label>
+                                </div>
+                                <small class="form-text text-muted">Activa o desactiva esta configuración</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <div class="custom-control custom-checkbox">
+                                    {{ form.auto_sync }}
+                                    <label class="custom-control-label" for="{{ form.auto_sync.id_for_label }}">
+                                        <i class="fas fa-sync-alt text-info"></i> {{ form.auto_sync.label }}
+                                    </label>
+                                </div>
+                                <small class="form-text text-muted">Sincroniza automáticamente el inventario</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group" id="sync-interval-group">
+                        <label for="{{ form.sync_interval_hours.id_for_label }}">
+                            <i class="fas fa-clock text-primary"></i> {{ form.sync_interval_hours.label }}
+                        </label>
+                        <div class="input-group">
+                            {{ form.sync_interval_hours }}
+                            <div class="input-group-append">
+                                <span class="input-group-text">horas</span>
+                            </div>
+                        </div>
+                        <small class="form-text text-muted">Intervalo entre sincronizaciones automáticas</small>
+                    </div>
+                </div>
+
+                <div class="card-footer">
+                    <button type="submit" class="btn btn-primary btn-flat">
+                        <i class="fas fa-save"></i> Guardar
+                    </button>
+                    <a href="{{ list_url }}" class="btn btn-default btn-flat">
+                        <i class="fas fa-times"></i> Cancelar
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+$(function() {
+    // Toggle del intervalo de sync según checkbox
+    var autoSyncCheckbox = $('#id_auto_sync');
+    var syncIntervalField = $('#id_sync_interval_hours');
+    var syncIntervalGroup = $('#sync-interval-group');
+
+    function toggleSyncInterval() {
+        var enabled = autoSyncCheckbox.is(':checked');
+        syncIntervalField.prop('disabled', !enabled);
+        syncIntervalGroup.toggle(enabled);
+    }
+
+    autoSyncCheckbox.on('change', toggleSyncInterval);
+    toggleSyncInterval();
+
+    // Submit via AJAX
+    $('#catalogo-form').on('submit', function(e) {
+        e.preventDefault();
+        var parameters = new FormData(this);
+        submit_with_ajax(window.location.pathname, 'Alerta!', '¿Está seguro de guardar esta configuración?', parameters, function() {
+            location.href = '{{ list_url }}';
         });
-        
-        // Initial state
-        syncIntervalField.disabled = !autoSyncCheckbox.checked;
-      }
     });
-  </script>
+});
+</script>
 {% endblock %}

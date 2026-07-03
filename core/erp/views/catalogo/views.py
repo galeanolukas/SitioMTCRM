@@ -183,7 +183,13 @@ class CatalogoConfigCreateView(LoginRequiredMixin, ValidatePermissionRequiredMix
     permission_required = 'erp.add_catalogoconfig'
     fields = ['company', 'catalogo_url', 'api_key', 'is_active', 'auto_sync', 'sync_interval_hours']
     success_url = reverse_lazy('erp:catalogo_list')
-    
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['action'] = 'add'
+        context['list_url'] = reverse_lazy('erp:catalogo_list')
+        return context
+
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
         
@@ -211,7 +217,13 @@ class CatalogoConfigUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMix
     permission_required = 'erp.change_catalogoconfig'
     fields = ['company', 'catalogo_url', 'api_key', 'is_active', 'auto_sync', 'sync_interval_hours']
     success_url = reverse_lazy('erp:catalogo_list')
-    
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['action'] = 'edit'
+        context['list_url'] = reverse_lazy('erp:catalogo_list')
+        return context
+
     def get_queryset(self):
         qs = super().get_queryset()
         
