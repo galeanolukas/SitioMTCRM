@@ -1519,19 +1519,19 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                     if map_company and not pd.isna(row.get(map_company)):
                         comp_name = str(row.get(map_company)).strip()
 
-                    # Resolver empresa: por nombre, empresa activa o empresa del usuario
-                    company_id = active_cid
+                    # Resolver empresa: por nombre en archivo, o empresa del usuario logueado
+                    company_id = None
                     if comp_name:
                         comp = Company.objects.filter(name__iexact=comp_name).first()
                         if comp:
                             company_id = comp.id
                     else:
-                        # Si no hay empresa en el archivo, usar la empresa del usuario
-                        if not company_id and hasattr(request.user, 'company') and request.user.company:
+                        # Si no hay empresa en el archivo, usar la empresa del usuario logueado
+                        if active_cid:
+                            company_id = active_cid
+                        elif hasattr(request.user, 'company') and request.user.company:
                             company_id = request.user.company.id
-                            import_logger.info(f"Fila {idx+1}: Asignando empresa del usuario {request.user.username} (ID: {company_id})")
-                        elif not company_id:
-                            import_logger.warning(f"Fila {idx+1}: No se pudo determinar empresa para el producto '{code}'")
+                        # Si no pertenece a ninguna, company_id queda None (vacio)
 
                     # Proveedor (opcional): buscar por nombre, si no existe se ignora
                     supplier_obj = None
