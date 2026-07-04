@@ -37,6 +37,9 @@ class Command(BaseCommand):
             # 7) Sincronizar listas de precios
             self.sync_price_lists()
             
+            # 8) Sincronizar proveedores
+            self.sync_suppliers()
+            
             self.stdout.write(self.style.SUCCESS("Sincronización inteligente completada"))
             
         except Exception as e:
@@ -521,3 +524,63 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.ERROR(f"Error sincronizando override {plp.id}: {e}"))
 
         self.stdout.write(f"Overrides de listas sincronizados: {plp_count}")
+
+    def sync_suppliers(self):
+        """Sincronizar proveedores evitando duplicados"""
+        self.stdout.write("Sincronizando proveedores...")
+
+        local_suppliers = Supplier.objects.using('default').all()
+        synced_count = 0
+
+        for sup in local_suppliers:
+            try:
+                # Resolver empresa remota
+                remote_company = None
+                if sup.company_id:
+                    local_company = Company.objects.using('default').filter(pk=sup.company_id).first()
+                    if local_company:
+                        if local_company.cuit:
+                            remote_company = Company.objects.using('remote').filter(cuit=local_company.cuit).first()
+                        if not remote_company:
+                            remote_company = Company.objects.using('remote').filter(name=local_company.name).first()
+
+                with transaction.atomic(using='remote'):
+                    # Buscar proveedor remoto por CUIT o nombre
+                    qs = Supplier.objects.using('remote')
+                    remote_sup = None
+
+                    if sup.cuit:
+                        remote_sup = qs.filter(cuit=sup.cuit).first()
+                    if not remote_sup:
+                        remote_sup = qs.filter(name=sup.name).first()
+                    if not remote_sup:
+                        remote_sup = qs.filter(name__iexact=sup.name).first()
+
+                    created = remote_sup is None
+
+                    if created:
+                        remote_sup = Supplier.objects.using('remote').create(
+                            company_id=remote_company.id if remote_company else sup.company_id,
+                            name=sup.name,
+                            cuit=sup.cuit,
+                            address=sup.address,
+                            phone=sup.phone,
+                            email=sup.email,
+                            is_active=sup.is_active,
+                        )
+                    else:
+                        if remote_company:
+                            remote_sup.company_id = remote_company.id
+                        remote_sup.name = sup.name
+                        remote_sup.cuit = sup.cuit
+                        remote_sup.address = sup.address
+                        remote_sup.phone = sup.phone
+                        remote_sup.email = sup.email
+                        remote_sup.is_active = sup.is_active
+                        remote_sup.save(using='remote')
+
+                synced_count += 1
+            except Exception as e:
+                self.stdout.write(self.style.ERROR(f"Error sincronizando proveedor {sup.id}: {e}"))
+
+        self.stdout.write(f"Proveedores sincronizados: {synced_count}")
