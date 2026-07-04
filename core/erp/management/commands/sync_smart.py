@@ -103,12 +103,56 @@ class Command(BaseCommand):
         
         for sale in local_sales:
             try:
+                # Resolver empresa remota
+                remote_company = None
+                if sale.company_id:
+                    local_company = Company.objects.using('default').filter(pk=sale.company_id).first()
+                    if local_company:
+                        if local_company.cuit:
+                            remote_company = Company.objects.using('remote').filter(cuit=local_company.cuit).first()
+                        if not remote_company:
+                            remote_company = Company.objects.using('remote').filter(name=local_company.name).first()
+
+                # Resolver cliente remoto (los IDs no coinciden entre local y remoto)
+                remote_cli_id = None
+                if sale.cli_id:
+                    local_cli = Client.objects.using('default').filter(pk=sale.cli_id).first()
+                    if local_cli:
+                        remote_cli = None
+                        if local_cli.dni:
+                            remote_cli = Client.objects.using('remote').filter(dni=local_cli.dni).first()
+                        if not remote_cli and local_cli.cuit_cuil:
+                            remote_cli = Client.objects.using('remote').filter(cuit_cuil=local_cli.cuit_cuil).first()
+                        if not remote_cli:
+                            if remote_company:
+                                remote_cli = Client.objects.using('remote').filter(
+                                    names=local_cli.names, company_id=remote_company.id
+                                ).first()
+                            else:
+                                remote_cli = Client.objects.using('remote').filter(names=local_cli.names).first()
+                        if not remote_cli:
+                            remote_cli = Client.objects.using('remote').filter(names__iexact=local_cli.names).first()
+                        if not remote_cli:
+                            remote_cli = Client.objects.using('remote').create(
+                                company_id=remote_company.id if remote_company else local_cli.company_id,
+                                names=local_cli.names,
+                                surnames=local_cli.surnames,
+                                dni=local_cli.dni,
+                                cuit_cuil=local_cli.cuit_cuil,
+                                date_birthday=local_cli.date_birthday,
+                                address=local_cli.address,
+                                gender=local_cli.gender,
+                                is_active=local_cli.is_active,
+                            )
+                            self.stdout.write(f"  Cliente remoto creado: {remote_cli.names} (ID: {remote_cli.id})")
+                        remote_cli_id = remote_cli.id
+
                 with transaction.atomic(using='remote'):
                     # Verificar si ya existe venta con misma fecha, monto y cliente
                     existing = Sale.objects.using('remote').filter(
                         date_joined=sale.date_joined,
                         total=sale.total,
-                        cli_id=sale.cli_id
+                        cli_id=remote_cli_id
                     ).only(
                         'id', 'company_id', 'cli_id', 'date_joined', 'subtotal', 
                         'total', 'payment_method', 'is_invoiced', 'invoice_number',
@@ -123,11 +167,9 @@ class Command(BaseCommand):
                         continue
                     
                     # Crear venta remota
-                    # Mantener el horario local original de la venta
-                    # Preservamos el date_joined tal como está para mantener la hora local del POS
                     remote_sale = Sale.objects.using('remote').create(
-                        company_id=sale.company_id,
-                        cli_id=sale.cli_id,
+                        company_id=remote_company.id if remote_company else sale.company_id,
+                        cli_id=remote_cli_id,
                         date_joined=sale.date_joined,
                         local_timezone=sale.local_timezone,
                         subtotal=sale.subtotal,

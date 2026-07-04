@@ -2,7 +2,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
 
-from core.erp.models import Sale, DetSale, Company, Product
+from core.erp.models import Sale, DetSale, Company, Product, Client
 
 
 class Command(BaseCommand):
@@ -44,6 +44,45 @@ class Command(BaseCommand):
                         f"no tiene equivalente en servidor remoto (por CUIT/nombre)."
                     )
                     continue
+
+                # Resolver cliente remoto (los IDs no coinciden entre local y remoto)
+                remote_cli_id = None
+                if sale.cli_id:
+                    local_cli = Client.objects.using('default').filter(pk=sale.cli_id).first()
+                    if local_cli:
+                        remote_cli = None
+                        # 1) Buscar por DNI si tiene
+                        if local_cli.dni:
+                            remote_cli = Client.objects.using('remote').filter(dni=local_cli.dni).first()
+                        # 2) Buscar por CUIT/CUIL si tiene
+                        if not remote_cli and local_cli.cuit_cuil:
+                            remote_cli = Client.objects.using('remote').filter(cuit_cuil=local_cli.cuit_cuil).first()
+                        # 3) Buscar por nombre exacto + empresa
+                        if not remote_cli:
+                            if remote_company:
+                                remote_cli = Client.objects.using('remote').filter(
+                                    names=local_cli.names, company_id=remote_company.id
+                                ).first()
+                            else:
+                                remote_cli = Client.objects.using('remote').filter(names=local_cli.names).first()
+                        # 4) Buscar por nombre case-insensitive
+                        if not remote_cli:
+                            remote_cli = Client.objects.using('remote').filter(names__iexact=local_cli.names).first()
+                        # 5) Si no existe, crear el cliente en remoto
+                        if not remote_cli:
+                            remote_cli = Client.objects.using('remote').create(
+                                company_id=remote_company.id if remote_company else local_cli.company_id,
+                                names=local_cli.names,
+                                surnames=local_cli.surnames,
+                                dni=local_cli.dni,
+                                cuit_cuil=local_cli.cuit_cuil,
+                                date_birthday=local_cli.date_birthday,
+                                address=local_cli.address,
+                                gender=local_cli.gender,
+                                is_active=local_cli.is_active,
+                            )
+                            self.stdout.write(f"  Cliente remoto creado: {remote_cli.names} (ID: {remote_cli.id})")
+                        remote_cli_id = remote_cli.id
 
                 with transaction.atomic(using='remote'):
                     # Verificar si ya existe venta duplicada usando múltiples criterios mejorados
@@ -154,7 +193,7 @@ class Command(BaseCommand):
                         local_uuid=sale.local_uuid,
                         defaults={
                             'company_id': remote_company.id if remote_company else None,
-                            'cli_id': sale.cli_id,
+                            'cli_id': remote_cli_id,
                             'date_joined': sale.date_joined,
                             'local_timezone': sale.local_timezone,
                             'subtotal': sale.subtotal,

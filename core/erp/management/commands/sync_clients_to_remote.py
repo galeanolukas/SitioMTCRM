@@ -22,14 +22,19 @@ class Command(BaseCommand):
         for cli in pending:
             try:
                 with transaction.atomic(using='remote'):
-                    # Buscar cliente remoto por DNI o por ID
+                    # Buscar cliente remoto por DNI, CUIT/CUIL o nombre (los IDs no coinciden)
                     qs = Client.objects.using('remote')
-                    if cli.dni:
-                        remote_qs = qs.filter(dni=cli.dni)
-                    else:
-                        remote_qs = qs.filter(id=cli.id)
+                    remote_cli = None
 
-                    remote_cli = remote_qs.first()
+                    if cli.dni:
+                        remote_cli = qs.filter(dni=cli.dni).first()
+                    if not remote_cli and cli.cuit_cuil:
+                        remote_cli = qs.filter(cuit_cuil=cli.cuit_cuil).first()
+                    if not remote_cli:
+                        remote_cli = qs.filter(names=cli.names, company_id=cli.company_id).first()
+                    if not remote_cli:
+                        remote_cli = qs.filter(names__iexact=cli.names).first()
+
                     created = remote_cli is None
 
                     if created:
@@ -38,6 +43,7 @@ class Command(BaseCommand):
                             names=cli.names,
                             surnames=cli.surnames,
                             dni=cli.dni,
+                            cuit_cuil=cli.cuit_cuil,
                             date_birthday=cli.date_birthday,
                             address=cli.address,
                             gender=cli.gender,
@@ -47,6 +53,8 @@ class Command(BaseCommand):
                         remote_cli.company_id = cli.company_id
                         remote_cli.names = cli.names
                         remote_cli.surnames = cli.surnames
+                        remote_cli.dni = cli.dni
+                        remote_cli.cuit_cuil = cli.cuit_cuil
                         remote_cli.date_birthday = cli.date_birthday
                         remote_cli.address = cli.address
                         remote_cli.gender = cli.gender
