@@ -207,7 +207,15 @@
           <small class="text-muted">Nombre del proveedor. Si no existe, se ignora.</small>
         </div>
         <div class="col-md-4 mt-2">
-          <label>Código Proveedor (codigo_proveedor) - opcional</label>
+          <label>Código Proveedor (supplier_code) - opcional</label>
+          <select name="map_supplier_code" class="form-control">
+            <option value="">-- Ninguna --</option>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+          <small class="text-muted">Código del proveedor. Si el proveedor no existe, se crea con este código.</small>
+        </div>
+        <div class="col-md-4 mt-2">
+          <label>Código Proveedor Producto (codigo_proveedor) - opcional</label>
           <select name="map_codigo_proveedor" class="form-control">
             <option value="">-- Ninguna --</option>
             {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
