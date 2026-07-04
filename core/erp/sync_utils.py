@@ -307,6 +307,14 @@ def run_full_sync():
         except Exception as e:
             logger.error(f"Error en sincronización de cierres de caja: {e}")
             errors.append(f"sync_cash_registers_to_remote: {e}")
+
+        # 3.h) Listas de precios
+        try:
+            call_command("sync_price_lists_to_remote")
+            logger.info("✅ Listas de precios sincronizadas")
+        except Exception as e:
+            logger.error(f"Error en sincronización de listas de precios: {e}")
+            errors.append(f"sync_price_lists_to_remote: {e}")
             
         try:
             # Verificar si el modelo InternalTransfer existe antes de usarlo
