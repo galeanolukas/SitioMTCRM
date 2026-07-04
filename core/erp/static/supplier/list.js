@@ -19,8 +19,8 @@ function getData() {
   }
 
   tblSupplier = $('#data').DataTable({
-    responsive: true,
-    autoWidth: false,
+    responsive: false,
+    autoWidth: true,
     destroy: true,
     deferRender: true,
     language: {
