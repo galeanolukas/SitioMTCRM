@@ -51,6 +51,11 @@ class PriceListCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, C
         return ctx
 
     def form_valid(self, form):
+        # Asignar empresa: sesion activa, o empresa del usuario, o None
+        active_cid = self.request.session.get('company_id')
+        if not active_cid:
+            active_cid = getattr(self.request.user, 'company_id', None)
+        form.instance.company_id = active_cid
         messages.success(self.request, f"Lista de precios '{form.instance.name}' creada correctamente.")
         return super().form_valid(form)
 
