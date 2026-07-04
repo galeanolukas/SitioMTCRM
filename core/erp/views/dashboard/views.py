@@ -866,6 +866,7 @@ class SupplierView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Template
                 for i in qs:
                     data.append({
                         'id': i.id,
+                        'code': i.code or '',
                         'name': i.name,
                         'cuit': i.cuit or '',
                         'address': i.address or '',

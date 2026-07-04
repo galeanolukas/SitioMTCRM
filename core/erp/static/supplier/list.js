@@ -50,6 +50,7 @@ function getData() {
     },
     columns: [
       { data: 'id' },
+      { data: 'code' },
       { data: 'name' },
       { data: 'cuit' },
       { data: 'address' },
@@ -97,6 +98,7 @@ $(function () {
       $('input[name="action"]').val('edit');
       $('input[name="id"]').val(data.id);
 
+      $('input[name="code"]').val(data.code || '');
       $('input[name="name"]').val(data.name || '');
       $('input[name="cuit"]').val(data.cuit || '');
       $('input[name="address"]').val(data.address || '');
