@@ -545,11 +545,13 @@ class Command(BaseCommand):
                             remote_company = Company.objects.using('remote').filter(name=local_company.name).first()
 
                 with transaction.atomic(using='remote'):
-                    # Buscar proveedor remoto por CUIT o nombre
+                    # Buscar proveedor remoto por código, CUIT o nombre
                     qs = Supplier.objects.using('remote')
                     remote_sup = None
 
-                    if sup.cuit:
+                    if sup.code:
+                        remote_sup = qs.filter(code=sup.code).first()
+                    if not remote_sup and sup.cuit:
                         remote_sup = qs.filter(cuit=sup.cuit).first()
                     if not remote_sup:
                         remote_sup = qs.filter(name=sup.name).first()
@@ -561,6 +563,7 @@ class Command(BaseCommand):
                     if created:
                         remote_sup = Supplier.objects.using('remote').create(
                             company_id=remote_company.id if remote_company else sup.company_id,
+                            code=sup.code,
                             name=sup.name,
                             cuit=sup.cuit,
                             address=sup.address,
@@ -571,6 +574,7 @@ class Command(BaseCommand):
                     else:
                         if remote_company:
                             remote_sup.company_id = remote_company.id
+                        remote_sup.code = sup.code
                         remote_sup.name = sup.name
                         remote_sup.cuit = sup.cuit
                         remote_sup.address = sup.address

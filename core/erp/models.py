@@ -438,6 +438,7 @@ class PriceListProduct(models.Model):
 
 class Supplier(models.Model):
     company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa', null=True, blank=True)
+    code = models.CharField(max_length=50, verbose_name='Código', blank=True, null=True, unique=True)
     name = models.CharField(max_length=150, verbose_name='Nombre')
     cuit = models.CharField(max_length=20, verbose_name='CUIT', blank=True, null=True)
     address = models.CharField(max_length=200, verbose_name='Dirección', blank=True, null=True)
