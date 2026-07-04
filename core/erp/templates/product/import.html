@@ -316,6 +316,14 @@
           </select>
         </div>
         <div class="col-md-4">
+          <label>Código (code)</label>
+          <select name="map_supplier_code" class="form-control">
+            <option value="">-- Ninguna --</option>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+          <small class="text-muted">Código único del proveedor</small>
+        </div>
+        <div class="col-md-4">
           <label>CUIT</label>
           <select name="map_supplier_cuit" class="form-control">
             <option value="">-- Ninguna --</option>

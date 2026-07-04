@@ -1192,6 +1192,7 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
             # --- Importar proveedores ---
             if entity_type == 'supplier':
                 map_name = request.POST.get('map_supplier_name')
+                map_code = request.POST.get('map_supplier_code')
                 map_cuit = request.POST.get('map_supplier_cuit')
                 map_address = request.POST.get('map_supplier_address')
                 map_phone = request.POST.get('map_supplier_phone')
@@ -1215,6 +1216,10 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                         if not name:
                             continue
 
+                        code = ''
+                        if map_code and not pd.isna(row.get(map_code)):
+                            code = str(row.get(map_code)).strip()
+
                         cuit = ''
                         if map_cuit and not pd.isna(row.get(map_cuit)):
                             cuit = str(row.get(map_cuit)).strip()
@@ -1232,20 +1237,23 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                             email = str(row.get(map_email)).strip()
 
                         supplier = None
-                        if cuit:
+                        if code:
+                            supplier = Supplier.objects.filter(code=code).first()
+                        if supplier is None and cuit:
                             supplier = Supplier.objects.filter(cuit=cuit).first()
                         if supplier is None:
                             supplier = Supplier.objects.filter(name__iexact=name).first()
 
                         if supplier is None:
                             supplier = Supplier(
-                                name=name, cuit=cuit or None, address=address or None,
+                                name=name, code=code or None, cuit=cuit or None, address=address or None,
                                 phone=phone or None, email=email or None, company_id=active_cid,
                             )
                             supplier.save()
                             created += 1
                         else:
                             supplier.name = name
+                            if code: supplier.code = code
                             if cuit: supplier.cuit = cuit
                             if address: supplier.address = address
                             if phone: supplier.phone = phone
