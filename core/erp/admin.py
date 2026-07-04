@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.apps import apps
-from .models import Company, Product, Sale, Client, Supplier, Category, EmployeeAccountSale, AfipConfig, CatalogoConfig
+from .models import Company, Product, Sale, Client, Supplier, Category, EmployeeAccountSale, AfipConfig, CatalogoConfig, PriceList, PriceListProduct
 
 # Clase base para admin con filtrado por empresa
 class CompanyFilteredAdmin(admin.ModelAdmin):
@@ -101,6 +101,18 @@ class CatalogoConfigAdmin(CompanyFilteredAdmin):
             return qs.filter(company=request.user.company)
         return qs.none()
 
+
+class PriceListAdmin(CompanyFilteredAdmin):
+    list_display = ('name', 'discount_percentage', 'is_active', 'company', 'created_at')
+    list_filter = ('company', 'is_active')
+    search_fields = ('name', 'company__name')
+
+
+class PriceListProductAdmin(admin.ModelAdmin):
+    list_display = ('product', 'price_list', 'fixed_price', 'discount_override', 'is_exception')
+    list_filter = ('price_list', 'is_exception')
+    search_fields = ('product__name', 'price_list__name')
+
 # Registrar modelos principales con admin personalizado
 admin.site.register(Company, CompanyAdmin)
 admin.site.register(Product, ProductAdmin)
@@ -111,12 +123,14 @@ admin.site.register(Category, CategoryAdmin)
 admin.site.register(EmployeeAccountSale, EmployeeAccountSaleAdmin)
 admin.site.register(AfipConfig, AfipConfigAdmin)
 admin.site.register(CatalogoConfig, CatalogoConfigAdmin)
+admin.site.register(PriceList, PriceListAdmin)
+admin.site.register(PriceListProduct, PriceListProductAdmin)
 
 # Obtener todos los modelos de la aplicación
 app_models = apps.get_app_config('erp').get_models()
 
 # Registrar los modelos restantes que no tienen admin personalizado
-registered_models = {Company, Product, Sale, Client, Supplier, Category, EmployeeAccountSale, AfipConfig, CatalogoConfig}
+registered_models = {Company, Product, Sale, Client, Supplier, Category, EmployeeAccountSale, AfipConfig, CatalogoConfig, PriceList, PriceListProduct}
 for model in app_models:
     if model not in registered_models:
         try:
