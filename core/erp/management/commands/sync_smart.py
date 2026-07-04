@@ -2,7 +2,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction, connections
 from django.contrib import messages
 from django.utils import timezone
-from core.erp.models import Client, Sale, Product, Category, Supplier, Expense, CashRegister, EmployeeAccountSale
+from core.erp.models import Client, Sale, Product, Category, Supplier, Expense, CashRegister, EmployeeAccountSale, PriceList, PriceListProduct, Company
 from core.user.models import User
 
 class Command(BaseCommand):
@@ -33,6 +33,9 @@ class Command(BaseCommand):
             
             # 6) Sincronizar cuentas corrientes de empleados
             self.sync_employee_accounts()
+            
+            # 7) Sincronizar listas de precios
+            self.sync_price_lists()
             
             self.stdout.write(self.style.SUCCESS("Sincronización inteligente completada"))
             
@@ -377,3 +380,102 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.ERROR(f"Error sincronizando cuenta corriente {account.id}: {e}"))
         
         self.stdout.write(f"Cuentas corrientes sincronizadas: {synced_count}")
+
+    def sync_price_lists(self):
+        """Sincronizar listas de precios y sus overrides evitando duplicados"""
+        self.stdout.write("Sincronizando listas de precios...")
+
+        local_lists = PriceList.objects.using('default').all().prefetch_related('products')
+        synced_count = 0
+        list_id_map = {}
+
+        for pl in local_lists:
+            try:
+                # Resolver empresa remota
+                remote_company = None
+                if pl.company_id:
+                    local_company = Company.objects.using('default').filter(pk=pl.company_id).first()
+                    if local_company:
+                        if local_company.cuit:
+                            remote_company = Company.objects.using('remote').filter(cuit=local_company.cuit).first()
+                        if not remote_company:
+                            remote_company = Company.objects.using('remote').filter(name=local_company.name).first()
+
+                # Buscar lista existente: por nombre + empresa, luego por nombre iexact
+                remote_pl = None
+                if remote_company:
+                    remote_pl = PriceList.objects.using('remote').filter(
+                        name=pl.name, company_id=remote_company.id
+                    ).first()
+                if not remote_pl:
+                    remote_pl = PriceList.objects.using('remote').filter(name__iexact=pl.name).first()
+
+                if remote_pl:
+                    if remote_company:
+                        remote_pl.company_id = remote_company.id
+                    remote_pl.name = pl.name
+                    remote_pl.discount_percentage = pl.discount_percentage
+                    remote_pl.is_active = pl.is_active
+                    remote_pl.save(using='remote')
+                else:
+                    remote_pl = PriceList.objects.using('remote').create(
+                        company_id=remote_company.id if remote_company else None,
+                        name=pl.name,
+                        discount_percentage=pl.discount_percentage,
+                        is_active=pl.is_active,
+                    )
+
+                list_id_map[pl.id] = remote_pl.id
+                synced_count += 1
+            except Exception as e:
+                self.stdout.write(self.style.ERROR(f"Error sincronizando lista de precios {pl.id}: {e}"))
+
+        self.stdout.write(f"Listas de precios sincronizadas: {synced_count}")
+
+        # Sincronizar overrides (PriceListProduct)
+        local_plps = PriceListProduct.objects.using('default').select_related('product', 'price_list')
+        plp_count = 0
+
+        for plp in local_plps:
+            try:
+                remote_pl_id = list_id_map.get(plp.price_list_id)
+                if not remote_pl_id:
+                    continue
+
+                # Buscar producto remoto por code o nombre
+                remote_product = None
+                if plp.product.code:
+                    remote_product = Product.objects.using('remote').filter(code=plp.product.code).first()
+                if not remote_product:
+                    remote_product = Product.objects.using('remote').filter(name=plp.product.name).first()
+                if not remote_product:
+                    remote_product = Product.objects.using('remote').filter(name__iexact=plp.product.name).first()
+
+                if not remote_product:
+                    continue
+
+                # Buscar override existente
+                remote_plp = PriceListProduct.objects.using('remote').filter(
+                    price_list_id=remote_pl_id,
+                    product_id=remote_product.id
+                ).first()
+
+                if remote_plp:
+                    remote_plp.fixed_price = plp.fixed_price
+                    remote_plp.discount_override = plp.discount_override
+                    remote_plp.is_exception = plp.is_exception
+                    remote_plp.save(using='remote')
+                else:
+                    PriceListProduct.objects.using('remote').create(
+                        price_list_id=remote_pl_id,
+                        product_id=remote_product.id,
+                        fixed_price=plp.fixed_price,
+                        discount_override=plp.discount_override,
+                        is_exception=plp.is_exception,
+                    )
+
+                plp_count += 1
+            except Exception as e:
+                self.stdout.write(self.style.ERROR(f"Error sincronizando override {plp.id}: {e}"))
+
+        self.stdout.write(f"Overrides de listas sincronizados: {plp_count}")
