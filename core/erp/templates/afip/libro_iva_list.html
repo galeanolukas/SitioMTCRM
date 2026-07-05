@@ -35,7 +35,7 @@
                                 <label>&nbsp;</label>
                                 <div>
                                     <button type="submit" class="btn btn-primary">Filtrar</button>
-                                    <a href="{% url 'afip:libro_iva' %}" class="btn btn-secondary">Limpiar</a>
+                                    <a href="{% url 'erp:afip:libro_iva' %}" class="btn btn-secondary">Limpiar</a>
                                 </div>
                             </div>
                         </div>
@@ -95,7 +95,7 @@
 
                     <!-- Exportar -->
                     <div class="mb-3">
-                        <a href="{% url 'afip:libro_iva_export' %}?tipo_registro={{ tipo_registro }}&fecha_desde={{ fecha_desde }}&fecha_hasta={{ fecha_hasta }}" class="btn btn-success">
+                        <a href="{% url 'erp:afip:libro_iva_export' %}?tipo_registro={{ tipo_registro }}&fecha_desde={{ fecha_desde }}&fecha_hasta={{ fecha_hasta }}" class="btn btn-success">
                             <i class="fas fa-file-csv"></i> Exportar CSV
                         </a>
                     </div>
@@ -127,7 +127,7 @@
                                             {{ reg.get_tipo_registro_display }}
                                         </span>
                                     </td>
-                                    <td>{{ reg.get_tipo_comprobante_display }} {{ reg.punto_venta:04d }}-{{ reg.numero_comprobante:08d }}</td>
+                                    <td>{{ reg.get_tipo_comprobante_display }} {{ reg.punto_venta|stringformat:"04d" }}-{{ reg.numero_comprobante|stringformat:"08d" }}</td>
                                     <td>{{ reg.razon_social|truncatechars:30 }}</td>
                                     <td>{{ reg.get_condicion_iva_display }}</td>
                                     <td>${{ reg.neto_gravado|floatformat:2 }}</td>
