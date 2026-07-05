@@ -54,78 +54,171 @@
     <!-- Sidebar Menu -->
     <nav class="mt-2">
       <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
-        {% if request.user.is_superuser or perms.erp.view_category %}
-        <li class="nav-item">
-          <a href="{% url 'erp:category_list' %}" class="nav-link">
-            <i class="fas fa-truck-loading nav-icon"></i>
-            <p>Categorías</p>
-          </a>
-        </li>
-        {% endif %}
-        {% if request.user.is_superuser or perms.erp.view_product %}
-        <li class="nav-item">
-          <a href="{% url 'erp:product_list' %}" class="nav-link">
+        <!-- Inventario -->
+        {% if request.user.is_superuser or perms.erp.view_category or perms.erp.view_product or perms.erp.view_pricelist or perms.erp.add_product %}
+        <li class="nav-item has-treeview">
+          <a href="#" class="nav-link">
             <i class="fas fa-boxes nav-icon"></i>
-            <p>Productos</p>
+            <p>
+              Inventario
+              <i class="fas fa-angle-left right"></i>
+            </p>
           </a>
+          <ul class="nav nav-treeview">
+            {% if request.user.is_superuser or perms.erp.view_category %}
+            <li class="nav-item">
+              <a href="{% url 'erp:category_list' %}" class="nav-link">
+                <i class="fas fa-truck-loading nav-icon"></i>
+                <p>Categorías</p>
+              </a>
+            </li>
+            {% endif %}
+            {% if request.user.is_superuser or perms.erp.view_product %}
+            <li class="nav-item">
+              <a href="{% url 'erp:product_list' %}" class="nav-link">
+                <i class="fas fa-boxes nav-icon"></i>
+                <p>Productos</p>
+              </a>
+            </li>
+            {% endif %}
+            {% if request.user.is_superuser %}
+            <li class="nav-item">
+              <a href="{% url 'erp:product_labels' %}" class="nav-link">
+                <i class="fas fa-qrcode nav-icon"></i>
+                <p>Etiquetas QR</p>
+              </a>
+            </li>
+            {% endif %}
+            {% if request.user.is_superuser or perms.erp.view_pricelist %}
+            <li class="nav-item">
+              <a href="{% url 'erp:pricelist_list' %}" class="nav-link">
+                <i class="fas fa-tags nav-icon"></i>
+                <p>Listas de Precios</p>
+              </a>
+            </li>
+            {% endif %}
+            {% if request.user.is_superuser or perms.erp.add_product %}
+            <li class="nav-item">
+              <a href="{% url 'erp:product_import' %}" class="nav-link">
+                <i class="fas fa-file-import nav-icon"></i>
+                <p>Importar inventario</p>
+              </a>
+            </li>
+            {% endif %}
+          </ul>
         </li>
         {% endif %}
-        {% if request.user.is_superuser %}
-        <li class="nav-item">
-          <a href="{% url 'erp:product_labels' %}" class="nav-link">
-            <i class="fas fa-qrcode nav-icon"></i>
-            <p>Etiquetas QR</p>
-          </a>
-        </li>
-        {% endif %}
-        {% if request.user.is_superuser or perms.erp.view_client %}
-        <li class="nav-item">
-          <a href="{% url 'erp:client_list' %}" class="nav-link">
-            <i class="fas fa-users nav-icon"></i>
-            <p>Clientes</p>
-          </a>
-        </li>
-        {% endif %}
-        {% if request.user.is_superuser or perms.erp.view_pricelist %}
-        <li class="nav-item">
-          <a href="{% url 'erp:pricelist_list' %}" class="nav-link">
-            <i class="fas fa-tags nav-icon"></i>
-            <p>Listas de Precios</p>
-          </a>
-        </li>
-        {% endif %}
-        {% if request.user.is_superuser or perms.erp.view_invoice %}
-        <li class="nav-item">
-          <a href="{% url 'erp:invoice_list' %}" class="nav-link">
-            <i class="fas fa-file-invoice-dollar nav-icon"></i>
-            <p>Facturación</p>
-          </a>
-        </li>
-        {% endif %}
-        {% if request.user.is_superuser or perms.erp.view_internaltransfer %}
-        <li class="nav-item">
-          <a href="{% url 'erp:transfer_list' %}" class="nav-link">
-            <i class="fas fa-exchange-alt nav-icon"></i>
-            <p>Transferencias</p>
-          </a>
-        </li>
-        {% endif %}
-        {% if request.user.is_superuser or perms.erp.view_sale %}
-        <li class="nav-item">
-          <a href="{% url 'erp:sale_list' %}" class="nav-link">
+
+        <!-- Ventas -->
+        {% if request.user.is_superuser or perms.erp.view_sale or perms.erp.view_invoice or perms.erp.view_internaltransfer %}
+        <li class="nav-item has-treeview">
+          <a href="#" class="nav-link">
             <i class="fas fa-shopping-cart nav-icon"></i>
-            <p>Ventas</p>
+            <p>
+              Ventas
+              <i class="fas fa-angle-left right"></i>
+            </p>
           </a>
+          <ul class="nav nav-treeview">
+            {% if request.user.is_superuser or perms.erp.view_sale %}
+            <li class="nav-item">
+              <a href="{% url 'erp:sale_list' %}" class="nav-link">
+                <i class="fas fa-shopping-cart nav-icon"></i>
+                <p>Ventas</p>
+              </a>
+            </li>
+            {% endif %}
+            {% if request.user.is_superuser or perms.erp.view_invoice %}
+            <li class="nav-item">
+              <a href="{% url 'erp:invoice_list' %}" class="nav-link">
+                <i class="fas fa-file-invoice-dollar nav-icon"></i>
+                <p>Facturación</p>
+              </a>
+            </li>
+            {% endif %}
+            {% if request.user.is_superuser or perms.erp.view_internaltransfer %}
+            <li class="nav-item">
+              <a href="{% url 'erp:transfer_list' %}" class="nav-link">
+                <i class="fas fa-exchange-alt nav-icon"></i>
+                <p>Transferencias</p>
+              </a>
+            </li>
+            {% endif %}
+          </ul>
         </li>
         {% endif %}
-        {% if request.user.is_superuser or perms.erp.add_product %}
-        <li class="nav-item">
-          <a href="{% url 'erp:product_import' %}" class="nav-link">
-            <i class="fas fa-file-import nav-icon"></i>
-            <p>Importar inventario</p>
+
+        <!-- Proveedores -->
+        {% if request.user.is_superuser or perms.erp.view_supplier or perms.erp.manage_remitos %}
+        <li class="nav-item has-treeview">
+          <a href="#" class="nav-link">
+            <i class="fas fa-truck nav-icon"></i>
+            <p>
+              Proveedores
+              <i class="fas fa-angle-left right"></i>
+            </p>
           </a>
+          <ul class="nav nav-treeview">
+            {% if request.user.is_superuser or perms.erp.view_supplier %}
+            <li class="nav-item">
+              <a href="{% url 'erp:supplier_list' %}" class="nav-link">
+                <i class="fas fa-truck nav-icon"></i>
+                <p>Proveedores</p>
+              </a>
+            </li>
+            {% endif %}
+            {% if request.user.is_superuser or perms.erp.manage_remitos %}
+            <li class="nav-item">
+              <a href="{% url 'erp:remito_list' %}" class="nav-link">
+                <i class="fas fa-truck nav-icon"></i>
+                <p>Remitos</p>
+              </a>
+            </li>
+            {% endif %}
+          </ul>
         </li>
         {% endif %}
+
+        <!-- Finanzas -->
+        {% if request.user.is_superuser or perms.erp.view_cashregister or perms.erp.view_expense or perms.erp.manage_employee_accounts %}
+        <li class="nav-item has-treeview">
+          <a href="#" class="nav-link">
+            <i class="fas fa-dollar-sign nav-icon"></i>
+            <p>
+              Finanzas
+              <i class="fas fa-angle-left right"></i>
+            </p>
+          </a>
+          <ul class="nav nav-treeview">
+            {% if request.user.is_superuser or perms.erp.view_cashregister %}
+            <li class="nav-item">
+              <a href="{% url 'erp:cash_register_list' %}" class="nav-link">
+                <i class="fas fa-cash-register nav-icon"></i>
+                <p>Caja</p>
+              </a>
+            </li>
+            {% endif %}
+            {% if request.user.is_superuser or perms.erp.view_expense %}
+            <li class="nav-item">
+              <a href="{% url 'erp:expense_list' %}" class="nav-link">
+                <i class="fas fa-receipt nav-icon"></i>
+                <p>Gastos</p>
+              </a>
+            </li>
+            {% endif %}
+            {% if request.user.is_superuser or perms.erp.manage_employee_accounts %}
+            <li class="nav-item">
+              <a href="{% url 'erp:employee_account_list' %}" class="nav-link">
+                <i class="fas fa-user-clock nav-icon"></i>
+                <p>Cta. Corriente (empleados)</p>
+              </a>
+            </li>
+            {% endif %}
+          </ul>
+        </li>
+        {% endif %}
+
+        <!-- Reportes -->
         {% if request.user.is_superuser or perms.erp.view_sale %}
         <li class="nav-item has-treeview">
           <a href="#" class="nav-link">
@@ -136,12 +229,14 @@
             </p>
           </a>
           <ul class="nav nav-treeview">
+            {% if request.user.is_superuser or perms.erp.view_sale %}
             <li class="nav-item">
               <a href="{% url 'erp:operator_sales_report' %}" class="nav-link">
                 <i class="fas fa-chart-line nav-icon"></i>
                 <p>Reporte de Ventas</p>
               </a>
             </li>
+            {% endif %}
             {% if request.user.is_superuser %}
             <li class="nav-item">
               <a href="{% url 'erp:afip:libro_iva' %}" class="nav-link">
@@ -171,86 +266,63 @@
           </ul>
         </li>
         {% endif %}
-        {% if request.user.is_superuser or perms.erp.manage_employee_accounts %}
-        <li class="nav-item">
-          <a href="{% url 'erp:employee_account_list' %}" class="nav-link">
-            <i class="fas fa-user-clock nav-icon"></i>
-            <p>Cta. Corriente</p>
-          </a>
-        </li>
-        {% endif %}
-        {% if request.user.is_superuser or perms.erp.manage_remitos %}
-        <li class="nav-item">
-          <a href="{% url 'erp:remito_list' %}" class="nav-link">
-            <i class="fas fa-truck nav-icon"></i>
-            <p>Remitos</p>
-          </a>
-        </li>
-        {% endif %}
+
+        <!-- Administración -->
         {% if request.user.is_superuser %}
+        <li class="nav-item has-treeview">
+          <a href="#" class="nav-link">
+            <i class="fas fa-cogs nav-icon"></i>
+            <p>
+              Administración
+              <i class="fas fa-angle-left right"></i>
+            </p>
+          </a>
+          <ul class="nav nav-treeview">
+            <li class="nav-item">
+              <a href="{% url 'erp:company_list' %}" class="nav-link">
+                <i class="fas fa-building nav-icon"></i>
+                <p>Empresas</p>
+              </a>
+            </li>
+            <li class="nav-item">
+              <a href="{% url 'erp:mp_config' %}" class="nav-link">
+                <i class="fas fa-credit-card nav-icon"></i>
+                <p>Mercado Pago</p>
+              </a>
+            </li>
+            <li class="nav-item">
+              <a href="{% url 'erp:sync_config' %}" class="nav-link">
+                <i class="fas fa-sync-alt nav-icon"></i>
+                <p>Sync automática</p>
+              </a>
+            </li>
+            <li class="nav-item">
+              <a href="{% url 'erp:updates' %}" class="nav-link">
+                <i class="fas fa-download nav-icon"></i>
+                <p>Actualizaciones</p>
+              </a>
+            </li>
+            <li class="nav-item">
+              <a href="{% url 'erp:catalogo_list' %}" class="nav-link">
+                <i class="fas fa-cloud nav-icon"></i>
+                <p>Catálogo</p>
+              </a>
+            </li>
+          </ul>
+        </li>
+        {% endif %}
+
+        <!-- Clientes -->
+        {% if request.user.is_superuser or perms.erp.view_client %}
         <li class="nav-item">
-          <a href="{% url 'erp:company_list' %}" class="nav-link">
-            <i class="fas fa-building nav-icon"></i>
-            <p>Empresas</p>
+          <a href="{% url 'erp:client_list' %}" class="nav-link">
+            <i class="fas fa-users nav-icon"></i>
+            <p>Clientes</p>
           </a>
         </li>
         {% endif %}
-        {% if request.user.is_superuser %}
-        <li class="nav-item">
-          <a href="{% url 'erp:mp_config' %}" class="nav-link">
-            <i class="fas fa-credit-card nav-icon"></i>
-            <p>Mercado Pago</p>
-          </a>
-        </li>
-        {% endif %}
-        {% if request.user.is_superuser %}
-        <li class="nav-item">
-          <a href="{% url 'erp:sync_config' %}" class="nav-link">
-            <i class="fas fa-sync-alt nav-icon"></i>
-            <p>Sync automática</p>
-          </a>
-        </li>
-        {% endif %}
-        {% if request.user.is_superuser %}
-        <li class="nav-item">
-          <a href="{% url 'erp:updates' %}" class="nav-link">
-            <i class="fas fa-download nav-icon"></i>
-            <p>Actualizaciones</p>
-          </a>
-        </li>
-        {% endif %}
-        {% if request.user.is_superuser or perms.erp.view_supplier %}
-        <li class="nav-item">
-          <a href="{% url 'erp:supplier_list' %}" class="nav-link">
-            <i class="fas fa-truck nav-icon"></i>
-            <p>Proveedores</p>
-          </a>
-        </li>
-        {% endif %}
-        {% if request.user.is_superuser or perms.erp.view_expense %}
-        <li class="nav-item">
-          <a href="{% url 'erp:expense_list' %}" class="nav-link">
-            <i class="fas fa-receipt nav-icon"></i>
-            <p>Gastos</p>
-          </a>
-        </li>
-        {% endif %}
-        {% if request.user.is_superuser or perms.erp.view_cashregister %}
-        <li class="nav-item">
-          <a href="{% url 'erp:cash_register_list' %}" class="nav-link">
-            <i class="nav-icon fas fa-cash-register"></i>
-            <p>Caja</p>
-          </a>
-        </li>
-        {% endif %}
-        {% if request.user.is_superuser or perms.erp.view_catalogoconfig %}
-        <li class="nav-item">
-          <a href="{% url 'erp:catalogo_list' %}" class="nav-link">
-            <i class="nav-icon fas fa-cloud"></i>
-            <p>Catálogo</p>
-          </a>
-        </li>
-        {% endif %}
+
+        <!-- Manual -->
         {% if request.user.is_superuser %}
         <li class="nav-item">
           <a href="{% url 'about' %}" class="nav-link">
