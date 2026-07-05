@@ -615,7 +615,15 @@ class Sale(models.Model):
             config_obj = self.company.afipconfig_set.filter(is_active=True).first()
             if not config_obj:
                 return False
-            
+
+            # Obtener punto de venta activo (usar el primero disponible)
+            punto_venta_obj = self.company.afippuntoventa_set.filter(is_active=True).first()
+            if not punto_venta_obj:
+                # Fallback: usar punto de venta 1 por defecto
+                punto_venta = 1
+            else:
+                punto_venta = punto_venta_obj.numero
+
             # Calcular IVA por alícuota
             iva_details = []
             for det in self.detsale_set.all():
@@ -641,7 +649,7 @@ class Sale(models.Model):
             fecha_afip = datetime.now().strftime('%Y%m%d')
             
             # Obtener el último número de comprobante autorizado en AFIP
-            last_nro = client.get_last_voucher_number(config_obj.punto_venta, config_obj.tipo_comprobante)
+            last_nro = client.get_last_voucher_number(punto_venta, config_obj.tipo_comprobante)
             if isinstance(last_nro, dict) and 'error' in last_nro:
                 self.afip_error = f"Error al obtener último número: {last_nro['error']}"
                 self.save(update_fields=['afip_error'])
@@ -650,9 +658,9 @@ class Sale(models.Model):
             
             voucher_data = {
                 'CantReg': 1,
-                'PtoVta': config_obj.punto_venta,
+                'PtoVta': punto_venta,  # Usar punto de venta de AfipPuntoVenta
                 'CbteTipo': config_obj.tipo_comprobante,
-                'Concepto': 1,  # Productos
+                'Concepto': config_obj.concepto,  # Usar concepto de la configuración
                 'DocTipo': 80 if self.cli and self.cli.cuit else 99,  # CUIT o Doc exterior
                 'DocNro': int(self.cli.cuit.replace('-', '')) if self.cli and self.cli.cuit else 0,
                 'CbteDesde': next_nro,
@@ -664,8 +672,8 @@ class Sale(models.Model):
                 'ImpOpEx': 0.0,
                 'ImpIVA': float(self.iva),
                 'ImpTrib': 0.0,
-                'MonId': 'PES',
-                'MonCotiz': 1,
+                'MonId': config_obj.moneda,  # Usar moneda de la configuración
+                'MonCotiz': float(config_obj.cotizacion),  # Usar cotización de la configuración
                 'Iva': iva_details if iva_details else []
             }
             
@@ -684,7 +692,7 @@ class Sale(models.Model):
             self.afip_result = result
             self.is_invoiced = True
             # Generar código QR
-            self.afip_qr = self._generate_afip_qr(config_obj, next_nro)
+            self.afip_qr = self._generate_afip_qr(config_obj, next_nro, punto_venta)
             self.save(update_fields=['afip_cae', 'afip_cae_vto', 'afip_voucher_number', 'afip_result', 'is_invoiced', 'afip_qr'])
             
             return True
@@ -694,7 +702,7 @@ class Sale(models.Model):
             self.save(update_fields=['afip_error'])
             return False
 
-    def _generate_afip_qr(self, config_obj, nro_cbte):
+    def _generate_afip_qr(self, config_obj, nro_cbte, punto_venta):
         """
         Genera el código QR de AFIP como base64 PNG.
         El QR contiene una URL con los datos del comprobante codificados en base64.
@@ -722,7 +730,7 @@ class Sale(models.Model):
                 "ver": 1,
                 "fecha": fecha_cbte,
                 "cuit": int(cuit_clean) if cuit_clean else 0,
-                "ptoVta": config_obj.punto_venta,
+                "ptoVta": punto_venta,  # Usar punto de venta de AfipPuntoVenta
                 "tipoCmp": config_obj.tipo_comprobante,
                 "nroCmp": nro_cbte,
                 "importe": float(self.total),
@@ -1328,15 +1336,28 @@ class AfipConfig(models.Model):
         ('dev', 'Desarrollo'),
         ('prod', 'Producción'),
     )
-    
+    CONCEPTO_CHOICES = (
+        (1, 'Productos'),
+        (2, 'Servicios'),
+        (3, 'Productos y Servicios'),
+    )
+    MONEDA_CHOICES = (
+        ('PES', 'Pesos Argentinos'),
+        ('DOL', 'Dólar Estadounidense'),
+        ('EUR', 'Euro'),
+        ('BRL', 'Real Brasileño'),
+    )
+
     company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa', null=True, blank=True)
     cuit = models.CharField(max_length=20, verbose_name='CUIT', validators=[validate_cuit])
     access_token = models.CharField(max_length=255, verbose_name='Access Token AFIP SDK')
     cert = models.TextField(blank=True, null=True, verbose_name='Certificado (solo producción)')
     key = models.TextField(blank=True, null=True, verbose_name='Key (solo producción)')
     environment = models.CharField(max_length=10, choices=ENVIRONMENT_CHOICES, default='dev', verbose_name='Ambiente')
-    punto_venta = models.IntegerField(default=1, verbose_name='Punto de Venta')
     tipo_comprobante = models.IntegerField(default=6, verbose_name='Tipo de Comprobante (default: 6=Factura B)')
+    concepto = models.IntegerField(default=1, choices=CONCEPTO_CHOICES, verbose_name='Concepto (1=Productos, 2=Servicios, 3=Ambos)')
+    moneda = models.CharField(max_length=3, choices=MONEDA_CHOICES, default='PES', verbose_name='Moneda')
+    cotizacion = models.DecimalField(max_digits=10, decimal_places=2, default=1.0, verbose_name='Cotización (si no es PES)')
     is_active = models.BooleanField(default=True, verbose_name='Activo')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de creación')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Fecha de actualización')
@@ -1348,6 +1369,24 @@ class AfipConfig(models.Model):
         verbose_name = 'Configuración AFIP'
         verbose_name_plural = 'Configuraciones AFIP'
         ordering = ['-is_active', 'company__name']
+
+
+class AfipPuntoVenta(models.Model):
+    """Puntos de venta AFIP por empresa"""
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa')
+    numero = models.IntegerField(verbose_name='Número de Punto de Venta')
+    descripcion = models.CharField(max_length=100, blank=True, null=True, verbose_name='Descripción')
+    is_active = models.BooleanField(default=True, verbose_name='Activo')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de creación')
+
+    def __str__(self):
+        return f"Punto de Venta {self.numero:04d} - {self.company.name}"
+
+    class Meta:
+        verbose_name = 'Punto de Venta AFIP'
+        verbose_name_plural = 'Puntos de Venta AFIP'
+        unique_together = ['company', 'numero']
+        ordering = ['company__name', 'numero']
 
 
 class CatalogoConfig(models.Model):

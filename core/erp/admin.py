@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.apps import apps
-from .models import Company, Product, Sale, Client, Supplier, Category, EmployeeAccountSale, AfipConfig, CatalogoConfig, PriceList, PriceListProduct
+from .models import Company, Product, Sale, Client, Supplier, Category, EmployeeAccountSale, AfipConfig, AfipPuntoVenta, CatalogoConfig, PriceList, PriceListProduct
 
 # Clase base para admin con filtrado por empresa
 class CompanyFilteredAdmin(admin.ModelAdmin):
@@ -77,7 +77,21 @@ class AfipConfigAdmin(CompanyFilteredAdmin):
     list_filter = ('company', 'environment', 'is_active')
     search_fields = ('cuit', 'company__name')
     readonly_fields = ('created_at', 'updated_at')
-    
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if request.user.is_superuser:
+            return qs
+        if hasattr(request.user, 'company') and request.user.company:
+            return qs.filter(company=request.user.company)
+        return qs.none()
+
+
+class AfipPuntoVentaAdmin(CompanyFilteredAdmin):
+    list_display = ('company', 'numero', 'descripcion', 'is_active', 'created_at')
+    list_filter = ('company', 'is_active')
+    search_fields = ('numero', 'descripcion', 'company__name')
+
     def get_queryset(self, request):
         qs = super().get_queryset(request)
         if request.user.is_superuser:
@@ -122,6 +136,7 @@ admin.site.register(Supplier, SupplierAdmin)
 admin.site.register(Category, CategoryAdmin)
 admin.site.register(EmployeeAccountSale, EmployeeAccountSaleAdmin)
 admin.site.register(AfipConfig, AfipConfigAdmin)
+admin.site.register(AfipPuntoVenta, AfipPuntoVentaAdmin)
 admin.site.register(CatalogoConfig, CatalogoConfigAdmin)
 admin.site.register(PriceList, PriceListAdmin)
 admin.site.register(PriceListProduct, PriceListProductAdmin)
@@ -130,7 +145,7 @@ admin.site.register(PriceListProduct, PriceListProductAdmin)
 app_models = apps.get_app_config('erp').get_models()
 
 # Registrar los modelos restantes que no tienen admin personalizado
-registered_models = {Company, Product, Sale, Client, Supplier, Category, EmployeeAccountSale, AfipConfig, CatalogoConfig, PriceList, PriceListProduct}
+registered_models = {Company, Product, Sale, Client, Supplier, Category, EmployeeAccountSale, AfipConfig, AfipPuntoVenta, CatalogoConfig, PriceList, PriceListProduct}
 for model in app_models:
     if model not in registered_models:
         try:

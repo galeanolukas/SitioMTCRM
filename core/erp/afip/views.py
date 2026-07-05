@@ -7,7 +7,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from core.erp.mixins import ValidatePermissionRequiredMixin
 from django.http import JsonResponse
 from django.urls import reverse_lazy
-from core.erp.models import AfipConfig, Company, Sale, DetSale
+from core.erp.models import AfipConfig, Company, Sale, DetSale, AfipPuntoVenta
 from .client import AfipClient
 from django.views.decorators.http import require_POST
 from django.contrib.auth.decorators import login_required, permission_required
@@ -28,7 +28,7 @@ class AfipConfigCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
     model = AfipConfig
     template_name = 'afip/form.html'
     permission_required = 'erp.add_afipconfig'
-    fields = ['company', 'cuit', 'access_token', 'cert', 'key', 'environment', 'punto_venta', 'tipo_comprobante', 'is_active']
+    fields = ['company', 'cuit', 'access_token', 'cert', 'key', 'environment', 'punto_venta', 'tipo_comprobante', 'concepto', 'moneda', 'cotizacion', 'is_active']
     success_url = reverse_lazy('erp:afip:list')
 
 
@@ -37,7 +37,7 @@ class AfipConfigUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
     model = AfipConfig
     template_name = 'afip/form.html'
     permission_required = 'erp.change_afipconfig'
-    fields = ['company', 'cuit', 'access_token', 'cert', 'key', 'environment', 'punto_venta', 'tipo_comprobante', 'is_active']
+    fields = ['company', 'cuit', 'access_token', 'cert', 'key', 'environment', 'punto_venta', 'tipo_comprobante', 'concepto', 'moneda', 'cotizacion', 'is_active']
     success_url = reverse_lazy('erp:afip:list')
 
 
@@ -327,7 +327,8 @@ def generate_afip_pdf(request):
 
     # Número de comprobante y punto de venta
     voucher_number = sale.afip_voucher_number or 1
-    sales_point = int(str(config_obj.punto_venta or '1'))
+    punto_venta_obj = AfipPuntoVenta.objects.filter(company=sale.company, is_active=True).first()
+    sales_point = punto_venta_obj.numero if punto_venta_obj else 1
 
     # Construir datos para AFIP SDK PDF
     file_name = f"factura_{sale.invoice_type or 'B'}_{sales_point:04d}-{voucher_number:08d}.pdf"
