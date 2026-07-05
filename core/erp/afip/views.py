@@ -283,9 +283,9 @@ def generate_afip_pdf(request):
     issuer_cuit = int(str(company.cuit or config_obj.cuit or '').replace('-', '').strip() or 0)
     issuer_business_name = company.name or 'Empresa'
     issuer_address = company.address or '-'
-    issuer_iva_condition = company.get_iva_condition_display() if hasattr(company, 'get_iva_condition_display') else 'Responsable Inscripto'
+    issuer_iva_condition = company.get_condicion_iva_display() if hasattr(company, 'get_condicion_iva_display') else 'Responsable Inscripto'
     issuer_gross_income = getattr(company, 'iibb', 'CM 901-123456-7') or 'CM 901-123456-7'
-    issuer_activity_start_date = getattr(company, 'activity_start_date', '01/01/2020') or '01/01/2020'
+    issuer_activity_start_date = getattr(company, 'start', '01/01/2020') or '01/01/2020'
 
     # Datos del receptor (cliente)
     if sale.cli:

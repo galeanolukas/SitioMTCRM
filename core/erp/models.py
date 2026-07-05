@@ -17,6 +17,14 @@ from config.settings import MEDIA_URL, STATIC_URL
 from django.conf import settings
 # ... other imports ...
 
+CONDICION_IVA_CHOICES = [
+    ('RI', 'Responsable Inscripto'),
+    ('M', 'Monotributista'),
+    ('CF', 'Consumidor Final'),
+    ('EX', 'Exento'),
+    ('NC', 'No Categorizado'),
+]
+
 def validate_cuit(value):
     """
     Validador de CUIT/CUIL argentino.
@@ -70,6 +78,7 @@ class Company(models.Model):
     address = models.CharField(max_length=200, verbose_name='Dirección', blank=True, null=True)
     cuit = models.CharField(max_length=20, verbose_name='CUIT', blank=True, null=True, validators=[validate_cuit])
     iibb = models.CharField(max_length=30, verbose_name='IIBB', blank=True, null=True)
+    condicion_iva = models.CharField(max_length=2, choices=CONDICION_IVA_CHOICES, default='RI', verbose_name='Condición IVA')
     start = models.DateField(verbose_name='Inicio de actividades', blank=True, null=True)
     pos = models.CharField(max_length=5, verbose_name='Punto de venta', default='0001')
     phone = models.CharField(max_length=30, verbose_name='Teléfono', blank=True, null=True)
@@ -357,7 +366,7 @@ class Client(models.Model):
         ('minorista', 'Minorista'),
         ('mayorista', 'Mayorista'),
     ]
-    
+
     company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa', null=True, blank=True)
     names = models.CharField(max_length=150, verbose_name='Nombres')
     surnames = models.CharField(max_length=150, null=True, blank=True, verbose_name='Apellidos')

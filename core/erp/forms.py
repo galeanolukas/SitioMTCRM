@@ -442,6 +442,7 @@ class CompanyForm(ModelForm):
             'address',
             'cuit',
             'iibb',
+            'condicion_iva',
             'start',
             'pos',
             'phone',

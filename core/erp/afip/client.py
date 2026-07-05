@@ -30,16 +30,35 @@ class AfipClient:
             'CUIT': self.config['CUIT'],
             'access_token': self.config['access_token'],
         }
-        
+
         # Agregar certificado y key si están disponibles (producción)
         if self.config['cert'] and self.config['key']:
-            params['cert'] = self.config['cert']
-            params['key'] = self.config['key']
-        
+            # Si son paths de archivo, leer el contenido
+            cert = self.config['cert']
+            key = self.config['key']
+
+            # Verificar si son paths (empiezan con / o son rutas relativas)
+            if isinstance(cert, str) and (cert.startswith('/') or cert.startswith('./')):
+                try:
+                    with open(cert, 'r') as f:
+                        cert = f.read()
+                except Exception as e:
+                    raise Exception(f"Error leyendo certificado: {e}")
+
+            if isinstance(key, str) and (key.startswith('/') or key.startswith('./')):
+                try:
+                    with open(key, 'r') as f:
+                        key = f.read()
+                except Exception as e:
+                    raise Exception(f"Error leyendo key: {e}")
+
+            params['cert'] = cert
+            params['key'] = key
+
         # Configurar ambiente
         if self.config['environment'] == 'prod':
             params['production'] = True
-        
+
         self.afip = Afip(params)
     
     def get_web_service(self, service_name):

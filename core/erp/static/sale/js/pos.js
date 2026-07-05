@@ -834,6 +834,8 @@
     if (resp.afip_error) {
       errorBox.style.display = '';
       document.getElementById('afipErrorText').textContent = 'AFIP: ' + resp.afip_error;
+      // Mostrar toast de error más visible
+      showToast('error', 'Error AFIP: ' + resp.afip_error);
     } else if (resp.afip_cae) {
       infoBox.style.display = '';
       document.getElementById('afipCaeText').textContent = resp.afip_cae;
