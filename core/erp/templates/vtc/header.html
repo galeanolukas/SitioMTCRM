@@ -152,6 +152,18 @@ body {
         <a class="dropdown-item" href="{% url 'erp:unified_reports' %}">
           <i class="fas fa-file-export mr-1"></i> Reportes
         </a>
+        <div class="dropdown-divider"></div>
+        <span class="dropdown-header">Módulo Fiscal AFIP</span>
+        <div class="dropdown-divider"></div>
+        <a class="dropdown-item" href="{% url 'afip:libro_iva' %}">
+          <i class="fas fa-book mr-1"></i> Libro IVA Digital
+        </a>
+        <a class="dropdown-item" href="/admin/erp/cuentacorrientecliente/">
+          <i class="fas fa-users mr-1"></i> Cuenta Corriente Clientes
+        </a>
+        <a class="dropdown-item" href="/admin/erp/asientocontable/">
+          <i class="fas fa-calculator mr-1"></i> Asientos Contables
+        </a>
       </div>
     </li>
     {% endif %}
