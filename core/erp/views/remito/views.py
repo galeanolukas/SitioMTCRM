@@ -72,6 +72,12 @@ class RemitoCreateView(LoginRequiredMixin, PermissionRequiredMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.created_by = self.request.user
+        self.object = form.save()
+
+        # Si es una petición AJAX, devolver JSON con el ID
+        if self.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'id': self.object.id, 'success': True})
+
         messages.success(self.request, 'Remito creado exitosamente.')
         return super().form_valid(form)
 

@@ -133,9 +133,12 @@
       }
 
       const formData = new FormData(this);
-      
+
       fetch(this.action, {
         method: 'POST',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        },
         body: formData,
       })
       .then(response => response.json())
