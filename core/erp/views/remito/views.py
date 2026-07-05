@@ -72,11 +72,26 @@ class RemitoCreateView(LoginRequiredMixin, PermissionRequiredMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.created_by = self.request.user
-        self.object = form.save()
 
-        # Si es una petición AJAX, devolver JSON con el ID
-        if self.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return JsonResponse({'id': self.object.id, 'success': True})
+        with transaction.atomic():
+            self.object = form.save()
+
+            # Procesar detalles enviados en JSON
+            detalles_json = self.request.POST.get('detalles_json', '')
+            if detalles_json:
+                try:
+                    detalles = json.loads(detalles_json)
+                    for det in detalles:
+                        producto = Product.objects.get(pk=det['prod_id'])
+                        DetalleRemito.objects.create(
+                            remito=self.object,
+                            prod=producto,
+                            cantidad=det['cantidad'],
+                            precio_unitario=det['precio_unitario']
+                        )
+                except Exception as e:
+                    messages.error(self.request, f'Error al guardar detalles: {e}')
+                    raise
 
         messages.success(self.request, 'Remito creado exitosamente.')
         return super().form_valid(form)

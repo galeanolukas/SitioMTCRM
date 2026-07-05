@@ -24,6 +24,7 @@
       <div class="card-body">
         {% csrf_token %}
         <input type="hidden" name="action" value="{{ action }}" />
+        <input type="hidden" name="detalles_json" id="detallesJson" value="" />
         <div id="error-block"></div>
         <div id="success-block"></div>
 
@@ -125,72 +126,20 @@
     let detalles = [];
 
     $('form').on('submit', function (e) {
-      e.preventDefault();
-      
       if (detalles.length === 0) {
+        e.preventDefault();
         alert('Agregue al menos un producto');
         return;
       }
 
-      const formData = new FormData(this);
+      // Guardar detalles en campo oculto como JSON
+      document.getElementById('detallesJson').value = JSON.stringify(detalles.map(d => ({
+        prod_id: d.prod_id,
+        cantidad: d.cantidad,
+        precio_unitario: d.precio_unitario
+      })));
 
-      fetch(this.action, {
-        method: 'POST',
-        headers: {
-          'X-Requested-With': 'XMLHttpRequest'
-        },
-        body: formData,
-      })
-      .then(response => response.json())
-      .then(data => {
-        console.log('Respuesta del servidor:', data);
-        if (data.id) {
-          // Guardar detalles
-          const remitoId = data.id;
-          console.log('Guardando detalles para remito:', remitoId);
-          console.log('Detalles a guardar:', detalles);
-
-          let promises = detalles.map(det => {
-            console.log('Enviando detalle:', det);
-            return fetch('/erp/remito/agregar-detalle/', {
-              method: 'POST',
-              headers: {
-                'X-CSRFToken': getCookie('csrftoken'),
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                remito_id: remitoId,
-                prod_id: det.prod_id,
-                cantidad: det.cantidad,
-                precio_unitario: det.precio_unitario
-              })
-            });
-          });
-
-          Promise.all(promises)
-            .then(responses => {
-              console.log('Respuestas de detalles:', responses);
-              Promise.all(responses.map(r => r.json()))
-                .then(results => {
-                  console.log('Resultados de detalles:', results);
-                  alert('Remito guardado exitosamente');
-                  location.href = '{{ list_url }}';
-                });
-            })
-            .catch(error => {
-              console.error('Error al guardar detalles:', error);
-              alert('Error al guardar detalles: ' + error);
-            });
-        } else {
-          console.error('Error: No se recibió ID del remito');
-          alert('Error al guardar remito');
-        }
-      })
-      .catch(error => {
-        console.error('Error en fetch:', error);
-        // Si no es JSON, es un redirect normal
-        this.submit();
-      });
+      console.log('Enviando formulario con detalles:', detalles);
     });
   </script>
 {% endblock %}
