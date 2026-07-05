@@ -14,4 +14,5 @@ urlpatterns = [
     path('test/', views.AfipTestView.as_view(), name='test'),
     path('dashboard/', views.AfipDashboardView.as_view(), name='dashboard'),
     path('vouchers/', views.AfipVouchersListView.as_view(), name='vouchers'),
+    path('generate-pdf/', views.generate_afip_pdf, name='generate_pdf'),
 ]

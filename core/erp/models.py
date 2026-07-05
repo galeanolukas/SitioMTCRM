@@ -495,6 +495,7 @@ class Sale(models.Model):
     afip_result = models.JSONField(default=dict, blank=True, verbose_name='Resultado AFIP')
     afip_error = models.TextField(blank=True, null=True, verbose_name='Error AFIP')
     afip_qr = models.TextField(blank=True, null=True, verbose_name='Código QR AFIP (base64 PNG)')
+    afip_pdf_url = models.URLField(blank=True, null=True, verbose_name='URL del PDF AFIP')
     synced_to_server = models.BooleanField(default=False, verbose_name='Sincronizado con servidor')
     local_sale_id = models.PositiveIntegerField(blank=True, null=True, verbose_name='ID de venta local', help_text='ID de la venta en la base de datos local para evitar duplicados')
     local_uuid = models.CharField(max_length=64, blank=True, null=True, db_index=True, verbose_name='UUID local', help_text='UUID para sincronización (índice para búsquedas rápidas)')

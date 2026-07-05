@@ -7,8 +7,10 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from core.erp.mixins import ValidatePermissionRequiredMixin
 from django.http import JsonResponse
 from django.urls import reverse_lazy
-from core.erp.models import AfipConfig, Company, Sale
+from core.erp.models import AfipConfig, Company, Sale, DetSale
 from .client import AfipClient
+from django.views.decorators.http import require_POST
+from django.contrib.auth.decorators import login_required, permission_required
 
 
 class AfipConfigListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView):
@@ -237,3 +239,146 @@ class AfipVouchersListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
                 data = {'success': False, 'error': str(e)}
 
         return JsonResponse(data)
+
+
+@login_required
+@permission_required('erp.view_afipconfig', raise_exception=True)
+@require_POST
+def generate_afip_pdf(request):
+    """
+    Genera el PDF fiscal de un comprobante AFIP usando la API de AFIP SDK.
+    Toma los datos de la venta y la configuración AFIP de la empresa.
+    """
+    sale_id = request.POST.get('sale_id')
+    if not sale_id:
+        return JsonResponse({'success': False, 'error': 'Falta el ID de la venta'}, status=400)
+
+    try:
+        sale = Sale.objects.select_related('cli', 'company').get(pk=sale_id)
+    except Sale.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Venta no encontrada'}, status=404)
+
+    # Verificar que la venta tenga CAE
+    if not sale.afip_cae:
+        return JsonResponse({'success': False, 'error': 'La venta no tiene CAE asignado'}, status=400)
+
+    # Obtener configuración AFIP de la empresa
+    config_obj = AfipConfig.objects.filter(company=sale.company, is_active=True).first()
+    if not config_obj:
+        return JsonResponse({'success': False, 'error': 'No hay configuración AFIP activa para la empresa'}, status=400)
+
+    # Inicializar cliente AFIP
+    client = AfipClient(company_id=sale.company_id)
+
+    # Mapear tipo de comprobante a template de AFIP SDK
+    template_map = {
+        'A': 'invoice-a',
+        'B': 'invoice-b',
+        'C': 'invoice-c',
+    }
+    template_name = template_map.get(sale.invoice_type, 'invoice-b')
+
+    # Datos del emisor (empresa)
+    company = sale.company
+    issuer_cuit = int(str(company.cuit or config_obj.cuit or '').replace('-', '').strip() or 0)
+    issuer_business_name = company.name or 'Empresa'
+    issuer_address = company.address or '-'
+    issuer_iva_condition = company.get_iva_condition_display() if hasattr(company, 'get_iva_condition_display') else 'Responsable Inscripto'
+    issuer_gross_income = getattr(company, 'iibb', 'CM 901-123456-7') or 'CM 901-123456-7'
+    issuer_activity_start_date = getattr(company, 'activity_start_date', '01/01/2020') or '01/01/2020'
+
+    # Datos del receptor (cliente)
+    if sale.cli:
+        receiver_name = f"{sale.cli.names} {sale.cli.surnames or ''}".strip()
+        receiver_address = sale.cli.address or '-'
+        receiver_document_type = 80 if sale.cli.cuit else 99
+        receiver_document_number = int(str(sale.cli.cuit or sale.cli.dni or '0').replace('-', '')) if (sale.cli.cuit or sale.cli.dni) else 0
+        receiver_iva_condition = sale.cli.get_condicion_iva_display() if hasattr(sale.cli, 'get_condicion_iva_display') else 'Consumidor Final'
+    else:
+        receiver_name = 'CONSUMIDOR FINAL'
+        receiver_address = '-'
+        receiver_document_type = 99
+        receiver_document_number = 0
+        receiver_iva_condition = 'Consumidor Final'
+
+    # Items de la venta
+    items = []
+    for det in DetSale.objects.filter(sale=sale).select_related('prod'):
+        items.append({
+            'code': det.prod.code or str(det.prod.id) if det.prod else '000',
+            'description': det.prod.name if det.prod else 'Producto',
+            'quantity': float(det.cant),
+            'unit_price': float(det.price),
+            'subtotal': float(det.subtotal),
+        })
+
+    if not items:
+        items.append({
+            'code': '000',
+            'description': 'Venta',
+            'quantity': 1,
+            'unit_price': float(sale.total),
+            'subtotal': float(sale.total),
+        })
+
+    # Fechas
+    issue_date = sale.date_joined.strftime('%d/%m/%Y') if sale.date_joined else '-'
+    cae_due_date = sale.afip_cae_vto.strftime('%d/%m/%Y') if sale.afip_cae_vto else '-'
+
+    # Número de comprobante y punto de venta
+    voucher_number = sale.afip_voucher_number or 1
+    sales_point = int(str(config_obj.punto_venta or '1'))
+
+    # Construir datos para AFIP SDK PDF
+    file_name = f"factura_{sale.invoice_type or 'B'}_{sales_point:04d}-{voucher_number:08d}.pdf"
+
+    pdf_data = {
+        'file_name': file_name,
+        'template': {
+            'name': template_name,
+            'params': {
+                'voucher_number': voucher_number,
+                'sales_point': sales_point,
+                'issue_date': issue_date,
+                'cae_due_date': cae_due_date,
+                'issuer_cuit': issuer_cuit,
+                'cae': int(sale.afip_cae),
+                'issuer_business_name': issuer_business_name,
+                'issuer_address': issuer_address,
+                'issuer_iva_condition': issuer_iva_condition,
+                'issuer_gross_income': issuer_gross_income,
+                'issuer_activity_start_date': issuer_activity_start_date,
+                'receiver_name': receiver_name,
+                'receiver_address': receiver_address,
+                'receiver_document_type': receiver_document_type,
+                'receiver_document_number': receiver_document_number,
+                'receiver_iva_condition': receiver_iva_condition,
+                'sale_condition': 'Contado',
+                'currency_id': 'ARS',
+                'currency_rate': 1,
+                'concept': 1,
+                'items': items,
+                'vat_amount': float(sale.iva or 0),
+                'tributes_amount': 0,
+                'total_amount': float(sale.total),
+                'billing_from': issue_date,
+                'billing_to': issue_date,
+                'payment_due_date': issue_date,
+            }
+        }
+    }
+
+    # Enviar email opcional si el cliente tiene email
+    if sale.cli and sale.cli.email:
+        pdf_data['send_to'] = sale.cli.email
+
+    result = client.create_pdf(pdf_data)
+
+    if 'error' in result:
+        return JsonResponse({'success': False, 'error': result['error']}, status=500)
+
+    # Guardar URL del PDF en la venta
+    sale.afip_pdf_url = result.get('file', '')
+    sale.save(update_fields=['afip_pdf_url'])
+
+    return JsonResponse({'success': True, 'pdf_url': result.get('file'), 'file_name': file_name})

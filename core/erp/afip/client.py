@@ -2,6 +2,7 @@
 Cliente AFIP SDK para interactuar con los Web Services de ARCA
 """
 from afip import Afip
+import requests
 from .config import get_afip_config
 
 
@@ -344,5 +345,32 @@ class AfipClient:
 
             return {'error': 'No se encontraron datos para el CUIT ingresado'}
 
+        except Exception as e:
+            return {'error': str(e)}
+
+    def create_pdf(self, pdf_data):
+        """
+        Genera un PDF de comprobante fiscal usando la API de PDFs de AFIP SDK.
+
+        Args:
+            pdf_data: Dict con los datos para el template PDF de AFIP SDK.
+                Debe incluir: file_name, template { name, params }, y opcional send_to.
+
+        Returns:
+            Dict con id, file (URL), file_expiration, file_name, created_at
+            o {'error': ...} si falla.
+        """
+        try:
+            url = 'https://app.afipsdk.com/api/v1/pdfs'
+            headers = {
+                'Authorization': f"Bearer {self.config['access_token']}",
+                'Content-Type': 'application/json',
+            }
+
+            response = requests.post(url, headers=headers, json=pdf_data, timeout=60)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            return {'error': str(e)}
         except Exception as e:
             return {'error': str(e)}

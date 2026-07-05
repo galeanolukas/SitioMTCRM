@@ -61,6 +61,16 @@
           <i class="fas fa-redo"></i>
         </button>
       {% endif %}
+      {% if sale.afip_status == 'ok' %}
+        <button class="btn btn-primary btn-sm btn-generate-pdf" data-sale-id="{{ sale.pk }}" title="Generar PDF AFIP">
+          <i class="fas fa-file-pdf"></i>
+        </button>
+        {% if sale.afip_pdf_url %}
+        <a href="{{ sale.afip_pdf_url }}" target="_blank" class="btn btn-success btn-sm" title="Ver PDF AFIP">
+          <i class="fas fa-download"></i>
+        </a>
+        {% endif %}
+      {% endif %}
     </td>
   </tr>
   {% empty %}
