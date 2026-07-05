@@ -127,11 +127,48 @@
         </li>
         {% endif %}
         {% if request.user.is_superuser or perms.erp.view_sale %}
-        <li class="nav-item">
-          <a href="{% url 'erp:operator_sales_report' %}" class="nav-link">
+        <li class="nav-item has-treeview">
+          <a href="#" class="nav-link">
             <i class="fas fa-chart-bar nav-icon"></i>
-            <p>Reporte de Ventas</p>
+            <p>
+              Reportes
+              <i class="fas fa-angle-left right"></i>
+            </p>
           </a>
+          <ul class="nav nav-treeview">
+            <li class="nav-item">
+              <a href="{% url 'erp:operator_sales_report' %}" class="nav-link">
+                <i class="fas fa-chart-line nav-icon"></i>
+                <p>Reporte de Ventas</p>
+              </a>
+            </li>
+            {% if request.user.is_superuser %}
+            <li class="nav-item">
+              <a href="{% url 'erp:afip:libro_iva' %}" class="nav-link">
+                <i class="fas fa-book nav-icon"></i>
+                <p>Libro IVA Digital</p>
+              </a>
+            </li>
+            <li class="nav-item">
+              <a href="/admin/erp/cuentacorrientecliente/" class="nav-link">
+                <i class="fas fa-users nav-icon"></i>
+                <p>Cta. Corriente Clientes</p>
+              </a>
+            </li>
+            <li class="nav-item">
+              <a href="/admin/erp/asientocontable/" class="nav-link">
+                <i class="fas fa-calculator nav-icon"></i>
+                <p>Asientos Contables</p>
+              </a>
+            </li>
+            <li class="nav-item">
+              <a href="/admin/erp/facturaproveedor/" class="nav-link">
+                <i class="fas fa-file-invoice nav-icon"></i>
+                <p>Facturas Proveedores</p>
+              </a>
+            </li>
+            {% endif %}
+          </ul>
         </li>
         {% endif %}
         {% if request.user.is_superuser or perms.erp.manage_employee_accounts %}

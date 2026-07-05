@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.apps import apps
-from .models import Company, Product, Sale, Client, Supplier, Category, EmployeeAccountSale, AfipConfig, AfipPuntoVenta, LibroIvaRegistro, CuentaCorrienteCliente, AsientoContable, CatalogoConfig, PriceList, PriceListProduct
+from .models import Company, Product, Sale, Client, Supplier, Category, EmployeeAccountSale, AfipConfig, AfipPuntoVenta, LibroIvaRegistro, CuentaCorrienteCliente, AsientoContable, FacturaProveedor, CatalogoConfig, PriceList, PriceListProduct
 
 # Clase base para admin con filtrado por empresa
 class CompanyFilteredAdmin(admin.ModelAdmin):
@@ -146,6 +146,21 @@ class AsientoContableAdmin(CompanyFilteredAdmin):
         return qs.none()
 
 
+class FacturaProveedorAdmin(CompanyFilteredAdmin):
+    list_display = ('supplier', 'fecha', 'tipo_comprobante', 'punto_venta', 'numero_comprobante', 'total', 'cae')
+    list_filter = ('company', 'supplier', 'tipo_comprobante', 'fecha', 'condicion_iva')
+    search_fields = ('supplier__name', 'cuit_proveedor', 'cae', 'numero_comprobante')
+    date_hierarchy = 'fecha'
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if request.user.is_superuser:
+            return qs
+        if hasattr(request.user, 'company') and request.user.company:
+            return qs.filter(company=request.user.company)
+        return qs.none()
+
+
 class CatalogoConfigAdmin(CompanyFilteredAdmin):
     list_display = ('company', 'catalogo_url', 'is_active', 'auto_sync', 'last_sync', 'created_at')
     list_filter = ('company', 'is_active', 'auto_sync')
@@ -185,6 +200,7 @@ admin.site.register(AfipPuntoVenta, AfipPuntoVentaAdmin)
 admin.site.register(LibroIvaRegistro, LibroIvaRegistroAdmin)
 admin.site.register(CuentaCorrienteCliente, CuentaCorrienteClienteAdmin)
 admin.site.register(AsientoContable, AsientoContableAdmin)
+admin.site.register(FacturaProveedor, FacturaProveedorAdmin)
 admin.site.register(CatalogoConfig, CatalogoConfigAdmin)
 admin.site.register(PriceList, PriceListAdmin)
 admin.site.register(PriceListProduct, PriceListProductAdmin)
@@ -193,7 +209,7 @@ admin.site.register(PriceListProduct, PriceListProductAdmin)
 app_models = apps.get_app_config('erp').get_models()
 
 # Registrar los modelos restantes que no tienen admin personalizado
-registered_models = {Company, Product, Sale, Client, Supplier, Category, EmployeeAccountSale, AfipConfig, AfipPuntoVenta, LibroIvaRegistro, CuentaCorrienteCliente, AsientoContable, CatalogoConfig, PriceList, PriceListProduct}
+registered_models = {Company, Product, Sale, Client, Supplier, Category, EmployeeAccountSale, AfipConfig, AfipPuntoVenta, LibroIvaRegistro, CuentaCorrienteCliente, AsientoContable, FacturaProveedor, CatalogoConfig, PriceList, PriceListProduct}
 for model in app_models:
     if model not in registered_models:
         try:

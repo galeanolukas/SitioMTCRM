@@ -1708,6 +1708,114 @@ class AsientoContable(models.Model):
         ]
 
 
+class FacturaProveedor(models.Model):
+    """Facturas de proveedores para Libro IVA Digital"""
+    TIPO_COMPROBANTE_CHOICES = (
+        (1, 'Factura A'),
+        (2, 'Nota de Crédito A'),
+        (3, 'Nota de Débito A'),
+        (4, 'Recibo A'),
+        (6, 'Factura B'),
+        (7, 'Nota de Crédito B'),
+        (8, 'Nota de Débito B'),
+        (9, 'Recibo B'),
+        (11, 'Factura C'),
+        (12, 'Nota de Crédito C'),
+        (13, 'Nota de Débito C'),
+        (15, 'Recibo C'),
+    )
+
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa')
+    supplier = models.ForeignKey(Supplier, on_delete=models.PROTECT, verbose_name='Proveedor')
+    fecha = models.DateField(verbose_name='Fecha de Factura')
+    tipo_comprobante = models.IntegerField(choices=TIPO_COMPROBANTE_CHOICES, verbose_name='Tipo de Comprobante')
+    punto_venta = models.IntegerField(verbose_name='Punto de Venta')
+    numero_comprobante = models.BigIntegerField(verbose_name='Número de Comprobante')
+    cuit_proveedor = models.CharField(max_length=20, verbose_name='CUIT Proveedor')
+    condicion_iva = models.CharField(max_length=2, choices=CONDICION_IVA_CHOICES, verbose_name='Condición IVA')
+    neto_gravado = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name='Neto Gravado')
+    neto_no_gravado = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name='Neto No Gravado')
+    neto_exento = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name='Neto Exento')
+    iva_21 = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name='IVA 21%')
+    iva_10_5 = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name='IVA 10.5%')
+    iva_27 = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name='IVA 27%')
+    iva_2_5 = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name='IVA 2.5%')
+    iva_0 = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name='IVA 0%')
+    impuesto_interno = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name='Impuesto Interno')
+    total = models.DecimalField(max_digits=15, decimal_places=2, verbose_name='Total')
+    cae = models.CharField(max_length=14, blank=True, null=True, verbose_name='CAE')
+    cae_vto = models.DateField(blank=True, null=True, verbose_name='Vencimiento CAE')
+    remito_entrada = models.ForeignKey('RemitoEntrada', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Remito de Entrada Relacionado')
+    observaciones = models.TextField(blank=True, null=True, verbose_name='Observaciones')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de creación')
+
+    def __str__(self):
+        return f"{self.supplier.name} - {self.fecha} - {self.get_tipo_comprobante_display()} {self.punto_venta:04d}-{self.numero_comprobante:08d}"
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        # Crear registro en Libro IVA automáticamente
+        self._crear_registro_libro_iva()
+
+    def _crear_registro_libro_iva(self):
+        """Crea automáticamente un registro en el Libro IVA para compras."""
+        from .models import LibroIvaRegistro
+
+        try:
+            # Verificar si ya existe un registro para esta factura
+            if LibroIvaRegistro.objects.filter(supplier=self.supplier, tipo_registro='compra', 
+                                            punto_venta=self.punto_venta, 
+                                            numero_comprobante=self.numero_comprobante).exists():
+                return
+
+            # Determinar aplicación IVA según condición del proveedor
+            if self.condicion_iva == 'RI':
+                aplicacion_iva = 3  # Gravado
+            elif self.condicion_iva == 'M':
+                aplicacion_iva = 2  # Exento
+            else:
+                aplicacion_iva = 3  # Gravado por defecto
+
+            LibroIvaRegistro.objects.create(
+                company=self.company,
+                tipo_registro='compra',
+                fecha=self.fecha,
+                tipo_comprobante=self.tipo_comprobante,
+                punto_venta=self.punto_venta,
+                numero_comprobante=self.numero_comprobante,
+                cuit_emisor=self.cuit_proveedor,
+                cuit_receptor=self.company.cuit,
+                razon_social=self.supplier.name,
+                condicion_iva=self.condicion_iva,
+                aplicacion_iva=aplicacion_iva,
+                neto_gravado=self.neto_gravado,
+                neto_no_gravado=self.neto_no_gravado,
+                neto_exento=self.neto_exento,
+                iva_21=self.iva_21,
+                iva_10_5=self.iva_10_5,
+                iva_27=self.iva_27,
+                iva_2_5=self.iva_2_5,
+                iva_0=self.iva_0,
+                impuesto_interno=self.impuesto_interno,
+                total=self.total,
+                cae=self.cae,
+                cae_vto=self.cae_vto,
+                supplier=self.supplier
+            )
+        except Exception as e:
+            print(f"Error creando registro Libro IVA para factura de proveedor: {e}")
+
+    class Meta:
+        verbose_name = 'Factura de Proveedor'
+        verbose_name_plural = 'Facturas de Proveedores'
+        ordering = ['-fecha', '-numero_comprobante']
+        indexes = [
+            models.Index(fields=['company', 'supplier', 'fecha']),
+            models.Index(fields=['fecha']),
+            models.Index(fields=['cae']),
+        ]
+
+
 class CatalogoConfig(models.Model):
     """Configuración de sincronización con SitioCatalogoMarcos por empresa"""
     
