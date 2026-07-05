@@ -2,6 +2,7 @@ from django.db import models
 from django.utils import timezone
 from datetime import datetime
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 
 from core.models import BaseModel
 from decimal import Decimal
@@ -16,6 +17,47 @@ from config.settings import MEDIA_URL, STATIC_URL
 from django.conf import settings
 # ... other imports ...
 
+def validate_cuit(value):
+    """
+    Validador de CUIT/CUIL argentino.
+    Formato: XX-XXXXXXXX-X (11 dígitos total)
+    """
+    if not value:
+        return
+
+    # Quitar guiones y espacios
+    cuit_clean = str(value).replace('-', '').replace(' ', '').strip()
+
+    # Verificar longitud
+    if len(cuit_clean) != 11:
+        raise ValidationError('El CUIT/CUIL debe tener 11 dígitos')
+
+    # Verificar que sean todos dígitos
+    if not cuit_clean.isdigit():
+        raise ValidationError('El CUIT/CUIL debe contener solo dígitos')
+
+    # Calcular dígito verificador
+    cuit_sin_verif = cuit_clean[:10]
+    verificador = int(cuit_clean[10])
+
+    # Algoritmo de módulo 11
+    multiplicadores = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2]
+    suma = 0
+    for i in range(10):
+        suma += int(cuit_sin_verif[i]) * multiplicadores[i]
+
+    resto = suma % 11
+    if resto == 0:
+        calculado = 0
+    elif resto == 1:
+        calculado = 9
+    else:
+        calculado = 11 - resto
+
+    if calculado != verificador:
+        raise ValidationError('El CUIT/CUIL no es válido (dígito verificador incorrecto)')
+
+
 
 class Company(models.Model):
     SYNC_DESTINATION_CHOICES = (
@@ -26,7 +68,7 @@ class Company(models.Model):
     
     name = models.CharField(max_length=150, verbose_name='Nombre')
     address = models.CharField(max_length=200, verbose_name='Dirección', blank=True, null=True)
-    cuit = models.CharField(max_length=20, verbose_name='CUIT', blank=True, null=True)
+    cuit = models.CharField(max_length=20, verbose_name='CUIT', blank=True, null=True, validators=[validate_cuit])
     iibb = models.CharField(max_length=30, verbose_name='IIBB', blank=True, null=True)
     start = models.DateField(verbose_name='Inicio de actividades', blank=True, null=True)
     pos = models.CharField(max_length=5, verbose_name='Punto de venta', default='0001')
@@ -320,7 +362,7 @@ class Client(models.Model):
     names = models.CharField(max_length=150, verbose_name='Nombres')
     surnames = models.CharField(max_length=150, null=True, blank=True, verbose_name='Apellidos')
     dni = models.CharField(max_length=15, null=True, blank=True, verbose_name='Dni')
-    cuit_cuil = models.CharField(max_length=13, null=True, blank=True, verbose_name='CUIT/CUIL')
+    cuit_cuil = models.CharField(max_length=13, null=True, blank=True, verbose_name='CUIT/CUIL', validators=[validate_cuit])
     condicion_iva = models.CharField(max_length=2, choices=CONDICION_IVA_CHOICES, default='CF', verbose_name='Condición IVA')
     date_birthday = models.DateField(default=timezone.now, verbose_name='Fecha de nacimiento')
     address = models.CharField(max_length=150, null=True, blank=True, verbose_name='Dirección')
@@ -1279,7 +1321,7 @@ class AfipConfig(models.Model):
     )
     
     company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa', null=True, blank=True)
-    cuit = models.CharField(max_length=20, verbose_name='CUIT')
+    cuit = models.CharField(max_length=20, verbose_name='CUIT', validators=[validate_cuit])
     access_token = models.CharField(max_length=255, verbose_name='Access Token AFIP SDK')
     cert = models.TextField(blank=True, null=True, verbose_name='Certificado (solo producción)')
     key = models.TextField(blank=True, null=True, verbose_name='Key (solo producción)')

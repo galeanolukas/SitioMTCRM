@@ -444,7 +444,17 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     # Generar facturación: usar el POS configurado en la empresa de la venta
                     company = sale.company or Company.objects.first()
                     sale.invoice_pos = (company.pos if company else sale.invoice_pos) or '0001'
-                    sale.invoice_type = 'B'
+
+                    # Obtener tipo de comprobante de la configuración AFIP
+                    from core.erp.models import AfipConfig
+                    afip_config = AfipConfig.objects.filter(company=company, is_active=True).first()
+                    if afip_config:
+                        # Mapear tipo de comprobante numérico a letra
+                        tipo_map = {1: 'A', 6: 'B', 11: 'C'}
+                        sale.invoice_type = tipo_map.get(afip_config.tipo_comprobante, 'B')
+                    else:
+                        sale.invoice_type = 'B'
+
                     sale.invoice_number = sale.next_sequential_for_pos_type()
                     sale.is_invoiced = True
                     sale.save()
