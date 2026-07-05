@@ -62,10 +62,11 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
         current_cr = cr_qs.order_by('-created_at').first()
         context['cash_register'] = current_cr
         context['cash_register_is_open'] = bool(current_cr)
-        # Determinar si el usuario es operador y debe requerir caja abierta
+        # Determinar si el usuario es operador
         is_operator = self.request.user.groups.filter(name='operadores').exists()
         context['is_operator'] = is_operator
-        context['pos_locked_by_cash'] = is_operator and not current_cr
+        # Desactivar botones POS cuando no hay caja abierta (para todos los usuarios)
+        context['pos_locked_by_cash'] = not current_cr
         return context
 
     def post(self, request, *args, **kwargs):
