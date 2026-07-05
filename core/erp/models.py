@@ -547,6 +547,9 @@ class Sale(models.Model):
     afip_error = models.TextField(blank=True, null=True, verbose_name='Error AFIP')
     afip_qr = models.TextField(blank=True, null=True, verbose_name='Código QR AFIP (base64 PNG)')
     afip_pdf_url = models.URLField(blank=True, null=True, verbose_name='URL del PDF AFIP')
+    afip_contingencia = models.BooleanField(default=False, verbose_name='Factura en Contingencia')
+    afip_contingencia_fecha = models.DateTimeField(blank=True, null=True, verbose_name='Fecha de Contingencia')
+    afip_pendiente_autorizacion = models.BooleanField(default=False, verbose_name='Pendiente de Autorización AFIP')
     synced_to_server = models.BooleanField(default=False, verbose_name='Sincronizado con servidor')
     local_sale_id = models.PositiveIntegerField(blank=True, null=True, verbose_name='ID de venta local', help_text='ID de la venta en la base de datos local para evitar duplicados')
     local_uuid = models.CharField(max_length=64, blank=True, null=True, db_index=True, verbose_name='UUID local', help_text='UUID para sincronización (índice para búsquedas rápidas)')
@@ -694,13 +697,193 @@ class Sale(models.Model):
             # Generar código QR
             self.afip_qr = self._generate_afip_qr(config_obj, next_nro, punto_venta)
             self.save(update_fields=['afip_cae', 'afip_cae_vto', 'afip_voucher_number', 'afip_result', 'is_invoiced', 'afip_qr'])
+
+            # Crear registro en Libro IVA para ventas
+            self._crear_registro_libro_iva(config_obj, punto_venta, next_nro)
+
+            # Crear movimiento en cuenta corriente del cliente
+            if self.cli:
+                self._crear_movimiento_cuenta_corriente(config_obj, punto_venta, next_nro)
+
+            # Crear asiento contable básico
+            self._crear_asiento_contable(config_obj, punto_venta, next_nro)
             
             return True
             
         except Exception as e:
-            self.afip_error = str(e)
-            self.save(update_fields=['afip_error'])
-            return False
+            # Si falla AFIP, marcar como contingencia si está configurado
+            error_msg = str(e)
+            self.afip_error = error_msg
+
+            # Verificar si debe activar modo contingencia
+            from .afip.config import get_afip_config
+            afip_config = get_afip_config(self.company_id)
+            usar_contingencia = afip_config.get('usar_contingencia', False) if afip_config else False
+
+            if usar_contingencia:
+                # Activar modo contingencia
+                self.afip_contingencia = True
+                self.afip_contingencia_fecha = timezone.now()
+                self.afip_pendiente_autorizacion = True
+                self.is_invoiced = True  # Marcar como facturada aunque sin CAE
+
+                # Generar número de comprobante local
+                punto_venta_obj = self.company.afippuntoventa_set.filter(is_active=True).first()
+                punto_venta = punto_venta_obj.numero if punto_venta_obj else 1
+                config_obj = self.company.afipconfig_set.filter(is_active=True).first()
+                tipo_map = {1: 1, 6: 6, 11: 11}
+                tipo_comprobante_libro = tipo_map.get(config_obj.tipo_comprobante, 6) if config_obj else 6
+
+                # Asignar número de comprobante temporal (se actualizará al autorizar)
+                if not self.afip_voucher_number:
+                    self.afip_voucher_number = 0  # Temporal, se actualizará al autorizar
+
+                self.save(update_fields=['afip_error', 'afip_contingencia', 'afip_contingencia_fecha', 'afip_pendiente_autorizacion', 'is_invoiced', 'afip_voucher_number'])
+                return True  # Retornar True para no bloquear la venta
+            else:
+                self.save(update_fields=['afip_error'])
+                return False
+
+    def _crear_registro_libro_iva(self, config_obj, punto_venta, nro_cbte):
+        """
+        Crea automáticamente un registro en el Libro IVA para ventas.
+        """
+        from .models import LibroIvaRegistro
+
+        try:
+            # Mapear tipo de comprobante AFIP a tipo de comprobante del Libro IVA
+            tipo_map = {1: 1, 6: 6, 11: 11}  # A, B, C
+            tipo_comprobante_libro = tipo_map.get(config_obj.tipo_comprobante, 6)
+
+            # Calcular IVA por alícuota
+            iva_21 = 0
+            iva_10_5 = 0
+            iva_27 = 0
+            iva_2_5 = 0
+            iva_0 = 0
+
+            for det in self.detsale_set.all():
+                if det.iva_amount > 0:
+                    iva_rate = (det.iva_amount / det.subtotal) * 100 if det.subtotal > 0 else 0
+                    if iva_rate == 21:
+                        iva_21 += float(det.iva_amount)
+                    elif iva_rate == 10.5:
+                        iva_10_5 += float(det.iva_amount)
+                    elif iva_rate == 27:
+                        iva_27 += float(det.iva_amount)
+                    elif iva_rate == 2.5:
+                        iva_2_5 += float(det.iva_amount)
+                    elif iva_rate == 0:
+                        iva_0 += float(det.iva_amount)
+
+            # Determinar condición IVA del cliente
+            condicion_iva = self.cli.condicion_iva if self.cli else 'CF'
+
+            # Determinar aplicación IVA según condición del cliente
+            if condicion_iva == 'RI':
+                aplicacion_iva = 3  # Gravado
+            elif condicion_iva == 'M':
+                aplicacion_iva = 2  # Exento
+            elif condicion_iva == 'CF':
+                aplicacion_iva = 3  # Gravado
+            else:
+                aplicacion_iva = 3  # Gravado por defecto
+
+            # Calcular neto gravado
+            neto_gravado = float(self.subtotal) if aplicacion_iva == 3 else 0
+            neto_exento = float(self.subtotal) if aplicacion_iva == 2 else 0
+
+            LibroIvaRegistro.objects.create(
+                company=self.company,
+                tipo_registro='venta',
+                fecha=self.date_joined.date() if self.date_joined else timezone.now().date(),
+                tipo_comprobante=tipo_comprobante_libro,
+                punto_venta=punto_venta,
+                numero_comprobante=nro_cbte,
+                cuit_emisor=self.company.cuit or config_obj.cuit,
+                cuit_receptor=self.cli.cuit_cuil if self.cli else None,
+                razon_social=f"{self.cli.names} {self.cli.surnames or ''}".strip() if self.cli else 'Consumidor Final',
+                condicion_iva=condicion_iva,
+                aplicacion_iva=aplicacion_iva,
+                neto_gravado=neto_gravado,
+                neto_no_gravado=0,
+                neto_exento=neto_exento,
+                iva_21=iva_21,
+                iva_10_5=iva_10_5,
+                iva_27=iva_27,
+                iva_2_5=iva_2_5,
+                iva_0=iva_0,
+                impuesto_interno=0,
+                total=float(self.total),
+                cae=self.afip_cae,
+                cae_vto=self.afip_cae_vto,
+                sale=self
+            )
+        except Exception as e:
+            # No fallar la factura si falla el registro del libro IVA
+            print(f"Error creando registro Libro IVA: {e}")
+
+    def _crear_movimiento_cuenta_corriente(self, config_obj, punto_venta, nro_cbte):
+        """
+        Crea automáticamente un movimiento en la cuenta corriente del cliente.
+        """
+        from .models import CuentaCorrienteCliente
+
+        try:
+            # Obtener el último saldo del cliente
+            ultimo_movimiento = CuentaCorrienteCliente.objects.filter(
+                client=self.cli,
+                company=self.company
+            ).order_by('-fecha', '-created_at').first()
+
+            saldo_anterior = ultimo_movimiento.saldo if ultimo_movimiento else 0
+
+            # Crear movimiento de venta (débito)
+            tipo_map = {1: 'A', 6: 'B', 11: 'C'}
+            tipo_letra = tipo_map.get(config_obj.tipo_comprobante, 'B') if config_obj else 'B'
+
+            descripcion = f"Factura {tipo_letra} {punto_venta:04d}-{nro_cbte:08d}"
+
+            CuentaCorrienteCliente.objects.create(
+                company=self.company,
+                client=self.cli,
+                tipo_movimiento='venta',
+                fecha=self.date_joined.date() if self.date_joined else timezone.now().date(),
+                descripcion=descripcion,
+                debe=float(self.total),
+                haber=0,
+                saldo=saldo_anterior + float(self.total),
+                sale=self
+            )
+        except Exception as e:
+            # No fallar la factura si falla el movimiento de cuenta corriente
+            print(f"Error creando movimiento cuenta corriente: {e}")
+
+    def _crear_asiento_contable(self, config_obj, punto_venta, nro_cbte):
+        """
+        Crea automáticamente un asiento contable básico para la venta.
+        """
+        from .models import AsientoContable
+
+        try:
+            tipo_map = {1: 'A', 6: 'B', 11: 'C'}
+            tipo_letra = tipo_map.get(config_obj.tipo_comprobante, 'B') if config_obj else 'B'
+
+            descripcion = f"Venta - Factura {tipo_letra} {punto_venta:04d}-{nro_cbte:08d}"
+
+            # Asiento contable básico: Debe = Total venta, Haber = Total venta (equilibrado)
+            AsientoContable.objects.create(
+                company=self.company,
+                tipo_asiento='venta',
+                fecha=self.date_joined.date() if self.date_joined else timezone.now().date(),
+                descripcion=descripcion,
+                debe_total=float(self.total),
+                haber_total=float(self.total),
+                sale=self
+            )
+        except Exception as e:
+            # No fallar la factura si falla el asiento contable
+            print(f"Error creando asiento contable: {e}")
 
     def _generate_afip_qr(self, config_obj, nro_cbte, punto_venta):
         """
@@ -1358,6 +1541,7 @@ class AfipConfig(models.Model):
     concepto = models.IntegerField(default=1, choices=CONCEPTO_CHOICES, verbose_name='Concepto (1=Productos, 2=Servicios, 3=Ambos)')
     moneda = models.CharField(max_length=3, choices=MONEDA_CHOICES, default='PES', verbose_name='Moneda')
     cotizacion = models.DecimalField(max_digits=10, decimal_places=2, default=1.0, verbose_name='Cotización (si no es PES)')
+    usar_contingencia = models.BooleanField(default=False, verbose_name='Usar Modo Contingencia (operar sin AFIP)')
     is_active = models.BooleanField(default=True, verbose_name='Activo')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de creación')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Fecha de actualización')
@@ -1387,6 +1571,141 @@ class AfipPuntoVenta(models.Model):
         verbose_name_plural = 'Puntos de Venta AFIP'
         unique_together = ['company', 'numero']
         ordering = ['company__name', 'numero']
+
+
+class LibroIvaRegistro(models.Model):
+    """Registros para Libro IVA Digital (compras y ventas)"""
+    TIPO_REGISTRO_CHOICES = (
+        ('compra', 'Compra'),
+        ('venta', 'Venta'),
+    )
+    TIPO_COMPROBANTE_CHOICES = (
+        (1, 'Factura A'),
+        (2, 'Nota de Crédito A'),
+        (3, 'Nota de Débito A'),
+        (4, 'Recibo A'),
+        (6, 'Factura B'),
+        (7, 'Nota de Crédito B'),
+        (8, 'Nota de Débito B'),
+        (9, 'Recibo B'),
+        (11, 'Factura C'),
+        (12, 'Nota de Crédito C'),
+        (13, 'Nota de Débito C'),
+        (15, 'Recibo C'),
+    )
+    APLICACION_IVA_CHOICES = (
+        (1, 'No Gravado'),
+        (2, 'Exento'),
+        (3, 'Gravado'),
+        (4, 'Gravado - No Gravado'),
+        (5, 'Gravado - Exento'),
+        (6, 'Gravado - No Gravado - Exento'),
+    )
+
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa')
+    tipo_registro = models.CharField(max_length=10, choices=TIPO_REGISTRO_CHOICES, verbose_name='Tipo de Registro')
+    fecha = models.DateField(verbose_name='Fecha del Comprobante')
+    tipo_comprobante = models.IntegerField(choices=TIPO_COMPROBANTE_CHOICES, verbose_name='Tipo de Comprobante')
+    punto_venta = models.IntegerField(verbose_name='Punto de Venta')
+    numero_comprobante = models.BigIntegerField(verbose_name='Número de Comprobante')
+    cuit_emisor = models.CharField(max_length=20, blank=True, null=True, verbose_name='CUIT Emisor')
+    cuit_receptor = models.CharField(max_length=20, blank=True, null=True, verbose_name='CUIT Receptor')
+    razon_social = models.CharField(max_length=200, blank=True, null=True, verbose_name='Razón Social')
+    condicion_iva = models.CharField(max_length=2, choices=CONDICION_IVA_CHOICES, verbose_name='Condición IVA')
+    aplicacion_iva = models.IntegerField(choices=APLICACION_IVA_CHOICES, default=3, verbose_name='Aplicación IVA')
+    neto_gravado = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name='Neto Gravado')
+    neto_no_gravado = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name='Neto No Gravado')
+    neto_exento = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name='Neto Exento')
+    iva_21 = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name='IVA 21%')
+    iva_10_5 = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name='IVA 10.5%')
+    iva_27 = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name='IVA 27%')
+    iva_2_5 = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name='IVA 2.5%')
+    iva_0 = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name='IVA 0%')
+    impuesto_interno = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name='Impuesto Interno')
+    total = models.DecimalField(max_digits=15, decimal_places=2, verbose_name='Total')
+    cae = models.CharField(max_length=14, blank=True, null=True, verbose_name='CAE')
+    cae_vto = models.DateField(blank=True, null=True, verbose_name='Vencimiento CAE')
+    sale = models.ForeignKey('Sale', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Venta Relacionada')
+    supplier = models.ForeignKey('Supplier', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Proveedor Relacionado')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de creación')
+
+    def __str__(self):
+        return f"{self.get_tipo_registro_display()} - {self.fecha} - {self.get_tipo_comprobante_display()} {self.punto_venta:04d}-{self.numero_comprobante:08d}"
+
+    class Meta:
+        verbose_name = 'Registro Libro IVA'
+        verbose_name_plural = 'Registros Libro IVA'
+        ordering = ['-fecha', '-tipo_registro', 'numero_comprobante']
+        indexes = [
+            models.Index(fields=['company', 'tipo_registro', 'fecha']),
+            models.Index(fields=['fecha']),
+            models.Index(fields=['cae']),
+        ]
+
+
+class CuentaCorrienteCliente(models.Model):
+    """Movimientos de cuenta corriente de clientes"""
+    TIPO_MOVIMIENTO_CHOICES = (
+        ('venta', 'Venta (Débito)'),
+        ('pago', 'Pago (Crédito)'),
+        ('nota_credito', 'Nota de Crédito (Crédito)'),
+        ('nota_debito', 'Nota de Débito (Débito)'),
+        ('ajuste', 'Ajuste'),
+    )
+
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa')
+    client = models.ForeignKey('Client', on_delete=models.CASCADE, verbose_name='Cliente')
+    tipo_movimiento = models.CharField(max_length=20, choices=TIPO_MOVIMIENTO_CHOICES, verbose_name='Tipo de Movimiento')
+    fecha = models.DateField(verbose_name='Fecha')
+    descripcion = models.CharField(max_length=200, verbose_name='Descripción')
+    debe = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name='Debe')
+    haber = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name='Haber')
+    saldo = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name='Saldo Acumulado')
+    sale = models.ForeignKey('Sale', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Venta Relacionada')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de creación')
+
+    def __str__(self):
+        return f"{self.client.names} - {self.fecha} - {self.get_tipo_movimiento_display()} - ${self.debe - self.haber}"
+
+    class Meta:
+        verbose_name = 'Movimiento Cuenta Corriente'
+        verbose_name_plural = 'Movimientos Cuenta Corriente'
+        ordering = ['-fecha', '-created_at']
+        indexes = [
+            models.Index(fields=['company', 'client', 'fecha']),
+            models.Index(fields=['client', 'fecha']),
+        ]
+
+
+class AsientoContable(models.Model):
+    """Asientos contables básicos para ventas"""
+    TIPO_ASIENTO_CHOICES = (
+        ('venta', 'Venta'),
+        ('pago', 'Pago'),
+        ('compra', 'Compra'),
+        ('ajuste', 'Ajuste'),
+    )
+
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa')
+    tipo_asiento = models.CharField(max_length=20, choices=TIPO_ASIENTO_CHOICES, verbose_name='Tipo de Asiento')
+    fecha = models.DateField(verbose_name='Fecha')
+    descripcion = models.CharField(max_length=200, verbose_name='Descripción')
+    debe_total = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name='Total Debe')
+    haber_total = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name='Total Haber')
+    sale = models.ForeignKey('Sale', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Venta Relacionada')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de creación')
+
+    def __str__(self):
+        return f"{self.get_tipo_asiento_display()} - {self.fecha} - ${self.debe_total}"
+
+    class Meta:
+        verbose_name = 'Asiento Contable'
+        verbose_name_plural = 'Asientos Contables'
+        ordering = ['-fecha', '-created_at']
+        indexes = [
+            models.Index(fields=['company', 'fecha']),
+            models.Index(fields=['tipo_asiento', 'fecha']),
+        ]
 
 
 class CatalogoConfig(models.Model):

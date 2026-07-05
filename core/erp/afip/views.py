@@ -28,7 +28,7 @@ class AfipConfigCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
     model = AfipConfig
     template_name = 'afip/form.html'
     permission_required = 'erp.add_afipconfig'
-    fields = ['company', 'cuit', 'access_token', 'cert', 'key', 'environment', 'punto_venta', 'tipo_comprobante', 'concepto', 'moneda', 'cotizacion', 'is_active']
+    fields = ['company', 'cuit', 'access_token', 'cert', 'key', 'environment', 'tipo_comprobante', 'concepto', 'moneda', 'cotizacion', 'usar_contingencia', 'is_active']
     success_url = reverse_lazy('erp:afip:list')
 
 
@@ -37,7 +37,7 @@ class AfipConfigUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
     model = AfipConfig
     template_name = 'afip/form.html'
     permission_required = 'erp.change_afipconfig'
-    fields = ['company', 'cuit', 'access_token', 'cert', 'key', 'environment', 'punto_venta', 'tipo_comprobante', 'concepto', 'moneda', 'cotizacion', 'is_active']
+    fields = ['company', 'cuit', 'access_token', 'cert', 'key', 'environment', 'tipo_comprobante', 'concepto', 'moneda', 'cotizacion', 'usar_contingencia', 'is_active']
     success_url = reverse_lazy('erp:afip:list')
 
 

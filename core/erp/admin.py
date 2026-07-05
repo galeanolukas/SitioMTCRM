@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.apps import apps
-from .models import Company, Product, Sale, Client, Supplier, Category, EmployeeAccountSale, AfipConfig, AfipPuntoVenta, CatalogoConfig, PriceList, PriceListProduct
+from .models import Company, Product, Sale, Client, Supplier, Category, EmployeeAccountSale, AfipConfig, AfipPuntoVenta, LibroIvaRegistro, CuentaCorrienteCliente, AsientoContable, CatalogoConfig, PriceList, PriceListProduct
 
 # Clase base para admin con filtrado por empresa
 class CompanyFilteredAdmin(admin.ModelAdmin):
@@ -101,6 +101,51 @@ class AfipPuntoVentaAdmin(CompanyFilteredAdmin):
         return qs.none()
 
 
+class LibroIvaRegistroAdmin(CompanyFilteredAdmin):
+    list_display = ('tipo_registro', 'fecha', 'tipo_comprobante', 'punto_venta', 'numero_comprobante', 'razon_social', 'total', 'cae')
+    list_filter = ('company', 'tipo_registro', 'tipo_comprobante', 'fecha', 'condicion_iva')
+    search_fields = ('razon_social', 'cuit_emisor', 'cuit_receptor', 'cae', 'numero_comprobante')
+    date_hierarchy = 'fecha'
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if request.user.is_superuser:
+            return qs
+        if hasattr(request.user, 'company') and request.user.company:
+            return qs.filter(company=request.user.company)
+        return qs.none()
+
+
+class CuentaCorrienteClienteAdmin(CompanyFilteredAdmin):
+    list_display = ('client', 'fecha', 'tipo_movimiento', 'descripcion', 'debe', 'haber', 'saldo')
+    list_filter = ('company', 'client', 'tipo_movimiento', 'fecha')
+    search_fields = ('client__names', 'client__surnames', 'descripcion')
+    date_hierarchy = 'fecha'
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if request.user.is_superuser:
+            return qs
+        if hasattr(request.user, 'company') and request.user.company:
+            return qs.filter(company=request.user.company)
+        return qs.none()
+
+
+class AsientoContableAdmin(CompanyFilteredAdmin):
+    list_display = ('tipo_asiento', 'fecha', 'descripcion', 'debe_total', 'haber_total')
+    list_filter = ('company', 'tipo_asiento', 'fecha')
+    search_fields = ('descripcion',)
+    date_hierarchy = 'fecha'
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if request.user.is_superuser:
+            return qs
+        if hasattr(request.user, 'company') and request.user.company:
+            return qs.filter(company=request.user.company)
+        return qs.none()
+
+
 class CatalogoConfigAdmin(CompanyFilteredAdmin):
     list_display = ('company', 'catalogo_url', 'is_active', 'auto_sync', 'last_sync', 'created_at')
     list_filter = ('company', 'is_active', 'auto_sync')
@@ -137,6 +182,9 @@ admin.site.register(Category, CategoryAdmin)
 admin.site.register(EmployeeAccountSale, EmployeeAccountSaleAdmin)
 admin.site.register(AfipConfig, AfipConfigAdmin)
 admin.site.register(AfipPuntoVenta, AfipPuntoVentaAdmin)
+admin.site.register(LibroIvaRegistro, LibroIvaRegistroAdmin)
+admin.site.register(CuentaCorrienteCliente, CuentaCorrienteClienteAdmin)
+admin.site.register(AsientoContable, AsientoContableAdmin)
 admin.site.register(CatalogoConfig, CatalogoConfigAdmin)
 admin.site.register(PriceList, PriceListAdmin)
 admin.site.register(PriceListProduct, PriceListProductAdmin)
@@ -145,7 +193,7 @@ admin.site.register(PriceListProduct, PriceListProductAdmin)
 app_models = apps.get_app_config('erp').get_models()
 
 # Registrar los modelos restantes que no tienen admin personalizado
-registered_models = {Company, Product, Sale, Client, Supplier, Category, EmployeeAccountSale, AfipConfig, AfipPuntoVenta, CatalogoConfig, PriceList, PriceListProduct}
+registered_models = {Company, Product, Sale, Client, Supplier, Category, EmployeeAccountSale, AfipConfig, AfipPuntoVenta, LibroIvaRegistro, CuentaCorrienteCliente, AsientoContable, CatalogoConfig, PriceList, PriceListProduct}
 for model in app_models:
     if model not in registered_models:
         try:

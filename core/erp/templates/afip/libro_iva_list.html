@@ -1,0 +1,153 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Libro IVA Digital{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Libro IVA Digital</h3>
+                </div>
+                <div class="card-body">
+                    <!-- Filtros -->
+                    <form method="get" class="mb-4">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <label>Tipo de Registro</label>
+                                <select name="tipo_registro" class="form-select">
+                                    <option value="">Todos</option>
+                                    <option value="compra" {% if tipo_registro == 'compra' %}selected{% endif %}>Compras</option>
+                                    <option value="venta" {% if tipo_registro == 'venta' %}selected{% endif %}>Ventas</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label>Fecha Desde</label>
+                                <input type="date" name="fecha_desde" class="form-control" value="{{ fecha_desde }}">
+                            </div>
+                            <div class="col-md-3">
+                                <label>Fecha Hasta</label>
+                                <input type="date" name="fecha_hasta" class="form-control" value="{{ fecha_hasta }}">
+                            </div>
+                            <div class="col-md-3">
+                                <label>&nbsp;</label>
+                                <div>
+                                    <button type="submit" class="btn btn-primary">Filtrar</button>
+                                    <a href="{% url 'afip:libro_iva' %}" class="btn btn-secondary">Limpiar</a>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+
+                    <!-- Totales -->
+                    <div class="row mb-3">
+                        <div class="col-md-2">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <small>Registros</small>
+                                    <h5>{{ total_registros }}</h5>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <small>Neto Gravado</small>
+                                    <h5>${{ total_neto_gravado|floatformat:2 }}</h5>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <small>IVA 21%</small>
+                                    <h5>${{ total_iva_21|floatformat:2 }}</h5>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <small>IVA 10.5%</small>
+                                    <h5>${{ total_iva_10_5|floatformat:2 }}</h5>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <small>IVA 27%</small>
+                                    <h5>${{ total_iva_27|floatformat:2 }}</h5>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="card bg-primary text-white">
+                                <div class="card-body text-center">
+                                    <small>Total General</small>
+                                    <h5>${{ total_general|floatformat:2 }}</h5>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Exportar -->
+                    <div class="mb-3">
+                        <a href="{% url 'afip:libro_iva_export' %}?tipo_registro={{ tipo_registro }}&fecha_desde={{ fecha_desde }}&fecha_hasta={{ fecha_hasta }}" class="btn btn-success">
+                            <i class="fas fa-file-csv"></i> Exportar CSV
+                        </a>
+                    </div>
+
+                    <!-- Tabla -->
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Tipo</th>
+                                    <th>Comprobante</th>
+                                    <th>Razón Social</th>
+                                    <th>Cond. IVA</th>
+                                    <th>Neto Gravado</th>
+                                    <th>IVA 21%</th>
+                                    <th>IVA 10.5%</th>
+                                    <th>IVA 27%</th>
+                                    <th>Total</th>
+                                    <th>CAE</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for reg in object_list %}
+                                <tr>
+                                    <td>{{ reg.fecha|date:"d/m/Y" }}</td>
+                                    <td>
+                                        <span class="badge {% if reg.tipo_registro == 'venta' %}bg-success{% else %}bg-info{% endif %}">
+                                            {{ reg.get_tipo_registro_display }}
+                                        </span>
+                                    </td>
+                                    <td>{{ reg.get_tipo_comprobante_display }} {{ reg.punto_venta:04d }}-{{ reg.numero_comprobante:08d }}</td>
+                                    <td>{{ reg.razon_social|truncatechars:30 }}</td>
+                                    <td>{{ reg.get_condicion_iva_display }}</td>
+                                    <td>${{ reg.neto_gravado|floatformat:2 }}</td>
+                                    <td>${{ reg.iva_21|floatformat:2 }}</td>
+                                    <td>${{ reg.iva_10_5|floatformat:2 }}</td>
+                                    <td>${{ reg.iva_27|floatformat:2 }}</td>
+                                    <td><strong>${{ reg.total|floatformat:2 }}</strong></td>
+                                    <td>{{ reg.cae|default:"-" }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="11" class="text-center">No hay registros</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

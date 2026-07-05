@@ -393,3 +393,30 @@ class AfipClient:
             return {'error': str(e)}
         except Exception as e:
             return {'error': str(e)}
+
+    def get_supplier_vouchers(self, fecha_desde=None, fecha_hasta=None):
+        """
+        Obtiene comprobantes de proveedores desde AFIP (Mis Comprobantes).
+
+        Args:
+            fecha_desde: Fecha desde (formato YYYY-MM-DD)
+            fecha_hasta: Fecha hasta (formato YYYY-MM-DD)
+
+        Returns:
+            Lista de comprobantes de proveedores o error
+        """
+        try:
+            # Nota: El AFIP SDK puede no tener este método específico
+            # Esta es una implementación placeholder que debería adaptarse
+            # según la API específica del AFIP SDK que se esté usando
+
+            if not hasattr(self.afip, 'get_supplier_vouchers'):
+                return {'error': 'El AFIP SDK no soporta consulta de comprobantes de proveedores directamente. Use el portal de AFIP "Mis Comprobantes".'}
+
+            result = self.afip.get_supplier_vouchers(
+                fecha_desde=fecha_desde,
+                fecha_hasta=fecha_hasta
+            )
+            return result
+        except Exception as e:
+            return {'error': str(e)}

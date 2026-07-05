@@ -3,6 +3,7 @@ URLs para el módulo AFIP
 """
 from django.urls import path
 from . import views
+from . import views_libro_iva
 
 app_name = 'afip'
 
@@ -15,4 +16,6 @@ urlpatterns = [
     path('dashboard/', views.AfipDashboardView.as_view(), name='dashboard'),
     path('vouchers/', views.AfipVouchersListView.as_view(), name='vouchers'),
     path('generate-pdf/', views.generate_afip_pdf, name='generate_pdf'),
+    path('libro-iva/', views_libro_iva.LibroIvaListView.as_view(), name='libro_iva'),
+    path('libro-iva/export/', views_libro_iva.LibroIvaExportView.as_view(), name='libro_iva_export'),
 ]
