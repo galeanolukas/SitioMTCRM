@@ -659,13 +659,24 @@ class Sale(models.Model):
                 return False
             next_nro = last_nro + 1
             
+            # Determinar tipo y número de documento según datos del cliente
+            if self.cli and self.cli.cuit:
+                doc_tipo = 80  # CUIT
+                doc_nro = int(self.cli.cuit.replace('-', ''))
+            elif self.cli and self.cli.dni:
+                doc_tipo = 96  # DNI
+                doc_nro = int(self.cli.dni)
+            else:
+                doc_tipo = 99  # Consumidor Final sin datos
+                doc_nro = 0
+
             voucher_data = {
                 'CantReg': 1,
                 'PtoVta': punto_venta,  # Usar punto de venta de AfipPuntoVenta
                 'CbteTipo': config_obj.tipo_comprobante,
                 'Concepto': config_obj.concepto,  # Usar concepto de la configuración
-                'DocTipo': 80 if self.cli and self.cli.cuit else 99,  # CUIT o Doc exterior
-                'DocNro': int(self.cli.cuit.replace('-', '')) if self.cli and self.cli.cuit else 0,
+                'DocTipo': doc_tipo,
+                'DocNro': doc_nro,
                 'CbteDesde': next_nro,
                 'CbteHasta': next_nro,
                 'CbteFch': int(fecha_afip),

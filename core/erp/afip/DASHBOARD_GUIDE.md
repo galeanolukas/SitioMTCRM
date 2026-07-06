@@ -263,6 +263,35 @@ Los puntos de venta se gestionan en un modelo separado `AfipPuntoVenta`:
    - Verificar credenciales de Clave Fiscal
    - Revisar logs de AFIP SDK
 
+## Facturación según Método de Pago
+
+El sistema emite comprobantes fiscales electrónicos AFIP **independientemente del método de pago** seleccionado en el POS. El método de pago se registra como información interna para:
+
+- Control de caja
+- Libro IVA
+- Asientos contables
+- Historial de transacciones
+
+### Comportamiento por método de pago
+
+- **Efectivo**: Emite factura normal inmediatamente.
+- **Tarjeta**: Emite factura normal inmediatamente.
+- **Transferencia**: Emite factura normal inmediatamente.
+- **Mercado Pago**: Emite factura normal inmediatamente.
+- **Cheque**: Emite factura normal inmediatamente.
+- **Cuenta Corriente (Deuda)**: Emite factura normal inmediatamente. La deuda queda registrada como pago pendiente, pero el comprobante fiscal ya existe.
+- **Pago Combinado**: Emite una sola factura por el total. Los medios de pago se registran en el campo `payment_details` (JSON).
+
+### Identificación del cliente en AFIP
+
+El sistema determina el tipo de documento según los datos del cliente:
+
+- **CUIT**: DocTipo `80`, DocNro con el CUIT sin guiones (ej: `20333444555`)
+- **DNI**: DocTipo `96`, DocNro con el DNI (ej: `12345678`)
+- **Sin datos**: DocTipo `99`, DocNro `0` (Consumidor Final)
+
+Esto permite una identificación más precisa en los comprobantes electrónicos.
+
 ## Seguridad
 
 - **Access Token**: Se guarda en la base de datos (encriptar en producción)
