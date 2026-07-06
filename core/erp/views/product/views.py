@@ -1100,9 +1100,7 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                 default_tipo_cliente = request.POST.get('default_tipo_cliente') or None
                 default_precio_lista_id = request.POST.get('default_precio_lista') or None
 
-                active_cid = request.session.get('company_id')
-                if not request.user.is_superuser:
-                    active_cid = active_cid or getattr(request.user, 'company_id', None)
+                active_cid = request.session.get('company_id') or getattr(request.user, 'company_id', None)
 
                 created, updated = 0, 0
                 errors = []
@@ -1169,6 +1167,7 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                                 condicion_iva=condicion_iva, company_id=active_cid,
                                 tipo_cliente=default_tipo_cliente or 'minorista',
                                 precio_lista_id=default_precio_lista_id or None,
+                                is_active=True,
                             )
                             client.save()
                             created += 1
