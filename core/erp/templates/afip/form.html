@@ -1,25 +1,257 @@
-{% extends 'base/form.html' %}
+{% extends 'base/layout.html' %}
 {% load static %}
 
-{% block head_form %}
-  <script src="{% static 'afip/form.js' %}"></script>
-{% endblock %}
+{% block title %}{{ title }}{% endblock %}
 
-{% block javascript %}
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      const companySelect = document.getElementById('id_company');
-      const cuitInput = document.getElementById('id_cuit');
-      
-      if (companySelect && cuitInput) {
-        companySelect.addEventListener('change', function() {
-          const selectedOption = this.options[this.selectedIndex];
-          const cuitMatch = selectedOption.text.match(/CUIT:\s*([^\)]+)/);
-          if (cuitMatch) {
-            cuitInput.value = cuitMatch[1].trim();
-          }
-        });
+{% block content %}
+<div class="container-fluid">
+  <div class="row">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">
+            <i class="fas fa-{% if action == 'add' %}plus{% else %}edit{% endif %}"></i>
+            {{ title }}
+          </h3>
+        </div>
+        <div class="card-body">
+          <form method="post" action="." enctype="multipart/form-data">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="{{ action }}" />
+            
+            <div id="error-block" class="alert alert-danger d-none"></div>
+            <div id="success-block" class="alert alert-success d-none"></div>
+            
+            <!-- Sección: Empresa -->
+            <div class="card mb-3">
+              <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-building"></i> Empresa</h5>
+              </div>
+              <div class="card-body">
+                <div class="row">
+                  <div class="col-md-6">
+                    <div class="form-group">
+                      <label for="{{ form.company.id_for_label }}">{{ form.company.label }}:</label>
+                      {{ form.company }}
+                      {% if form.company.errors %}
+                      <div class="text-danger">{{ form.company.errors }}</div>
+                      {% endif %}
+                      <small class="form-text text-muted">Seleccione la empresa para configurar AFIP</small>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="form-group">
+                      <label for="{{ form.cuit.id_for_label }}">{{ form.cuit.label }}:</label>
+                      {{ form.cuit }}
+                      {% if form.cuit.errors %}
+                      <div class="text-danger">{{ form.cuit.errors }}</div>
+                      {% endif %}
+                      <small class="form-text text-muted">CUIT del contribuyente (se autocompleta al seleccionar empresa)</small>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Sección: Configuración AFIP SDK -->
+            <div class="card mb-3">
+              <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-cog"></i> Configuración AFIP SDK</h5>
+              </div>
+              <div class="card-body">
+                <div class="row">
+                  <div class="col-md-6">
+                    <div class="form-group">
+                      <label for="{{ form.access_token.id_for_label }}">{{ form.access_token.label }}:</label>
+                      {{ form.access_token }}
+                      {% if form.access_token.errors %}
+                      <div class="text-danger">{{ form.access_token.errors }}</div>
+                      {% endif %}
+                      <small class="form-text text-muted">Token de AFIP SDK (obtener en https://app.afipsdk.com). Dejar vacío para usar token global.</small>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="form-group">
+                      <label for="{{ form.environment.id_for_label }}">{{ form.environment.label }}:</label>
+                      {{ form.environment }}
+                      {% if form.environment.errors %}
+                      <div class="text-danger">{{ form.environment.errors }}</div>
+                      {% endif %}
+                      <small class="form-text text-muted">
+                        <strong>Desarrollo:</strong> Testing sin validez fiscal<br>
+                        <strong>Producción:</strong> Operaciones reales con validez fiscal
+                      </small>
+                    </div>
+                  </div>
+                </div>
+                <div class="row">
+                  <div class="col-md-4">
+                    <div class="form-group">
+                      <label for="{{ form.tipo_comprobante.id_for_label }}">{{ form.tipo_comprobante.label }}:</label>
+                      {{ form.tipo_comprobante }}
+                      {% if form.tipo_comprobante.errors %}
+                      <div class="text-danger">{{ form.tipo_comprobante.errors }}</div>
+                      {% endif %}
+                      <small class="form-text text-muted">6=Factura B, 1=Factura A, 11=Factura C</small>
+                    </div>
+                  </div>
+                  <div class="col-md-4">
+                    <div class="form-group">
+                      <label for="{{ form.concepto.id_for_label }}">{{ form.concepto.label }}:</label>
+                      {{ form.concepto }}
+                      {% if form.concepto.errors %}
+                      <div class="text-danger">{{ form.concepto.errors }}</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                  <div class="col-md-4">
+                    <div class="form-group">
+                      <label for="{{ form.moneda.id_for_label }}">{{ form.moneda.label }}:</label>
+                      {{ form.moneda }}
+                      {% if form.moneda.errors %}
+                      <div class="text-danger">{{ form.moneda.errors }}</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+                <div class="row">
+                  <div class="col-md-6">
+                    <div class="form-group">
+                      <label for="{{ form.cotizacion.id_for_label }}">{{ form.cotizacion.label }}:</label>
+                      {{ form.cotizacion }}
+                      {% if form.cotizacion.errors %}
+                      <div class="text-danger">{{ form.cotizacion.errors }}</div>
+                      {% endif %}
+                      <small class="form-text text-muted">Cotización si la moneda no es PES</small>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="form-group">
+                      <label for="{{ form.usar_contingencia.id_for_label }}">{{ form.usar_contingencia.label }}:</label>
+                      <div class="form-check mt-2">
+                        {{ form.usar_contingencia }}
+                        <label for="{{ form.usar_contingencia.id_for_label }}" class="form-check-label">Operar sin conexión a AFIP</label>
+                      </div>
+                      {% if form.usar_contingencia.errors %}
+                      <div class="text-danger">{{ form.usar_contingencia.errors }}</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Sección: Certificados (Solo Producción) -->
+            <div class="card mb-3" id="cert-section">
+              <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-certificate"></i> Certificados AFIP (Solo Producción)</h5>
+              </div>
+              <div class="card-body">
+                <div class="alert alert-warning">
+                  <i class="fas fa-exclamation-triangle"></i>
+                  Los certificados son obligatorios en ambiente de producción. Puede generarlos automáticamente desde el dashboard usando Clave Fiscal.
+                </div>
+                <div class="row">
+                  <div class="col-md-12">
+                    <div class="form-group">
+                      <label for="{{ form.cert.id_for_label }}">{{ form.cert.label }}:</label>
+                      {{ form.cert }}
+                      {% if form.cert.errors %}
+                      <div class="text-danger">{{ form.cert.errors }}</div>
+                      {% endif %}
+                      <small class="form-text text-muted">Contenido del certificado .crt (puede pegar el contenido o generarlo desde el dashboard)</small>
+                    </div>
+                  </div>
+                  <div class="col-md-12">
+                    <div class="form-group">
+                      <label for="{{ form.key.id_for_label }}">{{ form.key.label }}:</label>
+                      {{ form.key }}
+                      {% if form.key.errors %}
+                      <div class="text-danger">{{ form.key.errors }}</div>
+                      {% endif %}
+                      <small class="form-text text-muted">Contenido de la clave privada .key (puede pegar el contenido o generarlo desde el dashboard)</small>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Sección: Estado -->
+            <div class="card mb-3">
+              <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-toggle-on"></i> Estado</h5>
+              </div>
+              <div class="card-body">
+                <div class="form-group">
+                  <div class="form-check">
+                    {{ form.is_active }}
+                    <label for="{{ form.is_active.id_for_label }}" class="form-check-label">{{ form.is_active.label }}</label>
+                  </div>
+                  {% if form.is_active.errors %}
+                  <div class="text-danger">{{ form.is_active.errors }}</div>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+            
+            <div class="card-footer">
+              <button type="submit" class="btn btn-primary btn-flat">
+                <i class="fas fa-save"></i> Guardar registro
+              </button>
+              <a href="{% url 'erp:afip:dashboard' %}" class="btn btn-danger btn-flat">
+                <i class="fas fa-times"></i> Cancelar
+              </a>
+              <a href="{% url 'erp:afip:dashboard' %}" class="btn btn-info btn-flat float-right">
+                <i class="fas fa-tachometer-alt"></i> Ir al Dashboard
+              </a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const companySelect = document.getElementById('id_company');
+    const cuitInput = document.getElementById('id_cuit');
+    const environmentSelect = document.getElementById('id_environment');
+    const certSection = document.getElementById('cert-section');
+    
+    // Autocompletar CUIT al seleccionar empresa
+    if (companySelect && cuitInput) {
+      companySelect.addEventListener('change', function() {
+        const selectedOption = this.options[this.selectedIndex];
+        const cuitMatch = selectedOption.text.match(/CUIT:\s*([^\)]+)/);
+        if (cuitMatch) {
+          cuitInput.value = cuitMatch[1].trim();
+        }
+      });
+    }
+    
+    // Mostrar/ocultar sección de certificados según ambiente
+    if (environmentSelect && certSection) {
+      function toggleCertSection() {
+        if (environmentSelect.value === 'prod') {
+          certSection.style.display = 'block';
+        } else {
+          certSection.style.display = 'none';
+        }
       }
+      
+      environmentSelect.addEventListener('change', toggleCertSection);
+      toggleCertSection(); // Ejecutar al cargar
+    }
+    
+    // Manejo del formulario con AJAX
+    $('form').on('submit', function(e) {
+      e.preventDefault();
+      var parameters = new FormData(this);
+      submit_with_ajax(window.location.pathname, 'Alerta!', '¿Estás seguro de realizar la siguiente acción?', parameters, function() {
+        location.href = '{% url "erp:afip:dashboard" %}';
+      });
     });
-  </script>
+  });
+</script>
 {% endblock %}
