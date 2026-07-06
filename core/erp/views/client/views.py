@@ -1,3 +1,4 @@
+import logging
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
 from django.urls import reverse_lazy
@@ -8,6 +9,8 @@ from django.views.generic import TemplateView, ListView, CreateView, UpdateView,
 from core.erp.forms import ClientForm
 from core.erp.models import Client
 from core.erp.mixins import ValidatePermissionRequiredMixin
+
+logger = logging.getLogger(__name__)
 
 
 class ClientView(LoginRequiredMixin, TemplateView):
@@ -76,11 +79,17 @@ class ClientListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListVi
                 active_cid = request.session.get('company_id')
                 if not request.user.is_superuser:
                     active_cid = active_cid or getattr(request.user, 'company_id', None)
+                logger.info(f'ClientListView searchdata - user: {request.user}, company_id session: {request.session.get("company_id")}, active_cid: {active_cid}')
                 qs = Client.objects.filter(is_active=True)
                 if active_cid:
                     qs = qs.filter(company_id=active_cid)
+                logger.info(f'ClientListView searchdata - query count: {qs.count()}')
                 for i in qs:
-                    data.append(i.toJSON())
+                    try:
+                        data.append(i.toJSON())
+                    except Exception as e:
+                        logger.exception(f'ClientListView toJSON error for client {i.id}: {e}')
+                        raise
             elif action == 'add':
                 form = ClientForm(request.POST)
                 if form.is_valid():
