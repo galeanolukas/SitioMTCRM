@@ -41,6 +41,29 @@ function updateCuitDisplay() {
     document.getElementById('company_id').value = selectedCompanyId;
 }
 
+function showGenerateCertModal() {
+    try {
+        const modalElement = document.getElementById('generateCertModal');
+        if (!modalElement) {
+            console.error('Modal element not found');
+            alert('Error: No se encontró el modal de generación de certificados');
+            return;
+        }
+        
+        if (typeof bootstrap === 'undefined') {
+            console.error('Bootstrap is not loaded');
+            alert('Error: Bootstrap no está cargado');
+            return;
+        }
+        
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+    } catch (error) {
+        console.error('Error al abrir modal:', error);
+        alert('Error al abrir el modal: ' + error.message);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     const companySelect = document.getElementById('company_id_select');
     if (companySelect) {
@@ -141,26 +164,3 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
-
-function showGenerateCertModal() {
-    try {
-        const modalElement = document.getElementById('generateCertModal');
-        if (!modalElement) {
-            console.error('Modal element not found');
-            alert('Error: No se encontró el modal de generación de certificados');
-            return;
-        }
-        
-        if (typeof bootstrap === 'undefined') {
-            console.error('Bootstrap is not loaded');
-            alert('Error: Bootstrap no está cargado');
-            return;
-        }
-        
-        const modal = new bootstrap.Modal(modalElement);
-        modal.show();
-    } catch (error) {
-        console.error('Error al abrir modal:', error);
-        alert('Error al abrir el modal: ' + error.message);
-    }
-}
