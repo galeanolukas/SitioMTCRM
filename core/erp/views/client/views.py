@@ -116,7 +116,7 @@ class ClientListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListVi
                 if active_cid:
                     qs = qs.filter(company_id=active_cid)
                 count = qs.count()
-                qs.update(is_active=False, synced_to_server=False)
+                qs.delete()
                 data['deleted'] = count
             else:
                 data['error'] = 'Ha ocurrido un error'
