@@ -1,2 +1,109 @@
-{% extends 'base/form.html' %}
+{% extends 'base/layout.html' %}
 {% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <div class="row">
+    <div class="col-12">
+      <form method="post" action="." enctype="multipart/form-data">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="{{ action }}" />
+
+        <div class="card card-primary">
+          <div class="card-header">
+            <h3 class="card-title">
+              <i class="fas fa-{% if action == 'add' %}plus{% else %}edit{% endif %}"></i>
+              {{ title }}
+            </h3>
+          </div>
+          <div class="card-body">
+            <div id="error-block" class="alert alert-danger d-none"></div>
+            <div id="success-block" class="alert alert-success d-none"></div>
+
+            <div class="row">
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label for="{{ form.company.id_for_label }}">{{ form.company.label }}:</label>
+                  {{ form.company }}
+                  {% if form.company.errors %}
+                  <div class="text-danger">{{ form.company.errors }}</div>
+                  {% endif %}
+                  <small class="form-text text-muted">Empresa a la que pertenece el punto de venta.</small>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label for="{{ form.numero.id_for_label }}">{{ form.numero.label }}:</label>
+                  {{ form.numero }}
+                  {% if form.numero.errors %}
+                  <div class="text-danger">{{ form.numero.errors }}</div>
+                  {% endif %}
+                  <small class="form-text text-muted">Número de punto de venta AFIP (ej: 1, 2, 0001). Solo números.</small>
+                </div>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="col-md-8">
+                <div class="form-group">
+                  <label for="{{ form.descripcion.id_for_label }}">{{ form.descripcion.label }}:</label>
+                  {{ form.descripcion }}
+                  {% if form.descripcion.errors %}
+                  <div class="text-danger">{{ form.descripcion.errors }}</div>
+                  {% endif %}
+                  <small class="form-text text-muted">Descripción opcional para identificar el punto de venta.</small>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="form-group mt-4">
+                  <div class="form-check">
+                    {{ form.is_active }}
+                    <label for="{{ form.is_active.id_for_label }}" class="form-check-label">{{ form.is_active.label }}</label>
+                  </div>
+                  {% if form.is_active.errors %}
+                  <div class="text-danger">{{ form.is_active.errors }}</div>
+                  {% endif %}
+                  <small class="form-text text-muted">Solo los puntos de venta activos se usan para emitir comprobantes.</small>
+                </div>
+              </div>
+            </div>
+
+          </div>
+          <div class="card-footer">
+            <button type="submit" class="btn btn-primary btn-flat"><i class="fas fa-save"></i> Guardar registro</button>
+            <a href="{% url 'erp:afip:punto_venta_list' %}" class="btn btn-danger btn-flat"><i class="fas fa-times"></i> Cancelar</a>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block javascript %}
+<script>
+  $(function () {
+    // Aplicar clases de Bootstrap a los selects y campos del formulario
+    $('form').find('input, select, textarea').not(':input[type=hidden]').addClass('form-control');
+    $('form').find('input[type=checkbox]').removeClass('form-control').addClass('form-check-input');
+
+    // Validación básica del número de punto de venta
+    $('form').on('submit', function (e) {
+      e.preventDefault();
+      var numero = $('#id_numero').val();
+      if (!numero || isNaN(numero) || parseInt(numero) <= 0) {
+        alert('El número de punto de venta debe ser un valor numérico mayor a 0.');
+        $('#id_numero').focus();
+        return false;
+      }
+
+      var parameters = new FormData(this);
+      submit_with_ajax(window.location.pathname, 'Alerta!', '¿Estás seguro de realizar la siguiente acción?', parameters, function () {
+        location.href = '{% url 'erp:afip:punto_venta_list' %}';
+      });
+    });
+  });
+</script>
+{% endblock %}
