@@ -37,17 +37,34 @@ AFIP SDK permite probar en modo desarrollo sin necesidad de certificados reales 
      - **Concepto:** `1` (Productos), `2` (Servicios) o `3` (Ambos)
      - **Moneda:** `PES` (Pesos)
      - **Cotización:** `1` (si es PES)
-   - **NO configurar certificados** (no se necesitan en desarrollo)
+   - **NO configurar certificados** (no se necesitan en desarrollo con el CUIT de prueba)
    - Guardar configuración
+
+   > **Nota importante:** El botón "Generar Certificado" en modo desarrollo genera un certificado de prueba, pero **no es obligatorio** para probar. El CUIT de prueba de AFIP SDK permite emitir comprobantes de prueba sin certificado. El certificado solo es obligatorio en **producción** con un CUIT real.
 
 4. **Probar Conexión:**
    - Clic en "Probar Conexión" en el dashboard
+   - Ir a `/erp/afip/test/`
+   - Seleccionar la empresa y ejecutar `test_connection`
    - Debería mostrar conexión exitosa con AFIP
 
-5. **Emitir Comprobantes de Prueba:**
-   - Usar la configuración para emitir facturas de prueba
-   - Los comprobantes tendrán CAE de prueba
-   - No tienen validez fiscal real
+5. **Configurar Punto de Venta:**
+   - Ir a `/erp/afip/punto-venta/list/` (o al admin de Django)
+   - Crear un `AfipPuntoVenta` para la empresa de prueba
+   - Usar un número simple, por ejemplo `1`
+   - El punto de venta se usa al emitir comprobantes
+
+6. **Emitir Comprobantes de Prueba:**
+   - Crear una venta (`/erp/sale/add/`) con:
+     - Cliente con DNI/CUIT válido
+     - Al menos un producto
+     - Tipo de comprobante A, B o C según corresponda
+   - Confirmar la venta
+   - El sistema intenta emitir la factura AFIP automáticamente
+   - Si la venta no se emitió automáticamente, ir a `/erp/afip/vouchers/`, buscar la venta y clic en "Emitir Factura"
+   - Los comprobantes tendrán CAE de prueba y no validez fiscal real
+
+   **Flujo técnico:** El sistema usa el Web Service `WSFE` de AFIP a través de `afip.py`, llama a `FEAutorizar` y obtiene `CAE` + `CAEFchVto`.
 
 ### Diferencias: Desarrollo vs Producción
 
@@ -246,6 +263,26 @@ Los puntos de venta se gestionan en un modelo separado `AfipPuntoVenta`:
 - **Clave Fiscal**: No se guarda, solo se usa para generar certificados
 - **Permisos**: Requiere permiso `erp.view_afipconfig`
 
+## Web Services Utilizados
+
+El sistema se integra con los siguientes Web Services de ARCA/AFIP mediante la librería `afip.py`:
+
+- **WSFE (Web Service de Facturación Electrónica)**:
+  - `FEDummy`: Verifica estado del servidor
+  - `FEAutorizar`: Crea comprobantes y obtiene CAE
+  - `FECompUltimoAutorizado`: Obtiene último número de comprobante autorizado
+  - `FEParamGetTiposCbte`: Obtiene tipos de comprobantes disponibles
+
+- **PDF de comprobantes**: AFIP SDK permite generar el PDF fiscal del comprobante usando la API de afipsdk.com.
+
+## Documentación Oficial de Referencia
+
+- **Introducción a AFIP SDK**: https://afipsdk.com/docs/pdfs/introduction/
+- **Integración Python**: https://afipsdk.com/docs/automations/integrations/python/
+- **Automatización create-cert-dev**: https://afipsdk.com/docs/automations/create-cert-dev/?integration=python
+- **API Reference**: https://afipsdk.com/docs/api-reference/introduction/
+- **Automatizaciones**: https://afipsdk.com/docs/automations/introduction/
+
 ## URLs Relacionadas
 
 - Dashboard: `/erp/afip/dashboard/`
@@ -255,3 +292,4 @@ Los puntos de venta se gestionan en un modelo separado `AfipPuntoVenta`:
 - Crear config: `/erp/afip/create/`
 - Editar config: `/erp/afip/update/{id}/`
 - Eliminar config: `/erp/afip/delete/{id}/`
+- Puntos de venta: `/erp/afip/punto-venta/list/`
