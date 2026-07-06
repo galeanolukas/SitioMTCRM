@@ -4,6 +4,7 @@
 {% block title %}{{ title }}{% endblock %}
 
 {% block content %}
+{{ companies_data|json_script:"companies_data" }}
 <div class="container-fluid">
   <div class="row">
     <div class="col-12">
@@ -219,13 +220,27 @@
     const environmentSelect = document.getElementById('id_environment');
     const certSection = document.getElementById('cert-section');
     
+    // Datos de empresas desde el script JSON
+    const companiesData = JSON.parse(document.getElementById('companies_data').textContent);
+    
+    // Agregar atributo data-cuit a cada option del select
+    if (companySelect && companiesData) {
+      Array.from(companySelect.options).forEach(option => {
+        const companyId = parseInt(option.value);
+        const company = companiesData.find(c => c.id === companyId);
+        if (company && company.cuit) {
+          option.setAttribute('data-cuit', company.cuit);
+        }
+      });
+    }
+    
     // Autocompletar CUIT al seleccionar empresa
     if (companySelect && cuitInput) {
       companySelect.addEventListener('change', function() {
         const selectedOption = this.options[this.selectedIndex];
-        const cuitMatch = selectedOption.text.match(/CUIT:\s*([^\)]+)/);
-        if (cuitMatch) {
-          cuitInput.value = cuitMatch[1].trim();
+        const cuit = selectedOption.getAttribute('data-cuit');
+        if (cuit) {
+          cuitInput.value = cuit;
         }
       });
     }

@@ -30,6 +30,12 @@ class AfipConfigCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
     permission_required = 'erp.add_afipconfig'
     fields = ['company', 'cuit', 'access_token', 'cert', 'key', 'environment', 'tipo_comprobante', 'concepto', 'moneda', 'cotizacion', 'usar_contingencia', 'is_active']
     success_url = reverse_lazy('erp:afip:list')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Pasar datos de empresas para autocompletar CUIT
+        context['companies_data'] = list(Company.objects.filter(is_active=True).values('id', 'cuit'))
+        return context
 
 
 class AfipConfigUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, UpdateView):
