@@ -52,6 +52,9 @@
       <i class="fas fa-plus"></i> Nueva Configuración
     </button>
   {% endif %}
+  <button class="btn btn-warning btn-flat" onclick="showGenerateCertModal()">
+    <i class="fas fa-certificate"></i> Generar Certificado
+  </button>
   <a href="{% url 'erp:afip:test' %}" class="btn btn-info btn-flat"><i class="fas fa-vial"></i> Probar Conexión</a>
   <a href="{% url 'erp:afip:vouchers' %}" class="btn btn-secondary btn-flat"><i class="fas fa-file-invoice"></i> Comprobantes</a>
   <a href="{% url 'erp:afip:list' %}" class="btn btn-success btn-flat"><i class="fas fa-sync"></i> Actualizar</a>
@@ -123,6 +126,75 @@
           <div class="modal-footer">
             <button type="submit" class="btn btn-primary btn-flat">
               <i class="fas fa-save"></i> Crear Configuración
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para generar certificados -->
+  <div class="modal fade" id="generateCertModal" tabindex="-1" aria-labelledby="generateCertModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="generateCertModalLabel">
+            <i class="fas fa-certificate"></i> Generar Certificado AFIP
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="generateCertForm">
+          <div class="modal-body">
+            <div id="cert-error-block" class="alert alert-danger d-none"></div>
+            <div class="alert alert-info">
+              <i class="fas fa-info-circle"></i>
+              Esta función usa las automatizaciones de AFIP SDK para generar certificados automáticamente con su Clave Fiscal.
+            </div>
+            <div class="container-fluid">
+              <input type="hidden" name="action" value="generate_certificate" />
+              <input type="hidden" name="config_id" id="cert_config_id" value="" />
+              {% csrf_token %}
+              
+              <div class="form-group mb-2">
+                <label class="form-label">Configuración AFIP:</label>
+                <select name="config_select" id="cert_config_select" class="form-control">
+                  {% for config in configs %}
+                    <option value="{{ config.id }}">
+                      {{ config.company.name }} (CUIT: {{ config.cuit }})
+                    </option>
+                  {% empty %}
+                    <option value="" disabled>No hay configuraciones AFIP</option>
+                  {% endfor %}
+                </select>
+              </div>
+              
+              <div class="form-group mb-2">
+                <label class="form-label">Tipo de Certificado:</label>
+                <select name="cert_type" id="cert_type" class="form-control">
+                  <option value="dev" selected>Desarrollo (Testing)</option>
+                  <option value="prod">Producción</option>
+                </select>
+              </div>
+              
+              <div class="form-group mb-2">
+                <label class="form-label">Usuario Clave Fiscal:</label>
+                <input type="text" name="username" id="cert_username" class="form-control" placeholder="Usuario de Clave Fiscal" required />
+              </div>
+              
+              <div class="form-group mb-2">
+                <label class="form-label">Contraseña Clave Fiscal:</label>
+                <input type="password" name="password" id="cert_password" class="form-control" placeholder="Contraseña de Clave Fiscal" required />
+              </div>
+              
+              <div class="form-group mb-2">
+                <label class="form-label">Alias (opcional):</label>
+                <input type="text" name="alias" id="cert_alias" class="form-control" value="afipsdk" placeholder="Alias para el certificado" />
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-warning btn-flat">
+              <i class="fas fa-certificate"></i> Generar Certificado
             </button>
           </div>
         </form>

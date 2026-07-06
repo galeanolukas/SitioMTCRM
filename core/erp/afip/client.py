@@ -420,3 +420,106 @@ class AfipClient:
             return result
         except Exception as e:
             return {'error': str(e)}
+    
+    def create_automation(self, automation_name, data):
+        """
+        Ejecuta una automatización de AFIP SDK
+        
+        Args:
+            automation_name: Nombre de la automatización (ej: 'create-cert-dev', 'create-cert-prod')
+            data: Dict con los parámetros de la automatización
+        
+        Returns:
+            Dict con resultado de la automatización
+        """
+        try:
+            url = 'https://app.afipsdk.com/api/v1/automations'
+            headers = {
+                'Authorization': f"Bearer {self.config['access_token']}",
+                'Content-Type': 'application/json',
+            }
+            
+            payload = {
+                'automation': automation_name,
+                'data': data
+            }
+            
+            response = requests.post(url, headers=headers, json=payload, timeout=60)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            return {'error': str(e)}
+        except Exception as e:
+            return {'error': str(e)}
+    
+    def create_dev_certificate(self, cuit, username, password, alias='afipsdk'):
+        """
+        Crea un certificado de desarrollo usando la automatización create-cert-dev
+        
+        Args:
+            cuit: CUIT del contribuyente
+            username: Usuario de Clave Fiscal
+            password: Contraseña de Clave Fiscal
+            alias: Alias para el certificado (default: 'afipsdk')
+        
+        Returns:
+            Dict con cert y key generados o error
+        """
+        data = {
+            'cuit': cuit,
+            'username': username,
+            'password': password,
+            'alias': alias
+        }
+        
+        result = self.create_automation('create-cert-dev', data)
+        
+        if 'error' in result:
+            return result
+        
+        # Extraer cert y key de la respuesta
+        if result.get('status') == 'complete' and 'data' in result:
+            return {
+                'success': True,
+                'cert': result['data'].get('cert'),
+                'key': result['data'].get('key'),
+                'automation_id': result.get('id')
+            }
+        
+        return {'error': 'La automatización no completó exitosamente'}
+    
+    def create_prod_certificate(self, cuit, username, password, alias='afipsdk'):
+        """
+        Crea un certificado de producción usando la automatización create-cert-prod
+        
+        Args:
+            cuit: CUIT del contribuyente
+            username: Usuario de Clave Fiscal
+            password: Contraseña de Clave Fiscal
+            alias: Alias para el certificado (default: 'afipsdk')
+        
+        Returns:
+            Dict con cert y key generados o error
+        """
+        data = {
+            'cuit': cuit,
+            'username': username,
+            'password': password,
+            'alias': alias
+        }
+        
+        result = self.create_automation('create-cert-prod', data)
+        
+        if 'error' in result:
+            return result
+        
+        # Extraer cert y key de la respuesta
+        if result.get('status') == 'complete' and 'data' in result:
+            return {
+                'success': True,
+                'cert': result['data'].get('cert'),
+                'key': result['data'].get('key'),
+                'automation_id': result.get('id')
+            }
+        
+        return {'error': 'La automatización no completó exitosamente'}

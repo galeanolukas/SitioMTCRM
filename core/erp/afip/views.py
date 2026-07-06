@@ -176,6 +176,58 @@ class AfipDashboardView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Tem
             except Exception as e:
                 data = {'success': False, 'error': str(e)}
         
+        elif action == 'generate_certificate':
+            config_id = request.POST.get('config_id')
+            cert_type = request.POST.get('cert_type', 'dev')  # 'dev' o 'prod'
+            username = request.POST.get('username')
+            password = request.POST.get('password')
+            alias = request.POST.get('alias', 'afipsdk')
+            
+            try:
+                config = AfipConfig.objects.get(id=config_id)
+                
+                if not config.cuit:
+                    data = {'success': False, 'error': 'La configuración no tiene CUIT'}
+                elif not username or not password:
+                    data = {'success': False, 'error': 'Faltan credenciales de Clave Fiscal'}
+                else:
+                    # Crear cliente AFIP
+                    client = AfipClient(company_id=config.company_id if config.company else None)
+                    
+                    # Generar certificado según tipo
+                    if cert_type == 'prod':
+                        result = client.create_prod_certificate(
+                            cuit=config.cuit,
+                            username=username,
+                            password=password,
+                            alias=alias
+                        )
+                    else:
+                        result = client.create_dev_certificate(
+                            cuit=config.cuit,
+                            username=username,
+                            password=password,
+                            alias=alias
+                        )
+                    
+                    if 'error' in result:
+                        data = {'success': False, 'error': result['error']}
+                    else:
+                        # Guardar cert y key en la configuración
+                        config.cert = result['cert']
+                        config.key = result['key']
+                        config.save(update_fields=['cert', 'key'])
+                        
+                        data = {
+                            'success': True,
+                            'message': f'Certificado de {cert_type.upper()} generado exitosamente',
+                            'automation_id': result.get('automation_id')
+                        }
+            except AfipConfig.DoesNotExist:
+                data = {'success': False, 'error': 'Configuración no encontrada'}
+            except Exception as e:
+                data = {'success': False, 'error': str(e)}
+        
         return JsonResponse(data)
 
 

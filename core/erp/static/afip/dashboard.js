@@ -93,4 +93,56 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
+    
+    // Manejar el formulario de generación de certificados
+    const generateCertForm = document.getElementById('generateCertForm');
+    if (generateCertForm) {
+        generateCertForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const errorBlock = document.getElementById('cert-error-block');
+            
+            // Actualizar config_id desde el select
+            const configSelect = document.getElementById('cert_config_select');
+            document.getElementById('cert_config_id').value = configSelect.value;
+            
+            // Verificar que se haya seleccionado una configuración
+            const configId = document.getElementById('cert_config_id').value;
+            if (!configId) {
+                errorBlock.textContent = 'Debe seleccionar una configuración AFIP';
+                errorBlock.classList.remove('d-none');
+                return;
+            }
+            
+            fetch('', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('generateCertModal'));
+                    modal.hide();
+                    alert(data.message || 'Certificado generado exitosamente');
+                    location.reload();
+                } else {
+                    errorBlock.textContent = data.error || 'Error al generar certificado';
+                    errorBlock.classList.remove('d-none');
+                }
+            })
+            .catch(error => {
+                errorBlock.textContent = 'Error de conexión: ' + error;
+                errorBlock.classList.remove('d-none');
+            });
+        });
+    }
 });
+
+function showGenerateCertModal() {
+    const modal = new bootstrap.Modal(document.getElementById('generateCertModal'));
+    modal.show();
+}
