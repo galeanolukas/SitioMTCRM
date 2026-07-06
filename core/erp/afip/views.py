@@ -36,6 +36,21 @@ class AfipConfigCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
         # Pasar datos de empresas para autocompletar CUIT
         context['companies_data'] = list(Company.objects.filter(is_active=True).values('id', 'cuit'))
         return context
+    
+    def form_valid(self, form):
+        # Si es una petición AJAX, devolver JSON
+        if self.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            self.object = form.save()
+            data = {'success': True, 'message': 'Configuración AFIP creada exitosamente'}
+            return JsonResponse(data)
+        return super().form_valid(form)
+    
+    def form_invalid(self, form):
+        # Si es una petición AJAX, devolver JSON con errores
+        if self.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            data = {'success': False, 'error': 'Error al crear configuración', 'errors': dict(form.errors)}
+            return JsonResponse(data, status=400)
+        return super().form_invalid(form)
 
 
 class AfipConfigUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, UpdateView):
@@ -45,6 +60,27 @@ class AfipConfigUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
     permission_required = 'erp.change_afipconfig'
     fields = ['company', 'cuit', 'access_token', 'cert', 'key', 'environment', 'tipo_comprobante', 'concepto', 'moneda', 'cotizacion', 'usar_contingencia', 'is_active']
     success_url = reverse_lazy('erp:afip:list')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Pasar datos de empresas para autocompletar CUIT
+        context['companies_data'] = list(Company.objects.filter(is_active=True).values('id', 'cuit'))
+        return context
+    
+    def form_valid(self, form):
+        # Si es una petición AJAX, devolver JSON
+        if self.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            self.object = form.save()
+            data = {'success': True, 'message': 'Configuración AFIP actualizada exitosamente'}
+            return JsonResponse(data)
+        return super().form_valid(form)
+    
+    def form_invalid(self, form):
+        # Si es una petición AJAX, devolver JSON con errores
+        if self.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            data = {'success': False, 'error': 'Error al actualizar configuración', 'errors': dict(form.errors)}
+            return JsonResponse(data, status=400)
+        return super().form_invalid(form)
 
 
 class AfipConfigDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin, DeleteView):

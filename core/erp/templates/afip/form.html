@@ -263,8 +263,29 @@
     $('form').on('submit', function(e) {
       e.preventDefault();
       var parameters = new FormData(this);
-      submit_with_ajax(window.location.pathname, 'Alerta!', '¿Estás seguro de realizar la siguiente acción?', parameters, function() {
-        location.href = '{% url "erp:afip:dashboard" %}';
+      
+      fetch(window.location.pathname, {
+        method: 'POST',
+        body: parameters,
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          alert(data.message || 'Operación exitosa');
+          location.href = '{% url "erp:afip:dashboard" %}';
+        } else {
+          alert(data.error || 'Error en la operación');
+          if (data.errors) {
+            console.error('Errores:', data.errors);
+          }
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        alert('Error de conexión: ' + error.message);
       });
     });
   });
