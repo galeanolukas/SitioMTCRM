@@ -305,6 +305,22 @@
           </select>
           <small class="text-muted">RI, M, CF, EX, NC</small>
         </div>
+        <div class="col-md-4">
+          <label>Tipo de Cliente</label>
+          <select name="default_tipo_cliente" class="form-control">
+            <option value="">-- Usar archivo --</option>
+            {% for key, value in client_type_choices %}<option value="{{ key }}">{{ value }}</option>{% endfor %}
+          </select>
+          <small class="text-muted">Se asigna a todos los clientes importados</small>
+        </div>
+        <div class="col-md-4">
+          <label>Lista de Precios</label>
+          <select name="default_precio_lista" class="form-control">
+            <option value="">-- Ninguna --</option>
+            {% for pl in price_lists %}<option value="{{ pl.id }}">{{ pl.name }}</option>{% endfor %}
+          </select>
+          <small class="text-muted">Se asigna a todos los clientes importados</small>
+        </div>
       </div>
 
       <!-- Campos Proveedores -->

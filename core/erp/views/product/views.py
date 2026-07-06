@@ -23,7 +23,7 @@ import openpyxl
 OPENPYXL_AVAILABLE = True
 
 from core.erp.forms import ProductForm
-from core.erp.models import Product, Category, Company, Supplier
+from core.erp.models import Product, Category, Company, Supplier, Client, PriceList
 from core.erp.mixins import ValidatePermissionRequiredMixin
 from core.erp.services.server_sync_service import ServerSyncService
 
@@ -852,6 +852,8 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                 'unit_choices': Product.UNIT_CHOICES,
                 'fields': ['name', 'cat', 'pvp', 'iva_rate', 'pvp_final', 'unit', 'stock', 'company'],
                 'entity_type': request.POST.get('entity_type', 'product'),
+                'client_type_choices': Client.TIPO_CLIENTE_CHOICES,
+                'price_lists': list(PriceList.objects.filter(is_active=True).values('id', 'name')),
             }
             return self.render_to_response(ctx)
 
@@ -1096,6 +1098,8 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                 map_ciudad = request.POST.get('map_ciudad')
                 map_provincia = request.POST.get('map_provincia')
                 map_condicion_iva = request.POST.get('map_condicion_iva')
+                default_tipo_cliente = request.POST.get('default_tipo_cliente') or None
+                default_precio_lista_id = request.POST.get('default_precio_lista') or None
 
                 active_cid = request.session.get('company_id')
                 if not request.user.is_superuser:
@@ -1164,6 +1168,8 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                                 telefono=telefono or None, address=address or None,
                                 ciudad=ciudad or None, provincia=provincia or None,
                                 condicion_iva=condicion_iva, company_id=active_cid,
+                                tipo_cliente=default_tipo_cliente or 'minorista',
+                                precio_lista_id=default_precio_lista_id or None,
                             )
                             client.save()
                             created += 1
@@ -1178,6 +1184,8 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                             if provincia: client.provincia = provincia
                             client.condicion_iva = condicion_iva
                             if active_cid: client.company_id = active_cid
+                            if default_tipo_cliente: client.tipo_cliente = default_tipo_cliente
+                            if default_precio_lista_id: client.precio_lista_id = default_precio_lista_id
                             client.save()
                             updated += 1
                     except Exception as e:
