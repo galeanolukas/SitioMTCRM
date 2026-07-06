@@ -1,0 +1,50 @@
+{% extends 'base/list.html' %}
+{% load static %}
+
+{% block columns %}
+  <tr>
+    <th style="width: 8%;">ID</th>
+    <th style="width: 25%;">Empresa</th>
+    <th style="width: 15%;">Número</th>
+    <th style="width: 30%;">Descripción</th>
+    <th style="width: 10%;">Estado</th>
+    <th style="width: 12%;">Opciones</th>
+  </tr>
+{% endblock %}
+
+{% block rows %}
+  {% for object in object_list %}
+  <tr>
+    <td>{{ object.id }}</td>
+    <td>{{ object.company.name }}</td>
+    <td>{{ object.numero }}</td>
+    <td>{{ object.descripcion|default:"-" }}</td>
+    <td>
+      {% if object.is_active %}
+        <span class="badge badge-success">Activo</span>
+      {% else %}
+        <span class="badge badge-secondary">Inactivo</span>
+      {% endif %}
+    </td>
+    <td>
+      <a href="{% url 'erp:afip:punto_venta_update' object.id %}" class="btn btn-warning btn-flat btn-sm"><i class="fas fa-edit"></i></a>
+      <a href="{% url 'erp:afip:punto_venta_delete' object.id %}" class="btn btn-danger btn-flat btn-sm"><i class="fas fa-trash"></i></a>
+    </td>
+  </tr>
+  {% empty %}
+  <tr>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td class="text-center">No hay puntos de venta AFIP creados</td>
+  </tr>
+  {% endfor %}
+{% endblock %}
+
+{% block buttons_list %}
+  <a href="{% url 'erp:afip:punto_venta_create' %}" class="btn btn-primary btn-flat"><i class="fas fa-plus"></i> Nuevo punto de venta</a>
+  <a href="{% url 'erp:afip:dashboard' %}" class="btn btn-info btn-flat"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+  <a href="{% url 'erp:afip:punto_venta_list' %}" class="btn btn-success btn-flat"><i class="fas fa-sync"></i> Actualizar</a>
+{% endblock %}

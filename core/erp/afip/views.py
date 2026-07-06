@@ -13,6 +13,17 @@ from django.views.decorators.http import require_POST
 from django.contrib.auth.decorators import login_required, permission_required
 
 
+def crear_punto_venta_por_defecto(company):
+    """Crea un punto de venta 1 para la empresa si no tiene ninguno activo."""
+    if company and not company.afippuntoventa_set.filter(is_active=True).exists():
+        AfipPuntoVenta.objects.create(
+            company=company,
+            numero=1,
+            descripcion='Punto de venta principal',
+            is_active=True
+        )
+
+
 class AfipConfigListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView):
     """Lista de configuraciones AFIP"""
     model = AfipConfig
@@ -41,8 +52,11 @@ class AfipConfigCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
         # Si es una petición AJAX, devolver JSON
         if self.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             self.object = form.save()
+            crear_punto_venta_por_defecto(self.object.company)
             data = {'success': True, 'message': 'Configuración AFIP creada exitosamente'}
             return JsonResponse(data)
+        self.object = form.save()
+        crear_punto_venta_por_defecto(self.object.company)
         return super().form_valid(form)
     
     def form_invalid(self, form):
@@ -210,6 +224,7 @@ class AfipDashboardView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Tem
                             tipo_comprobante=tipo_comprobante,
                             is_active=True
                         )
+                        crear_punto_venta_por_defecto(company)
                         data = {'success': True, 'config_id': config.id, 'message': 'Configuración AFIP creada exitosamente'}
             except Company.DoesNotExist:
                 data = {'success': False, 'error': 'Empresa no encontrada'}
@@ -475,3 +490,71 @@ def generate_afip_pdf(request):
     sale.save(update_fields=['afip_pdf_url'])
 
     return JsonResponse({'success': True, 'pdf_url': result.get('file'), 'file_name': file_name})
+
+
+class AfipPuntoVentaListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView):
+    """Lista de puntos de venta AFIP"""
+    model = AfipPuntoVenta
+    template_name = 'afip/punto_venta/list.html'
+    permission_required = 'erp.view_afippuntoventa'
+
+    def get_queryset(self):
+        return AfipPuntoVenta.objects.select_related('company').all()
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Puntos de Venta AFIP'
+        context['create_url'] = reverse_lazy('erp:afip:punto_venta_create')
+        context['list_url'] = reverse_lazy('erp:afip:punto_venta_list')
+        context['entity'] = 'Puntos de Venta AFIP'
+        return context
+
+
+class AfipPuntoVentaCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, CreateView):
+    """Crear punto de venta AFIP"""
+    model = AfipPuntoVenta
+    template_name = 'afip/punto_venta/form.html'
+    permission_required = 'erp.add_afippuntoventa'
+    fields = ['company', 'numero', 'descripcion', 'is_active']
+    success_url = reverse_lazy('erp:afip:punto_venta_list')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Creación de Punto de Venta AFIP'
+        context['entity'] = 'Puntos de Venta AFIP'
+        context['list_url'] = reverse_lazy('erp:afip:punto_venta_list')
+        context['action'] = 'add'
+        return context
+
+
+class AfipPuntoVentaUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, UpdateView):
+    """Actualizar punto de venta AFIP"""
+    model = AfipPuntoVenta
+    template_name = 'afip/punto_venta/form.html'
+    permission_required = 'erp.change_afippuntoventa'
+    fields = ['company', 'numero', 'descripcion', 'is_active']
+    success_url = reverse_lazy('erp:afip:punto_venta_list')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Edición de Punto de Venta AFIP'
+        context['entity'] = 'Puntos de Venta AFIP'
+        context['list_url'] = reverse_lazy('erp:afip:punto_venta_list')
+        context['action'] = 'edit'
+        return context
+
+
+class AfipPuntoVentaDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin, DeleteView):
+    """Eliminar punto de venta AFIP"""
+    model = AfipPuntoVenta
+    template_name = 'afip/punto_venta/delete.html'
+    permission_required = 'erp.delete_afippuntoventa'
+    success_url = reverse_lazy('erp:afip:punto_venta_list')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Eliminar Punto de Venta AFIP'
+        context['entity'] = 'Puntos de Venta AFIP'
+        context['list_url'] = reverse_lazy('erp:afip:punto_venta_list')
+        context['action'] = 'delete'
+        return context

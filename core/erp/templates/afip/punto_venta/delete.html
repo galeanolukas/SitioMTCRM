@@ -1,0 +1,6 @@
+{% extends 'base/delete.html' %}
+{% load static %}
+
+{% block name %}
+¿Estás seguro de eliminar el punto de venta {{ object.numero }} de {{ object.company.name }}?
+{% endblock name %}

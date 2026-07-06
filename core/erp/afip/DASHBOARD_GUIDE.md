@@ -188,8 +188,15 @@ afip = Afip({
 
 Los puntos de venta se gestionan en un modelo separado `AfipPuntoVenta`:
 - Cada empresa puede tener múltiples puntos de venta
-- Se crean independientemente de la configuración AFIP
+- Se crean automáticamente al crear una configuración AFIP si la empresa no tiene ninguno activo (número `1` por defecto)
+- También se pueden crear, editar y eliminar desde el CRUD: `/erp/afip/punto-venta/list/`
 - Se usan al emitir comprobantes
+
+### URLs de Puntos de Venta
+- Listado: `/erp/afip/punto-venta/list/`
+- Crear: `/erp/afip/punto-venta/create/`
+- Editar: `/erp/afip/punto-venta/update/{id}/`
+- Eliminar: `/erp/afip/punto-venta/delete/{id}/`
 
 ## Funciones del Dashboard
 
