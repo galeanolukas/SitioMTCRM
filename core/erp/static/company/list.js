@@ -64,6 +64,7 @@ function getData() {
         orderable: false,
         render: function (data, type, row) {
           let btns = '<a href="#" rel="edit" class="btn btn-warning btn-xs btn-flat me-1"><i class="fas fa-edit"></i></a>';
+          btns += '<a href="/erp/afip/dashboard/?company_id=' + data + '" class="btn btn-info btn-xs btn-flat me-1" title="Configurar AFIP"><i class="fas fa-file-invoice-dollar"></i></a>';
           btns += '<a href="#" rel="delete" class="btn btn-danger btn-xs btn-flat"><i class="fas fa-trash-alt"></i></a>';
           return btns;
         }
