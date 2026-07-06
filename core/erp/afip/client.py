@@ -423,7 +423,10 @@ class AfipClient:
     
     def create_automation(self, automation_name, data, wait=True):
         """
-        Ejecuta una automatización de AFIP SDK usando la librería afip.py
+        Ejecuta una automatización de AFIP SDK usando la API REST
+        
+        Nota: La librería afip.py es para Web Services de AFIP (WSFE, etc.),
+        no para automatizaciones. Las automatizaciones se usan vía API REST.
         
         Args:
             automation_name: Nombre de la automatización (ej: 'create-cert-dev', 'create-cert-prod')
@@ -434,9 +437,64 @@ class AfipClient:
             Dict con resultado de la automatización
         """
         try:
-            # Usar la librería afip.py para ejecutar la automatización
-            result = self.afip.createAutomation(automation_name, data, wait=wait)
+            url = 'https://app.afipsdk.com/api/v1/automations'
+            headers = {
+                'Authorization': f"Bearer {self.config['access_token']}",
+                'Content-Type': 'application/json',
+            }
+            
+            payload = {
+                'automation': automation_name,
+                'data': data
+            }
+            
+            response = requests.post(url, headers=headers, json=payload, timeout=60)
+            response.raise_for_status()
+            result = response.json()
+            
+            # Si wait=True y la automatización está en proceso, esperar
+            if wait and result.get('status') in ['pending', 'processing']:
+                automation_id = result.get('id')
+                if automation_id:
+                    return self.get_automation_details(automation_id, wait=True)
+            
             return result
+        except requests.exceptions.RequestException as e:
+            return {'error': str(e)}
+        except Exception as e:
+            return {'error': str(e)}
+    
+    def get_automation_details(self, automation_id, wait=False):
+        """
+        Obtiene detalles de una automatización
+        
+        Args:
+            automation_id: ID de la automatización
+            wait: Si True, espera a que la automatización termine
+        
+        Returns:
+            Dict con detalles de la automatización
+        """
+        try:
+            url = f'https://app.afipsdk.com/api/v1/automations/{automation_id}'
+            headers = {
+                'Authorization': f"Bearer {self.config['access_token']}",
+                'Content-Type': 'application/json',
+            }
+            
+            response = requests.get(url, headers=headers, timeout=60)
+            response.raise_for_status()
+            result = response.json()
+            
+            # Si wait=True y aún está en proceso, reintentar
+            if wait and result.get('status') in ['pending', 'processing']:
+                import time
+                time.sleep(2)  # Esperar 2 segundos
+                return self.get_automation_details(automation_id, wait=True)
+            
+            return result
+        except requests.exceptions.RequestException as e:
+            return {'error': str(e)}
         except Exception as e:
             return {'error': str(e)}
     
