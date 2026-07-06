@@ -22,7 +22,13 @@
     <td>{{ config.id }}</td>
     <td>{{ config.company.name }}</td>
     <td>{{ config.cuit }}</td>
-    <td>{{ config.get_environment_display }}</td>
+    <td>
+      {% if config.environment == 'dev' %}
+        <span class="badge badge-info">Desarrollo</span>
+      {% else %}
+        <span class="badge badge-warning">Producción</span>
+      {% endif %}
+    </td>
     <td>
       {% if config.is_active %}
         <span class="badge badge-success">Activo</span>
@@ -103,11 +109,6 @@
                   <option value="dev" selected>Desarrollo</option>
                   <option value="prod">Producción</option>
                 </select>
-              </div>
-              
-              <div class="form-group mb-2">
-                <label class="form-label">Punto de Venta:</label>
-                <input type="number" name="punto_venta" id="punto_venta" class="form-control" value="1" min="1" />
               </div>
               
               <div class="form-group mb-2">

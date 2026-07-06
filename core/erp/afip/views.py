@@ -150,7 +150,6 @@ class AfipDashboardView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Tem
                     # Crear config usando CUIT de la empresa
                     access_token = request.POST.get('access_token')
                     environment = request.POST.get('environment', 'dev')
-                    punto_venta = request.POST.get('punto_venta', 1)
                     tipo_comprobante = request.POST.get('tipo_comprobante', 6)
                     
                     if not access_token:
@@ -166,7 +165,6 @@ class AfipDashboardView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Tem
                             cuit=company.cuit,
                             access_token=access_token,
                             environment=environment,
-                            punto_venta=punto_venta,
                             tipo_comprobante=tipo_comprobante,
                             is_active=True
                         )

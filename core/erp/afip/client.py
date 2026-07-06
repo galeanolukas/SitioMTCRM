@@ -421,34 +421,22 @@ class AfipClient:
         except Exception as e:
             return {'error': str(e)}
     
-    def create_automation(self, automation_name, data):
+    def create_automation(self, automation_name, data, wait=True):
         """
-        Ejecuta una automatización de AFIP SDK
+        Ejecuta una automatización de AFIP SDK usando la librería afip.py
         
         Args:
             automation_name: Nombre de la automatización (ej: 'create-cert-dev', 'create-cert-prod')
             data: Dict con los parámetros de la automatización
+            wait: Si True, espera a que la automatización termine (default: True)
         
         Returns:
             Dict con resultado de la automatización
         """
         try:
-            url = 'https://app.afipsdk.com/api/v1/automations'
-            headers = {
-                'Authorization': f"Bearer {self.config['access_token']}",
-                'Content-Type': 'application/json',
-            }
-            
-            payload = {
-                'automation': automation_name,
-                'data': data
-            }
-            
-            response = requests.post(url, headers=headers, json=payload, timeout=60)
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            return {'error': str(e)}
+            # Usar la librería afip.py para ejecutar la automatización
+            result = self.afip.createAutomation(automation_name, data, wait=wait)
+            return result
         except Exception as e:
             return {'error': str(e)}
     
