@@ -3,6 +3,63 @@
 ## Ubicación
 `http://localhost:8000/erp/afip/dashboard/`
 
+## Configuración para Desarrollo (Testing)
+
+AFIP SDK permite probar en modo desarrollo sin necesidad de certificados reales usando un CUIT de prueba.
+
+### CUIT de Prueba de AFIP SDK
+- **CUIT:** `20-40937847-2` (sin guiones: `20409378472`)
+- **Uso:** Exclusivo para modo desarrollo
+- **Ventajas:** No requiere certificados ni Clave Fiscal
+- **Limitaciones:** Comprobantes emitidos no tienen validez fiscal
+
+### Pasos para Configurar Desarrollo
+
+1. **Obtener Access Token:**
+   - Ir a https://app.afipsdk.com
+   - Registrarse y obtener un `access_token` gratuito
+   - Configurar en `.env` como `AFIP_ACCESS_TOKEN` (opcional, se puede configurar por empresa)
+
+2. **Crear Empresa de Prueba:**
+   - Ir a `/erp/company/list/`
+   - Crear nueva empresa o usar una existente
+   - Configurar CUIT: `20409378472`
+   - Guardar empresa
+
+3. **Crear Configuración AFIP en Modo Desarrollo:**
+   - Ir a `/erp/afip/dashboard/`
+   - Clic en "Nueva Configuración" o "Crear Config para [Empresa]"
+   - Seleccionar la empresa con CUIT de prueba
+   - Configurar:
+     - **Access Token:** Token de AFIP SDK (o dejar vacío para usar global)
+     - **Ambiente:** `Desarrollo` (dev)
+     - **Tipo de Comprobante:** `6` (Factura B) u otro
+     - **Concepto:** `1` (Productos), `2` (Servicios) o `3` (Ambos)
+     - **Moneda:** `PES` (Pesos)
+     - **Cotización:** `1` (si es PES)
+   - **NO configurar certificados** (no se necesitan en desarrollo)
+   - Guardar configuración
+
+4. **Probar Conexión:**
+   - Clic en "Probar Conexión" en el dashboard
+   - Debería mostrar conexión exitosa con AFIP
+
+5. **Emitir Comprobantes de Prueba:**
+   - Usar la configuración para emitir facturas de prueba
+   - Los comprobantes tendrán CAE de prueba
+   - No tienen validez fiscal real
+
+### Diferencias: Desarrollo vs Producción
+
+| Característica | Desarrollo | Producción |
+|----------------|------------|------------|
+| CUIT | 20409378472 (prueba) | CUIT real de la empresa |
+| Certificados | No necesarios | Obligatorios (generados con Clave Fiscal) |
+| Clave Fiscal | No necesaria | Necesaria para generar certificados |
+| CAE | CAE de prueba | CAE real con validez fiscal |
+| Comprobantes | Sin validez fiscal | Con validez fiscal |
+| Web Services | Servidores de prueba | Servidores de producción |
+
 ## Funcionamiento General
 
 El dashboard AFIP permite configurar la integración con los Web Services de ARCA (AFIP) utilizando el SDK de AFIP SDK. Está diseñado para trabajar con configuraciones por empresa, permitiendo gestionar múltiples empresas con sus propias credenciales AFIP.
