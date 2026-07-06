@@ -405,7 +405,7 @@ class Client(models.Model):
         item['gender'] = {'id': self.gender, 'name': self.get_gender_display()}
         item['condicion_iva'] = {'id': self.condicion_iva, 'name': self.get_condicion_iva_display()}
         item['tipo_cliente'] = {'id': self.tipo_cliente, 'name': self.get_tipo_cliente_display()}
-        item['date_birthday'] = self.date_birthday.strftime('%Y-%m-%d')
+        item['date_birthday'] = self.date_birthday.strftime('%Y-%m-%d') if self.date_birthday else ''
         # Agregar info de lista de precios
         if self.precio_lista:
             item['precio_lista'] = {
