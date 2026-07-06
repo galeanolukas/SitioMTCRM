@@ -1087,7 +1087,6 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
 
             # --- Importar clientes ---
             if entity_type == 'client':
-                from core.erp.models import Client
                 map_names = request.POST.get('map_names')
                 map_surnames = request.POST.get('map_surnames')
                 map_dni = request.POST.get('map_dni')
