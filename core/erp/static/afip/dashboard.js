@@ -49,13 +49,36 @@ function showGenerateCertModal() {
             alert('Error: No se encontró el modal de generación de certificados');
             return;
         }
-        
+
         if (typeof bootstrap === 'undefined') {
             console.error('Bootstrap is not loaded');
             alert('Error: Bootstrap no está cargado');
             return;
         }
-        
+
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+    } catch (error) {
+        console.error('Error al abrir modal:', error);
+        alert('Error al abrir el modal: ' + error.message);
+    }
+}
+
+function showAuthWebServiceModal() {
+    try {
+        const modalElement = document.getElementById('authWebServiceModal');
+        if (!modalElement) {
+            console.error('Modal element not found');
+            alert('Error: No se encontró el modal de autorización de Web Service');
+            return;
+        }
+
+        if (typeof bootstrap === 'undefined') {
+            console.error('Bootstrap is not loaded');
+            alert('Error: Bootstrap no está cargado');
+            return;
+        }
+
         const modal = new bootstrap.Modal(modalElement);
         modal.show();
     } catch (error) {
@@ -122,14 +145,14 @@ document.addEventListener('DOMContentLoaded', function() {
     if (generateCertForm) {
         generateCertForm.addEventListener('submit', function(e) {
             e.preventDefault();
-            
+
             const formData = new FormData(this);
             const errorBlock = document.getElementById('cert-error-block');
-            
+
             // Actualizar config_id desde el select
             const configSelect = document.getElementById('cert_config_select');
             document.getElementById('cert_config_id').value = configSelect.value;
-            
+
             // Verificar que se haya seleccionado una configuración
             const configId = document.getElementById('cert_config_id').value;
             if (!configId) {
@@ -137,7 +160,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 errorBlock.classList.remove('d-none');
                 return;
             }
-            
+
             fetch('', {
                 method: 'POST',
                 body: formData,
@@ -154,6 +177,53 @@ document.addEventListener('DOMContentLoaded', function() {
                     location.reload();
                 } else {
                     errorBlock.textContent = data.error || 'Error al generar certificado';
+                    errorBlock.classList.remove('d-none');
+                }
+            })
+            .catch(error => {
+                errorBlock.textContent = 'Error de conexión: ' + error;
+                errorBlock.classList.remove('d-none');
+            });
+        });
+    }
+
+    // Manejar el formulario de autorización de Web Service
+    const authWebServiceForm = document.getElementById('authWebServiceForm');
+    if (authWebServiceForm) {
+        authWebServiceForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const formData = new FormData(this);
+            const errorBlock = document.getElementById('auth-error-block');
+
+            // Actualizar config_id desde el select
+            const configSelect = document.getElementById('auth_config_select');
+            document.getElementById('auth_config_id').value = configSelect.value;
+
+            // Verificar que se haya seleccionado una configuración
+            const configId = document.getElementById('auth_config_id').value;
+            if (!configId) {
+                errorBlock.textContent = 'Debe seleccionar una configuración AFIP';
+                errorBlock.classList.remove('d-none');
+                return;
+            }
+
+            fetch('', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('authWebServiceModal'));
+                    modal.hide();
+                    alert(data.message || 'Web Service autorizado exitosamente');
+                    location.reload();
+                } else {
+                    errorBlock.textContent = data.error || 'Error al autorizar Web Service';
                     errorBlock.classList.remove('d-none');
                 }
             })

@@ -393,7 +393,7 @@ class AfipClient:
 
     def create_pdf(self, pdf_data):
         """
-        Genera un PDF de comprobante fiscal usando la API de PDFs de AFIP SDK.
+        Genera un PDF de comprobante fiscal usando el método ElectronicBilling.createPDF() de AFIP SDK.
 
         Args:
             pdf_data: Dict con los datos para el template PDF de AFIP SDK.
@@ -407,22 +407,14 @@ class AfipClient:
             template_name = pdf_data.get('template', {}).get('name', 'unknown')
             file_name = pdf_data.get('file_name', 'unknown')
             logger.debug(f"[AFIP PDF] Generando PDF - Template: {template_name}, Archivo: {file_name}")
-            url = 'https://app.afipsdk.com/api/v1/pdfs'
-            headers = {
-                'Authorization': f"Bearer {self.config['access_token']}",
-                'Content-Type': 'application/json',
-            }
 
-            response = requests.post(url, headers=headers, json=pdf_data, timeout=60)
-            response.raise_for_status()
-            result = response.json()
-            logger.debug(f"[AFIP PDF] Respuesta API PDFs: {result}")
+            # Usar el método del SDK para crear PDFs
+            result = self.afip.ElectronicBilling.createPDF(pdf_data)
+
+            logger.debug(f"[AFIP PDF] Respuesta createPDF: {result}")
             return result
-        except requests.exceptions.RequestException as e:
-            logger.error(f"[AFIP PDF] Error en request: {e}")
-            return {'error': str(e)}
         except Exception as e:
-            logger.error(f"[AFIP PDF] Error general: {e}")
+            logger.error(f"[AFIP PDF] Error en createPDF: {e}")
             return {'error': str(e)}
 
     def get_supplier_vouchers(self, fecha_desde=None, fecha_hasta=None):
@@ -536,13 +528,13 @@ class AfipClient:
     def create_prod_certificate(self, cuit, username, password, alias='afipsdk'):
         """
         Crea un certificado de producción usando la automatización create-cert-prod
-        
+
         Args:
             cuit: CUIT del contribuyente
             username: Usuario de Clave Fiscal
             password: Contraseña de Clave Fiscal
             alias: Alias para el certificado (default: 'afipsdk')
-        
+
         Returns:
             Dict con cert y key generados o error
         """
@@ -552,12 +544,12 @@ class AfipClient:
             'password': password,
             'alias': alias
         }
-        
+
         result = self.create_automation('create-cert-prod', data)
-        
+
         if 'error' in result:
             return result
-        
+
         # Extraer cert y key de la respuesta
         if result.get('status') == 'complete' and 'data' in result:
             return {
@@ -566,5 +558,49 @@ class AfipClient:
                 'key': result['data'].get('key'),
                 'automation_id': result.get('id')
             }
-        
+
         return {'error': 'La automatización no completó exitosamente'}
+
+    def auth_web_service(self, cuit, username, password, alias='afipsdk', service='wsfe'):
+        """
+        Autoriza el uso de un Web Service de AFIP usando la automatización auth-web-service-dev o auth-web-service-prod
+
+        Args:
+            cuit: CUIT del contribuyente
+            username: Usuario de Clave Fiscal
+            password: Contraseña de Clave Fiscal
+            alias: Alias del certificado (default: 'afipsdk')
+            service: Web Service a autorizar (default: 'wsfe')
+
+        Returns:
+            Dict con resultado de la autorización o error
+        """
+        # Determinar la automatización según el ambiente
+        if self.config['environment'] == 'prod':
+            automation_name = 'auth-web-service-prod'
+        else:
+            automation_name = 'auth-web-service-dev'
+
+        data = {
+            'cuit': cuit,
+            'username': username,
+            'password': password,
+            'alias': alias,
+            'service': service
+        }
+
+        logger.debug(f"[AFIP] Autorizando Web Service {service} con automatización {automation_name}")
+
+        result = self.create_automation(automation_name, data)
+
+        if 'error' in result:
+            logger.error(f"[AFIP] Error en autorización de Web Service: {result['error']}")
+            return result
+
+        logger.debug(f"[AFIP] Autorización de Web Service completada: {result}")
+        return {
+            'success': True,
+            'automation_id': result.get('id'),
+            'status': result.get('status'),
+            'data': result.get('data')
+        }

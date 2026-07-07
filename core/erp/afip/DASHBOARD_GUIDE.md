@@ -46,11 +46,18 @@ AFIP SDK permite probar en modo desarrollo sin necesidad de certificados reales 
 
 4. **Autorizar Web Service (WSFE):**
    - Antes de probar la conexión, es necesario autorizar el uso del Web Service WSFE en AFIP SDK
-   - Ir a https://afipsdk.com/docs/automations/auth-web-service-dev/?integration=python
-   - Seleccionar el Web Service: `WSFE` (Facturación Electrónica)
-   - Ingresar el CUIT de prueba: `20409378472`
-   - Ejecutar la automatización de autorización
-   - Esto autoriza el uso del Web Service para el CUIT de prueba en modo desarrollo
+   - **Opción A (Automática desde el Dashboard):**
+     - Ir al dashboard AFIP `/erp/afip/dashboard/`
+     - Clic en el botón "Autorizar WSFE"
+     - Seleccionar la configuración AFIP
+     - Ingresar credenciales de Clave Fiscal (si no están guardadas en la configuración)
+     - Clic en "Autorizar Web Service"
+     - El sistema usará la automatización de AFIP SDK para autorizar WSFE automáticamente
+   - **Opción B (Manual):**
+     - Ir a https://afipsdk.com/docs/automations/auth-web-service-dev/?integration=python
+     - Seleccionar el Web Service: `WSFE` (Facturación Electrónica)
+     - Ingresar el CUIT de prueba: `20409378472`
+     - Ejecutar la automatización de autorización
    - **Importante:** Este paso es obligatorio, de lo contrario obtendrás el error "Debe autorizar el uso del web service"
 
 5. **Probar Conexión:**
@@ -254,7 +261,14 @@ Los puntos de venta se gestionan en un modelo separado `AfipPuntoVenta`:
 3. Crear configuración con ambiente "Producción"
 4. Configurar **Usuario Clave Fiscal** y **Contraseña Clave Fiscal** en el formulario (se usarán automáticamente al generar certificados)
 5. Generar certificado de producción (el sistema usará las credenciales guardadas)
-6. **Autorizar Web Service WSFE** en https://afipsdk.com/docs/automations/auth-web-service-prod/?integration=python con el CUIT real
+6. **Autorizar Web Service WSFE:**
+   - **Opción A (Automática desde el Dashboard):**
+     - Clic en el botón "Autorizar WSFE" en el dashboard
+     - Seleccionar la configuración AFIP
+     - Clic en "Autorizar Web Service"
+     - El sistema usará la automatización de AFIP SDK para autorizar WSFE automáticamente
+   - **Opción B (Manual):**
+     - Ir a https://afipsdk.com/docs/automations/auth-web-service-prod/?integration=python con el CUIT real
 7. Probar conexión
 8. Emitir comprobantes con validez fiscal
 

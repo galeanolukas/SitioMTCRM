@@ -288,7 +288,54 @@ class AfipDashboardView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Tem
                 data = {'success': False, 'error': 'Configuración no encontrada'}
             except Exception as e:
                 data = {'success': False, 'error': str(e)}
-        
+
+        elif action == 'auth_web_service':
+            config_id = request.POST.get('config_id')
+            service = request.POST.get('service', 'wsfe')
+            username = request.POST.get('username')
+            password = request.POST.get('password')
+            alias = request.POST.get('alias', 'afipsdk')
+
+            try:
+                config = AfipConfig.objects.get(id=config_id)
+
+                if not config.cuit:
+                    data = {'success': False, 'error': 'La configuración no tiene CUIT'}
+                else:
+                    # Usar credenciales guardadas si están disponibles, si no usar las del POST
+                    if config.clave_fiscal_username and config.clave_fiscal_password:
+                        username = config.clave_fiscal_username
+                        password = config.clave_fiscal_password
+                    elif not username or not password:
+                        data = {'success': False, 'error': 'Faltan credenciales de Clave Fiscal (configurar en el formulario o ingresar manualmente)'}
+                        return JsonResponse(data)
+
+                    # Crear cliente AFIP
+                    client = AfipClient(company_id=config.company_id if config.company else None)
+
+                    # Autorizar Web Service
+                    result = client.auth_web_service(
+                        cuit=config.cuit,
+                        username=username,
+                        password=password,
+                        alias=alias,
+                        service=service
+                    )
+
+                    if 'error' in result:
+                        data = {'success': False, 'error': result['error']}
+                    else:
+                        data = {
+                            'success': True,
+                            'message': f'Web Service {service.upper()} autorizado exitosamente',
+                            'automation_id': result.get('automation_id'),
+                            'status': result.get('status')
+                        }
+            except AfipConfig.DoesNotExist:
+                data = {'success': False, 'error': 'Configuración no encontrada'}
+            except Exception as e:
+                data = {'success': False, 'error': str(e)}
+
         return JsonResponse(data)
 
 
