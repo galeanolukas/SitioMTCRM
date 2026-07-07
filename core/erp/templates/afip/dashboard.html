@@ -164,12 +164,11 @@
             </div>
             <div class="container-fluid">
               <input type="hidden" name="action" value="generate_certificate" />
-              <input type="hidden" name="config_id" id="cert_config_id" value="" />
               {% csrf_token %}
 
               <div class="form-group mb-2">
                 <label class="form-label">Configuración AFIP:</label>
-                <select name="config_select" id="cert_config_select" class="form-control">
+                <select name="config_id" id="cert_config_select" class="form-control">
                   {% for config in configs %}
                     <option value="{{ config.id }}">
                       {{ config.company.name }} (CUIT: {{ config.cuit }})
@@ -233,12 +232,11 @@
             </div>
             <div class="container-fluid">
               <input type="hidden" name="action" value="auth_web_service" />
-              <input type="hidden" name="config_id" id="auth_config_id" value="" />
               {% csrf_token %}
 
               <div class="form-group mb-2">
                 <label class="form-label">Configuración AFIP:</label>
-                <select name="config_select" id="auth_config_select" class="form-control">
+                <select name="config_id" id="auth_config_select" class="form-control">
                   {% for config in configs %}
                     <option value="{{ config.id }}">
                       {{ config.company.name }} (CUIT: {{ config.cuit }})

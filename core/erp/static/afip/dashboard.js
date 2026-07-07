@@ -149,12 +149,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const formData = new FormData(this);
             const errorBlock = document.getElementById('cert-error-block');
 
-            // Actualizar config_id desde el select
-            const configSelect = document.getElementById('cert_config_select');
-            document.getElementById('cert_config_id').value = configSelect.value;
-
             // Verificar que se haya seleccionado una configuración
-            const configId = document.getElementById('cert_config_id').value;
+            const configSelect = document.getElementById('cert_config_select');
+            const configId = configSelect.value;
             if (!configId) {
                 errorBlock.textContent = 'Debe seleccionar una configuración AFIP';
                 errorBlock.classList.remove('d-none');
@@ -196,12 +193,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const formData = new FormData(this);
             const errorBlock = document.getElementById('auth-error-block');
 
-            // Actualizar config_id desde el select
-            const configSelect = document.getElementById('auth_config_select');
-            document.getElementById('auth_config_id').value = configSelect.value;
-
             // Verificar que se haya seleccionado una configuración
-            const configId = document.getElementById('auth_config_id').value;
+            const configSelect = document.getElementById('auth_config_select');
+            const configId = configSelect.value;
             if (!configId) {
                 errorBlock.textContent = 'Debe seleccionar una configuración AFIP';
                 errorBlock.classList.remove('d-none');
