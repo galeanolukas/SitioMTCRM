@@ -1,9 +1,12 @@
 """
 Cliente AFIP SDK para interactuar con los Web Services de ARCA
 """
+import logging
 from afip import Afip
 import requests
 from .config import get_afip_config
+
+logger = logging.getLogger(__name__)
 
 
 class AfipClient:
@@ -76,34 +79,39 @@ class AfipClient:
     def get_server_status(self):
         """
         Verifica el estado del servidor de AFIP usando FEDummy
-        
+
         Returns:
             Dict con el estado del servidor
         """
         try:
+            logger.debug(f"[AFIP] Verificando estado del servidor (FEDummy)")
             # Usar Web Service WSFE para verificar estado con FEDummy
             ws = self.get_web_service('wsfe')
             # FEDummy es un método simple para verificar estado del servidor
             result = ws.executeRequest("FEDummy", {})
+            logger.debug(f"[AFIP] Respuesta FEDummy: {result}")
             return {'status': 'ok', 'data': result}
         except Exception as e:
+            logger.error(f"[AFIP] Error en FEDummy: {e}")
             return {'error': str(e)}
     
     def get_taxpayer_info(self, cuit):
         """
         Obtiene información de un contribuyente
-        
+
         Args:
             cuit: CUIT del contribuyente
-        
+
         Returns:
             Dict con información del contribuyente
         """
         try:
+            logger.debug(f"[AFIP] Obteniendo información del contribuyente CUIT: {cuit}")
             # Usar Web Service WSFE para obtener información de contribuyente
             ws = self.get_web_service('wsfe')
             # Obtener Token Authorization
             ta = ws.getTokenAuthorization()
+            logger.debug(f"[AFIP] Token Authorization obtenido: {ta.get('token', 'N/A')[:20]}...")
             # Preparar datos con formato authRequest según documentación AFIP SDK
             data = {
                 "authRequest": {
@@ -114,43 +122,49 @@ class AfipClient:
             }
             # Ejecutar request para obtener datos del contribuyente
             result = ws.executeRequest("FEParamGetTiposCbte", data)
+            logger.debug(f"[AFIP] Respuesta FEParamGetTiposCbte: {result}")
             return {'taxpayer': cuit, 'data': result}
         except Exception as e:
+            logger.error(f"[AFIP] Error en get_taxpayer_info: {e}")
             return {'error': str(e)}
     
     def create_voucher(self, voucher_data, full_response=False):
         """
         Crea y asigna CAE a un comprobante electrónico
-        
+
         Args:
             voucher_data: Dict con los datos del comprobante
             full_response: Si es True, devuelve la respuesta completa del WS
-        
+
         Returns:
             Dict con CAE, CAEFchVto y otros datos del comprobante
         """
         try:
+            logger.debug(f"[AFIP] Creando voucher - PtoVta: {voucher_data.get('PtoVta')}, CbteTipo: {voucher_data.get('CbteTipo')}, Total: {voucher_data.get('ImpTotal')}")
             # Usar Web Service WSFE para facturación electrónica
             ws = self.get_web_service('wsfe')
             # Crear voucher usando el método de AFIP SDK
             result = ws.createVoucher(voucher_data, full_response)
+            logger.debug(f"[AFIP] Respuesta createVoucher: {result}")
             return result
         except Exception as e:
+            logger.error(f"[AFIP] Error en create_voucher: {e}")
             return {'error': str(e)}
     
     def get_last_voucher_number(self, pto_vta, cbte_tipo):
         """
         Obtiene el último número de comprobante autorizado para un punto de venta
         y tipo de comprobante, usando FECompUltimoAutorizado.
-        
+
         Args:
             pto_vta: Punto de venta (int)
             cbte_tipo: Tipo de comprobante (int, ej: 6=Factura B)
-        
+
         Returns:
             int: Último número autorizado, o 0 si no hay comprobantes previos
         """
         try:
+            logger.debug(f"[AFIP] Obteniendo último comprobante - PtoVta: {pto_vta}, CbteTipo: {cbte_tipo}")
             ws = self.get_web_service('wsfe')
             ta = ws.getTokenAuthorization()
             data = {
@@ -163,20 +177,25 @@ class AfipClient:
                 "CbteTipo": cbte_tipo
             }
             result = ws.executeRequest("FECompUltimoAutorizado", data)
+            logger.debug(f"[AFIP] Respuesta FECompUltimoAutorizado: {result}")
             # El resultado trae FERespuestaConsulta con cbte_nro
             if isinstance(result, dict):
                 # AFIP SDK puede devolver la respuesta en distintas claves
                 cbte_nro = result.get('CbteNro') or result.get('cbte_nro')
                 if cbte_nro is not None:
+                    logger.debug(f"[AFIP] Último número de comprobante: {cbte_nro}")
                     return int(cbte_nro)
                 # Buscar en respuestas anidadas
                 for key in ('FERespuestaConsulta', 'response'):
                     if key in result and isinstance(result[key], dict):
                         cbte_nro = result[key].get('CbteNro') or result[key].get('cbte_nro')
                         if cbte_nro is not None:
+                            logger.debug(f"[AFIP] Último número de comprobante (anidado): {cbte_nro}")
                             return int(cbte_nro)
+            logger.debug(f"[AFIP] No se encontró número de comprobante previo, retornando 0")
             return 0
         except Exception as e:
+            logger.error(f"[AFIP] Error en get_last_voucher_number: {e}")
             return {'error': str(e)}
     
     def get_invoice_types(self):
@@ -293,18 +312,20 @@ class AfipClient:
         """
         Consulta el Padrón de AFIP para obtener datos de un contribuyente.
         Usa RegisterScopeTen (Padrón Alcance 10) del AFIP SDK.
-        
+
         Args:
             cuit: CUIT del contribuyente (con o sin guiones)
-        
+
         Returns:
             Dict con datos del contribuyente: razon_social, domicilio, etc.
             o {'error': ...} si falla
         """
         try:
             cuit_clean = str(cuit).replace('-', '').strip()
+            logger.debug(f"[AFIP] Consultando Padrón (RegisterScopeTen) para CUIT: {cuit_clean}")
             taxpayer = self.afip.RegisterScopeTen
             result = taxpayer.getTaxpayerDetails(int(cuit_clean))
+            logger.debug(f"[AFIP] Respuesta RegisterScopeTen: {result}")
 
             if isinstance(result, dict) and 'persona' in result:
                 persona = result['persona']
@@ -360,11 +381,14 @@ class AfipClient:
                 else:
                     data_dict['condicion_iva'] = 'CF'
 
+                logger.debug(f"[AFIP] Datos del contribuyente procesados: {data_dict.get('razon_social', 'N/A')}, Condición IVA: {data_dict.get('condicion_iva', 'N/A')}")
                 return {'success': True, 'data': data_dict}
 
+            logger.warning(f"[AFIP] No se encontraron datos para CUIT {cuit_clean}")
             return {'error': 'No se encontraron datos para el CUIT ingresado'}
 
         except Exception as e:
+            logger.error(f"[AFIP] Error en get_taxpayer_data: {e}")
             return {'error': str(e)}
 
     def create_pdf(self, pdf_data):
@@ -380,6 +404,9 @@ class AfipClient:
             o {'error': ...} si falla.
         """
         try:
+            template_name = pdf_data.get('template', {}).get('name', 'unknown')
+            file_name = pdf_data.get('file_name', 'unknown')
+            logger.debug(f"[AFIP PDF] Generando PDF - Template: {template_name}, Archivo: {file_name}")
             url = 'https://app.afipsdk.com/api/v1/pdfs'
             headers = {
                 'Authorization': f"Bearer {self.config['access_token']}",
@@ -388,10 +415,14 @@ class AfipClient:
 
             response = requests.post(url, headers=headers, json=pdf_data, timeout=60)
             response.raise_for_status()
-            return response.json()
+            result = response.json()
+            logger.debug(f"[AFIP PDF] Respuesta API PDFs: {result}")
+            return result
         except requests.exceptions.RequestException as e:
+            logger.error(f"[AFIP PDF] Error en request: {e}")
             return {'error': str(e)}
         except Exception as e:
+            logger.error(f"[AFIP PDF] Error general: {e}")
             return {'error': str(e)}
 
     def get_supplier_vouchers(self, fecha_desde=None, fecha_hasta=None):
