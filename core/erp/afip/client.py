@@ -121,14 +121,14 @@ class AfipClient:
         """
         try:
             logger.debug(f"[AFIP] Creando voucher - PtoVta: {voucher_data.get('PtoVta')}, CbteTipo: {voucher_data.get('CbteTipo')}, Total: {voucher_data.get('ImpTotal')}")
-            # Usar Web Service WSFE para facturación electrónica
-            ws = self.get_web_service('wsfe')
-            # Crear voucher usando el método de AFIP SDK
-            result = ws.createVoucher(voucher_data, full_response)
+            # Usar el método ElectronicBilling.createVoucher de AFIP SDK
+            result = self.afip.ElectronicBilling.createVoucher(voucher_data)
             logger.debug(f"[AFIP] Respuesta createVoucher: {result}")
             return result
         except Exception as e:
             logger.error(f"[AFIP] Error en create_voucher: {e}")
+            import traceback
+            logger.error(f"[AFIP] Traceback: {traceback.format_exc()}")
             return {'error': str(e)}
     
     def get_last_voucher_number(self, pto_vta, cbte_tipo):
@@ -158,6 +158,11 @@ class AfipClient:
             }
             result = ws.executeRequest("FECompUltimoAutorizado", data)
             logger.debug(f"[AFIP] Respuesta FECompUltimoAutorizado: {result}")
+            logger.debug(f"[AFIP] Tipo de resultado: {type(result)}")
+            # El resultado puede ser un entero directamente o un diccionario
+            if isinstance(result, int):
+                logger.debug(f"[AFIP] Último número de comprobante (directo): {result}")
+                return result
             # El resultado trae FERespuestaConsulta con cbte_nro
             if isinstance(result, dict):
                 # AFIP SDK puede devolver la respuesta en distintas claves
@@ -176,6 +181,8 @@ class AfipClient:
             return 0
         except Exception as e:
             logger.error(f"[AFIP] Error en get_last_voucher_number: {e}")
+            import traceback
+            logger.error(f"[AFIP] Traceback: {traceback.format_exc()}")
             return {'error': str(e)}
     
     def get_invoice_types(self):
