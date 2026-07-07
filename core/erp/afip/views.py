@@ -39,7 +39,7 @@ class AfipConfigCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
     model = AfipConfig
     template_name = 'afip/form.html'
     permission_required = 'erp.add_afipconfig'
-    fields = ['company', 'cuit', 'access_token', 'cert', 'key', 'environment', 'tipo_comprobante', 'concepto', 'moneda', 'cotizacion', 'usar_contingencia', 'is_active']
+    fields = ['company', 'cuit', 'access_token', 'clave_fiscal_username', 'clave_fiscal_password', 'cert', 'key', 'environment', 'tipo_comprobante', 'concepto', 'moneda', 'cotizacion', 'usar_contingencia', 'is_active']
     success_url = reverse_lazy('erp:afip:list')
     
     def get_context_data(self, **kwargs):
@@ -72,7 +72,7 @@ class AfipConfigUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
     model = AfipConfig
     template_name = 'afip/form.html'
     permission_required = 'erp.change_afipconfig'
-    fields = ['company', 'cuit', 'access_token', 'cert', 'key', 'environment', 'tipo_comprobante', 'concepto', 'moneda', 'cotizacion', 'usar_contingencia', 'is_active']
+    fields = ['company', 'cuit', 'access_token', 'clave_fiscal_username', 'clave_fiscal_password', 'cert', 'key', 'environment', 'tipo_comprobante', 'concepto', 'moneda', 'cotizacion', 'usar_contingencia', 'is_active']
     success_url = reverse_lazy('erp:afip:list')
     
     def get_context_data(self, **kwargs):
@@ -237,18 +237,24 @@ class AfipDashboardView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Tem
             username = request.POST.get('username')
             password = request.POST.get('password')
             alias = request.POST.get('alias', 'afipsdk')
-            
+
             try:
                 config = AfipConfig.objects.get(id=config_id)
-                
+
                 if not config.cuit:
                     data = {'success': False, 'error': 'La configuración no tiene CUIT'}
-                elif not username or not password:
-                    data = {'success': False, 'error': 'Faltan credenciales de Clave Fiscal'}
                 else:
+                    # Usar credenciales guardadas si están disponibles, si no usar las del POST
+                    if config.clave_fiscal_username and config.clave_fiscal_password:
+                        username = config.clave_fiscal_username
+                        password = config.clave_fiscal_password
+                    elif not username or not password:
+                        data = {'success': False, 'error': 'Faltan credenciales de Clave Fiscal (configurar en el formulario o ingresar manualmente)'}
+                        return JsonResponse(data)
+
                     # Crear cliente AFIP
                     client = AfipClient(company_id=config.company_id if config.company else None)
-                    
+
                     # Generar certificado según tipo
                     if cert_type == 'prod':
                         result = client.create_prod_certificate(
@@ -264,7 +270,7 @@ class AfipDashboardView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Tem
                             password=password,
                             alias=alias
                         )
-                    
+
                     if 'error' in result:
                         data = {'success': False, 'error': result['error']}
                     else:
@@ -272,7 +278,7 @@ class AfipDashboardView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Tem
                         config.cert = result['cert']
                         config.key = result['key']
                         config.save(update_fields=['cert', 'key'])
-                        
+
                         data = {
                             'success': True,
                             'message': f'Certificado de {cert_type.upper()} generado exitosamente',

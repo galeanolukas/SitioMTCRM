@@ -86,6 +86,28 @@
                   </div>
                 </div>
                 <div class="row">
+                  <div class="col-md-6">
+                    <div class="form-group">
+                      <label for="{{ form.clave_fiscal_username.id_for_label }}">{{ form.clave_fiscal_username.label }}:</label>
+                      {{ form.clave_fiscal_username }}
+                      {% if form.clave_fiscal_username.errors %}
+                      <div class="text-danger">{{ form.clave_fiscal_username.errors }}</div>
+                      {% endif %}
+                      <small class="form-text text-muted">Usuario de Clave Fiscal AFIP (necesario para generar certificados en producción)</small>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="form-group">
+                      <label for="{{ form.clave_fiscal_password.id_for_label }}">{{ form.clave_fiscal_password.label }}:</label>
+                      {{ form.clave_fiscal_password }}
+                      {% if form.clave_fiscal_password.errors %}
+                      <div class="text-danger">{{ form.clave_fiscal_password.errors }}</div>
+                      {% endif %}
+                      <small class="form-text text-muted">Contraseña de Clave Fiscal AFIP (necesario para generar certificados en producción)</small>
+                    </div>
+                  </div>
+                </div>
+                <div class="row">
                   <div class="col-md-4">
                     <div class="form-group">
                       <label for="{{ form.tipo_comprobante.id_for_label }}">{{ form.tipo_comprobante.label }}:</label>

@@ -1545,6 +1545,8 @@ class AfipConfig(models.Model):
     company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa', null=True, blank=True)
     cuit = models.CharField(max_length=20, verbose_name='CUIT', validators=[validate_cuit])
     access_token = models.CharField(max_length=255, verbose_name='Access Token AFIP SDK')
+    clave_fiscal_username = models.CharField(max_length=100, blank=True, null=True, verbose_name='Usuario Clave Fiscal')
+    clave_fiscal_password = models.CharField(max_length=100, blank=True, null=True, verbose_name='Contraseña Clave Fiscal')
     cert = models.TextField(blank=True, null=True, verbose_name='Certificado (solo producción)')
     key = models.TextField(blank=True, null=True, verbose_name='Key (solo producción)')
     environment = models.CharField(max_length=10, choices=ENVIRONMENT_CHOICES, default='dev', verbose_name='Ambiente')
