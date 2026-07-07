@@ -97,7 +97,7 @@ class AfipClient:
     
     def get_taxpayer_info(self, cuit):
         """
-        Obtiene información de un contribuyente
+        Obtiene información de un contribuyente usando el Padrón de AFIP
 
         Args:
             cuit: CUIT del contribuyente
@@ -105,28 +105,8 @@ class AfipClient:
         Returns:
             Dict con información del contribuyente
         """
-        try:
-            logger.debug(f"[AFIP] Obteniendo información del contribuyente CUIT: {cuit}")
-            # Usar Web Service WSFE para obtener información de contribuyente
-            ws = self.get_web_service('wsfe')
-            # Obtener Token Authorization
-            ta = ws.getTokenAuthorization()
-            logger.debug(f"[AFIP] Token Authorization obtenido: {ta.get('token', 'N/A')[:20]}...")
-            # Preparar datos con formato authRequest según documentación AFIP SDK
-            data = {
-                "authRequest": {
-                    "token": ta["token"],
-                    "sign": ta["sign"],
-                    "cuitRepresentada": self.config['CUIT']
-                }
-            }
-            # Ejecutar request para obtener datos del contribuyente
-            result = ws.executeRequest("FEParamGetTiposCbte", data)
-            logger.debug(f"[AFIP] Respuesta FEParamGetTiposCbte: {result}")
-            return {'taxpayer': cuit, 'data': result}
-        except Exception as e:
-            logger.error(f"[AFIP] Error en get_taxpayer_info: {e}")
-            return {'error': str(e)}
+        # Usar get_taxpayer_data que es el método correcto para consultar el Padrón
+        return self.get_taxpayer_data(cuit)
     
     def create_voucher(self, voucher_data, full_response=False):
         """
