@@ -42,19 +42,28 @@ AFIP SDK permite probar en modo desarrollo sin necesidad de certificados reales 
 
    > **Nota importante:** El botón "Generar Certificado" en modo desarrollo genera un certificado de prueba, pero **no es obligatorio** para probar. El CUIT de prueba de AFIP SDK permite emitir comprobantes de prueba sin certificado. El certificado solo es obligatorio en **producción** con un CUIT real.
 
-4. **Probar Conexión:**
+4. **Autorizar Web Service (WSFE):**
+   - Antes de probar la conexión, es necesario autorizar el uso del Web Service WSFE en AFIP SDK
+   - Ir a https://app.afipsdk.com/automations/auth-web-service-dev
+   - Seleccionar el Web Service: `WSFE` (Facturación Electrónica)
+   - Ingresar el CUIT de prueba: `20409378472`
+   - Ejecutar la automatización de autorización
+   - Esto autoriza el uso del Web Service para el CUIT de prueba en modo desarrollo
+   - **Importante:** Este paso es obligatorio, de lo contrario obtendrás el error "Debe autorizar el uso del web service"
+
+5. **Probar Conexión:**
    - Clic en "Probar Conexión" en el dashboard
    - Ir a `/erp/afip/test/`
    - Seleccionar la empresa y ejecutar `test_connection`
    - Debería mostrar conexión exitosa con AFIP
 
-5. **Configurar Punto de Venta:**
+6. **Configurar Punto de Venta:**
    - Ir a `/erp/afip/punto-venta/list/` (o al admin de Django)
    - Crear un `AfipPuntoVenta` para la empresa de prueba
    - Usar un número simple, por ejemplo `1`
    - El punto de venta se usa al emitir comprobantes
 
-6. **Emitir Comprobantes de Prueba:**
+7. **Emitir Comprobantes de Prueba:**
    - Crear una venta (`/erp/sale/add/`) con:
      - Cliente con DNI/CUIT válido
      - Al menos un producto
@@ -242,8 +251,9 @@ Los puntos de venta se gestionan en un modelo separado `AfipPuntoVenta`:
 2. Ir a dashboard AFIP
 3. Crear configuración con ambiente "Producción"
 4. Generar certificado de producción con Clave Fiscal real
-5. Probar conexión
-6. Emitir comprobantes con validez fiscal
+5. **Autorizar Web Service WSFE** en https://app.afipsdk.com/automations/auth-web-service-prod con el CUIT real
+6. Probar conexión
+7. Emitir comprobantes con validez fiscal
 
 ## Errores Comunes
 
@@ -254,11 +264,17 @@ Los puntos de venta se gestionan en un modelo separado `AfipPuntoVenta`:
 2. **"La empresa no tiene CUIT configurado"**:
    - Configurar CUIT en el modelo Company primero
 
-3. **"Faltan credenciales de Clave Fiscal"**:
+3. **"Debe autorizar el uso del web service" (ns1:coe.notAuthorized)**:
+   - El Web Service WSFE no está autorizado para el CUIT
+   - Ir a https://app.afipsdk.com/automations/auth-web-service-dev (desarrollo) o https://app.afipsdk.com/automations/auth-web-service-prod (producción)
+   - Seleccionar WSFE e ingresar el CUIT
+   - Ejecutar la automatización de autorización
+
+4. **"Faltan credenciales de Clave Fiscal"**:
    - Ingresar usuario y contraseña de Clave Fiscal
    - Verificar que sean correctos
 
-4. **"La automatización no completó exitosamente"**:
+5. **"La automatización no completó exitosamente"**:
    - Verificar access_token válido
    - Verificar credenciales de Clave Fiscal
    - Revisar logs de AFIP SDK
