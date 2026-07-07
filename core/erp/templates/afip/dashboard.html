@@ -6,12 +6,13 @@
 
 {% block columns %}
   <tr>
-    <th style="width: 10%;">ID</th>
-    <th style="width: 25%;">Empresa</th>
-    <th style="width: 15%;">CUIT</th>
-    <th style="width: 15%;">Ambiente</th>
-    <th style="width: 15%;">Estado</th>
-    <th style="width: 20%;">Opciones</th>
+    <th style="width: 8%;">ID</th>
+    <th style="width: 22%;">Empresa</th>
+    <th style="width: 12%;">CUIT</th>
+    <th style="width: 12%;">Ambiente</th>
+    <th style="width: 12%;">Estado</th>
+    <th style="width: 12%;">WSFE</th>
+    <th style="width: 24%;">Opciones</th>
   </tr>
 {% endblock %}
 
@@ -36,13 +37,20 @@
       {% endif %}
     </td>
     <td>
+      {% if config.wsfe_authorized %}
+        <span class="badge badge-success" title="Autorizado el {{ config.wsfe_authorized_at|date:'d/m/Y H:i' }}">Autorizado</span>
+      {% else %}
+        <span class="badge badge-secondary">No autorizado</span>
+      {% endif %}
+    </td>
+    <td>
       <a href="{% url 'erp:afip:update' config.id %}" class="btn btn-warning btn-flat btn-sm"><i class="fas fa-edit"></i></a>
       <a href="{% url 'erp:afip:delete' config.id %}" class="btn btn-danger btn-flat btn-sm"><i class="fas fa-trash"></i></a>
     </td>
   </tr>
   {% empty %}
   <tr>
-    <td colspan="6" class="text-center">No hay configuraciones AFIP creadas</td>
+    <td colspan="7" class="text-center">No hay configuraciones AFIP creadas</td>
   </tr>
   {% endfor %}
 {% endblock %}

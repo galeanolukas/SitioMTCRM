@@ -325,6 +325,13 @@ class AfipDashboardView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Tem
                     if 'error' in result:
                         data = {'success': False, 'error': result['error']}
                     else:
+                        # Guardar estado de autorización en la configuración
+                        from django.utils import timezone
+                        config.wsfe_authorized = True
+                        config.wsfe_authorized_at = timezone.now()
+                        config.wsfe_automation_id = result.get('automation_id')
+                        config.save(update_fields=['wsfe_authorized', 'wsfe_authorized_at', 'wsfe_automation_id'])
+
                         data = {
                             'success': True,
                             'message': f'Web Service {service.upper()} autorizado exitosamente',
