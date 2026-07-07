@@ -44,7 +44,7 @@ AFIP SDK permite probar en modo desarrollo sin necesidad de certificados reales 
 
 4. **Autorizar Web Service (WSFE):**
    - Antes de probar la conexión, es necesario autorizar el uso del Web Service WSFE en AFIP SDK
-   - Ir a https://app.afipsdk.com/automations/auth-web-service-dev
+   - Ir a https://afipsdk.com/docs/automations/auth-web-service-dev/?integration=python
    - Seleccionar el Web Service: `WSFE` (Facturación Electrónica)
    - Ingresar el CUIT de prueba: `20409378472`
    - Ejecutar la automatización de autorización
@@ -266,7 +266,7 @@ Los puntos de venta se gestionan en un modelo separado `AfipPuntoVenta`:
 
 3. **"Debe autorizar el uso del web service" (ns1:coe.notAuthorized)**:
    - El Web Service WSFE no está autorizado para el CUIT
-   - Ir a https://app.afipsdk.com/automations/auth-web-service-dev (desarrollo) o https://app.afipsdk.com/automations/auth-web-service-prod (producción)
+   - Ir a https://afipsdk.com/docs/automations/auth-web-service-dev/?integration=python (desarrollo) o https://afipsdk.com/docs/automations/auth-web-service-prod/?integration=python (producción)
    - Seleccionar WSFE e ingresar el CUIT
    - Ejecutar la automatización de autorización
 
