@@ -7,7 +7,7 @@ from django.views.generic import ListView, CreateView, UpdateView, DeleteView
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 
-from core.erp.mixins import ValidatePermissionRequiredMixin
+from core.erp.mixins import ValidatePermissionRequiredMixin, CompanyInitialMixin
 from core.erp.models import DiscountRule, SaleDiscount
 from core.erp.forms.discounts import DiscountRuleForm
 
@@ -29,7 +29,7 @@ class DiscountRuleListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
         return context
 
 
-class DiscountRuleCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, CreateView):
+class DiscountRuleCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, CompanyInitialMixin, CreateView):
     model = DiscountRule
     form_class = DiscountRuleForm
     template_name = 'discount/create.html'

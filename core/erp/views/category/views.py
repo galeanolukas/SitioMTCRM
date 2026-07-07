@@ -9,7 +9,7 @@ from django.utils.decorators import method_decorator
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
 from django.http import JsonResponse, HttpResponseRedirect
-from core.erp.mixins import ValidatePermissionRequiredMixin
+from core.erp.mixins import ValidatePermissionRequiredMixin, CompanyInitialMixin
 
 
 
@@ -57,7 +57,7 @@ class CategoryListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, List
         return context
 
 
-class CategoryCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, CreateView):
+class CategoryCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, CompanyInitialMixin, CreateView):
     model = Category
     form_class = CategoryForm
     template_name = "category/create.html"

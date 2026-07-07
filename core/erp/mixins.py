@@ -14,20 +14,20 @@ class ValidatePermissionRequiredMixin(object):
         else:
             perms = self.permission_required
         return perms
-    
+
     def get_url_redirect(self):
         if self.url_redirect is None:
             return reverse_lazy('login')
         return self.url_redirect
-    
+
     def dispatch(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
             from django.contrib.auth.views import redirect_to_login
             return redirect_to_login(request.get_full_path())
-        
+
         if request.user.is_superuser or request.user.has_perms(self.get_perms()):
             return super().dispatch(request, *args, **kwargs)
-        
+
         # Usuario autenticado pero sin permisos -> mostrar página de acceso denegado
         try:
             from django.contrib import messages
@@ -35,10 +35,28 @@ class ValidatePermissionRequiredMixin(object):
         except Exception:
             # Si el middleware de mensajes no está disponible, continuar sin mensaje
             pass
-            
+
         return render(request, '403.html', {
             'title': 'Acceso Denegado',
             'message': 'No tiene los permisos necesarios para acceder a esta página.',
             'required_perms': self.get_perms(),
             'user_perms': list(request.user.get_all_permissions()),
         })
+
+
+class CompanyInitialMixin(object):
+    """
+    Mixin para preseleccionar la empresa del usuario en formularios.
+    Si el usuario tiene una empresa asignada, se usa como valor inicial.
+    Si no, el campo queda vacío para selección manual.
+    """
+
+    def get_initial(self):
+        initial = super().get_initial()
+        # Obtener empresa del usuario o de la sesión
+        company_id = self.request.session.get('company_id')
+        if not company_id:
+            company_id = getattr(self.request.user, 'company_id', None)
+        if company_id:
+            initial['company'] = company_id
+        return initial

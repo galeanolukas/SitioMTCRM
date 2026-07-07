@@ -24,7 +24,7 @@ OPENPYXL_AVAILABLE = True
 
 from core.erp.forms import ProductForm
 from core.erp.models import Product, Category, Company, Supplier, Client, PriceList
-from core.erp.mixins import ValidatePermissionRequiredMixin
+from core.erp.mixins import ValidatePermissionRequiredMixin, CompanyInitialMixin
 from core.erp.services.server_sync_service import ServerSyncService
 
 # Configurar logging para importación de productos
@@ -132,7 +132,7 @@ class ProductListView(ValidatePermissionRequiredMixin, LoginRequiredMixin, ListV
         return context
 
 
-class ProductCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, CreateView):
+class ProductCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, CompanyInitialMixin, CreateView):
     model = Product
     form_class = ProductForm
     template_name = 'product/create.html'

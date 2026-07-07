@@ -8,7 +8,7 @@ from django.views.generic import TemplateView, ListView, CreateView, UpdateView,
 
 from core.erp.forms import ClientForm
 from core.erp.models import Client
-from core.erp.mixins import ValidatePermissionRequiredMixin
+from core.erp.mixins import ValidatePermissionRequiredMixin, CompanyInitialMixin
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +133,7 @@ class ClientListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListVi
         context['form'] = ClientForm()
         return context
     
-class ClientCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, CreateView):
+class ClientCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, CompanyInitialMixin, CreateView):
     model = Client
     form_class = ClientForm
     template_name = 'client/create.html'

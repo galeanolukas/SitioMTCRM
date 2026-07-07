@@ -4,7 +4,7 @@ Vistas para integración con AFIP SDK
 from django.shortcuts import render
 from django.views.generic import TemplateView, ListView, CreateView, UpdateView, DeleteView
 from django.contrib.auth.mixins import LoginRequiredMixin
-from core.erp.mixins import ValidatePermissionRequiredMixin
+from core.erp.mixins import ValidatePermissionRequiredMixin, CompanyInitialMixin
 from django.http import JsonResponse
 from django.urls import reverse_lazy
 from core.erp.models import AfipConfig, Company, Sale, DetSale, AfipPuntoVenta
@@ -34,7 +34,7 @@ class AfipConfigListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Li
         return AfipConfig.objects.select_related('company').all()
 
 
-class AfipConfigCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, CreateView):
+class AfipConfigCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, CompanyInitialMixin, CreateView):
     """Crear configuración AFIP"""
     model = AfipConfig
     template_name = 'afip/form.html'
@@ -516,7 +516,7 @@ class AfipPuntoVentaListView(LoginRequiredMixin, ValidatePermissionRequiredMixin
         return context
 
 
-class AfipPuntoVentaCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, CreateView):
+class AfipPuntoVentaCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, CompanyInitialMixin, CreateView):
     """Crear punto de venta AFIP"""
     model = AfipPuntoVenta
     template_name = 'afip/punto_venta/form.html'
