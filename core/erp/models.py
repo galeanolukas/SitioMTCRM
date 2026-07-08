@@ -670,6 +670,18 @@ class Sale(models.Model):
                 doc_tipo = 99  # Consumidor Final sin datos
                 doc_nro = 0
 
+            # Determinar condición IVA del receptor según normativa AFIP RG 5616/2024
+            # Mapeo: RI=1, M=4, CF=5, EX=6, NC=9
+            condicion_iva_cliente = self.cli.condicion_iva if self.cli else 'CF'
+            condicion_iva_map = {
+                'RI': 1,  # Responsable Inscripto
+                'M': 4,   # Monotributista
+                'CF': 5,  # Consumidor Final
+                'EX': 6,  # Exento
+                'NC': 9   # No Categorizado
+            }
+            condicion_iva_receptor_id = condicion_iva_map.get(condicion_iva_cliente, 5)  # Default: Consumidor Final
+
             voucher_data = {
                 'CantReg': 1,
                 'PtoVta': punto_venta,  # Usar punto de venta de AfipPuntoVenta
@@ -688,6 +700,7 @@ class Sale(models.Model):
                 'ImpTrib': 0.0,
                 'MonId': config_obj.moneda,  # Usar moneda de la configuración
                 'MonCotiz': float(config_obj.cotizacion),  # Usar cotización de la configuración
+                'CondicionIVAReceptorId': condicion_iva_receptor_id,  # Condición IVA del receptor (RG 5616/2024)
                 'Iva': iva_details if iva_details else []
             }
             
