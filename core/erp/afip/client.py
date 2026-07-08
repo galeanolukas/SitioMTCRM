@@ -145,19 +145,9 @@ class AfipClient:
         """
         try:
             logger.debug(f"[AFIP] Obteniendo último comprobante - PtoVta: {pto_vta}, CbteTipo: {cbte_tipo}")
-            ws = self.get_web_service('wsfe')
-            ta = ws.getTokenAuthorization()
-            data = {
-                "authRequest": {
-                    "token": ta["token"],
-                    "sign": ta["sign"],
-                    "cuitRepresentada": self.config['CUIT']
-                },
-                "PtoVta": pto_vta,
-                "CbteTipo": cbte_tipo
-            }
-            result = ws.executeRequest("FECompUltimoAutorizado", data)
-            logger.debug(f"[AFIP] Respuesta FECompUltimoAutorizado: {result}")
+            # Usar el método específico de AFIP SDK para obtener el último número
+            result = self.afip.ElectronicBilling.getLastVoucher(pto_vta, cbte_tipo)
+            logger.debug(f"[AFIP] Respuesta getLastVoucher: {result}")
             logger.debug(f"[AFIP] Tipo de resultado: {type(result)}")
             # El resultado puede ser un entero directamente o un diccionario
             if isinstance(result, int):
