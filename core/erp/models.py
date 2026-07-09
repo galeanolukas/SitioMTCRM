@@ -682,6 +682,16 @@ class Sale(models.Model):
                         'Importe': float(det.iva_amount)
                     })
 
+            # Si hay importe neto pero no hay detalles de IVA, agregar alícuota 0 (No gravado/Exento)
+            # AFIP requiere el objeto Iva cuando ImpNeto > 0 (error 10070)
+            if self.subtotal > 0 and not iva_details:
+                logger.info(f"[AFIP DEBUG] Agregando alícuota IVA 0 (No gravado) - Base: {self.subtotal}")
+                iva_details.append({
+                    'Id': 3,  # No gravado/Exento
+                    'BaseImp': float(self.subtotal),
+                    'Importe': 0.0
+                })
+
             # Preparar datos del voucher
             fecha_afip = datetime.now().strftime('%Y%m%d')
             logger.info(f"[AFIP DEBUG] Preparando voucher - Fecha: {fecha_afip}, Total: {self.total}, Subtotal: {self.subtotal}, IVA: {self.iva}")
