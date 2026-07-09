@@ -592,9 +592,12 @@ class Sale(models.Model):
                 self.local_timezone = 'America/Argentina/Buenos_Aires'
         
         super().save(*args, **kwargs)
-        
+
         # Emitir factura AFIP automáticamente si está configurado y la venta está confirmada
         if self.status == 'confirmed' and not self.is_budget and not self.afip_cae:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"[AFIP DEBUG] Venta confirmada - Iniciando emisión automática de factura AFIP - Venta ID: {self.id}, Empresa: {self.company.name if self.company else 'N/A'}")
             self.emitir_factura_afip()
 
     def emitir_factura_afip(self, user=None):
@@ -604,13 +607,19 @@ class Sale(models.Model):
         Args:
             user: Usuario que está emitiendo la factura (opcional, para validación de empresa)
         """
+        import logging
+        logger = logging.getLogger(__name__)
+
         try:
             from core.erp.afip.client import AfipClient, AfipCompanyMismatchError
             from core.erp.afip.config import get_afip_config
             from datetime import datetime
 
+            logger.info(f"[AFIP DEBUG] Iniciando emisión de factura AFIP - Venta ID: {self.id}, Empresa: {self.company.name if self.company else 'N/A'}")
+
             # Validar que el usuario pertenece a la misma empresa que tiene configurado AFIP
             if user and hasattr(user, 'company') and user.company:
+                logger.debug(f"[AFIP DEBUG] Validando empresa - Usuario: {user.username}, Empresa usuario: {user.company.name}, Empresa venta: {self.company.name}")
                 if user.company.id != self.company_id:
                     raise AfipCompanyMismatchError(
                         f"El usuario {user.username} pertenece a la empresa {user.company.name} "
@@ -619,28 +628,39 @@ class Sale(models.Model):
                     )
 
             # Obtener configuración AFIP
+            logger.debug(f"[AFIP DEBUG] Obteniendo configuración AFIP para empresa ID: {self.company_id}")
             afip_config = get_afip_config(self.company_id)
             if not afip_config or not afip_config.get('is_active'):
+                logger.warning(f"[AFIP DEBUG] No hay configuración AFIP activa para empresa {self.company.name}")
                 return False
-            
+
+            logger.info(f"[AFIP DEBUG] Configuración AFIP encontrada - CUIT: {afip_config.get('cuit')}, Ambiente: {afip_config.get('environment')}, Activa: {afip_config.get('is_active')}")
+
             # Inicializar cliente AFIP
+            logger.debug(f"[AFIP DEBUG] Inicializando cliente AFIP para empresa ID: {self.company_id}")
             client = AfipClient(company_id=self.company_id)
-            
+
             # Obtener configuración de punto de venta y tipo de comprobante
             config_obj = self.company.afipconfig_set.filter(is_active=True).first()
             if not config_obj:
+                logger.warning(f"[AFIP DEBUG] No hay configuración AfipConfig activa para empresa {self.company.name}")
                 return False
+
+            logger.info(f"[AFIP DEBUG] Configuración AfipConfig encontrada - Tipo comprobante: {config_obj.tipo_comprobante}, Concepto: {config_obj.concepto}, Moneda: {config_obj.moneda}")
 
             # Obtener punto de venta activo (usar el primero disponible)
             punto_venta_obj = self.company.afippuntoventa_set.filter(is_active=True).first()
             if not punto_venta_obj:
                 # Fallback: usar punto de venta 1 por defecto
                 punto_venta = 1
+                logger.warning(f"[AFIP DEBUG] No hay punto de venta activo, usando fallback: {punto_venta}")
             else:
                 punto_venta = punto_venta_obj.numero
+                logger.info(f"[AFIP DEBUG] Punto de venta activo: {punto_venta}")
 
             # Calcular IVA por alícuota
             iva_details = []
+            logger.debug(f"[AFIP DEBUG] Calculando IVA por alícuota - Detalles de venta: {self.detsale_set.count()} items")
             for det in self.detsale_set.all():
                 if det.iva_amount > 0:
                     # Determinar tipo de IVA según el porcentaje
@@ -653,34 +673,43 @@ class Sale(models.Model):
                         iva_id = 3
                     else:
                         iva_id = 5  # Default 21%
-                    
+
+                    logger.debug(f"[AFIP DEBUG] IVA detalle - Tasa: {iva_rate}%, ID: {iva_id}, Base: {det.subtotal}, Importe: {det.iva_amount}")
+
                     iva_details.append({
                         'Id': iva_id,
                         'BaseImp': float(det.subtotal),
                         'Importe': float(det.iva_amount)
                     })
-            
+
             # Preparar datos del voucher
             fecha_afip = datetime.now().strftime('%Y%m%d')
-            
+            logger.info(f"[AFIP DEBUG] Preparando voucher - Fecha: {fecha_afip}, Total: {self.total}, Subtotal: {self.subtotal}, IVA: {self.iva}")
+
             # Obtener el último número de comprobante autorizado en AFIP
+            logger.debug(f"[AFIP DEBUG] Obteniendo último número de comprobante - PtoVta: {punto_venta}, CbteTipo: {config_obj.tipo_comprobante}")
             last_nro = client.get_last_voucher_number(punto_venta, config_obj.tipo_comprobante)
             if isinstance(last_nro, dict) and 'error' in last_nro:
+                logger.error(f"[AFIP DEBUG] Error al obtener último número: {last_nro['error']}")
                 self.afip_error = f"Error al obtener último número: {last_nro['error']}"
                 self.save(update_fields=['afip_error'])
                 return False
             next_nro = last_nro + 1
-            
+            logger.info(f"[AFIP DEBUG] Último número autorizado: {last_nro}, Próximo número: {next_nro}")
+
             # Determinar tipo y número de documento según datos del cliente
             if self.cli and self.cli.cuit:
                 doc_tipo = 80  # CUIT
                 doc_nro = int(self.cli.cuit.replace('-', ''))
+                logger.info(f"[AFIP DEBUG] Cliente con CUIT - DocTipo: {doc_tipo}, DocNro: {doc_nro}")
             elif self.cli and self.cli.dni:
                 doc_tipo = 96  # DNI
                 doc_nro = int(self.cli.dni)
+                logger.info(f"[AFIP DEBUG] Cliente con DNI - DocTipo: {doc_tipo}, DocNro: {doc_nro}")
             else:
                 doc_tipo = 99  # Consumidor Final sin datos
                 doc_nro = 0
+                logger.info(f"[AFIP DEBUG] Cliente consumidor final - DocTipo: {doc_tipo}, DocNro: {doc_nro}")
 
             # Determinar condición IVA del receptor según normativa AFIP RG 5616/2024
             # Mapeo: RI=1, M=4, CF=5, EX=6, NC=9
@@ -693,6 +722,7 @@ class Sale(models.Model):
                 'NC': 9   # No Categorizado
             }
             condicion_iva_receptor_id = condicion_iva_map.get(condicion_iva_cliente, 5)  # Default: Consumidor Final
+            logger.info(f"[AFIP DEBUG] Condición IVA cliente: {condicion_iva_cliente}, ID receptor: {condicion_iva_receptor_id}")
 
             voucher_data = {
                 'CantReg': 1,
@@ -715,15 +745,20 @@ class Sale(models.Model):
                 'CondicionIVAReceptorId': condicion_iva_receptor_id,  # Condición IVA del receptor (RG 5616/2024)
                 'Iva': iva_details if iva_details else []
             }
-            
+
+            logger.info(f"[AFIP DEBUG] Voucher data preparado - PtoVta: {punto_venta}, CbteTipo: {config_obj.tipo_comprobante}, CbteDesde: {next_nro}, CbteHasta: {next_nro}")
+            logger.debug(f"[AFIP DEBUG] Datos completos del voucher: {voucher_data}")
+
             # Crear voucher
+            logger.info(f"[AFIP DEBUG] Enviando solicitud de voucher a AFIP")
             result = client.create_voucher(voucher_data, full_response=True)
-            
+
             if 'error' in result:
+                logger.error(f"[AFIP DEBUG] Error al crear voucher: {result['error']}")
                 self.afip_error = str(result['error'])
                 self.save(update_fields=['afip_error'])
                 return False
-            
+
             # Guardar resultado AFIP
             self.afip_cae = result.get('CAE', '')
             self.afip_cae_vto = datetime.strptime(result.get('CAEFchVto', ''), '%Y-%m-%d').date() if result.get('CAEFchVto') else None
@@ -734,21 +769,28 @@ class Sale(models.Model):
             self.afip_qr = self._generate_afip_qr(config_obj, next_nro, punto_venta)
             self.save(update_fields=['afip_cae', 'afip_cae_vto', 'afip_voucher_number', 'afip_result', 'is_invoiced', 'afip_qr'])
 
+            logger.info(f"[AFIP DEBUG] Factura AFIP emitida exitosamente - CAE: {self.afip_cae}, Vencimiento: {self.afip_cae_vto}, Número: {self.afip_voucher_number}")
+
             # Crear registro en Libro IVA para ventas
+            logger.debug(f"[AFIP DEBUG] Creando registro en Libro IVA")
             self._crear_registro_libro_iva(config_obj, punto_venta, next_nro)
 
             # Crear movimiento en cuenta corriente del cliente
             if self.cli:
+                logger.debug(f"[AFIP DEBUG] Creando movimiento en cuenta corriente del cliente")
                 self._crear_movimiento_cuenta_corriente(config_obj, punto_venta, next_nro)
 
             # Crear asiento contable básico
+            logger.debug(f"[AFIP DEBUG] Creando asiento contable básico")
             self._crear_asiento_contable(config_obj, punto_venta, next_nro)
-            
+
+            logger.info(f"[AFIP DEBUG] Proceso de emisión de factura AFIP completado exitosamente para venta ID: {self.id}")
             return True
-            
+
         except Exception as e:
             # Si falla AFIP, marcar como contingencia si está configurado
             error_msg = str(e)
+            logger.error(f"[AFIP DEBUG] Error en emisión de factura AFIP: {error_msg}")
             self.afip_error = error_msg
 
             # Verificar si debe activar modo contingencia
@@ -756,8 +798,11 @@ class Sale(models.Model):
             afip_config = get_afip_config(self.company_id)
             usar_contingencia = afip_config.get('usar_contingencia', False) if afip_config else False
 
+            logger.info(f"[AFIP DEBUG] Modo contingencia configurado: {usar_contingencia}")
+
             if usar_contingencia:
                 # Activar modo contingencia
+                logger.warning(f"[AFIP DEBUG] Activando modo contingencia para venta ID: {self.id}")
                 self.afip_contingencia = True
                 self.afip_contingencia_fecha = timezone.now()
                 self.afip_pendiente_autorizacion = True
