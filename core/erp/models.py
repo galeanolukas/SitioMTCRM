@@ -698,9 +698,9 @@ class Sale(models.Model):
             logger.info(f"[AFIP DEBUG] Último número autorizado: {last_nro}, Próximo número: {next_nro}")
 
             # Determinar tipo y número de documento según datos del cliente
-            if self.cli and self.cli.cuit:
+            if self.cli and self.cli.cuit_cuil:
                 doc_tipo = 80  # CUIT
-                doc_nro = int(self.cli.cuit.replace('-', ''))
+                doc_nro = int(self.cli.cuit_cuil.replace('-', ''))
                 logger.info(f"[AFIP DEBUG] Cliente con CUIT - DocTipo: {doc_tipo}, DocNro: {doc_nro}")
             elif self.cli and self.cli.dni:
                 doc_tipo = 96  # DNI
