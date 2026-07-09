@@ -143,11 +143,11 @@ class AfipTestView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Template
         elif action == 'get_taxpayer':
             cuit = request.POST.get('cuit')
             company_id = request.POST.get('company_id')
-            
+
             try:
                 client = AfipClient(company_id=company_id)
-                taxpayer = client.get_taxpayer_info(cuit)
-                
+                taxpayer = client.get_taxpayer_info(cuit, user=request.user)
+
                 if 'error' in taxpayer:
                     data = {'success': False, 'error': taxpayer['error']}
                 else:
@@ -261,14 +261,16 @@ class AfipDashboardView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Tem
                             cuit=config.cuit,
                             username=username,
                             password=password,
-                            alias=alias
+                            alias=alias,
+                            user=request.user
                         )
                     else:
                         result = client.create_dev_certificate(
                             cuit=config.cuit,
                             username=username,
                             password=password,
-                            alias=alias
+                            alias=alias,
+                            user=request.user
                         )
 
                     if 'error' in result:
@@ -319,7 +321,8 @@ class AfipDashboardView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Tem
                         username=username,
                         password=password,
                         alias=alias,
-                        service=service
+                        service=service,
+                        user=request.user
                     )
 
                     if 'error' in result:
@@ -395,7 +398,7 @@ class AfipVouchersListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
                 if sale.afip_cae:
                     data = {'success': False, 'error': 'Esta venta ya tiene CAE asignado'}
                 else:
-                    result = sale.emitir_factura_afip()
+                    result = sale.emitir_factura_afip(user=request.user)
                     if result:
                         data = {'success': True, 'message': 'Factura emitida correctamente', 'cae': sale.afip_cae}
                     else:
@@ -540,7 +543,7 @@ def generate_afip_pdf(request):
     if sale.cli and sale.cli.email:
         pdf_data['send_to'] = sale.cli.email
 
-    result = client.create_pdf(pdf_data)
+    result = client.create_pdf(pdf_data, user=request.user)
 
     if 'error' in result:
         return JsonResponse({'success': False, 'error': result['error']}, status=500)

@@ -9,6 +9,14 @@ from .config import get_afip_config
 logger = logging.getLogger(__name__)
 
 
+class AfipCompanyMismatchError(Exception):
+    """
+    Excepción lanzada cuando el usuario no pertenece a la misma empresa
+    que tiene configurado el módulo fiscal AFIP.
+    """
+    pass
+
+
 class AfipClient:
     """
     Wrapper para Afip SDK con manejo de configuración por empresa
@@ -94,17 +102,28 @@ class AfipClient:
         except Exception as e:
             logger.error(f"[AFIP] Error en FEDummy: {e}")
             return {'error': str(e)}
-    
-    def get_taxpayer_info(self, cuit):
+
+    def get_taxpayer_info(self, cuit, user=None):
         """
         Obtiene información de un contribuyente usando el Padrón de AFIP
 
         Args:
             cuit: CUIT del contribuyente
+            user: Usuario que está realizando la consulta (opcional, para validación de empresa)
 
         Returns:
             Dict con información del contribuyente
         """
+        # Validar que el usuario pertenece a la misma empresa que tiene configurado AFIP
+        if user and hasattr(user, 'company') and user.company:
+            config_company_id = self.config.get('company_id')
+            if config_company_id and user.company.id != config_company_id:
+                raise AfipCompanyMismatchError(
+                    f"El usuario {user.username} pertenece a la empresa {user.company.name} "
+                    f"pero la configuración AFIP pertenece a otra empresa. "
+                    "No tiene permiso para consultar el Padrón AFIP de esta configuración."
+                )
+
         # Usar get_taxpayer_data que es el método correcto para consultar el Padrón
         return self.get_taxpayer_data(cuit)
     
@@ -368,18 +387,29 @@ class AfipClient:
             logger.error(f"[AFIP] Error en get_taxpayer_data: {e}")
             return {'error': str(e)}
 
-    def create_pdf(self, pdf_data):
+    def create_pdf(self, pdf_data, user=None):
         """
         Genera un PDF de comprobante fiscal usando el método ElectronicBilling.createPDF() de AFIP SDK.
 
         Args:
             pdf_data: Dict con los datos para el template PDF de AFIP SDK.
                 Debe incluir: file_name, template { name, params }, y opcional send_to.
+            user: Usuario que está generando el PDF (opcional, para validación de empresa)
 
         Returns:
             Dict con id, file (URL), file_expiration, file_name, created_at
             o {'error': ...} si falla.
         """
+        # Validar que el usuario pertenece a la misma empresa que tiene configurado AFIP
+        if user and hasattr(user, 'company') and user.company:
+            config_company_id = self.config.get('company_id')
+            if config_company_id and user.company.id != config_company_id:
+                raise AfipCompanyMismatchError(
+                    f"El usuario {user.username} pertenece a la empresa {user.company.name} "
+                    f"pero la configuración AFIP pertenece a otra empresa. "
+                    "No tiene permiso para generar PDFs de esta configuración."
+                )
+
         try:
             template_name = pdf_data.get('template', {}).get('name', 'unknown')
             file_name = pdf_data.get('file_name', 'unknown')
@@ -466,26 +496,37 @@ class AfipClient:
         except Exception as e:
             return {'error': str(e)}
     
-    def create_dev_certificate(self, cuit, username, password, alias='afipsdk'):
+    def create_dev_certificate(self, cuit, username, password, alias='afipsdk', user=None):
         """
         Crea un certificado de desarrollo usando la automatización create-cert-dev
-        
+
         Args:
             cuit: CUIT del contribuyente
             username: Usuario de Clave Fiscal
             password: Contraseña de Clave Fiscal
             alias: Alias para el certificado (default: 'afipsdk')
-        
+            user: Usuario que está creando el certificado (opcional, para validación de empresa)
+
         Returns:
             Dict con cert y key generados o error
         """
+        # Validar que el usuario pertenece a la misma empresa que tiene configurado AFIP
+        if user and hasattr(user, 'company') and user.company:
+            config_company_id = self.config.get('company_id')
+            if config_company_id and user.company.id != config_company_id:
+                raise AfipCompanyMismatchError(
+                    f"El usuario {user.username} pertenece a la empresa {user.company.name} "
+                    f"pero la configuración AFIP pertenece a otra empresa. "
+                    "No tiene permiso para crear certificados de esta configuración."
+                )
+
         data = {
             'cuit': cuit,
             'username': username,
             'password': password,
             'alias': alias
         }
-        
+
         result = self.create_automation('create-cert-dev', data)
         
         if 'error' in result:
@@ -501,8 +542,8 @@ class AfipClient:
             }
         
         return {'error': 'La automatización no completó exitosamente'}
-    
-    def create_prod_certificate(self, cuit, username, password, alias='afipsdk'):
+
+    def create_prod_certificate(self, cuit, username, password, alias='afipsdk', user=None):
         """
         Crea un certificado de producción usando la automatización create-cert-prod
 
@@ -511,10 +552,21 @@ class AfipClient:
             username: Usuario de Clave Fiscal
             password: Contraseña de Clave Fiscal
             alias: Alias para el certificado (default: 'afipsdk')
+            user: Usuario que está creando el certificado (opcional, para validación de empresa)
 
         Returns:
             Dict con cert y key generados o error
         """
+        # Validar que el usuario pertenece a la misma empresa que tiene configurado AFIP
+        if user and hasattr(user, 'company') and user.company:
+            config_company_id = self.config.get('company_id')
+            if config_company_id and user.company.id != config_company_id:
+                raise AfipCompanyMismatchError(
+                    f"El usuario {user.username} pertenece a la empresa {user.company.name} "
+                    f"pero la configuración AFIP pertenece a otra empresa. "
+                    "No tiene permiso para crear certificados de esta configuración."
+                )
+
         data = {
             'cuit': cuit,
             'username': username,
@@ -538,7 +590,7 @@ class AfipClient:
 
         return {'error': 'La automatización no completó exitosamente'}
 
-    def auth_web_service(self, cuit, username, password, alias='afipsdk', service='wsfe'):
+    def auth_web_service(self, cuit, username, password, alias='afipsdk', service='wsfe', user=None):
         """
         Autoriza el uso de un Web Service de AFIP usando la automatización auth-web-service-dev o auth-web-service-prod
 
@@ -548,10 +600,21 @@ class AfipClient:
             password: Contraseña de Clave Fiscal
             alias: Alias del certificado (default: 'afipsdk')
             service: Web Service a autorizar (default: 'wsfe')
+            user: Usuario que está autorizando el servicio (opcional, para validación de empresa)
 
         Returns:
             Dict con resultado de la autorización o error
         """
+        # Validar que el usuario pertenece a la misma empresa que tiene configurado AFIP
+        if user and hasattr(user, 'company') and user.company:
+            config_company_id = self.config.get('company_id')
+            if config_company_id and user.company.id != config_company_id:
+                raise AfipCompanyMismatchError(
+                    f"El usuario {user.username} pertenece a la empresa {user.company.name} "
+                    f"pero la configuración AFIP pertenece a otra empresa. "
+                    "No tiene permiso para autorizar servicios de esta configuración."
+                )
+
         # Determinar la automatización según el ambiente
         if self.config['environment'] == 'prod':
             automation_name = 'auth-web-service-prod'

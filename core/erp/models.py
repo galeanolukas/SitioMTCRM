@@ -597,15 +597,27 @@ class Sale(models.Model):
         if self.status == 'confirmed' and not self.is_budget and not self.afip_cae:
             self.emitir_factura_afip()
 
-    def emitir_factura_afip(self):
+    def emitir_factura_afip(self, user=None):
         """
         Emite la factura electrónica AFIP para esta venta
+
+        Args:
+            user: Usuario que está emitiendo la factura (opcional, para validación de empresa)
         """
         try:
-            from core.erp.afip.client import AfipClient
+            from core.erp.afip.client import AfipClient, AfipCompanyMismatchError
             from core.erp.afip.config import get_afip_config
             from datetime import datetime
-            
+
+            # Validar que el usuario pertenece a la misma empresa que tiene configurado AFIP
+            if user and hasattr(user, 'company') and user.company:
+                if user.company.id != self.company_id:
+                    raise AfipCompanyMismatchError(
+                        f"El usuario {user.username} pertenece a la empresa {user.company.name} "
+                        f"pero la venta pertenece a la empresa {self.company.name}. "
+                        "No tiene permiso para emitir facturas AFIP de esta empresa."
+                    )
+
             # Obtener configuración AFIP
             afip_config = get_afip_config(self.company_id)
             if not afip_config or not afip_config.get('is_active'):
