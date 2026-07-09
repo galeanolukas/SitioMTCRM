@@ -33,6 +33,13 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
         active_cid = self.request.session.get('company_id')
         if not self.request.user.is_superuser:
             active_cid = active_cid or getattr(self.request.user, 'company_id', None)
+
+        # Obtener tipo de factura por defecto desde configuración AFIP
+        from core.erp.afip.config import get_afip_config
+        afip_config = get_afip_config(active_cid)
+        tipo_map = {1: 'A', 6: 'B', 11: 'C'}
+        default_invoice_type = tipo_map.get(afip_config.get('tipo_comprobante', 6), 'B') if afip_config else 'B'
+        context['default_invoice_type'] = default_invoice_type
         qs = Sale.objects.all().select_related('cli')
         if active_cid:
             qs = qs.filter(company_id=active_cid)
@@ -339,7 +346,8 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     sale.iva = float(payload.get('iva', 0))
                     sale.total = float(payload.get('total', 0))
                     sale.payment_method = payload.get('payment_method') or 'cash'
-                    
+                    sale.invoice_type = payload.get('invoice_type') or 'B'
+
                     if is_budget:
                         sale.status = 'budget'
                         sale.is_budget = True
@@ -437,7 +445,8 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     sale.iva = float(payload.get('iva', 0))
                     sale.total = float(payload.get('total', 0))
                     sale.payment_method = payload.get('payment_method') or 'cash'
-                    
+                    sale.invoice_type = payload.get('invoice_type') or 'B'
+
                     # Para tickets (sin factura), asegurar que IVA sea 0 y total sea igual a subtotal
                     if not payload.get('invoice_number'):
                         sale.iva = 0.0

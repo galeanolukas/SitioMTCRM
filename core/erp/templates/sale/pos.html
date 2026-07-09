@@ -256,6 +256,16 @@
           </script>
 
           <div class="mb-3">
+            <label for="invoiceType" class="form-label">Tipo de Factura</label>
+            <select id="invoiceType" class="form-select">
+              <option value="A" {% if default_invoice_type == 'A' %}selected{% endif %}>Factura A</option>
+              <option value="B" {% if default_invoice_type == 'B' %}selected{% endif %}>Factura B</option>
+              <option value="C" {% if default_invoice_type == 'C' %}selected{% endif %}>Factura C</option>
+            </select>
+            <small class="text-muted">Tomado de configuración AFIP de la empresa</small>
+          </div>
+
+          <div class="mb-3">
             <label for="payMethod" class="form-label">Forma de pago</label>
             <select id="payMethod" class="form-select">
               <option value="cash" selected>Efectivo</option>

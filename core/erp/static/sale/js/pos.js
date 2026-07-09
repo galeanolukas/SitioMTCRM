@@ -852,15 +852,17 @@
     const iva = 0; // Tickets no tienen IVA
     const total = subtotal; // Total es solo el subtotal sin IVA
     const payMethod = ($('#payMethod').val() || 'cash');
-    
+    const invoiceType = ($('#invoiceType').val() || 'B'); // Tipo de factura seleccionado
+
     // Generar token único para esta venta
     const saleToken = 'sale_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-    
+
     const payload = {
       cli: calc.client_id,
       items: calc.items_net,     // Detalle con precio neto
       subtotal, iva, total,
       payment_method: payMethod,
+      invoice_type: invoiceType, // Agregar tipo de factura
       sale_token: saleToken  // Agregar token
     };
     ajaxAction('create_sale', { action: 'create_sale', sale: JSON.stringify(payload), sale_token: saleToken })
@@ -893,15 +895,17 @@
     const iva = calc.iva_total;
     const total = subtotal + iva;
     const payMethod = ($('#payMethod').val() || 'cash');
-    
+    const invoiceType = ($('#invoiceType').val() || 'B'); // Tipo de factura seleccionado
+
     // Generar token único para esta factura
     const saleToken = 'invoice_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-    
+
     const payload = {
       cli: calc.client_id,
       items: calc.items_final,   // Detalle con IVA incluido
       subtotal, iva, total,
       payment_method: payMethod,
+      invoice_type: invoiceType, // Agregar tipo de factura
       sale_token: saleToken  // Agregar token
     };
     ajaxAction('invoice', { action: 'invoice', sale: JSON.stringify(payload), sale_token: saleToken })
