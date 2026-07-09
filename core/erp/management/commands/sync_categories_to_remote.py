@@ -85,10 +85,20 @@ class Command(BaseCommand):
             try:
                 # Determinar company_id para sincronización
                 company_id = getattr(cat, 'company_id', None) or active_company.id
-                
+
+                # Verificar que la empresa existe en el servidor remoto
+                remote_company = Company.objects.using('remote').filter(id=company_id).first()
+                if not remote_company:
+                    self.stderr.write(f"❌ Error sincronizando categoria {cat.name}: La empresa ID {company_id} no existe en el servidor remoto")
+                    errors += 1
+                    # Marcar como sincronizada para no volver a intentar
+                    cat.synced_to_server = True
+                    cat.save(using='default')
+                    continue
+
                 # Buscar categoría existente por nombre (sin importar empresa)
                 remote_cat = Category.objects.using('remote').filter(name=cat.name).first()
-                
+
                 created = False
                 if remote_cat:
                     # La categoría ya existe, reutilizarla
