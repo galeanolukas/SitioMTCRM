@@ -415,23 +415,93 @@
           </div>
         </div>
       </div>
-      
-      {% if errors and errors|length %}
-      <div class="mt-3">
-        <h6><i class="fas fa-exclamation-triangle"></i> Errores encontrados:</h6>
-        <div style="max-height: 200px; overflow-y: auto;">
-          <ul class="mb-0">
-            {% for e in errors %}<li>{{ e }}</li>{% endfor %}
-          </ul>
+
+      <!-- Tabla de productos creados -->
+      {% if created_items %}
+      <div class="mt-4">
+        <h6 class="text-success"><i class="fas fa-plus-circle"></i> Productos creados ({{ created_items|length }})</h6>
+        <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+          <table class="table table-sm table-striped">
+            <thead class="table-success">
+              <tr>
+                <th>Código</th>
+                <th>Nombre</th>
+                <th>Categoría</th>
+                <th>Precio</th>
+                <th>IVA</th>
+                <th>Stock</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in created_items %}
+              <tr>
+                <td><strong>{{ item.code }}</strong></td>
+                <td>{{ item.name }}</td>
+                <td>{{ item.cat }}</td>
+                <td>${{ item.pvp|floatformat:2 }}</td>
+                <td>{{ item.iva }}</td>
+                <td>{{ item.stock }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
         </div>
       </div>
       {% endif %}
-      
+
+      <!-- Tabla de productos actualizados -->
+      {% if updated_items %}
+      <div class="mt-4">
+        <h6 class="text-warning"><i class="fas fa-sync-alt"></i> Productos actualizados ({{ updated_items|length }})</h6>
+        <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+          <table class="table table-sm table-striped">
+            <thead class="table-warning">
+              <tr>
+                <th>Código</th>
+                <th>Nombre</th>
+                <th>Categoría</th>
+                <th>Precio</th>
+                <th>IVA</th>
+                <th>Stock</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in updated_items %}
+              <tr>
+                <td><strong>{{ item.code }}</strong></td>
+                <td>{{ item.name }}</td>
+                <td>{{ item.cat }}</td>
+                <td>${{ item.pvp|floatformat:2 }}</td>
+                <td>{{ item.iva }}</td>
+                <td>{{ item.stock }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Errores -->
+      {% if errors and errors|length %}
+      <div class="mt-4">
+        <h6 class="text-danger"><i class="fas fa-exclamation-triangle"></i> Errores encontrados ({{ errors|length }})</h6>
+        <details>
+          <summary class="btn btn-sm btn-outline-danger">Ver detalles de errores</summary>
+          <div class="mt-2 p-3 bg-light border rounded" style="max-height: 300px; overflow-y: auto;">
+            <ul class="mb-0">
+              {% for e in errors %}<li class="text-danger">{{ e }}</li>{% endfor %}
+            </ul>
+          </div>
+        </details>
+      </div>
+      {% endif %}
+
       <div class="mt-3">
         <small class="text-muted">
-          <i class="fas fa-info-circle"></i> 
-          Los productos se identifican por su <strong>código</strong>. 
-          Si el código ya existía, el producto fue <strong>actualizado</strong>. 
+          <i class="fas fa-info-circle"></i>
+          Los productos se identifican por su <strong>código</strong>.
+          Si el código ya existía, el producto fue <strong>actualizado</strong>.
           Si no existía, fue <strong>creado</strong> como nuevo.
         </small>
       </div>

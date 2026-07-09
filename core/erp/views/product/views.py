@@ -1432,6 +1432,10 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                 existing_suppliers = existing_suppliers.filter(company_id=active_cid)
             suppliers_by_name = {s.name: s for s in existing_suppliers}
 
+            # Listas para tracking de items creados y actualizados
+            created_items = []
+            updated_items = []
+
             # Pre-cargar categorías por nombre y empresa
             cat_names = set()
             if map_cat:
@@ -1674,6 +1678,14 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                         prod.save()
                         products_by_code[code] = prod
                         created += 1
+                        created_items.append({
+                            'code': code,
+                            'name': name,
+                            'pvp': pvp,
+                            'stock': stock,
+                            'cat': cat.name if cat else '-',
+                            'iva': f"{iva_rate*100:.1f}%" if iva_rate else '0%',
+                        })
                     else:
                         if name:
                             prod.name = name
@@ -1702,6 +1714,14 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                         prod.synced_to_server = False  # Marcar para sincronizar stock actualizado
                         prod.save()
                         updated += 1
+                        updated_items.append({
+                            'code': code,
+                            'name': name,
+                            'pvp': pvp,
+                            'stock': stock,
+                            'cat': cat.name if cat else '-',
+                            'iva': f"{iva_rate*100:.1f}%" if iva_rate else '0%',
+                        })
                 except Exception as e:
                     errors.append(f'Fila {idx+1}: {e}')
                     import_logger.error(f"Error procesando fila {idx+1}: {e}")
@@ -1709,6 +1729,15 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
             # Registrar resultados finales en log
             import_logger.info(f"Importación finalizada - Usuario: {request.user.username}")
             import_logger.info(f"Resultados - Creados: {created}, Actualizados: {updated}, Errores: {len(errors)}")
+
+            ctx = {
+                'result': True,
+                'created': created,
+                'updated': updated,
+                'errors': errors,
+                'created_items': created_items,
+                'updated_items': updated_items,
+            }
             
             # Mensaje informativo sobre asignación de empresas
             if hasattr(request.user, 'company') and request.user.company:
