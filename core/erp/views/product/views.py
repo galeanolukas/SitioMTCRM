@@ -1036,10 +1036,31 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
             # Armar DataFrame en formato de importación, dejando columnas para completar
             def parse_iva(val):
                 try:
-                    if not val:
+                    if not val or pd.isna(val):
                         return ''
-                    txt = str(val).replace('%', '').replace(',', '.').strip()
-                    return float(txt)
+                    iva_str = str(val).replace('%', '').replace(',', '.').strip()
+                    # Si es un número válido
+                    if iva_str.replace('.', '', 1).isdigit():
+                        iva_num = float(iva_str)
+                        # Si es mayor a 1, asumir que es porcentaje (21 -> 0.21)
+                        if iva_num > 1:
+                            return iva_num / 100
+                        else:
+                            return iva_num
+                    else:
+                        # Mapear valores de texto
+                        iva_text = iva_str.lower()
+                        iva_map = {
+                            'exento': 0, 'exenta': 0, 'no gravado': 0, 'no gravada': 0,
+                            '0': 0, '0%': 0,
+                            '21': 0.21, '21%': 0.21, '21.0': 0.21, '21.0%': 0.21,
+                            '10.5': 0.105, '10.5%': 0.105, '10.50': 0.105, '10.50%': 0.105,
+                            '27': 0.27, '27%': 0.27, '27.0': 0.27, '27.0%': 0.27,
+                            'iva 21': 0.21, 'iva 10.5': 0.105, 'iva 27': 0.27,
+                            'responsable inscripto': 0.21, 'ri': 0.21,
+                            'monotributista': 0.105, 'm': 0.105
+                        }
+                        return iva_map.get(iva_text, 0)
                 except Exception:
                     return ''
 
@@ -1493,18 +1514,37 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                     # Campos opcionales
                     iva_rate = 0  # Default: 0 (exento / no gravado)
                     if map_iva and not pd.isna(row.get(map_iva)):
-                        parsed = parse_number(row.get(map_iva))
-                        if parsed is not None:
-                            iva_rate = parsed
-                        else:
-                            # Mapear valores de texto comunes de IVA
-                            iva_text = str(row.get(map_iva)).strip().lower()
-                            iva_map = {'exento': 0, 'exenta': 0, 'no gravado': 0,
-                                       'no gravada': 0, '0': 0, '21': 0.21, '21%': 0.21,
-                                       '10.5': 0.105, '10.5%': 0.105, '27': 0.27, '27%': 0.27,
-                                       'iva 21': 0.21, 'iva 10.5': 0.105, 'iva 27': 0.27,
-                                       'responsable inscripto': 0.21}
-                            iva_rate = iva_map.get(iva_text, 0)  # Default 0 si no se reconoce
+                        iva_val = row.get(map_iva)
+                        if iva_val is not None and iva_val != '':
+                            # Intentar parsear como número primero
+                            try:
+                                # Remover signos % y convertir a string
+                                iva_str = str(iva_val).replace('%', '').replace(',', '.').strip()
+                                # Si es un número válido
+                                if iva_str.replace('.', '', 1).isdigit():
+                                    iva_num = float(iva_str)
+                                    # Si es mayor a 1, asumir que es porcentaje (21 -> 0.21)
+                                    if iva_num > 1:
+                                        iva_rate = iva_num / 100
+                                    else:
+                                        iva_rate = iva_num
+                                else:
+                                    # No es número, intentar mapear texto
+                                    iva_text = iva_str.lower()
+                                    iva_map = {
+                                        'exento': 0, 'exenta': 0, 'no gravado': 0, 'no gravada': 0,
+                                        '0': 0, '0%': 0,
+                                        '21': 0.21, '21%': 0.21, '21.0': 0.21, '21.0%': 0.21,
+                                        '10.5': 0.105, '10.5%': 0.105, '10.50': 0.105, '10.50%': 0.105,
+                                        '27': 0.27, '27%': 0.27, '27.0': 0.27, '27.0%': 0.27,
+                                        'iva 21': 0.21, 'iva 10.5': 0.105, 'iva 27': 0.27,
+                                        'responsable inscripto': 0.21, 'ri': 0.21,
+                                        'monotributista': 0.105, 'm': 0.105
+                                    }
+                                    iva_rate = iva_map.get(iva_text, 0)  # Default 0 si no se reconoce
+                            except Exception:
+                                # Si falla todo, default 0
+                                iva_rate = 0
 
                     pvp_final = None
                     if map_pvp_final and not pd.isna(row.get(map_pvp_final)):
