@@ -634,7 +634,7 @@ class Sale(models.Model):
                 logger.warning(f"[AFIP DEBUG] No hay configuración AFIP activa para empresa {self.company.name}")
                 return False
 
-            logger.info(f"[AFIP DEBUG] Configuración AFIP encontrada - CUIT: {afip_config.get('cuit')}, Ambiente: {afip_config.get('environment')}, Activa: {afip_config.get('is_active')}")
+            logger.info(f"[AFIP DEBUG] Configuración AFIP encontrada - CUIT: {afip_config.get('CUIT')}, Ambiente: {afip_config.get('environment')}, Activa: {afip_config.get('is_active')}")
 
             # Inicializar cliente AFIP
             logger.debug(f"[AFIP DEBUG] Inicializando cliente AFIP para empresa ID: {self.company_id}")
