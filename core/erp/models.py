@@ -2198,7 +2198,7 @@ class RemitoEntrada(models.Model):
 class DetalleRemitoEntrada(models.Model):
     """Detalle de remito de entrada"""
     remito = models.ForeignKey(RemitoEntrada, on_delete=models.CASCADE, verbose_name='Remito')
-    prod = models.ForeignKey(Product, on_delete=models.PROTECT, verbose_name='Producto')
+    prod = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Producto')
     cantidad = models.DecimalField(max_digits=9, decimal_places=3, verbose_name='Cantidad')
     precio_unitario = models.DecimalField(max_digits=9, decimal_places=2, verbose_name='Precio Unitario')
     subtotal = models.DecimalField(max_digits=9, decimal_places=2, verbose_name='Subtotal')
@@ -2206,10 +2206,10 @@ class DetalleRemitoEntrada(models.Model):
     def save(self, *args, **kwargs):
         self.subtotal = self.cantidad * self.precio_unitario
         super().save(*args, **kwargs)
-    
+
     def toJSON(self):
         item = model_to_dict(self, exclude=['remito'])
-        item['prod'] = self.prod.toJSON()
+        item['prod'] = self.prod.toJSON() if self.prod else {'id': None, 'name': 'Producto eliminado'}
         item['cantidad'] = format(self.cantidad, '.3f') if self.cantidad is not None else '0.000'
         item['precio_unitario'] = format(self.precio_unitario, '.2f') if self.precio_unitario is not None else '0.00'
         item['subtotal'] = format(self.subtotal, '.2f') if self.subtotal is not None else '0.00'
@@ -2270,7 +2270,7 @@ class Remito(models.Model):
 class DetalleRemito(models.Model):
     """Detalle de remito (entrada o salida)"""
     remito = models.ForeignKey(Remito, on_delete=models.CASCADE, verbose_name='Remito')
-    prod = models.ForeignKey(Product, on_delete=models.PROTECT, verbose_name='Producto')
+    prod = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Producto')
     cantidad = models.DecimalField(max_digits=9, decimal_places=3, verbose_name='Cantidad')
     precio_unitario = models.DecimalField(max_digits=9, decimal_places=2, verbose_name='Precio Unitario')
     subtotal = models.DecimalField(max_digits=9, decimal_places=2, verbose_name='Subtotal')
@@ -2278,10 +2278,10 @@ class DetalleRemito(models.Model):
     def save(self, *args, **kwargs):
         self.subtotal = self.cantidad * self.precio_unitario
         super().save(*args, **kwargs)
-    
+
     def toJSON(self):
         item = model_to_dict(self, exclude=['remito'])
-        item['prod'] = self.prod.toJSON()
+        item['prod'] = self.prod.toJSON() if self.prod else {'id': None, 'name': 'Producto eliminado'}
         item['cantidad'] = format(self.cantidad, '.3f') if self.cantidad is not None else '0.000'
         item['precio_unitario'] = format(self.precio_unitario, '.2f') if self.precio_unitario is not None else '0.00'
         item['subtotal'] = format(self.subtotal, '.2f') if self.subtotal is not None else '0.00'
