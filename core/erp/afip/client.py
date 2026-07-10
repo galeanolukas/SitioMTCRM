@@ -65,6 +65,11 @@ class AfipClient:
 
             params['cert'] = cert
             params['key'] = key
+        elif self.config['environment'] == 'prod':
+            # En producción sin certificados, loggear advertencia pero no fallar
+            logger.warning(f"[AFIP] Configuración en producción sin certificados para CUIT {self.config['CUIT']}. Se usará modo contingencia si está habilitado.")
+            if not self.config.get('usar_contingencia', False):
+                logger.error(f"[AFIP] Configuración en producción sin certificados y modo contingencia deshabilitado. Las operaciones AFIP fallarán.")
 
         # Configurar ambiente
         if self.config['environment'] == 'prod':

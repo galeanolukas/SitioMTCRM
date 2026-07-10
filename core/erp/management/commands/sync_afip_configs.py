@@ -56,10 +56,15 @@ class Command(BaseCommand):
                      usar_contingencia, wsfe_authorized, wsfe_authorized_at,
                      wsfe_automation_id, clave_fiscal_username, clave_fiscal_password,
                      environment, is_active) in configs_servidor:
-                    
+
                     try:
                         # Verificar si la empresa existe localmente
                         company = Company.objects.get(id=company_id)
+
+                        # Si está en producción sin certificados, cambiar a desarrollo
+                        if environment == 'prod' and (not cert or not key):
+                            self.stdout.write(self.style.WARNING(f"  ! Config AFIP {config_id} en producción sin certificados. Cambiando a modo desarrollo."))
+                            environment = 'dev'
                         
                         # Verificar si la configuración AFIP existe localmente
                         try:
