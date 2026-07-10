@@ -1449,20 +1449,23 @@ def invoice_pdf(request, pk):
         # Intentar usar WeasyPrint primero
         template = get_template('sale/invoice_b.html')
         company_obj = sale.company or Company.objects.first()
+
+        # Obtener punto de venta AFIP si está configurado
+        punto_venta_afip = None
+        if sale.company:
+            from core.erp.models import AfipPuntoVenta
+            punto_venta = AfipPuntoVenta.objects.filter(
+                company=sale.company,
+                is_active=True
+            ).first()
+            if punto_venta:
+                punto_venta_afip = f"{punto_venta.numero:04d}"
+
         html_string = template.render({
             'sale': sale,
             'items': sale.detsale_set.all(),
-            'company': {
-                'name': company_obj.name if company_obj else 'Empresa no configurada',
-                'address': company_obj.address if company_obj else '',
-                'cuit': company_obj.cuit if company_obj else '',
-                'iibb': company_obj.iibb if company_obj else '',
-                'start': company_obj.start.strftime('%d/%m/%Y') if company_obj and company_obj.start else '',
-                'pos': company_obj.pos if company_obj else sale.invoice_pos,
-                'email': company_obj.email if company_obj else '',
-                'phone': company_obj.phone if company_obj else '',
-                'logo': company_obj.get_logo_url() if company_obj else '',
-            }
+            'company': company_obj,
+            'punto_venta_afip': punto_venta_afip,
         })
 
         response = HttpResponse(content_type='application/pdf')
@@ -1479,7 +1482,7 @@ def invoice_pdf(request, pk):
         )
 
         return response
-    
+
     except Exception as e:
         # Si WeasyPrint falla, usar ReportLab como fallback
         try:

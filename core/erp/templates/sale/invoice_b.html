@@ -5,6 +5,144 @@
     <meta charset="UTF-8">
     <title>{% if sale.is_credit_note %}Nota de Crédito{% else %}Factura{% endif %} {{ sale.invoice_type }} - {{ sale.invoice_number|default:sale.id }}</title>
     <link rel="stylesheet" href="{% static 'sale/invoice.css' %}">
+    <style>
+        .invoice-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #000;
+            padding-bottom: 15px;
+        }
+        .company-info {
+            flex: 1;
+        }
+        .company-logo {
+            max-height: 60px;
+            margin-bottom: 10px;
+        }
+        .company-name {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .company-details {
+            font-size: 12px;
+            line-height: 1.6;
+        }
+        .invoice-info {
+            text-align: right;
+            min-width: 200px;
+        }
+        .invoice-type-badge {
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .invoice-number {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .invoice-date {
+            font-size: 12px;
+            margin-bottom: 3px;
+        }
+        .client-section {
+            margin-bottom: 20px;
+            border: 1px solid #000;
+            padding: 15px;
+        }
+        .section-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        .client-data {
+            display: flex;
+            gap: 30px;
+        }
+        .client-column {
+            flex: 1;
+        }
+        .client-field {
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+        .client-label {
+            font-weight: bold;
+        }
+        .products-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        .products-table th {
+            background-color: #f0f0f0;
+            border: 1px solid #000;
+            padding: 8px;
+            font-size: 11px;
+            text-align: left;
+        }
+        .products-table td {
+            border: 1px solid #000;
+            padding: 8px;
+            font-size: 11px;
+        }
+        .product-code {
+            text-align: center;
+        }
+        .product-price {
+            text-align: right;
+        }
+        .product-subtotal {
+            text-align: right;
+            font-weight: bold;
+        }
+        .totals-section {
+            float: right;
+            width: 300px;
+        }
+        .totals-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .totals-table td {
+            padding: 5px;
+            font-size: 12px;
+        }
+        .totals-label {
+            text-align: left;
+        }
+        .totals-value {
+            text-align: right;
+            font-weight: bold;
+        }
+        .total-row {
+            background-color: #f0f0f0;
+            font-size: 14px;
+        }
+        .invoice-footer {
+            clear: both;
+            margin-top: 30px;
+            padding-top: 15px;
+            border-top: 1px solid #000;
+            font-size: 11px;
+            text-align: center;
+        }
+        .observations {
+            margin-bottom: 5px;
+        }
+        .mt-15 {
+            margin-top: 15px;
+        }
+        .afip-footer {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #000;
+            text-align: center;
+            font-size: 11px;
+        }
+    </style>
 </head>
 <body>
     <!-- Encabezado -->
@@ -15,27 +153,23 @@
             {% endif %}
             <div class="company-name">{{ company.name }}</div>
             <div class="company-details">
-                <div>{{ company.address }}</div>
+                <div>Razón Social: {{ company.name }}</div>
+                <div>Domicilio Comercial: {{ company.address }}</div>
                 <div>CUIT: {{ company.cuit }}</div>
                 {% if company.iibb %}<div>Ingresos Brutos: {{ company.iibb }}</div>{% endif %}
-                {% if company.start %}<div>Inicio de Actividades: {{ company.start }}</div>{% endif %}
-                {% if company.phone %}<div>Teléfono: {{ company.phone }}</div>{% endif %}
-                {% if company.email %}<div>Email: {{ company.email }}</div>{% endif %}
+                {% if company.start %}<div>Inicio de Act.: {{ company.start|date:"d/m/Y" }}</div>{% endif %}
             </div>
         </div>
 
         <div class="invoice-info">
             <div class="invoice-type-badge">{% if sale.is_credit_note %}NOTA DE CRÉDITO{% else %}FACTURA{% endif %} {{ sale.invoice_type|default:"B" }}</div>
-            <div class="invoice-number">N° {{ company.pos|default:"0001" }}-{{ sale.invoice_number|default:sale.id|stringformat:"08d" }}</div>
-            <div class="invoice-date">Fecha: {{ sale.date_joined|date:"d/m/Y" }}</div>
-            <div class="invoice-date">Hora: {{ sale.date_joined|date:"H:i" }}</div>
-            {% if company.pos %}
-            <div class="invoice-date">Punto de Venta: {{ company.pos }}</div>
-            {% endif %}
-            {% if sale.afip_cae %}
-            <div class="invoice-date">CAE: {{ sale.afip_cae }}</div>
-            <div class="invoice-date">Vto. CAE: {{ sale.afip_cae_vto|date:"d/m/Y" }}</div>
-            {% endif %}
+            <div class="invoice-date">Punto de Venta: {{ punto_venta_afip|default:company.pos|default:"0001" }}</div>
+            <div class="invoice-number">Comp. Nro: {{ sale.invoice_number|default:sale.id|stringformat:"08d" }}</div>
+            <div class="invoice-date">Fecha de Emisión: {{ sale.date_joined|date:"d/m/Y" }}</div>
+            <div class="invoice-date">Condición IVA: Responsable Inscripto</div>
+            <div class="invoice-date">Período Facturado Desde: {{ sale.date_joined|date:"d/m/Y" }}</div>
+            <div class="invoice-date">Hasta: {{ sale.date_joined|date:"d/m/Y" }}</div>
+            <div class="invoice-date">Fecha de Vto. para el pago: {{ sale.date_joined|date:"d/m/Y" }}</div>
         </div>
     </header>
 
@@ -45,48 +179,27 @@
         <div class="client-data">
             <div class="client-column">
                 <div class="client-field">
-                    <span class="client-label">Razón Social:</span>
-                    {{ sale.cli.names|default:"Consumidor Final" }}
+                    <span class="client-label">Nro. Documento:</span>
+                    {{ sale.cli.dni|default:"0" }}
                 </div>
-                {% if sale.cli.cuit_cuil %}
                 <div class="client-field">
-                    <span class="client-label">CUIT/CUIL:</span>
-                    {{ sale.cli.cuit_cuil }}
+                    <span class="client-label">Apellido y Nombre / Razón Social:</span>
+                    {{ sale.cli.names|default:"CONSUMIDOR FINAL" }}
                 </div>
-                {% elif sale.cli.dni %}
-                <div class="client-field">
-                    <span class="client-label">DNI:</span>
-                    {{ sale.cli.dni }}
-                </div>
-                {% endif %}
-                {% if sale.cli.address %}
-                <div class="client-field">
-                    <span class="client-label">Domicilio:</span>
-                    {{ sale.cli.address }}
-                </div>
-                {% endif %}
-            </div>
-            <div class="client-column">
                 <div class="client-field">
                     <span class="client-label">Condición IVA:</span>
                     {% if sale.cli.condicion_iva %}{{ sale.cli.condicion_iva }}{% else %}Consumidor Final{% endif %}
                 </div>
                 <div class="client-field">
+                    <span class="client-label">Domicilio:</span>
+                    {{ sale.cli.address|default:"-" }}
+                </div>
+            </div>
+            <div class="client-column">
+                <div class="client-field">
                     <span class="client-label">Condición de Venta:</span>
                     {{ sale.get_payment_method_display|default:"Contado" }}
                 </div>
-                {% if sale.cli.telefono %}
-                <div class="client-field">
-                    <span class="client-label">Teléfono:</span>
-                    {{ sale.cli.telefono }}
-                </div>
-                {% endif %}
-                {% if sale.cli.email %}
-                <div class="client-field">
-                    <span class="client-label">Email:</span>
-                    {{ sale.cli.email }}
-                </div>
-                {% endif %}
             </div>
         </div>
     </section>
@@ -96,14 +209,11 @@
         <table class="products-table">
             <thead>
                 <tr>
-                    <th style="width: 8%">Código</th>
-                    <th style="width: 35%">Descripción</th>
-                    <th style="width: 8%">Categoría</th>
-                    <th style="width: 8%">Cant.</th>
-                    <th style="width: 12%">P. Unit.</th>
-                    <th style="width: 12%">Subtotal</th>
-                    <th style="width: 8%">IVA</th>
-                    <th style="width: 9%">Total</th>
+                    <th style="width: 10%">CÓDIGO</th>
+                    <th style="width: 45%">PRODUCTO / SERVICIO</th>
+                    <th style="width: 10%">CANTIDAD</th>
+                    <th style="width: 15%">PRECIO UNIT.</th>
+                    <th style="width: 20%">SUBTOTAL</th>
                 </tr>
             </thead>
             <tbody>
@@ -111,18 +221,9 @@
                 <tr>
                     <td class="product-code">{{ det.prod.code|default:"—" }}</td>
                     <td class="product-description">{{ det.prod.name }}</td>
-                    <td class="text-center">{{ det.prod.cat.name|default:"—" }}</td>
-                    <td class="product-quantity">{{ det.cant|floatformat:2 }}</td>
-                    <td class="product-price">$ {{ det.prod.pvp|floatformat:2 }}</td>
-                    <td class="product-price">$ {{ det.subtotal|floatformat:2 }}</td>
-                    <td class="text-center">
-                        {% if det.prod.iva_rate %}
-                            {{ det.prod.iva_rate|floatformat:0 }}%
-                        {% else %}
-                            0%
-                        {% endif %}
-                    </td>
-                    <td class="product-subtotal">$ {{ det.subtotal|floatformat:2 }}</td>
+                    <td class="product-quantity">{{ det.cant|floatformat:0 }}</td>
+                    <td class="product-price">$ {{ det.prod.pvp|floatformat:0 }}</td>
+                    <td class="product-subtotal">$ {{ det.subtotal|floatformat:0 }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -132,19 +233,21 @@
         <div class="totals-section">
             <table class="totals-table">
                 <tr>
-                    <td class="totals-label">Subtotal:</td>
-                    <td class="totals-value">$ {{ sale.subtotal|floatformat:2 }}</td>
+                    <td class="totals-label">Importe Otros Tributos:</td>
+                    <td class="totals-value">$0</td>
                 </tr>
                 <tr>
-                    <td class="totals-label">IVA:</td>
-                    <td class="totals-value">$ {{ sale.iva|floatformat:2 }}</td>
+                    <td class="totals-label">Régimen de Transparencia Fiscal al Consumidor (Ley 27.743) IVA contenido:</td>
+                    <td class="totals-value">$ {{ sale.iva|floatformat:0 }}</td>
                 </tr>
                 <tr class="total-row">
-                    <td class="totals-label">TOTAL:</td>
-                    <td class="totals-value">$ {{ sale.total|floatformat:2 }}</td>
+                    <td class="totals-label">Importe Total:</td>
+                    <td class="totals-value">$ {{ sale.total|floatformat:0 }}</td>
                 </tr>
             </table>
         </div>
+
+        <div style="clear: both;"></div>
 
         {% if sale.budget_notes %}
         <div class="observations">
@@ -153,13 +256,14 @@
         {% endif %}
     </main>
 
-    <!-- Pie de página -->
-    <footer class="invoice-footer">
-        <div class="observations">
-            <strong>Comprobante no válido como crédito fiscal (Factura {{ sale.invoice_type|default:"B" }}).</strong>
-        </div>
-        <div>Gracias por su compra.</div>
-        <div class="mt-15">Generado el {{ sale.date_joined|date:"d/m/Y" }} a las {{ sale.date_joined|date:"H:i" }}</div>
+    <!-- Pie de página AFIP -->
+    <footer class="afip-footer">
+        {% if sale.afip_cae %}
+        <div>CAE N°: {{ sale.afip_cae }}</div>
+        <div>Fecha de Vto. de CAE: {{ sale.afip_cae_vto|date:"d/m/Y" }}</div>
+        {% endif %}
+        <div>Emitido mediante Afip SDK</div>
+        <div>Alineado con la normativa fiscal vigente</div>
     </footer>
 </body>
 </html>
