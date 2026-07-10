@@ -804,10 +804,23 @@ def ticket_print(request, pk):
     dets = sale.detsale_set.select_related('prod').all()
     # Usar la empresa asociada a la venta; si no hay, caer a la primera definida
     company = sale.company or Company.objects.first()
+
+    # Obtener punto de venta AFIP si está configurado
+    punto_venta_afip = None
+    if sale.company:
+        from core.erp.models import AfipPuntoVenta
+        punto_venta = AfipPuntoVenta.objects.filter(
+            company=sale.company,
+            is_active=True
+        ).first()
+        if punto_venta:
+            punto_venta_afip = f"{punto_venta.numero:04d}"
+
     ctx = {
         'sale': sale,
         'dets': dets,
         'company': company,
+        'punto_venta_afip': punto_venta_afip,
     }
     return render(request, 'sale/ticket_print.html', ctx)
 

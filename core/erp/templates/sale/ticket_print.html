@@ -92,8 +92,7 @@
       {% else %}
       Cód. 083 - TIQUE<br>
       {% endif %}
-      {% load afip_tags %}
-      P.V. {% get_afip_punto_venta sale %} - Nro. T. {{ sale.afip_voucher_number|default:sale.invoice_number|default:sale.id }}<br>
+      P.V. {{ punto_venta_afip|default:sale.invoice_pos|default:"0001" }} - Nro. T. {{ sale.afip_voucher_number|default:sale.invoice_number|default:sale.id }}<br>
       Fecha {{ sale.date_joined|date:"d/m/Y" }}   Hora {{ sale.date_joined|date:"H:i:s" }}
     </div>
 
