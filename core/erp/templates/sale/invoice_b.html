@@ -258,12 +258,21 @@
 
     <!-- Pie de página AFIP -->
     <footer class="afip-footer">
-        {% if sale.afip_cae %}
-        <div>CAE N°: {{ sale.afip_cae }}</div>
-        <div>Fecha de Vto. de CAE: {{ sale.afip_cae_vto|date:"d/m/Y" }}</div>
-        {% endif %}
-        <div>Emitido mediante Afip SDK</div>
-        <div>Alineado con la normativa fiscal vigente</div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="text-align: left;">
+                {% if sale.afip_cae %}
+                <div>CAE N°: {{ sale.afip_cae }}</div>
+                <div>Fecha de Vto. de CAE: {{ sale.afip_cae_vto|date:"d/m/Y" }}</div>
+                {% endif %}
+                <div>Emitido mediante Afip SDK</div>
+                <div>Alineado con la normativa fiscal vigente</div>
+            </div>
+            {% if sale.afip_qr %}
+            <div style="text-align: right;">
+                <img src="data:image/png;base64,{{ sale.afip_qr }}" alt="QR AFIP" style="max-width: 100px; max-height: 100px;">
+            </div>
+            {% endif %}
+        </div>
     </footer>
 </body>
 </html>
