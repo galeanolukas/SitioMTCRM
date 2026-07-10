@@ -11,6 +11,10 @@ from core.erp.models import AfipConfig, Company, Sale, DetSale, AfipPuntoVenta
 from .client import AfipClient
 from django.views.decorators.http import require_POST
 from django.contrib.auth.decorators import login_required, permission_required
+from django.utils import timezone
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def crear_punto_venta_por_defecto(company):
@@ -53,6 +57,52 @@ class AfipConfigCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
         if self.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             self.object = form.save()
             crear_punto_venta_por_defecto(self.object.company)
+
+            # Intentar generar certificados y autorizar WSFE automáticamente en producción
+            if self.object.environment == 'prod' and self.object.clave_fiscal_username and self.object.clave_fiscal_password:
+                try:
+                    from .client import AfipClient
+                    client = AfipClient(company_id=self.object.company_id)
+
+                    # Generar certificado de producción
+                    cert_result = client.create_prod_certificate(
+                        cuit=self.object.cuit,
+                        username=self.object.clave_fiscal_username,
+                        password=self.object.clave_fiscal_password,
+                        user=self.request.user
+                    )
+
+                    if 'error' in cert_result:
+                        logger.error(f"[AFIP] Error generando certificado para config {self.object.id}: {cert_result['error']}")
+                    else:
+                        # Actualizar cert y key en la configuración
+                        self.object.cert = cert_result.get('cert', '')
+                        self.object.key = cert_result.get('key', '')
+                        self.object.save(update_fields=['cert', 'key'])
+                        logger.info(f"[AFIP] Certificado generado exitosamente para config {self.object.id}")
+
+                        # Autorizar WSFE
+                        auth_result = client.auth_web_service(
+                            cuit=self.object.cuit,
+                            username=self.object.clave_fiscal_username,
+                            password=self.object.clave_fiscal_password,
+                            service='wsfe',
+                            user=self.request.user
+                        )
+
+                        if 'error' in auth_result:
+                            logger.error(f"[AFIP] Error autorizando WSFE para config {self.object.id}: {auth_result['error']}")
+                        else:
+                            # Actualizar estado de autorización
+                            self.object.wsfe_authorized = True
+                            self.object.wsfe_authorized_at = timezone.now()
+                            self.object.wsfe_automation_id = auth_result.get('automation_id', '')
+                            self.object.save(update_fields=['wsfe_authorized', 'wsfe_authorized_at', 'wsfe_automation_id'])
+                            logger.info(f"[AFIP] WSFE autorizado exitosamente para config {self.object.id}")
+
+                except Exception as e:
+                    logger.error(f"[AFIP] Error en configuración automática AFIP para config {self.object.id}: {e}")
+
             data = {'success': True, 'message': 'Configuración AFIP creada exitosamente'}
             return JsonResponse(data)
         self.object = form.save()
