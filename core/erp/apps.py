@@ -49,7 +49,8 @@ class ErpConfig(AppConfig):
             ActivityLog, AutoSyncConfig, CashMovement, CashRegister,
             DetEmployeeAccount, DetSale, EmployeeAccountSale, Expense,
             GlobalSyncStatus, InternalTransfer, InternalTransferDetail,
-            MercadoPagoConfig, PosTerminal, ProfitReport, QuickOrder, SyncLog
+            MercadoPagoConfig, PosTerminal, ProfitReport, QuickOrder, SyncLog,
+            AfipConfig, AfipPuntoVenta
         )
         
         # Crear clases admin inline
@@ -140,7 +141,17 @@ class ErpConfig(AppConfig):
             list_display = ('node_name', 'created_at', 'success', 'message')
             readonly_fields = ('node_name', 'created_at', 'success', 'message')
             # Este modelo no tiene company, solo superusuarios lo ven
-        
+
+        class AfipConfigAdmin(CompanyFilteredAdmin):
+            list_display = ('id', 'company', 'cuit', 'environment', 'tipo_comprobante', 'wsfe_authorized', 'is_active', 'created_at')
+            list_filter = ('company', 'environment', 'is_active', 'wsfe_authorized')
+            search_fields = ('cuit', 'company__name')
+
+        class AfipPuntoVentaAdmin(CompanyFilteredAdmin):
+            list_display = ('company', 'numero', 'descripcion', 'is_active', 'created_at')
+            list_filter = ('company', 'is_active')
+            search_fields = ('numero', 'descripcion', 'company__name')
+
         # Registrar todos los modelos
         model_admin_pairs = [
             (Company, CompanyAdmin),
@@ -163,6 +174,8 @@ class ErpConfig(AppConfig):
             (PosTerminal, PosTerminalAdmin),
             (ProfitReport, ProfitReportAdmin),
             (QuickOrder, QuickOrderAdmin),
+            (AfipConfig, AfipConfigAdmin),
+            (AfipPuntoVenta, AfipPuntoVentaAdmin),
         ]
         
         # Modelos sin filtro de empresa (solo para superusuarios)
