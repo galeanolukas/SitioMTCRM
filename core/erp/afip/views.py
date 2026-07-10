@@ -40,7 +40,7 @@ class AfipConfigCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
     template_name = 'afip/form.html'
     permission_required = 'erp.add_afipconfig'
     fields = ['company', 'cuit', 'access_token', 'clave_fiscal_username', 'clave_fiscal_password', 'cert', 'key', 'environment', 'tipo_comprobante', 'concepto', 'moneda', 'cotizacion', 'usar_contingencia', 'is_active']
-    success_url = reverse_lazy('erp:afip:list')
+    success_url = reverse_lazy('erp:afip:dashboard')
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -73,7 +73,7 @@ class AfipConfigUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
     template_name = 'afip/form.html'
     permission_required = 'erp.change_afipconfig'
     fields = ['company', 'cuit', 'access_token', 'clave_fiscal_username', 'clave_fiscal_password', 'cert', 'key', 'environment', 'tipo_comprobante', 'concepto', 'moneda', 'cotizacion', 'usar_contingencia', 'is_active']
-    success_url = reverse_lazy('erp:afip:list')
+    success_url = reverse_lazy('erp:afip:dashboard')
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -102,7 +102,7 @@ class AfipConfigDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
     model = AfipConfig
     template_name = 'afip/delete.html'
     permission_required = 'erp.delete_afipconfig'
-    success_url = reverse_lazy('erp:afip:list')
+    success_url = reverse_lazy('erp:afip:dashboard')
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

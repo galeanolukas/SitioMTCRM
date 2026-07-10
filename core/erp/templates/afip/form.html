@@ -170,29 +170,35 @@
                 <h5 class="mb-0"><i class="fas fa-certificate"></i> Certificados AFIP (Solo Producción)</h5>
               </div>
               <div class="card-body">
-                <div class="alert alert-warning">
-                  <i class="fas fa-exclamation-triangle"></i>
-                  Los certificados son obligatorios en ambiente de producción. Puede generarlos automáticamente desde el dashboard usando Clave Fiscal.
+                <div class="alert alert-info" id="dev-mode-alert" style="display: none;">
+                  <i class="fas fa-info-circle"></i>
+                  <strong>Modo Desarrollo:</strong> No se requieren certificados. AFIP SDK usa certificados de testing automáticos.
                 </div>
-                <div class="row">
-                  <div class="col-md-12">
-                    <div class="form-group">
-                      <label for="{{ form.cert.id_for_label }}">{{ form.cert.label }}:</label>
-                      {{ form.cert }}
-                      {% if form.cert.errors %}
-                      <div class="text-danger">{{ form.cert.errors }}</div>
-                      {% endif %}
-                      <small class="form-text text-muted">Contenido del certificado .crt (puede pegar el contenido o generarlo desde el dashboard)</small>
+                <div class="alert alert-warning" id="prod-mode-alert">
+                  <i class="fas fa-exclamation-triangle"></i>
+                  <strong>Modo Producción:</strong> Los certificados son obligatorios. Debe generarlos con Clave Fiscal AFIP.
+                </div>
+                <div id="cert-fields">
+                  <div class="row">
+                    <div class="col-md-12">
+                      <div class="form-group">
+                        <label for="{{ form.cert.id_for_label }}">{{ form.cert.label }}:</label>
+                        {{ form.cert }}
+                        {% if form.cert.errors %}
+                        <div class="text-danger">{{ form.cert.errors }}</div>
+                        {% endif %}
+                        <small class="form-text text-muted">Contenido del certificado .crt (generado con Clave Fiscal AFIP)</small>
+                      </div>
                     </div>
-                  </div>
-                  <div class="col-md-12">
-                    <div class="form-group">
-                      <label for="{{ form.key.id_for_label }}">{{ form.key.label }}:</label>
-                      {{ form.key }}
-                      {% if form.key.errors %}
-                      <div class="text-danger">{{ form.key.errors }}</div>
-                      {% endif %}
-                      <small class="form-text text-muted">Contenido de la clave privada .key (puede pegar el contenido o generarlo desde el dashboard)</small>
+                    <div class="col-md-12">
+                      <div class="form-group">
+                        <label for="{{ form.key.id_for_label }}">{{ form.key.label }}:</label>
+                        {{ form.key }}
+                        {% if form.key.errors %}
+                        <div class="text-danger">{{ form.key.errors }}</div>
+                        {% endif %}
+                        <small class="form-text text-muted">Contenido de la clave privada .key (generado con Clave Fiscal AFIP)</small>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -269,14 +275,26 @@
     
     // Mostrar/ocultar sección de certificados según ambiente
     if (environmentSelect && certSection) {
+      const devModeAlert = document.getElementById('dev-mode-alert');
+      const prodModeAlert = document.getElementById('prod-mode-alert');
+      const certFields = document.getElementById('cert-fields');
+
       function toggleCertSection() {
         if (environmentSelect.value === 'prod') {
+          // Modo Producción: mostrar campos de certificados
           certSection.style.display = 'block';
+          devModeAlert.style.display = 'none';
+          prodModeAlert.style.display = 'block';
+          certFields.style.display = 'block';
         } else {
-          certSection.style.display = 'none';
+          // Modo Desarrollo: ocultar campos de certificados, mostrar info
+          certSection.style.display = 'block';
+          devModeAlert.style.display = 'block';
+          prodModeAlert.style.display = 'none';
+          certFields.style.display = 'none';
         }
       }
-      
+
       environmentSelect.addEventListener('change', toggleCertSection);
       toggleCertSection(); // Ejecutar al cargar
     }
