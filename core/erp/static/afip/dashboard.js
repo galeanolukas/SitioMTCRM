@@ -146,13 +146,19 @@ document.addEventListener('DOMContentLoaded', function() {
             const configId = this.getAttribute('data-config-id');
             const environment = this.getAttribute('data-environment');
 
-            document.getElementById('cert_config_id').value = configId;
-            document.getElementById('cert_type').value = environment === 'prod' ? 'prod' : 'dev';
+            const certConfigId = document.getElementById('cert_config_id');
+            const certType = document.getElementById('cert_type');
+            const certUsername = document.getElementById('cert_username');
+            const certPassword = document.getElementById('cert_password');
+            const certErrorBlock = document.getElementById('cert-error-block');
+
+            if (certConfigId) certConfigId.value = configId;
+            if (certType) certType.value = environment === 'prod' ? 'prod' : 'dev';
 
             // Limpiar campos de credenciales
-            document.getElementById('cert_username').value = '';
-            document.getElementById('cert_password').value = '';
-            document.getElementById('cert-error-block').style.display = 'none';
+            if (certUsername) certUsername.value = '';
+            if (certPassword) certPassword.value = '';
+            if (certErrorBlock) certErrorBlock.style.display = 'none';
 
             showGenerateCertModal();
         });
@@ -162,12 +168,17 @@ document.addEventListener('DOMContentLoaded', function() {
         btn.addEventListener('click', function() {
             const configId = this.getAttribute('data-config-id');
 
-            document.getElementById('auth_config_id').value = configId;
+            const authConfigId = document.getElementById('auth_config_id');
+            const authUsername = document.getElementById('auth_username');
+            const authPassword = document.getElementById('auth_password');
+            const authErrorBlock = document.getElementById('auth-error-block');
+
+            if (authConfigId) authConfigId.value = configId;
 
             // Limpiar campos de credenciales
-            document.getElementById('auth_username').value = '';
-            document.getElementById('auth_password').value = '';
-            document.getElementById('auth-error-block').style.display = 'none';
+            if (authUsername) authUsername.value = '';
+            if (authPassword) authPassword.value = '';
+            if (authErrorBlock) authErrorBlock.style.display = 'none';
 
             showAuthWebServiceModal();
         });
