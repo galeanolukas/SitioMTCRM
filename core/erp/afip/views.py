@@ -28,16 +28,6 @@ def crear_punto_venta_por_defecto(company):
         )
 
 
-class AfipConfigListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView):
-    """Lista de configuraciones AFIP"""
-    model = AfipConfig
-    template_name = 'afip/list.html'
-    permission_required = 'erp.view_afipconfig'
-    
-    def get_queryset(self):
-        return AfipConfig.objects.select_related('company').all()
-
-
 class AfipConfigCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, CompanyInitialMixin, CreateView):
     """Crear configuración AFIP"""
     model = AfipConfig
