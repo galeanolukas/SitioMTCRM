@@ -334,6 +334,31 @@ class AfipClient:
             logger.error(f"[AFIP] Error en get_currency_types: {e}")
             return {'error': str(e)}
 
+    def get_sales_points(self):
+        """
+        Obtiene los puntos de venta habilitados desde AFIP
+
+        Returns:
+            Dict con los puntos de venta o error
+        """
+        try:
+            logger.debug(f"[AFIP] Obteniendo puntos de venta")
+            ws = self.get_web_service('wsfe')
+            ta = ws.getTokenAuthorization()
+            data = {
+                "authRequest": {
+                    "token": ta["token"],
+                    "sign": ta["sign"],
+                    "cuitRepresentada": self.config['CUIT']
+                }
+            }
+            result = ws.executeRequest("FEParamGetPtosVenta", data)
+            logger.debug(f"[AFIP] Respuesta puntos de venta: {result}")
+            return {'sales_points': result}
+        except Exception as e:
+            logger.error(f"[AFIP] Error en get_sales_points: {e}")
+            return {'error': str(e)}
+
     def get_taxpayer_data(self, cuit):
         """
         Consulta el Padrón de AFIP para obtener datos de un contribuyente.

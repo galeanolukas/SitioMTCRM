@@ -27,6 +27,7 @@
       {% endif %}
     </td>
     <td>
+      <button type="button" class="btn btn-info btn-flat btn-sm" onclick="verifySalesPoint({{ object.company.id }}, {{ object.numero }})" title="Verificar en AFIP"><i class="fas fa-check-circle"></i></button>
       <a href="{% url 'erp:afip:punto_venta_update' object.id %}" class="btn btn-warning btn-flat btn-sm"><i class="fas fa-edit"></i></a>
       <a href="{% url 'erp:afip:punto_venta_delete' object.id %}" class="btn btn-danger btn-flat btn-sm"><i class="fas fa-trash"></i></a>
     </td>
@@ -47,4 +48,55 @@
   <a href="{% url 'erp:afip:punto_venta_create' %}" class="btn btn-primary btn-flat"><i class="fas fa-plus"></i> Nuevo punto de venta</a>
   <a href="{% url 'erp:afip:dashboard' %}" class="btn btn-info btn-flat"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
   <a href="{% url 'erp:afip:punto_venta_list' %}" class="btn btn-success btn-flat"><i class="fas fa-sync"></i> Actualizar</a>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function verifySalesPoint(companyId, salesPointNumber) {
+    if (!confirm('¿Desea verificar los puntos de venta habilitados en AFIP para esta empresa?')) {
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('action', 'get_sales_points');
+    formData.append('company_id', companyId);
+
+    fetch('{% url "erp:afip:test" %}', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            let message = 'Puntos de venta habilitados en AFIP:\n\n';
+            if (data.sales_points && data.sales_points.sales_points) {
+                const points = data.sales_points.sales_points;
+                if (Array.isArray(points)) {
+                    points.forEach(point => {
+                        const num = point.Nro || point.numero || point.number || 'N/A';
+                        const bloqueado = point.Bloqueado || point.bloqueado || point.blocked || 'No';
+                        const fecha = point.FchBaja || point.fecha_baja || point.date || 'Activo';
+                        message += `Punto de venta: ${num}\n`;
+                        message += `Estado: ${bloqueado === 'S' ? 'Bloqueado' : 'Activo'}\n`;
+                        message += `Fecha baja: ${fecha}\n\n`;
+                    });
+                } else {
+                    message += JSON.stringify(points, null, 2);
+                }
+            } else {
+                message += JSON.stringify(data.sales_points, null, 2);
+            }
+            alert(message);
+        } else {
+            alert('Error: ' + (data.error || 'Error desconocido'));
+        }
+    })
+    .catch(error => {
+        alert('Error de conexión: ' + error);
+    });
+}
+</script>
 {% endblock %}

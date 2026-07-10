@@ -279,18 +279,32 @@ class AfipTestView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Template
         
         elif action == 'get_invoice_types':
             company_id = request.POST.get('company_id')
-            
+
             try:
                 client = AfipClient(company_id=company_id)
                 types = client.get_invoice_types()
-                
+
                 if 'error' in types:
                     data = {'success': False, 'error': types['error']}
                 else:
                     data = {'success': True, 'types': types}
             except Exception as e:
                 data = {'success': False, 'error': str(e)}
-        
+
+        elif action == 'get_sales_points':
+            company_id = request.POST.get('company_id')
+
+            try:
+                client = AfipClient(company_id=company_id)
+                sales_points = client.get_sales_points()
+
+                if 'error' in sales_points:
+                    data = {'success': False, 'error': sales_points['error']}
+                else:
+                    data = {'success': True, 'sales_points': sales_points}
+            except Exception as e:
+                data = {'success': False, 'error': str(e)}
+
         return JsonResponse(data)
 
 
