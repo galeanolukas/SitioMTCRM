@@ -158,7 +158,7 @@ class AfipConfigDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
         context = super().get_context_data(**kwargs)
         context['title'] = 'Eliminar Configuración AFIP'
         context['action'] = 'delete'
-        context['list_url'] = reverse_lazy('erp:afip:list')
+        context['list_url'] = reverse_lazy('erp:afip:dashboard')
         return context
 
 
