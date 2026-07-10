@@ -354,6 +354,18 @@ class AfipClient:
             }
             result = ws.executeRequest("FEParamGetPtosVenta", data)
             logger.debug(f"[AFIP] Respuesta puntos de venta: {result}")
+
+            # Verificar si hay errores en la respuesta
+            if 'FEParamGetPtosVentaResult' in result:
+                result_data = result['FEParamGetPtosVentaResult']
+                if 'Errors' in result_data:
+                    errors = result_data['Errors'].get('Err', [])
+                    if errors:
+                        error_msg = errors[0].get('Msg', 'Error desconocido')
+                        error_code = errors[0].get('Code', 'N/A')
+                        logger.warning(f"[AFIP] Error en respuesta FEParamGetPtosVenta: {error_code} - {error_msg}")
+                        return {'error': f'Error AFIP {error_code}: {error_msg}'}
+
             return {'sales_points': result}
         except Exception as e:
             logger.error(f"[AFIP] Error en get_sales_points: {e}")
