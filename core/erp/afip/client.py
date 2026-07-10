@@ -25,11 +25,17 @@ class AfipClient:
     def __init__(self, company_id=None):
         """
         Inicializa el cliente AFIP
-        
+
         Args:
             company_id: ID de la empresa para obtener configuración específica
         """
+        logger.info(f"[AFIP CLIENT] Inicializando AfipClient con company_id: {company_id}")
         self.config = get_afip_config(company_id)
+        if not self.config:
+            logger.error(f"[AFIP CLIENT] No se pudo obtener configuración AFIP para company_id: {company_id}")
+        else:
+            logger.info(f"[AFIP CLIENT] Configuración obtenida - CUIT: {self.config.get('CUIT')}, Environment: {self.config.get('environment')}")
+            logger.info(f"[AFIP CLIENT] Cert exists: {bool(self.config.get('cert'))}, Key exists: {bool(self.config.get('key'))}")
         self.afip = None
         self._initialize_client()
     
@@ -49,8 +55,8 @@ class AfipClient:
             # En modo desarrollo, asegurar que production sea False
             params['production'] = False
 
-        # Agregar certificado y key solo si están disponibles y es producción
-        if self.config['environment'] == 'prod' and self.config['cert'] and self.config['key']:
+        # Agregar certificado y key si están disponibles (tanto en dev como prod)
+        if self.config['cert'] and self.config['key']:
             # Si son paths de archivo, leer el contenido
             cert = self.config['cert']
             key = self.config['key']
@@ -72,6 +78,7 @@ class AfipClient:
 
             params['cert'] = cert
             params['key'] = key
+            logger.info(f"[AFIP] Certificados configurados para CUIT {self.config['CUIT']} en ambiente {self.config['environment']}")
         elif self.config['environment'] == 'prod':
             # En producción sin certificados, loggear advertencia
             logger.warning(f"[AFIP] Configuración en producción sin certificados para CUIT {self.config['CUIT']}. Se usará modo contingencia si está habilitado.")
