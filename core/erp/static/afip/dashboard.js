@@ -184,6 +184,18 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
+    // Función para obtener CSRF token de cookie
+    function getCSRFToken() {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.startsWith('csrftoken=')) {
+                return cookie.substring('csrftoken='.length);
+            }
+        }
+        return null;
+    }
+
     // Manejar el formulario de generación de certificados
     const generateCertForm = document.getElementById('generateCertForm');
     if (generateCertForm) {
@@ -194,8 +206,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const errorBlock = document.getElementById('cert-error-block');
 
             // Verificar que se haya seleccionado una configuración
-            const configId = document.getElementById('cert_config_id').value;
-            if (!configId) {
+            const configId = document.getElementById('cert_config_id');
+            if (!configId || !configId.value) {
                 errorBlock.textContent = 'Debe seleccionar una configuración AFIP';
                 errorBlock.style.display = 'block';
                 return;
@@ -204,12 +216,16 @@ document.addEventListener('DOMContentLoaded', function() {
             // Agregar acción de generar certificado
             formData.append('action', 'generate_certificate');
 
+            const csrfToken = getCSRFToken();
+            const headers = {};
+            if (csrfToken) {
+                headers['X-CSRFToken'] = csrfToken;
+            }
+
             fetch('', {
                 method: 'POST',
                 body: formData,
-                headers: {
-                    'X-CSRFToken': formData.get('csrfmiddlewaretoken')
-                }
+                headers: headers
             })
             .then(response => response.json())
             .then(data => {
@@ -248,8 +264,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const errorBlock = document.getElementById('auth-error-block');
 
             // Verificar que se haya seleccionado una configuración
-            const configId = document.getElementById('auth_config_id').value;
-            if (!configId) {
+            const configId = document.getElementById('auth_config_id');
+            if (!configId || !configId.value) {
                 errorBlock.textContent = 'Debe seleccionar una configuración AFIP';
                 errorBlock.style.display = 'block';
                 return;
@@ -258,12 +274,16 @@ document.addEventListener('DOMContentLoaded', function() {
             // Agregar acción de autorizar web service
             formData.append('action', 'auth_web_service');
 
+            const csrfToken = getCSRFToken();
+            const headers = {};
+            if (csrfToken) {
+                headers['X-CSRFToken'] = csrfToken;
+            }
+
             fetch('', {
                 method: 'POST',
                 body: formData,
-                headers: {
-                    'X-CSRFToken': formData.get('csrfmiddlewaretoken')
-                }
+                headers: headers
             })
             .then(response => response.json())
             .then(data => {

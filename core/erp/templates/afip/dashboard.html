@@ -84,6 +84,7 @@
       </div>
       <div class="modal-body">
         <form id="generateCertForm">
+          {% csrf_token %}
           <input type="hidden" id="cert_config_id" name="config_id">
           <input type="hidden" id="cert_type" name="cert_type" value="dev">
           <div class="form-group">
@@ -123,6 +124,7 @@
       </div>
       <div class="modal-body">
         <form id="authWebServiceForm">
+          {% csrf_token %}
           <input type="hidden" id="auth_config_id" name="config_id">
           <div class="form-group">
             <label for="auth_service">Web Service</label>
