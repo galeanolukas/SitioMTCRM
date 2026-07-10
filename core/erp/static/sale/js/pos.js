@@ -97,7 +97,11 @@
       if (rate > 1) {
         rate = rate / 100;
       }
-      iva += it.subtotal * rate;
+      // Calcular IVA basado en PVP final (precio con IVA incluido)
+      // IVA = (PVP_final / (1 + rate)) * rate
+      const pvp_final = it.pvp_final && !isNaN(parseFloat(it.pvp_final)) ? parseFloat(it.pvp_final) : it.price * (1 + rate);
+      const iva_item = (pvp_final / (1 + rate)) * rate * cant;
+      iva += iva_item;
     });
     
     const total = subtotal + iva;
@@ -604,7 +608,13 @@
       const sub_neto = net * cant;
       subtotal_neto += sub_neto;
       const rate = (typeof it.iva_rate !== 'undefined' && !isNaN(parseFloat(it.iva_rate))) ? parseFloat(it.iva_rate) : getIvaRate(forInvoice);
-      iva_total += sub_neto * rate;
+      // Convert to decimal if it's in percentage format (> 1)
+      const rate_decimal = rate > 1 ? rate / 100 : rate;
+      // Calcular IVA basado en PVP final (precio con IVA incluido)
+      // IVA = (PVP_final / (1 + rate)) * rate
+      const pvp_final = it.pvp_final && !isNaN(parseFloat(it.pvp_final)) ? parseFloat(it.pvp_final) : net * (1 + rate_decimal);
+      const iva_item = (pvp_final / (1 + rate_decimal)) * rate_decimal * cant;
+      iva_total += iva_item;
     });
     const items_net = items.map(it => {
       const net = parseFloat(it.price) || 0;
