@@ -33,24 +33,27 @@ def get_afip_config(company_id=None):
 
     if company_id:
         try:
-            config = AfipConfig.objects.get(company_id=company_id, is_active=True)
-            logger.debug(f"[AFIP CONFIG] Configuración encontrada para empresa ID {company_id}: CUIT {config.cuit}")
-            return {
-                'CUIT': config.cuit,
-                'access_token': config.access_token,
-                'cert': config.cert,
-                'key': config.key,
-                'environment': config.environment,
-                'is_active': config.is_active,
-                'company_id': config.company_id,
-                'usar_contingencia': config.usar_contingencia,
-                'tipo_comprobante': config.tipo_comprobante,
-                'concepto': config.concepto,
-                'moneda': config.moneda,
-                'cotizacion': config.cotizacion,
-            }
-        except AfipConfig.DoesNotExist:
-            logger.warning(f"[AFIP CONFIG] No hay configuración AFIP activa para empresa ID {company_id}")
+            config = AfipConfig.objects.filter(company_id=company_id, is_active=True).first()
+            if config:
+                logger.debug(f"[AFIP CONFIG] Configuración encontrada para empresa ID {company_id}: CUIT {config.cuit}")
+                return {
+                    'CUIT': config.cuit,
+                    'access_token': config.access_token,
+                    'cert': config.cert,
+                    'key': config.key,
+                    'environment': config.environment,
+                    'is_active': config.is_active,
+                    'company_id': config.company_id,
+                    'usar_contingencia': config.usar_contingencia,
+                    'tipo_comprobante': config.tipo_comprobante,
+                    'concepto': config.concepto,
+                    'moneda': config.moneda,
+                    'cotizacion': config.cotizacion,
+                }
+            else:
+                logger.warning(f"[AFIP CONFIG] No hay configuración AFIP activa para empresa ID {company_id}")
+        except Exception as e:
+            logger.error(f"[AFIP CONFIG] Error obteniendo configuración AFIP para empresa ID {company_id}: {e}")
             pass
 
     # Fallback a configuración global solo si tiene datos válidos
