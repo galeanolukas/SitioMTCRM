@@ -61,11 +61,16 @@ function verifySalesPoint(companyId, salesPointNumber) {
     formData.append('action', 'get_sales_points');
     formData.append('company_id', companyId);
 
+    // Obtener CSRF token del meta tag o del input
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ||
+                      document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+                      '{{ csrf_token }}';
+
     fetch('{% url "erp:afip:test" %}', {
         method: 'POST',
         body: formData,
         headers: {
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            'X-CSRFToken': csrfToken
         }
     })
     .then(response => response.json())
