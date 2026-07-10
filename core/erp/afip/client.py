@@ -346,10 +346,10 @@ class AfipClient:
             ws = self.get_web_service('wsfe')
             ta = ws.getTokenAuthorization()
             data = {
-                "authRequest": {
-                    "token": ta["token"],
-                    "sign": ta["sign"],
-                    "cuitRepresentada": self.config['CUIT']
+                "Auth": {
+                    "Token": ta["token"],
+                    "Sign": ta["sign"],
+                    "Cuit": self.config['CUIT']
                 }
             }
             result = ws.executeRequest("FEParamGetPtosVenta", data)
