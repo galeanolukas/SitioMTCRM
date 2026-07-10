@@ -85,15 +85,15 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 if not client_id:
                     return JsonResponse({'error': 'ID de cliente requerido'}, status=400)
                 try:
-                    client = Client.objects.get(pk=client_id)
+                    client_obj = Client.objects.get(pk=client_id)
                     data = {
-                        'id': client.id,
-                        'name': client.names,
-                        'cuit_cuil': client.cuit_cuil or '',
-                        'dni': client.dni or '',
-                        'condicion_iva': client.condicion_iva or 'CF',
-                        'condicion_iva_display': client.get_condicion_iva_display() or 'Consumidor Final',
-                        'address': client.address or '',
+                        'id': client_obj.id,
+                        'name': client_obj.names,
+                        'cuit_cuil': client_obj.cuit_cuil or '',
+                        'dni': client_obj.dni or '',
+                        'condicion_iva': client_obj.condicion_iva or 'CF',
+                        'condicion_iva_display': client_obj.get_condicion_iva_display() or 'Consumidor Final',
+                        'address': client_obj.address or '',
                     }
                 except Client.DoesNotExist:
                     return JsonResponse({'error': 'Cliente no encontrado'}, status=404)
@@ -154,18 +154,18 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         if not request.user.is_superuser:
                             active_cid = active_cid or getattr(request.user, 'company_id', None)
 
-                        client = Client()
+                        new_client = Client()
                         if active_cid:
-                            client.company_id = active_cid
-                        client.names = afip_data.get('name', '')
-                        client.cuit_cuil = afip_data.get('cuit', '')
-                        client.condicion_iva = afip_data.get('condicion_iva', 'CF')
-                        client.address = afip_data.get('address', '')
-                        client.save()
+                            new_client.company_id = active_cid
+                        new_client.names = afip_data.get('name', '')
+                        new_client.cuit_cuil = afip_data.get('cuit', '')
+                        new_client.condicion_iva = afip_data.get('condicion_iva', 'CF')
+                        new_client.address = afip_data.get('address', '')
+                        new_client.save()
 
                         data = {
                             'success': True,
-                            'client_id': client.id,
+                            'client_id': new_client.id,
                             'message': 'Cliente creado exitosamente'
                         }
                 except Exception as e:
@@ -315,9 +315,9 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     data = {'has_price_list': False}
                 else:
                     from core.erp.models import Client, PriceList
-                    client = Client.objects.filter(pk=client_id).first()
-                    if client and client.precio_lista_id and client.precio_lista.is_active:
-                        pl = client.precio_lista
+                    client_obj = Client.objects.filter(pk=client_id).first()
+                    if client_obj and client_obj.precio_lista_id and client_obj.precio_lista.is_active:
+                        pl = client_obj.precio_lista
                         # Devolver info de la lista + precios ajustados para los productos del carrito
                         product_ids = request.POST.get('product_ids', '')
                         product_ids = [int(pid) for pid in product_ids.split(',') if pid]
