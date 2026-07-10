@@ -153,13 +153,26 @@ class AfipConfigDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
     template_name = 'afip/delete.html'
     permission_required = 'erp.delete_afipconfig'
     success_url = reverse_lazy('erp:afip:dashboard')
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = 'Eliminar Configuración AFIP'
         context['action'] = 'delete'
         context['list_url'] = reverse_lazy('erp:afip:dashboard')
         return context
+
+    def post(self, request, *args, **kwargs):
+        # Si es una petición AJAX, devolver JSON
+        if self.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            try:
+                self.object = self.get_object()
+                self.object.delete()
+                data = {'success': True, 'message': 'Configuración AFIP eliminada exitosamente'}
+                return JsonResponse(data)
+            except Exception as e:
+                data = {'success': False, 'error': str(e)}
+                return JsonResponse(data, status=400)
+        return super().post(request, *args, **kwargs)
 
 
 class AfipTestView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView):

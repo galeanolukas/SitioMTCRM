@@ -69,14 +69,17 @@ function submit_with_ajax(url, title, content, parameters, callback) {
       </div>
     </div>
   `;
-  
+
   // Si existe un modal previo, eliminarlo para evitar duplicados
   $('#ajaxModal').remove();
   // Agregar el modal al cuerpo del documento
   $('body').append(modal);
-  
+
   // Acción de confirmar: ejecutar AJAX y cerrar modal al finalizar correctamente
   $('#ajaxModalConfirm').on('click', function () {
+    // Obtener CSRF token del formulario
+    var csrfToken = $('input[name="csrfmiddlewaretoken"]').val();
+
     $.ajax({
       url: url,
       type: 'POST',
@@ -85,14 +88,15 @@ function submit_with_ajax(url, title, content, parameters, callback) {
       processData: false,
       contentType: false,
       headers: {
-        'X-Requested-With': 'XMLHttpRequest'
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRFToken': csrfToken
       }
     }).done(function (data) {
       console.log(data);
       if (!data.hasOwnProperty('error')) {
         // Mostrar mensaje de éxito
         message_success('El registro se ha guardado correctamente.');
-        
+
         if (typeof callback === 'function') {
           callback(data);
         }
@@ -106,15 +110,17 @@ function submit_with_ajax(url, title, content, parameters, callback) {
       var modal = bootstrap.Modal.getInstance(modalEl);
       if (modal) modal.hide();
     }).fail(function (jqXHR, textStatus, errorThrown) {
+      console.error('AJAX Error:', textStatus, errorThrown);
+      console.error('Response:', jqXHR.responseText);
       alert(textStatus + ': ' + errorThrown);
       var modalEl = document.getElementById('ajaxModal');
       var modal = bootstrap.Modal.getInstance(modalEl);
       if (modal) modal.hide();
     }).always(function (data) {
-      
+
     });
   });
-  
+
   // Mostrar el modal de Bootstrap 5
   var modalEl = document.getElementById('ajaxModal');
   var modal = new bootstrap.Modal(modalEl);
@@ -124,7 +130,7 @@ function submit_with_ajax(url, title, content, parameters, callback) {
     $('#ajaxModalConfirm').off('click');
     modalEl.remove(); // Limpiar el DOM cuando se oculta
   });
-  
+
 }
 function alert_action(title, content, callback) {
   // Modal de Bootstrap
