@@ -729,6 +729,81 @@
     loadClients(searchTerm);
   });
 
+  // Evento para consultar padrón AFIP
+  $('#btnConsultAfip').on('click', function() {
+    const cuit = $('#afipCuitInput').val().trim();
+    if (!cuit) {
+      showToast('error', 'Ingrese un CUIT');
+      return;
+    }
+
+    // Validar formato de CUIT (11 dígitos)
+    const cuitClean = cuit.replace(/[^0-9]/g, '');
+    if (cuitClean.length !== 11) {
+      showToast('error', 'El CUIT debe tener 11 dígitos');
+      return;
+    }
+
+    showToast('info', 'Consultando padrón AFIP...');
+
+    $.ajax({
+      url: window.location.pathname,
+      type: 'POST',
+      data: {
+        action: 'consult_afip_padron',
+        cuit: cuitClean,
+        csrfmiddlewaretoken: csrftoken()
+      },
+      success: function(response) {
+        if (response.success) {
+          // Crear cliente automáticamente desde datos AFIP
+          createClientFromAfip(response);
+        } else if (response.error) {
+          showToast('error', 'Error AFIP: ' + response.error);
+        }
+      },
+      error: function() {
+        showToast('error', 'Error al consultar padrón AFIP');
+      }
+    });
+  });
+
+  // Función para crear cliente desde datos AFIP
+  function createClientFromAfip(afipData) {
+    showToast('info', 'Creando cliente desde datos AFIP...');
+
+    $.ajax({
+      url: window.location.pathname,
+      type: 'POST',
+      data: {
+        action: 'create_client_from_afip',
+        afip_data: JSON.stringify(afipData),
+        csrfmiddlewaretoken: csrftoken()
+      },
+      success: function(response) {
+        if (response.success) {
+          showToast('success', 'Cliente creado: ' + afipData.name);
+          // Seleccionar el cliente creado
+          $('#selectedClientId').val(response.client_id);
+          $('#selectedClientName').text(afipData.name);
+          // Actualizar tipo de comprobante según condición IVA
+          updateInvoiceTypeByClientCondition(afipData.condicion_iva);
+          // Cerrar modal
+          const modalEl = document.getElementById('clientSelectModal');
+          const modal = bootstrap.Modal.getInstance(modalEl);
+          if (modal) modal.hide();
+          // Limpiar input
+          $('#afipCuitInput').val('');
+        } else if (response.error) {
+          showToast('error', 'Error al crear cliente: ' + response.error);
+        }
+      },
+      error: function() {
+        showToast('error', 'Error al crear cliente');
+      }
+    });
+  }
+
   // Evento para seleccionar cliente
   $(document).on('click', '.btn-select-client', function() {
     const clientId = $(this).data('client-id');

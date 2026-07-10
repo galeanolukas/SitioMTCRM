@@ -97,6 +97,80 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     }
                 except Client.DoesNotExist:
                     return JsonResponse({'error': 'Cliente no encontrado'}, status=404)
+            elif action == 'consult_afip_padron':
+                cuit = request.POST.get('cuit')
+                if not cuit:
+                    return JsonResponse({'error': 'CUIT requerido'}, status=400)
+                from core.erp.afip.client import AfipClient
+                active_cid = request.session.get('company_id')
+                if not active_cid:
+                    active_cid = getattr(request.user, 'company_id', None)
+                try:
+                    client = AfipClient(company_id=active_cid)
+                    result = client.get_taxpayer_data(cuit)
+                    if 'error' in result:
+                        data = {'error': result['error']}
+                    else:
+                        # Mapear condición IVA desde respuesta AFIP
+                        condicion_iva_map = {
+                            'RI': 'RI',
+                            'RESPONSABLE_INSCRIPTO': 'RI',
+                            'M': 'M',
+                            'MONOTRIBUTUTO': 'M',
+                            'CF': 'CF',
+                            'CONSUMIDOR_FINAL': 'CF',
+                            'EX': 'EX',
+                            'EXENTO': 'EX',
+                            'NC': 'NC',
+                            'NO_CATEGORIZADO': 'NC'
+                        }
+                        afip_condicion = result.get('condicion_iva', '').upper()
+                        condicion_iva = condicion_iva_map.get(afip_condicion, 'CF')
+                        data = {
+                            'success': True,
+                            'name': result.get('nombre', ''),
+                            'cuit': result.get('cuit', cuit),
+                            'condicion_iva': condicion_iva,
+                            'condicion_iva_display': result.get('condicion_iva', 'Consumidor Final'),
+                            'address': result.get('direccion', ''),
+                            'impuestos': result.get('impuestos', [])
+                        }
+                except Exception as e:
+                    data = {'error': f'No se pudo consultar AFIP: {str(e)}'}
+            elif action == 'create_client_from_afip':
+                import json
+                afip_data = json.loads(request.POST.get('afip_data') or '{}')
+                try:
+                    # Verificar si ya existe cliente con ese CUIT
+                    existing_client = Client.objects.filter(cuit_cuil=afip_data.get('cuit')).first()
+                    if existing_client:
+                        data = {
+                            'success': True,
+                            'client_id': existing_client.id,
+                            'message': 'Cliente ya existe'
+                        }
+                    else:
+                        # Crear nuevo cliente desde datos AFIP
+                        active_cid = request.session.get('company_id')
+                        if not request.user.is_superuser:
+                            active_cid = active_cid or getattr(request.user, 'company_id', None)
+
+                        client = Client()
+                        if active_cid:
+                            client.company_id = active_cid
+                        client.names = afip_data.get('name', '')
+                        client.cuit_cuil = afip_data.get('cuit', '')
+                        client.condicion_iva = afip_data.get('condicion_iva', 'CF')
+                        client.address = afip_data.get('address', '')
+                        client.save()
+
+                        data = {
+                            'success': True,
+                            'client_id': client.id,
+                            'message': 'Cliente creado exitosamente'
+                        }
+                except Exception as e:
+                    data = {'error': f'Error al crear cliente: {str(e)}'}
             elif action == 'product_by_code':
                 code = (request.POST.get('code') or '').strip()
                 if not code:

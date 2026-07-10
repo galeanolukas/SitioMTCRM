@@ -744,6 +744,18 @@
       </div>
       <div class="modal-body">
         <div class="mb-3">
+          <label class="form-label">Consultar Padrón AFIP por CUIT</label>
+          <div class="input-group">
+            <input type="text" id="afipCuitInput" class="form-control" placeholder="Ingrese CUIT (ej: 20333444555)">
+            <button type="button" class="btn btn-primary" id="btnConsultAfip">
+              <i class="fas fa-search"></i> Consultar AFIP
+            </button>
+          </div>
+          <small class="text-muted">Consultará el padrón de AFIP y creará el cliente automáticamente</small>
+        </div>
+        <hr>
+        <div class="mb-3">
+          <label class="form-label">O buscar cliente existente</label>
           <input type="text" id="clientSearchInput" class="form-control" placeholder="Buscar cliente por nombre o DNI...">
         </div>
         <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
