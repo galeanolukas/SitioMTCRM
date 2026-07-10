@@ -138,7 +138,6 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 except Exception as e:
                     data = {'error': f'No se pudo consultar AFIP: {str(e)}'}
             elif action == 'create_client_from_afip':
-                import json
                 afip_data = json.loads(request.POST.get('afip_data') or '{}')
                 try:
                     # Verificar si ya existe cliente con ese CUIT
