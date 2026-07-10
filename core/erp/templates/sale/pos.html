@@ -261,7 +261,7 @@
 
           <div class="mb-3">
             <label for="invoiceType" class="form-label">Tipo de Comprobante</label>
-            <select id="invoiceType" class="form-select">
+            <select id="invoiceType" class="form-select" data-default-invoice-type="{{ default_invoice_type }}">
               <option value="A" {% if default_invoice_type == 'A' %}selected{% endif %}>Factura A</option>
               <option value="B" {% if default_invoice_type == 'B' %}selected{% endif %}>Factura B</option>
               <option value="C" {% if default_invoice_type == 'C' %}selected{% endif %}>Factura C</option>
@@ -269,7 +269,7 @@
               <option value="NC-B">Nota de Crédito B</option>
               <option value="NC-C">Nota de Crédito C</option>
             </select>
-            <small class="text-muted">Tomado de configuración AFIP de la empresa</small>
+            <small class="text-muted">Automático según condición IVA del cliente</small>
           </div>
 
           <div class="mb-3">

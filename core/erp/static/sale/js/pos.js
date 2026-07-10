@@ -733,18 +733,72 @@
   $(document).on('click', '.btn-select-client', function() {
     const clientId = $(this).data('client-id');
     const clientName = $(this).data('client-name');
-    
+
     $('#selectedClientId').val(clientId);
     $('#selectedClientName').text(clientName);
-    
+
     const modalEl = document.getElementById('clientSelectModal');
     const modal = bootstrap.Modal.getInstance(modalEl);
     if (modal) modal.hide();
     showToast('success', 'Cliente seleccionado: ' + clientName);
-    
+
+    // Obtener datos del cliente para determinar tipo de comprobante
+    $.ajax({
+      url: window.location.pathname,
+      type: 'POST',
+      data: {
+        action: 'get_client_data',
+        client_id: clientId,
+        csrfmiddlewaretoken: csrftoken()
+      },
+      success: function(response) {
+        if (response && response.condicion_iva) {
+          updateInvoiceTypeByClientCondition(response.condicion_iva);
+        }
+      },
+      error: function() {
+        console.error('Error al obtener datos del cliente');
+      }
+    });
+
     // Aplicar lista de precios si el cliente tiene una
     applyClientPriceList(clientId);
   });
+
+  // Función para actualizar tipo de comprobante según condición IVA del cliente
+  function updateInvoiceTypeByClientCondition(condicionIva) {
+    const $invoiceType = $('#invoiceType');
+    if (!$invoiceType.length) return;
+
+    // Lógica según normativa AFIP:
+    // - Responsable Inscripto (RI) → Factura A
+    // - Monotributista (M) → Factura B
+    // - Consumidor Final (CF) → Factura B
+    // - Exento (EX) → Factura B
+    // - No Categorizado (NC) → Factura B
+
+    let newInvoiceType = 'B'; // Default: Factura B
+
+    if (condicionIva === 'RI') {
+      newInvoiceType = 'A';
+      showToast('info', 'Cliente Responsable Inscripto - Cambiando a Factura A');
+    } else {
+      showToast('info', 'Cliente ' + (condicionIva === 'CF' ? 'Consumidor Final' : condicionIva) + ' - Factura B');
+    }
+
+    $invoiceType.val(newInvoiceType);
+  }
+
+  // Función para restaurar tipo de comprobante por defecto
+  function restoreDefaultInvoiceType() {
+    const $invoiceType = $('#invoiceType');
+    if (!$invoiceType.length) return;
+
+    // Obtener tipo por defecto del atributo data-default-invoice-type si existe
+    const defaultType = $invoiceType.data('default-invoice-type') || 'B';
+    $invoiceType.val(defaultType);
+    showToast('info', 'Restaurando tipo de comprobante por defecto: Factura ' + defaultType);
+  }
 
   // Guardar precios originales para poder restaurar al limpiar cliente
   // (declarados arriba junto a items)
@@ -829,6 +883,7 @@
     $('#selectedClientId').val('');
     $('#selectedClientName').text('Anónimo');
     restoreOriginalPrices();
+    restoreDefaultInvoiceType();
     const modalEl = document.getElementById('clientSelectModal');
     const modal = bootstrap.Modal.getInstance(modalEl);
     if (modal) modal.hide();

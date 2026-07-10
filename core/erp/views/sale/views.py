@@ -80,7 +80,24 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
         data = {}
         try:
             action = request.POST.get('action')
-            if action == 'product_by_code':
+            if action == 'get_client_data':
+                client_id = request.POST.get('client_id')
+                if not client_id:
+                    return JsonResponse({'error': 'ID de cliente requerido'}, status=400)
+                try:
+                    client = Client.objects.get(pk=client_id)
+                    data = {
+                        'id': client.id,
+                        'name': client.names,
+                        'cuit_cuil': client.cuit_cuil or '',
+                        'dni': client.dni or '',
+                        'condicion_iva': client.condicion_iva or 'CF',
+                        'condicion_iva_display': client.get_condicion_iva_display() or 'Consumidor Final',
+                        'address': client.address or '',
+                    }
+                except Client.DoesNotExist:
+                    return JsonResponse({'error': 'Cliente no encontrado'}, status=404)
+            elif action == 'product_by_code':
                 code = (request.POST.get('code') or '').strip()
                 if not code:
                     return JsonResponse({'error': 'Código vacío'}, status=400)
