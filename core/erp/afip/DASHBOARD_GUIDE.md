@@ -5,13 +5,7 @@
 
 ## Configuración para Desarrollo (Testing)
 
-AFIP SDK permite probar en modo desarrollo sin necesidad de certificados reales usando un CUIT de prueba.
-
-### CUIT de Prueba de AFIP SDK
-- **CUIT:** `20-40937847-2` (sin guiones: `20409378472`)
-- **Uso:** Exclusivo para modo desarrollo
-- **Ventajas:** No requiere certificados ni Clave Fiscal
-- **Limitaciones:** Comprobantes emitidos no tienen validez fiscal
+AFIP SDK permite probar en modo desarrollo usando certificados de prueba generados automáticamente con Clave Fiscal.
 
 ### Pasos para Configurar Desarrollo
 
@@ -23,13 +17,13 @@ AFIP SDK permite probar en modo desarrollo sin necesidad de certificados reales 
 2. **Crear Empresa de Prueba:**
    - Ir a `/erp/company/list/`
    - Crear nueva empresa o usar una existente
-   - Configurar CUIT: `20409378472`
+   - Configurar CUIT: Tu CUIT real o de prueba
    - Guardar empresa
 
 3. **Crear Configuración AFIP en Modo Desarrollo:**
    - Ir a `/erp/afip/dashboard/`
    - Clic en "Nueva Configuración" o "Crear Config para [Empresa]"
-   - Seleccionar la empresa con CUIT de prueba
+   - Seleccionar la empresa
    - Configurar:
      - **Access Token:** Token de AFIP SDK (o dejar vacío para usar global)
      - **Usuario Clave Fiscal:** Usuario de Clave Fiscal AFIP (opcional, se puede guardar para generar certificados)
@@ -39,40 +33,44 @@ AFIP SDK permite probar en modo desarrollo sin necesidad de certificados reales 
      - **Concepto:** `1` (Productos), `2` (Servicios) o `3` (Ambos)
      - **Moneda:** `PES` (Pesos)
      - **Cotización:** `1` (si es PES)
-   - **NO configurar certificados** (no se necesitan en desarrollo con el CUIT de prueba)
    - Guardar configuración
 
-   > **Nota importante:** El botón "Generar Certificado" en modo desarrollo genera un certificado de prueba, pero **no es obligatorio** para probar. El CUIT de prueba de AFIP SDK permite emitir comprobantes de prueba sin certificado. El certificado solo es obligatorio en **producción** con un CUIT real. Si configuraste las credenciales de Clave Fiscal en el formulario, se usarán automáticamente al generar certificados.
+4. **Generar Certificado de Desarrollo:**
+   - En el dashboard AFIP, encontrar la configuración creada
+   - Clic en el botón verde (ícono de certificado) "Generar Certificado"
+   - Se abrirá un modal para generar el certificado
+   - Ingresar credenciales de Clave Fiscal (si no están guardadas en la configuración):
+     - Usuario Clave Fiscal
+     - Contraseña Clave Fiscal
+     - Alias (opcional, default: 'afipsdk')
+   - Clic en "Generar Certificado"
+   - El sistema usará la automatización `create-cert-dev` de AFIP SDK para generar el certificado automáticamente
+   - El certificado se guardará en la configuración AFIP
+   - **Importante:** Este paso es obligatorio, el sistema requiere certificados para funcionar
 
-4. **Autorizar Web Service (WSFE):**
-   - Antes de probar la conexión, es necesario autorizar el uso del Web Service WSFE en AFIP SDK
-   - **Opción A (Automática desde el Dashboard):**
-     - Ir al dashboard AFIP `/erp/afip/dashboard/`
-     - Clic en el botón "Autorizar WSFE"
-     - Seleccionar la configuración AFIP
-     - Ingresar credenciales de Clave Fiscal (si no están guardadas en la configuración)
-     - Clic en "Autorizar Web Service"
-     - El sistema usará la automatización de AFIP SDK para autorizar WSFE automáticamente
-   - **Opción B (Manual):**
-     - Ir a https://afipsdk.com/docs/automations/auth-web-service-dev/?integration=python
-     - Seleccionar el Web Service: `WSFE` (Facturación Electrónica)
-     - Ingresar el CUIT de prueba: `20409378472`
-     - Ejecutar la automatización de autorización
+5. **Autorizar Web Service (WSFE):**
+   - En el dashboard AFIP, encontrar la configuración
+   - Clic en el botón azul (ícono de llave) "Autorizar WSFE"
+   - Se abrirá un modal para autorizar el Web Service
+   - Seleccionar el Web Service: `WSFE` (Facturación Electrónica)
+   - Ingresar credenciales de Clave Fiscal (si no están guardadas en la configuración)
+   - Clic en "Autorizar Web Service"
+   - El sistema usará la automatización `auth-web-service-dev` de AFIP SDK para autorizar WSFE automáticamente
    - **Importante:** Este paso es obligatorio, de lo contrario obtendrás el error "Debe autorizar el uso del web service"
 
-5. **Probar Conexión:**
+6. **Probar Conexión:**
    - Clic en "Probar Conexión" en el dashboard
    - Ir a `/erp/afip/test/`
    - Seleccionar la empresa y ejecutar `test_connection`
    - Debería mostrar conexión exitosa con AFIP
 
-6. **Configurar Punto de Venta:**
+7. **Configurar Punto de Venta:**
    - Ir a `/erp/afip/punto-venta/list/` (o al admin de Django)
-   - Crear un `AfipPuntoVenta` para la empresa de prueba
+   - Crear un `AfipPuntoVenta` para la empresa
    - Usar un número simple, por ejemplo `1`
    - El punto de venta se usa al emitir comprobantes
 
-7. **Emitir Comprobantes de Prueba:**
+8. **Emitir Comprobantes de Prueba:**
    - Crear una venta (`/erp/sale/add/`) con:
      - Cliente con DNI/CUIT válido
      - Al menos un producto
@@ -88,9 +86,9 @@ AFIP SDK permite probar en modo desarrollo sin necesidad de certificados reales 
 
 | Característica | Desarrollo | Producción |
 |----------------|------------|------------|
-| CUIT | 20409378472 (prueba) | CUIT real de la empresa |
-| Certificados | No necesarios | Obligatorios (generados con Clave Fiscal) |
-| Clave Fiscal | No necesaria | Necesaria para generar certificados |
+| CUIT | CUIT real o de prueba | CUIT real de la empresa |
+| Certificados | Obligatorios (generados con Clave Fiscal) | Obligatorios (generados con Clave Fiscal) |
+| Clave Fiscal | Necesaria para generar certificados | Necesaria para generar certificados |
 | CAE | CAE de prueba | CAE real con validez fiscal |
 | Comprobantes | Sin validez fiscal | Con validez fiscal |
 | Web Services | Servidores de prueba | Servidores de producción |
@@ -192,8 +190,8 @@ afip = Afip({
 | company | Empresa relacionada | Sí |
 | cuit | CUIT del contribuyente | Sí |
 | access_token | Token de AFIP SDK | Sí |
-| cert | Certificado (solo producción) | No (sí en prod) |
-| key | Clave privada (solo producción) | No (sí en prod) |
+| cert | Certificado (generado con Clave Fiscal) | Sí |
+| key | Clave privada (generada con Clave Fiscal) | Sí |
 | environment | Ambiente (dev/prod) | Sí |
 | tipo_comprobante | Tipo de comprobante default | Sí |
 | concepto | Concepto (1=Productos, 2=Servicios, 3=Ambos) | Sí |
@@ -220,12 +218,14 @@ Los puntos de venta se gestionan en un modelo separado `AfipPuntoVenta`:
 
 ### Botones Disponibles
 - **Nueva Configuración**: Crear configuración AFIP para una empresa
-- **Generar Certificado**: Generar certificados usando Clave Fiscal
 - **Probar Conexión**: Verificar conexión con AFIP
 - **Comprobantes**: Ver comprobantes electrónicos emitidos
+- **Puntos de Venta**: Gestionar puntos de venta AFIP
 - **Actualizar**: Recargar la lista de configuraciones
 
 ### Acciones por Configuración
+- **Generar Certificado** (botón verde): Generar certificados de desarrollo o producción usando Clave Fiscal
+- **Autorizar WSFE** (botón azul): Autorizar el Web Service WSFE en AFIP SDK
 - **Editar**: Modificar configuración existente
 - **Eliminar**: Borrar configuración AFIP
 
@@ -248,29 +248,27 @@ Los puntos de venta se gestionan en un modelo separado `AfipPuntoVenta`:
 ## Ejemplo de Flujo Completo
 
 ### Para Testing (Desarrollo)
-1. Crear empresa con CUIT
+1. Crear empresa con CUIT (puede ser tu CUIT real)
 2. Ir a dashboard AFIP
 3. Crear configuración con ambiente "Desarrollo"
-4. Generar certificado de desarrollo con Clave Fiscal
-5. Probar conexión
-6. Emitir comprobantes de prueba
+4. Clic en botón verde "Generar Certificado" en el dashboard
+5. Ingresar credenciales de Clave Fiscal y generar certificado de desarrollo
+6. Clic en botón azul "Autorizar WSFE" en el dashboard
+7. Ingresar credenciales de Clave Fiscal y autorizar WSFE
+8. Probar conexión
+9. Emitir comprobantes de prueba
 
 ### Para Producción
 1. Crear empresa con CUIT real
 2. Ir a dashboard AFIP
 3. Crear configuración con ambiente "Producción"
 4. Configurar **Usuario Clave Fiscal** y **Contraseña Clave Fiscal** en el formulario (se usarán automáticamente al generar certificados)
-5. Generar certificado de producción (el sistema usará las credenciales guardadas)
-6. **Autorizar Web Service WSFE:**
-   - **Opción A (Automática desde el Dashboard):**
-     - Clic en el botón "Autorizar WSFE" en el dashboard
-     - Seleccionar la configuración AFIP
-     - Clic en "Autorizar Web Service"
-     - El sistema usará la automatización de AFIP SDK para autorizar WSFE automáticamente
-   - **Opción B (Manual):**
-     - Ir a https://afipsdk.com/docs/automations/auth-web-service-prod/?integration=python con el CUIT real
-7. Probar conexión
-8. Emitir comprobantes con validez fiscal
+5. Clic en botón verde "Generar Certificado" en el dashboard
+6. Generar certificado de producción (el sistema usará las credenciales guardadas)
+7. Clic en botón azul "Autorizar WSFE" en el dashboard
+8. Autorizar WSFE (el sistema usará las credenciales guardadas)
+9. Probar conexión
+10. Emitir comprobantes con validez fiscal
 
 ## Errores Comunes
 
