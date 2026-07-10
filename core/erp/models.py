@@ -958,6 +958,7 @@ class Sale(models.Model):
 
             descripcion = f"Factura {tipo_letra} {punto_venta:04d}-{nro_cbte:08d}"
 
+            from decimal import Decimal
             CuentaCorrienteCliente.objects.create(
                 company=self.company,
                 client=self.cli,
@@ -966,7 +967,7 @@ class Sale(models.Model):
                 descripcion=descripcion,
                 debe=float(self.total),
                 haber=0,
-                saldo=saldo_anterior + float(self.total),
+                saldo=saldo_anterior + Decimal(str(self.total)),
                 sale=self
             )
         except Exception as e:
