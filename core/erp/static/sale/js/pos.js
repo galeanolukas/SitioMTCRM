@@ -854,6 +854,14 @@
     const payMethod = ($('#payMethod').val() || 'cash');
     const invoiceType = ($('#invoiceType').val() || 'B'); // Tipo de factura seleccionado
 
+    // Manejar notas de crédito (NC-A, NC-B, NC-C)
+    let isCreditNote = false;
+    let invoiceLetter = invoiceType;
+    if (invoiceType.startsWith('NC-')) {
+      isCreditNote = true;
+      invoiceLetter = invoiceType.split('-')[1]; // Extraer A, B, o C
+    }
+
     // Generar token único para esta venta
     const saleToken = 'sale_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 
@@ -862,7 +870,8 @@
       items: calc.items_net,     // Detalle con precio neto
       subtotal, iva, total,
       payment_method: payMethod,
-      invoice_type: invoiceType, // Agregar tipo de factura
+      invoice_type: invoiceLetter, // Letra de factura (A, B, C)
+      is_credit_note: isCreditNote, // Indicador de nota de crédito
       sale_token: saleToken  // Agregar token
     };
     ajaxAction('create_sale', { action: 'create_sale', sale: JSON.stringify(payload), sale_token: saleToken })
@@ -897,6 +906,14 @@
     const payMethod = ($('#payMethod').val() || 'cash');
     const invoiceType = ($('#invoiceType').val() || 'B'); // Tipo de factura seleccionado
 
+    // Manejar notas de crédito (NC-A, NC-B, NC-C)
+    let isCreditNote = false;
+    let invoiceLetter = invoiceType;
+    if (invoiceType.startsWith('NC-')) {
+      isCreditNote = true;
+      invoiceLetter = invoiceType.split('-')[1]; // Extraer A, B, o C
+    }
+
     // Generar token único para esta factura
     const saleToken = 'invoice_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 
@@ -905,7 +922,8 @@
       items: calc.items_final,   // Detalle con IVA incluido
       subtotal, iva, total,
       payment_method: payMethod,
-      invoice_type: invoiceType, // Agregar tipo de factura
+      invoice_type: invoiceLetter, // Letra de factura (A, B, C)
+      is_credit_note: isCreditNote, // Indicador de nota de crédito
       sale_token: saleToken  // Agregar token
     };
     ajaxAction('invoice', { action: 'invoice', sale: JSON.stringify(payload), sale_token: saleToken })

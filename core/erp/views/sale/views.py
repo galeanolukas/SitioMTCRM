@@ -347,6 +347,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     sale.total = float(payload.get('total', 0))
                     sale.payment_method = payload.get('payment_method') or 'cash'
                     sale.invoice_type = payload.get('invoice_type') or 'B'
+                    sale.is_credit_note = payload.get('is_credit_note', False)
 
                     if is_budget:
                         sale.status = 'budget'
@@ -446,6 +447,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     sale.total = float(payload.get('total', 0))
                     sale.payment_method = payload.get('payment_method') or 'cash'
                     sale.invoice_type = payload.get('invoice_type') or 'B'
+                    sale.is_credit_note = payload.get('is_credit_note', False)
 
                     # Para tickets (sin factura), asegurar que IVA sea 0 y total sea igual a subtotal
                     if not payload.get('invoice_number'):

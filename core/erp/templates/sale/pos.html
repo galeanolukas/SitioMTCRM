@@ -166,7 +166,11 @@
                   {% if s.is_budget %}
                     <span class="badge bg-warning text-dark">Pendiente</span>
                   {% elif s.is_invoiced %}
-                    <span class="badge bg-success me-1">Factura {{ s.invoice_type|default:"" }}</span>
+                    {% if s.is_credit_note %}
+                      <span class="badge bg-info me-1">NC {{ s.invoice_type|default:"" }}</span>
+                    {% else %}
+                      <span class="badge bg-success me-1">Factura {{ s.invoice_type|default:"" }}</span>
+                    {% endif %}
                     <a class="btn btn-xs btn-outline-primary" href="{% url 'erp:invoice_pdf' s.id %}" target="_blank">
                       <i class="fas fa-file-pdf"></i>
                     </a>
@@ -256,11 +260,14 @@
           </script>
 
           <div class="mb-3">
-            <label for="invoiceType" class="form-label">Tipo de Factura</label>
+            <label for="invoiceType" class="form-label">Tipo de Comprobante</label>
             <select id="invoiceType" class="form-select">
               <option value="A" {% if default_invoice_type == 'A' %}selected{% endif %}>Factura A</option>
               <option value="B" {% if default_invoice_type == 'B' %}selected{% endif %}>Factura B</option>
               <option value="C" {% if default_invoice_type == 'C' %}selected{% endif %}>Factura C</option>
+              <option value="NC-A">Nota de Crédito A</option>
+              <option value="NC-B">Nota de Crédito B</option>
+              <option value="NC-C">Nota de Crédito C</option>
             </select>
             <small class="text-muted">Tomado de configuración AFIP de la empresa</small>
           </div>

@@ -538,6 +538,7 @@ class Sale(models.Model):
     invoice_number = models.CharField(max_length=20, null=True, blank=True)
     invoice_pos = models.CharField(max_length=5, default='0001')
     invoice_type = models.CharField(max_length=1, default='B')  # A/B/C
+    is_credit_note = models.BooleanField(default=False, verbose_name='Es Nota de Crédito')
     is_invoiced = models.BooleanField(default=False)
     # Campos AFIP
     afip_cae = models.CharField(max_length=14, null=True, blank=True, verbose_name='CAE AFIP')

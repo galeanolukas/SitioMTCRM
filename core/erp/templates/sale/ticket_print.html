@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Ticket {{ sale.id }}</title>
+  <title>{% if sale.is_credit_note %}Nota de Crédito{% else %}Ticket{% endif %} {{ sale.id }}</title>
   <style>
     @page { size: 48mm 210mm; margin: 1mm; }
     * { box-sizing: border-box; }
@@ -87,7 +87,11 @@
 
     <!-- Datos del comprobante -->
     <div class="small lh">
+      {% if sale.is_credit_note %}
+      Cód. 083 - NOTA DE CRÉDITO {{ sale.invoice_type }}<br>
+      {% else %}
       Cód. 083 - TIQUE<br>
+      {% endif %}
       P.V. {{ sale.invoice_pos|default:company.pos }} - Nro. T. {{ sale.invoice_number|default:sale.id }}<br>
       Fecha {{ sale.date_joined|date:"d/m/Y" }}   Hora {{ sale.date_joined|date:"H:i:s" }}
     </div>

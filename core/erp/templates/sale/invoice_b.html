@@ -3,7 +3,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Factura {{ sale.invoice_type }} - {{ sale.invoice_number|default:sale.id }}</title>
+    <title>{% if sale.is_credit_note %}Nota de Crédito{% else %}Factura{% endif %} {{ sale.invoice_type }} - {{ sale.invoice_number|default:sale.id }}</title>
     <link rel="stylesheet" href="{% static 'sale/invoice.css' %}">
 </head>
 <body>
@@ -25,7 +25,7 @@
         </div>
 
         <div class="invoice-info">
-            <div class="invoice-type-badge">FACTURA {{ sale.invoice_type|default:"B" }}</div>
+            <div class="invoice-type-badge">{% if sale.is_credit_note %}NOTA DE CRÉDITO{% else %}FACTURA{% endif %} {{ sale.invoice_type|default:"B" }}</div>
             <div class="invoice-number">N° {{ company.pos|default:"0001" }}-{{ sale.invoice_number|default:sale.id|stringformat:"08d" }}</div>
             <div class="invoice-date">Fecha: {{ sale.date_joined|date:"d/m/Y" }}</div>
             <div class="invoice-date">Hora: {{ sale.date_joined|date:"H:i" }}</div>
