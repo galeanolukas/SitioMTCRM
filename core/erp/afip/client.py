@@ -42,8 +42,15 @@ class AfipClient:
             'access_token': self.config['access_token'],
         }
 
-        # Agregar certificado y key si están disponibles (producción)
-        if self.config['cert'] and self.config['key']:
+        # Configurar ambiente explícitamente
+        if self.config['environment'] == 'prod':
+            params['production'] = True
+        else:
+            # En modo desarrollo, asegurar que production sea False
+            params['production'] = False
+
+        # Agregar certificado y key solo si están disponibles y es producción
+        if self.config['environment'] == 'prod' and self.config['cert'] and self.config['key']:
             # Si son paths de archivo, leer el contenido
             cert = self.config['cert']
             key = self.config['key']
@@ -66,14 +73,13 @@ class AfipClient:
             params['cert'] = cert
             params['key'] = key
         elif self.config['environment'] == 'prod':
-            # En producción sin certificados, loggear advertencia pero no fallar
+            # En producción sin certificados, loggear advertencia
             logger.warning(f"[AFIP] Configuración en producción sin certificados para CUIT {self.config['CUIT']}. Se usará modo contingencia si está habilitado.")
             if not self.config.get('usar_contingencia', False):
                 logger.error(f"[AFIP] Configuración en producción sin certificados y modo contingencia deshabilitado. Las operaciones AFIP fallarán.")
-
-        # Configurar ambiente
-        if self.config['environment'] == 'prod':
-            params['production'] = True
+        else:
+            # En modo desarrollo, no se requieren certificados
+            logger.debug(f"[AFIP] Configuración en modo desarrollo para CUIT {self.config['CUIT']}. No se requieren certificados.")
 
         self.afip = Afip(params)
     
@@ -169,6 +175,14 @@ class AfipClient:
         """
         try:
             logger.debug(f"[AFIP] Obteniendo último comprobante - PtoVta: {pto_vta}, CbteTipo: {cbte_tipo}")
+            logger.debug(f"[AFIP] Ambiente: {self.config.get('environment', 'unknown')}")
+            logger.debug(f"[AFIP] Tiene cert: {bool(self.config.get('cert'))}, Tiene key: {bool(self.config.get('key'))}")
+
+            # En modo desarrollo sin certificados, retornar 0 (simulación)
+            if self.config.get('environment') == 'dev' and not (self.config.get('cert') and self.config.get('key')):
+                logger.info(f"[AFIP] Modo desarrollo sin certificados. Retornando 0 como último número de comprobante (simulación).")
+                return 0
+
             # Usar el método específico de AFIP SDK para obtener el último número
             result = self.afip.ElectronicBilling.getLastVoucher(pto_vta, cbte_tipo)
             logger.debug(f"[AFIP] Respuesta getLastVoucher: {result}")
@@ -197,6 +211,12 @@ class AfipClient:
             logger.error(f"[AFIP] Error en get_last_voucher_number: {e}")
             import traceback
             logger.error(f"[AFIP] Traceback: {traceback.format_exc()}")
+
+            # Si es modo desarrollo y el error es por falta de certificados, retornar 0
+            if self.config.get('environment') == 'dev' and 'cert' in str(e).lower():
+                logger.info(f"[AFIP] Error de certificados en modo desarrollo. Retornando 0 como fallback (simulación).")
+                return 0
+
             return {'error': str(e)}
     
     def get_invoice_types(self):
