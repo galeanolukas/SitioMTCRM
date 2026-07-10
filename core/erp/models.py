@@ -709,18 +709,39 @@ class Sale(models.Model):
             logger.info(f"[AFIP DEBUG] Último número autorizado: {last_nro}, Próximo número: {next_nro}")
 
             # Determinar tipo y número de documento según datos del cliente
-            if self.cli and self.cli.cuit_cuil:
-                doc_tipo = 80  # CUIT
-                doc_nro = int(self.cli.cuit_cuil.replace('-', ''))
-                logger.info(f"[AFIP DEBUG] Cliente con CUIT - DocTipo: {doc_tipo}, DocNro: {doc_nro}")
-            elif self.cli and self.cli.dni:
-                doc_tipo = 96  # DNI
-                doc_nro = int(self.cli.dni)
-                logger.info(f"[AFIP DEBUG] Cliente con DNI - DocTipo: {doc_tipo}, DocNro: {doc_nro}")
+            # Para facturas A (tipo_comprobante = 1), DocTipo debe ser 80 (CUIT) obligatoriamente
+            if config_obj.tipo_comprobante == 1:  # Factura A
+                # Para facturas A, AFIP requiere CUIT obligatoriamente
+                if self.cli and self.cli.cuit_cuil:
+                    doc_tipo = 80  # CUIT
+                    doc_nro = int(self.cli.cuit_cuil.replace('-', ''))
+                    logger.info(f"[AFIP DEBUG] Factura A - Cliente con CUIT - DocTipo: {doc_tipo}, DocNro: {doc_nro}")
+                else:
+                    # Si el cliente no tiene CUIT, usar CUIT de la empresa
+                    if config_obj.cuit:
+                        doc_tipo = 80  # CUIT
+                        doc_nro = int(config_obj.cuit.replace('-', ''))
+                        logger.info(f"[AFIP DEBUG] Factura A - Sin CUIT cliente, usando CUIT empresa - DocTipo: {doc_tipo}, DocNro: {doc_nro}")
+                    else:
+                        # Error: Factura A requiere CUIT
+                        logger.error(f"[AFIP DEBUG] Factura A requiere CUIT pero no hay CUIT de cliente ni empresa")
+                        self.afip_error = "Factura A requiere CUIT del cliente o de la empresa"
+                        self.save(update_fields=['afip_error'])
+                        return False
             else:
-                doc_tipo = 99  # Consumidor Final sin datos
-                doc_nro = 0
-                logger.info(f"[AFIP DEBUG] Cliente consumidor final - DocTipo: {doc_tipo}, DocNro: {doc_nro}")
+                # Para otros tipos de comprobante (B, C, etc.), usar lógica normal
+                if self.cli and self.cli.cuit_cuil:
+                    doc_tipo = 80  # CUIT
+                    doc_nro = int(self.cli.cuit_cuil.replace('-', ''))
+                    logger.info(f"[AFIP DEBUG] Cliente con CUIT - DocTipo: {doc_tipo}, DocNro: {doc_nro}")
+                elif self.cli and self.cli.dni:
+                    doc_tipo = 96  # DNI
+                    doc_nro = int(self.cli.dni)
+                    logger.info(f"[AFIP DEBUG] Cliente con DNI - DocTipo: {doc_tipo}, DocNro: {doc_nro}")
+                else:
+                    doc_tipo = 99  # Consumidor Final sin datos
+                    doc_nro = 0
+                    logger.info(f"[AFIP DEBUG] Cliente consumidor final - DocTipo: {doc_tipo}, DocNro: {doc_nro}")
 
             # Determinar condición IVA del receptor según normativa AFIP RG 5616/2024
             # Mapeo: RI=1, M=4, CF=5, EX=6, NC=9
