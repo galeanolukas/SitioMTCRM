@@ -131,18 +131,18 @@
       function calcularPVPDesdeCosto() {
         const costPrice = parseFloat($('#id_cost_price').val()) || 0;
         const marginPercentage = parseFloat($('#id_margin_percentage').val()) || 0;
-        
+
         // Solo calcular si hay valores válidos
         if (costPrice > 0 && marginPercentage >= 0) {
-          // Calcular PVP basado en costo y margen: PVP = Costo / (1 - Margen)
+          // Calcular PVP basado en costo y margen: PVP = Costo * (1 + Margen)
           const marginRate = marginPercentage / 100;
-          let calculatedPVP = costPrice / (1 - marginRate);
-          
+          let calculatedPVP = costPrice * (1 + marginRate);
+
           // Redondear hacia arriba al siguiente entero
           calculatedPVP = Math.ceil(calculatedPVP);
-          
+
           $('#id_pvp').val(calculatedPVP.toFixed(2));
-          
+
           // Después de calcular PVP, calcular automáticamente el precio final
           calcularPrecioFinal();
         }
