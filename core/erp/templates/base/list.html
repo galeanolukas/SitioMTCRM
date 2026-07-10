@@ -50,7 +50,7 @@
         $(function () {
             // DataTables initialization is now handled by individual list.js files
             // to allow proper Ajax configuration with CSRF tokens
-            
+
             $('.btnTest').on('click', function () {
                 $.ajax({
                     url: '{% url 'erp:category_list' %}',
@@ -68,4 +68,6 @@
         });
     </script>
   {% endblock %}
+
+  {% block extra_js %}{% endblock %}
 {% endblock %}
