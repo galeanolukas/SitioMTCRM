@@ -104,22 +104,6 @@ class AfipClient:
         """
         try:
             logger.debug(f"[AFIP] Verificando estado del servidor (FEDummy)")
-            logger.debug(f"[AFIP] Ambiente: {self.config.get('environment', 'unknown')}")
-
-            # En modo desarrollo sin certificados, simular estado del servidor
-            if self.config.get('environment') == 'dev' and not (self.config.get('cert') and self.config.get('key')):
-                logger.info(f"[AFIP] Modo desarrollo sin certificados. Simulando estado del servidor.")
-                from datetime import datetime
-                resultado_simulado = {
-                    'AppServer': 'OK',
-                    'DbServer': 'OK',
-                    'AuthServer': 'OK',
-                    'Simulado': True,
-                    'Mensaje': 'Estado simulado en modo desarrollo'
-                }
-                logger.debug(f"[AFIP] Respuesta FEDummy simulada: {resultado_simulado}")
-                return {'status': 'ok', 'data': resultado_simulado}
-
             # Usar Web Service WSFE para verificar estado con FEDummy
             ws = self.get_web_service('wsfe')
             # FEDummy es un método simple para verificar estado del servidor
@@ -128,20 +112,6 @@ class AfipClient:
             return {'status': 'ok', 'data': result}
         except Exception as e:
             logger.error(f"[AFIP] Error en FEDummy: {e}")
-
-            # Si es modo desarrollo y el error es por falta de certificados, simular respuesta
-            if self.config.get('environment') == 'dev' and 'cert' in str(e).lower():
-                logger.info(f"[AFIP] Error de certificados en modo desarrollo. Simulando estado del servidor como fallback.")
-                from datetime import datetime
-                resultado_simulado = {
-                    'AppServer': 'OK',
-                    'DbServer': 'OK',
-                    'AuthServer': 'OK',
-                    'Simulado': True,
-                    'Mensaje': 'Estado simulado en modo desarrollo (fallback)'
-                }
-                return {'status': 'ok', 'data': resultado_simulado}
-
             return {'error': str(e)}
 
     def get_taxpayer_info(self, cuit, user=None):
@@ -182,30 +152,6 @@ class AfipClient:
         try:
             logger.debug(f"[AFIP] Creando voucher - PtoVta: {voucher_data.get('PtoVta')}, CbteTipo: {voucher_data.get('CbteTipo')}, Total: {voucher_data.get('ImpTotal')}")
             logger.debug(f"[AFIP] Ambiente: {self.config.get('environment', 'unknown')}")
-            logger.debug(f"[AFIP] Tiene cert: {bool(self.config.get('cert'))}, Tiene key: {bool(self.config.get('key'))}")
-
-            # En modo desarrollo sin certificados, simular creación de voucher
-            if self.config.get('environment') == 'dev' and not (self.config.get('cert') and self.config.get('key')):
-                logger.info(f"[AFIP] Modo desarrollo sin certificados. Simulando creación de voucher.")
-                # Simular respuesta de AFIP con CAE ficticio
-                from datetime import datetime, timedelta
-                cae_ficticio = str(voucher_data.get('CbteDesde', 1)).zfill(14)
-                fecha_vencimiento = (datetime.now() + timedelta(days=10)).strftime('%Y%m%d')
-                resultado_simulado = {
-                    'CAE': cae_ficticio,
-                    'CAEFchVto': fecha_vencimiento,
-                    'CbteDesde': voucher_data.get('CbteDesde', 1),
-                    'CbteHasta': voucher_data.get('CbteHasta', 1),
-                    'PtoVta': voucher_data.get('PtoVta', 1),
-                    'CbteTipo': voucher_data.get('CbteTipo', 6),
-                    'FchProceso': datetime.now().strftime('%Y%m%d'),
-                    'Resultado': 'A',
-                    'Observaciones': [],
-                    'Simulado': True,
-                    'Mensaje': 'Voucher simulado en modo desarrollo'
-                }
-                logger.debug(f"[AFIP] Respuesta simulada: {resultado_simulado}")
-                return resultado_simulado
 
             # Usar el método ElectronicBilling.createVoucher de AFIP SDK
             result = self.afip.ElectronicBilling.createVoucher(voucher_data)
@@ -215,28 +161,6 @@ class AfipClient:
             logger.error(f"[AFIP] Error en create_voucher: {e}")
             import traceback
             logger.error(f"[AFIP] Traceback: {traceback.format_exc()}")
-
-            # Si es modo desarrollo y el error es por falta de certificados, simular respuesta
-            if self.config.get('environment') == 'dev' and 'cert' in str(e).lower():
-                logger.info(f"[AFIP] Error de certificados en modo desarrollo. Simulando creación de voucher como fallback.")
-                from datetime import datetime, timedelta
-                cae_ficticio = str(voucher_data.get('CbteDesde', 1)).zfill(14)
-                fecha_vencimiento = (datetime.now() + timedelta(days=10)).strftime('%Y%m%d')
-                resultado_simulado = {
-                    'CAE': cae_ficticio,
-                    'CAEFchVto': fecha_vencimiento,
-                    'CbteDesde': voucher_data.get('CbteDesde', 1),
-                    'CbteHasta': voucher_data.get('CbteHasta', 1),
-                    'PtoVta': voucher_data.get('PtoVta', 1),
-                    'CbteTipo': voucher_data.get('CbteTipo', 6),
-                    'FchProceso': datetime.now().strftime('%Y%m%d'),
-                    'Resultado': 'A',
-                    'Observaciones': [],
-                    'Simulado': True,
-                    'Mensaje': 'Voucher simulado en modo desarrollo (fallback)'
-                }
-                return resultado_simulado
-
             return {'error': str(e)}
     
     def get_last_voucher_number(self, pto_vta, cbte_tipo):
@@ -253,14 +177,6 @@ class AfipClient:
         """
         try:
             logger.debug(f"[AFIP] Obteniendo último comprobante - PtoVta: {pto_vta}, CbteTipo: {cbte_tipo}")
-            logger.debug(f"[AFIP] Ambiente: {self.config.get('environment', 'unknown')}")
-            logger.debug(f"[AFIP] Tiene cert: {bool(self.config.get('cert'))}, Tiene key: {bool(self.config.get('key'))}")
-
-            # En modo desarrollo sin certificados, retornar 0 (simulación)
-            if self.config.get('environment') == 'dev' and not (self.config.get('cert') and self.config.get('key')):
-                logger.info(f"[AFIP] Modo desarrollo sin certificados. Retornando 0 como último número de comprobante (simulación).")
-                return 0
-
             # Usar el método específico de AFIP SDK para obtener el último número
             result = self.afip.ElectronicBilling.getLastVoucher(pto_vta, cbte_tipo)
             logger.debug(f"[AFIP] Respuesta getLastVoucher: {result}")
@@ -289,12 +205,6 @@ class AfipClient:
             logger.error(f"[AFIP] Error en get_last_voucher_number: {e}")
             import traceback
             logger.error(f"[AFIP] Traceback: {traceback.format_exc()}")
-
-            # Si es modo desarrollo y el error es por falta de certificados, retornar 0
-            if self.config.get('environment') == 'dev' and 'cert' in str(e).lower():
-                logger.info(f"[AFIP] Error de certificados en modo desarrollo. Retornando 0 como fallback (simulación).")
-                return 0
-
             return {'error': str(e)}
     
     def get_invoice_types(self):
@@ -306,22 +216,6 @@ class AfipClient:
         """
         try:
             logger.debug(f"[AFIP] Obteniendo tipos de comprobantes")
-            logger.debug(f"[AFIP] Ambiente: {self.config.get('environment', 'unknown')}")
-
-            # En modo desarrollo sin certificados, simular tipos de comprobantes
-            if self.config.get('environment') == 'dev' and not (self.config.get('cert') and self.config.get('key')):
-                logger.info(f"[AFIP] Modo desarrollo sin certificados. Simulando tipos de comprobantes.")
-                tipos_simulados = [
-                    {'Id': 1, 'Desc': 'Factura A', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                    {'Id': 6, 'Desc': 'Factura B', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                    {'Id': 11, 'Desc': 'Factura C', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                    {'Id': 3, 'Desc': 'Nota de Crédito A', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                    {'Id': 8, 'Desc': 'Nota de Crédito B', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                    {'Id': 13, 'Desc': 'Nota de Crédito C', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                ]
-                logger.debug(f"[AFIP] Respuesta simulada: {tipos_simulados}")
-                return {'types': tipos_simulados, 'Simulado': True}
-
             ws = self.get_web_service('wsfe')
             ta = ws.getTokenAuthorization()
             data = {
@@ -335,20 +229,6 @@ class AfipClient:
             return {'types': result}
         except Exception as e:
             logger.error(f"[AFIP] Error en get_invoice_types: {e}")
-
-            # Si es modo desarrollo y el error es por falta de certificados, simular respuesta
-            if self.config.get('environment') == 'dev' and 'cert' in str(e).lower():
-                logger.info(f"[AFIP] Error de certificados en modo desarrollo. Simulando tipos de comprobantes como fallback.")
-                tipos_simulados = [
-                    {'Id': 1, 'Desc': 'Factura A', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                    {'Id': 6, 'Desc': 'Factura B', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                    {'Id': 11, 'Desc': 'Factura C', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                    {'Id': 3, 'Desc': 'Nota de Crédito A', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                    {'Id': 8, 'Desc': 'Nota de Crédito B', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                    {'Id': 13, 'Desc': 'Nota de Crédito C', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                ]
-                return {'types': tipos_simulados, 'Simulado': True}
-
             return {'error': str(e)}
     
     def get_concept_types(self):
@@ -360,19 +240,6 @@ class AfipClient:
         """
         try:
             logger.debug(f"[AFIP] Obteniendo tipos de conceptos")
-            logger.debug(f"[AFIP] Ambiente: {self.config.get('environment', 'unknown')}")
-
-            # En modo desarrollo sin certificados, simular tipos de conceptos
-            if self.config.get('environment') == 'dev' and not (self.config.get('cert') and self.config.get('key')):
-                logger.info(f"[AFIP] Modo desarrollo sin certificados. Simulando tipos de conceptos.")
-                tipos_simulados = [
-                    {'Id': 1, 'Desc': 'Productos', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                    {'Id': 2, 'Desc': 'Servicios', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                    {'Id': 3, 'Desc': 'Productos y Servicios', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                ]
-                logger.debug(f"[AFIP] Respuesta simulada: {tipos_simulados}")
-                return {'types': tipos_simulados, 'Simulado': True}
-
             ws = self.get_web_service('wsfe')
             ta = ws.getTokenAuthorization()
             data = {
@@ -386,17 +253,6 @@ class AfipClient:
             return {'types': result}
         except Exception as e:
             logger.error(f"[AFIP] Error en get_concept_types: {e}")
-
-            # Si es modo desarrollo y el error es por falta de certificados, simular respuesta
-            if self.config.get('environment') == 'dev' and 'cert' in str(e).lower():
-                logger.info(f"[AFIP] Error de certificados en modo desarrollo. Simulando tipos de conceptos como fallback.")
-                tipos_simulados = [
-                    {'Id': 1, 'Desc': 'Productos', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                    {'Id': 2, 'Desc': 'Servicios', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                    {'Id': 3, 'Desc': 'Productos y Servicios', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                ]
-                return {'types': tipos_simulados, 'Simulado': True}
-
             return {'error': str(e)}
     
     def get_document_types(self):
@@ -408,20 +264,6 @@ class AfipClient:
         """
         try:
             logger.debug(f"[AFIP] Obteniendo tipos de documentos")
-            logger.debug(f"[AFIP] Ambiente: {self.config.get('environment', 'unknown')}")
-
-            # En modo desarrollo sin certificados, simular tipos de documentos
-            if self.config.get('environment') == 'dev' and not (self.config.get('cert') and self.config.get('key')):
-                logger.info(f"[AFIP] Modo desarrollo sin certificados. Simulando tipos de documentos.")
-                tipos_simulados = [
-                    {'Id': 80, 'Desc': 'CUIT', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                    {'Id': 86, 'Desc': 'CUIL', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                    {'Id': 96, 'Desc': 'DNI', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                    {'Id': 99, 'Desc': 'Sin identificar', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                ]
-                logger.debug(f"[AFIP] Respuesta simulada: {tipos_simulados}")
-                return {'types': tipos_simulados, 'Simulado': True}
-
             ws = self.get_web_service('wsfe')
             ta = ws.getTokenAuthorization()
             data = {
@@ -435,18 +277,6 @@ class AfipClient:
             return {'types': result}
         except Exception as e:
             logger.error(f"[AFIP] Error en get_document_types: {e}")
-
-            # Si es modo desarrollo y el error es por falta de certificados, simular respuesta
-            if self.config.get('environment') == 'dev' and 'cert' in str(e).lower():
-                logger.info(f"[AFIP] Error de certificados en modo desarrollo. Simulando tipos de documentos como fallback.")
-                tipos_simulados = [
-                    {'Id': 80, 'Desc': 'CUIT', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                    {'Id': 86, 'Desc': 'CUIL', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                    {'Id': 96, 'Desc': 'DNI', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                    {'Id': 99, 'Desc': 'Sin identificar', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                ]
-                return {'types': tipos_simulados, 'Simulado': True}
-
             return {'error': str(e)}
     
     def get_aliquote_types(self):
@@ -458,20 +288,6 @@ class AfipClient:
         """
         try:
             logger.debug(f"[AFIP] Obteniendo tipos de alícuotas de IVA")
-            logger.debug(f"[AFIP] Ambiente: {self.config.get('environment', 'unknown')}")
-
-            # En modo desarrollo sin certificados, simular tipos de alícuotas
-            if self.config.get('environment') == 'dev' and not (self.config.get('cert') and self.config.get('key')):
-                logger.info(f"[AFIP] Modo desarrollo sin certificados. Simulando tipos de alícuotas de IVA.")
-                tipos_simulados = [
-                    {'Id': 3, 'Desc': '0%', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                    {'Id': 4, 'Desc': '10.5%', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                    {'Id': 5, 'Desc': '21%', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                    {'Id': 6, 'Desc': '27%', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                ]
-                logger.debug(f"[AFIP] Respuesta simulada: {tipos_simulados}")
-                return {'types': tipos_simulados, 'Simulado': True}
-
             ws = self.get_web_service('wsfe')
             ta = ws.getTokenAuthorization()
             data = {
@@ -485,18 +301,6 @@ class AfipClient:
             return {'types': result}
         except Exception as e:
             logger.error(f"[AFIP] Error en get_aliquote_types: {e}")
-
-            # Si es modo desarrollo y el error es por falta de certificados, simular respuesta
-            if self.config.get('environment') == 'dev' and 'cert' in str(e).lower():
-                logger.info(f"[AFIP] Error de certificados en modo desarrollo. Simulando tipos de alícuotas de IVA como fallback.")
-                tipos_simulados = [
-                    {'Id': 3, 'Desc': '0%', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                    {'Id': 4, 'Desc': '10.5%', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                    {'Id': 5, 'Desc': '21%', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                    {'Id': 6, 'Desc': '27%', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                ]
-                return {'types': tipos_simulados, 'Simulado': True}
-
             return {'error': str(e)}
     
     def get_currency_types(self):
@@ -508,19 +312,6 @@ class AfipClient:
         """
         try:
             logger.debug(f"[AFIP] Obteniendo tipos de monedas")
-            logger.debug(f"[AFIP] Ambiente: {self.config.get('environment', 'unknown')}")
-
-            # En modo desarrollo sin certificados, simular tipos de monedas
-            if self.config.get('environment') == 'dev' and not (self.config.get('cert') and self.config.get('key')):
-                logger.info(f"[AFIP] Modo desarrollo sin certificados. Simulando tipos de monedas.")
-                tipos_simulados = [
-                    {'Id': 'PES', 'Desc': 'Pesos Argentinos', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                    {'Id': 'DOL', 'Desc': 'Dólar Estadounidense', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                    {'Id': 'EUR', 'Desc': 'Euro', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                ]
-                logger.debug(f"[AFIP] Respuesta simulada: {tipos_simulados}")
-                return {'types': tipos_simulados, 'Simulado': True}
-
             ws = self.get_web_service('wsfe')
             ta = ws.getTokenAuthorization()
             data = {
@@ -534,17 +325,6 @@ class AfipClient:
             return {'types': result}
         except Exception as e:
             logger.error(f"[AFIP] Error en get_currency_types: {e}")
-
-            # Si es modo desarrollo y el error es por falta de certificados, simular respuesta
-            if self.config.get('environment') == 'dev' and 'cert' in str(e).lower():
-                logger.info(f"[AFIP] Error de certificados en modo desarrollo. Simulando tipos de monedas como fallback.")
-                tipos_simulados = [
-                    {'Id': 'PES', 'Desc': 'Pesos Argentinos', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                    {'Id': 'DOL', 'Desc': 'Dólar Estadounidense', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                    {'Id': 'EUR', 'Desc': 'Euro', 'FchDesde': '20100101', 'FchHasta': '20991231'},
-                ]
-                return {'types': tipos_simulados, 'Simulado': True}
-
             return {'error': str(e)}
 
     def get_taxpayer_data(self, cuit):
@@ -562,28 +342,6 @@ class AfipClient:
         try:
             cuit_clean = str(cuit).replace('-', '').strip()
             logger.debug(f"[AFIP] Consultando Padrón (RegisterScopeTen) para CUIT: {cuit_clean}")
-            logger.debug(f"[AFIP] Ambiente: {self.config.get('environment', 'unknown')}")
-
-            # En modo desarrollo sin certificados, simular consulta al padrón
-            if self.config.get('environment') == 'dev' and not (self.config.get('cert') and self.config.get('key')):
-                logger.info(f"[AFIP] Modo desarrollo sin certificados. Simulando consulta al Padrón AFIP.")
-                resultado_simulado = {
-                    'cuit': cuit_clean,
-                    'razon_social': f'Contribuyente Simulado {cuit_clean}',
-                    'domicilio': 'Domicilio Simulado',
-                    'localidad': 'Localidad Simulada',
-                    'provincia': 'Provincia Simulada',
-                    'codigo_postal': '0000',
-                    'telefono': '',
-                    'email': '',
-                    'impuestos': [],
-                    'actividades': [],
-                    'Simulado': True,
-                    'Mensaje': 'Datos simulados en modo desarrollo'
-                }
-                logger.debug(f"[AFIP] Respuesta simulada: {resultado_simulado}")
-                return resultado_simulado
-
             taxpayer = self.afip.RegisterScopeTen
             result = taxpayer.getTaxpayerDetails(int(cuit_clean))
             logger.debug(f"[AFIP] Respuesta RegisterScopeTen: {result}")
@@ -679,27 +437,8 @@ class AfipClient:
             template_name = pdf_data.get('template', {}).get('name', 'unknown')
             file_name = pdf_data.get('file_name', 'unknown')
             logger.debug(f"[AFIP PDF] Generando PDF - Template: {template_name}, Archivo: {file_name}")
-            logger.debug(f"[AFIP PDF] Ambiente: {self.config.get('environment', 'unknown')}")
-
-            # En modo desarrollo sin certificados, simular generación de PDF
-            if self.config.get('environment') == 'dev' and not (self.config.get('cert') and self.config.get('key')):
-                logger.info(f"[AFIP PDF] Modo desarrollo sin certificados. Simulando generación de PDF.")
-                from datetime import datetime, timedelta
-                resultado_simulado = {
-                    'id': 'simulado_' + str(int(datetime.now().timestamp())),
-                    'file': f'https://simulado.afip.com/pdf/{file_name}',
-                    'file_expiration': (datetime.now() + timedelta(days=30)).isoformat(),
-                    'file_name': file_name,
-                    'created_at': datetime.now().isoformat(),
-                    'Simulado': True,
-                    'Mensaje': 'PDF simulado en modo desarrollo'
-                }
-                logger.debug(f"[AFIP PDF] Respuesta simulada: {resultado_simulado}")
-                return resultado_simulado
-
             # Usar el método del SDK para crear PDFs
             result = self.afip.ElectronicBilling.createPDF(pdf_data)
-
             logger.debug(f"[AFIP PDF] Respuesta createPDF: {result}")
             return result
         except Exception as e:
