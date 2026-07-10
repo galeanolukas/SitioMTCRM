@@ -793,7 +793,8 @@ class Sale(models.Model):
 
             # Guardar resultado AFIP
             self.afip_cae = result.get('CAE', '')
-            self.afip_cae_vto = datetime.strptime(result.get('CAEFchVto', ''), '%Y-%m-%d').date() if result.get('CAEFchVto') else None
+            # AFIP devuelve fecha en formato YYYYMMDD (ej: 20260720)
+            self.afip_cae_vto = datetime.strptime(result.get('CAEFchVto', ''), '%Y%m%d').date() if result.get('CAEFchVto') else None
             self.afip_voucher_number = next_nro
             self.afip_result = result
             self.is_invoiced = True
