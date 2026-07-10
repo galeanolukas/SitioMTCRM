@@ -793,8 +793,21 @@ class Sale(models.Model):
 
             # Guardar resultado AFIP
             self.afip_cae = result.get('CAE', '')
-            # AFIP devuelve fecha en formato YYYYMMDD (ej: 20260720)
-            self.afip_cae_vto = datetime.strptime(result.get('CAEFchVto', ''), '%Y%m%d').date() if result.get('CAEFchVto') else None
+            # AFIP devuelve fecha en formato YYYY-MM-DD (ej: 2026-07-20)
+            cae_fch_vto = result.get('CAEFchVto', '')
+            if cae_fch_vto:
+                try:
+                    # Intentar formato YYYY-MM-DD
+                    self.afip_cae_vto = datetime.strptime(cae_fch_vto, '%Y-%m-%d').date()
+                except ValueError:
+                    try:
+                        # Fallback a formato YYYYMMDD
+                        self.afip_cae_vto = datetime.strptime(cae_fch_vto, '%Y%m%d').date()
+                    except ValueError:
+                        logger.error(f"[AFIP] Error parseando fecha CAE vencimiento: {cae_fch_vto}")
+                        self.afip_cae_vto = None
+            else:
+                self.afip_cae_vto = None
             self.afip_voucher_number = next_nro
             self.afip_result = result
             self.is_invoiced = True
