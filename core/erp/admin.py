@@ -73,10 +73,32 @@ class EmployeeAccountSaleAdmin(CompanyFilteredAdmin):
         return qs.none()
 
 class AfipConfigAdmin(CompanyFilteredAdmin):
-    list_display = ('company', 'cuit', 'environment', 'is_active', 'created_at')
-    list_filter = ('company', 'environment', 'is_active')
+    list_display = ('id', 'company', 'cuit', 'environment', 'tipo_comprobante', 'wsfe_authorized', 'is_active', 'created_at')
+    list_filter = ('company', 'environment', 'is_active', 'wsfe_authorized')
     search_fields = ('cuit', 'company__name')
-    readonly_fields = ('created_at', 'updated_at')
+    readonly_fields = ('created_at', 'updated_at', 'wsfe_authorized_at')
+    fieldsets = (
+        ('Información Básica', {
+            'fields': ('company', 'cuit', 'access_token', 'environment', 'is_active')
+        }),
+        ('Credenciales Clave Fiscal', {
+            'fields': ('clave_fiscal_username', 'clave_fiscal_password')
+        }),
+        ('Certificados (Producción)', {
+            'fields': ('cert', 'key'),
+            'classes': ('collapse',)
+        }),
+        ('Configuración de Facturación', {
+            'fields': ('tipo_comprobante', 'concepto', 'moneda', 'cotizacion', 'usar_contingencia')
+        }),
+        ('Estado WSFE', {
+            'fields': ('wsfe_authorized', 'wsfe_authorized_at', 'wsfe_automation_id')
+        }),
+        ('Fechas', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
