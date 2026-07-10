@@ -13,13 +13,14 @@ from core.erp.forms import SaleForm
 from django.views.generic import CreateView, ListView, DeleteView, UpdateView, TemplateView, View
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
-import json 
+import json
 from django.db import transaction
 from django.db.models import F, Q
 from django.utils import timezone
 import pytz
 import time
 import uuid
+from core.erp.afip.client import AfipClient
 
 @method_decorator(csrf_exempt, name='dispatch')
 class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView):
@@ -101,13 +102,12 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 cuit = request.POST.get('cuit')
                 if not cuit:
                     return JsonResponse({'error': 'CUIT requerido'}, status=400)
-                from core.erp.afip.client import AfipClient
                 active_cid = request.session.get('company_id')
                 if not active_cid:
                     active_cid = getattr(request.user, 'company_id', None)
                 try:
-                    client = AfipClient(company_id=active_cid)
-                    result = client.get_taxpayer_data(cuit)
+                    afip_client = AfipClient(company_id=active_cid)
+                    result = afip_client.get_taxpayer_data(cuit)
                     if 'error' in result:
                         data = {'error': result['error']}
                     else:
@@ -314,7 +314,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 if not client_id:
                     data = {'has_price_list': False}
                 else:
-                    from core.erp.models import Client, PriceList
+                    from core.erp.models import PriceList
                     client_obj = Client.objects.filter(pk=client_id).first()
                     if client_obj and client_obj.precio_lista_id and client_obj.precio_lista.is_active:
                         pl = client_obj.precio_lista
