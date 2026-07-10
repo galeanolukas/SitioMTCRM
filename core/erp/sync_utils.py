@@ -84,8 +84,11 @@ def _can_reach_local_server() -> bool:
         return False
 
 
-def run_full_sync():
+def run_full_sync(company_id=None):
     """Ejecuta sincronizacion de usuarios y ventas.
+
+    Args:
+        company_id: Si se especifica, sincroniza solo datos de esta empresa
 
     Devuelve (ok: bool, errors: list[str]).
     """
@@ -97,6 +100,8 @@ def run_full_sync():
     # Determinar destino de sincronización
     sync_destination = _get_sync_destination()
     logger.info(f"Destino de sincronización: {sync_destination}")
+    if company_id:
+        logger.info(f"Sincronizando solo para empresa ID: {company_id}")
     
     # Verificar disponibilidad del destino
     can_sync = False
@@ -188,7 +193,12 @@ def run_full_sync():
             from core.erp.models import AfipConfig
             sync_stats['afip_configs']['before'] = AfipConfig.objects.count()
 
-            call_command("sync_afip_configs")
+            # Pasar company_id si está disponible para filtrar por empresa del usuario
+            if company_id:
+                call_command("sync_afip_configs", company_id=company_id)
+            else:
+                call_command("sync_afip_configs")
+
             sync_stats['afip_configs']['after'] = AfipConfig.objects.count()
             sync_stats['afip_configs']['synced'] = sync_stats['afip_configs']['after'] - sync_stats['afip_configs']['before']
 

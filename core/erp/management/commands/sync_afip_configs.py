@@ -14,35 +14,63 @@ class Command(BaseCommand):
             action='store_true',
             help='Mostrar qué se haría sin ejecutar cambios',
         )
+        parser.add_argument(
+            '--company-id',
+            type=int,
+            help='Sincronizar solo configuraciones de esta empresa (ID)',
+        )
 
     def handle(self, *args, **options):
         dry_run = options.get('dry_run', False)
-        
+        company_id = options.get('company_id', None)
+
         if dry_run:
             self.stdout.write(self.style.WARNING("MODO DRY-RUN: No se realizarán cambios reales"))
-        
+
+        if company_id:
+            self.stdout.write(f"Sincronizando configuraciones AFIP solo para empresa ID: {company_id}")
+        else:
+            self.stdout.write("Sincronizando configuraciones AFIP para todas las empresas")
+
         self.stdout.write("Iniciando sincronización de configuraciones AFIP desde servidor remoto...")
-        
-        self.sync_afip_configs_from_server(dry_run)
-        
+
+        self.sync_afip_configs_from_server(dry_run, company_id)
+
         self.show_final_summary()
 
-    def sync_afip_configs_from_server(self, dry_run=False):
-        """Sincronizar configuraciones AFIP desde el servidor remoto"""
+    def sync_afip_configs_from_server(self, dry_run=False, company_id=None):
+        """Sincronizar configuraciones AFIP desde el servidor remoto
+
+        Args:
+            dry_run: Si es True, no ejecuta cambios reales
+            company_id: Si se especifica, sincroniza solo configuraciones de esta empresa
+        """
         try:
             remote_conn = connections['remote']
-            
+
             with remote_conn.cursor() as cursor:
                 # Obtener configuraciones AFIP del servidor
-                cursor.execute('''
-                    SELECT id, company_id, cuit, cert, key, access_token,
-                           tipo_comprobante, concepto, moneda, cotizacion,
-                           usar_contingencia, wsfe_authorized, wsfe_authorized_at,
-                           wsfe_automation_id, clave_fiscal_username, clave_fiscal_password,
-                           environment, is_active
-                    FROM erp_afipconfig
-                    ORDER BY company_id
-                ''')
+                if company_id:
+                    cursor.execute('''
+                        SELECT id, company_id, cuit, cert, key, access_token,
+                               tipo_comprobante, concepto, moneda, cotizacion,
+                               usar_contingencia, wsfe_authorized, wsfe_authorized_at,
+                               wsfe_automation_id, clave_fiscal_username, clave_fiscal_password,
+                               environment, is_active
+                        FROM erp_afipconfig
+                        WHERE company_id = %s
+                        ORDER BY company_id
+                    ''', [company_id])
+                else:
+                    cursor.execute('''
+                        SELECT id, company_id, cuit, cert, key, access_token,
+                               tipo_comprobante, concepto, moneda, cotizacion,
+                               usar_contingencia, wsfe_authorized, wsfe_authorized_at,
+                               wsfe_automation_id, clave_fiscal_username, clave_fiscal_password,
+                               environment, is_active
+                        FROM erp_afipconfig
+                        ORDER BY company_id
+                    ''')
                 configs_servidor = cursor.fetchall()
 
                 self.stdout.write(f"Configuraciones AFIP encontradas en servidor: {len(configs_servidor)}")

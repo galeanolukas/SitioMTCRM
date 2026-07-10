@@ -82,7 +82,14 @@ def sync_data_view(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
 
-    ok, errors = run_full_sync()
+    # Obtener company_id del usuario logueado para filtrar sincronización
+    company_id = None
+    if hasattr(request.user, 'company_id') and request.user.company_id:
+        company_id = request.user.company_id
+    elif request.session.get('company_id'):
+        company_id = request.session.get('company_id')
+
+    ok, errors = run_full_sync(company_id=company_id)
     status = 200 if ok else 207
     return JsonResponse({'ok': ok, 'errors': errors}, status=status)
 
