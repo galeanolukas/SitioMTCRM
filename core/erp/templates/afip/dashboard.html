@@ -44,6 +44,8 @@
       {% endif %}
     </td>
     <td>
+      <button class="btn btn-success btn-flat btn-sm btn-generate-cert" data-config-id="{{ config.id }}" data-environment="{{ config.environment }}" title="Generar Certificado"><i class="fas fa-certificate"></i></button>
+      <button class="btn btn-info btn-flat btn-sm btn-auth-ws" data-config-id="{{ config.id }}" title="Autorizar WSFE"><i class="fas fa-key"></i></button>
       <a href="{% url 'erp:afip:update' config.id %}" class="btn btn-warning btn-flat btn-sm"><i class="fas fa-edit"></i></a>
       <a href="{% url 'erp:afip:delete' config.id %}" class="btn btn-danger btn-flat btn-sm"><i class="fas fa-trash"></i></a>
     </td>
@@ -66,5 +68,92 @@
 {% endblock %}
 
 {% block javascript %}
-  <!-- Dashboard simplificado - sin modales, usa formulario completo -->
+  <script src="{% static 'afip/dashboard.js' %}"></script>
+{% endblock %}
+
+{% block modals %}
+<!-- Modal Generar Certificado -->
+<div class="modal fade" id="generateCertModal" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Generar Certificado AFIP</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="generateCertForm">
+          <input type="hidden" id="cert_config_id" name="config_id">
+          <input type="hidden" id="cert_type" name="cert_type" value="dev">
+          <div class="form-group">
+            <label for="cert_username">Usuario Clave Fiscal</label>
+            <input type="text" class="form-control" id="cert_username" name="username" placeholder="Usuario de Clave Fiscal AFIP">
+            <small class="form-text text-muted">Dejar vacío si ya está configurado en la configuración AFIP</small>
+          </div>
+          <div class="form-group">
+            <label for="cert_password">Contraseña Clave Fiscal</label>
+            <input type="password" class="form-control" id="cert_password" name="password" placeholder="Contraseña de Clave Fiscal AFIP">
+            <small class="form-text text-muted">Dejar vacío si ya está configurado en la configuración AFIP</small>
+          </div>
+          <div class="form-group">
+            <label for="cert_alias">Alias del Certificado</label>
+            <input type="text" class="form-control" id="cert_alias" name="alias" value="afipsdk">
+          </div>
+          <div id="cert-error-block" class="alert alert-danger" style="display: none;"></div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btnGenerateCert">Generar Certificado</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Autorizar Web Service -->
+<div class="modal fade" id="authWebServiceModal" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Autorizar Web Service AFIP</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="authWebServiceForm">
+          <input type="hidden" id="auth_config_id" name="config_id">
+          <div class="form-group">
+            <label for="auth_service">Web Service</label>
+            <select class="form-control" id="auth_service" name="service">
+              <option value="wsfe">WSFE (Facturación Electrónica)</option>
+              <option value="wsct">WSCT (Constatación de Comprobantes)</option>
+              <option value="wscdc">WSCDC (Comprobantes en PDF)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="auth_username">Usuario Clave Fiscal</label>
+            <input type="text" class="form-control" id="auth_username" name="username" placeholder="Usuario de Clave Fiscal AFIP">
+            <small class="form-text text-muted">Dejar vacío si ya está configurado en la configuración AFIP</small>
+          </div>
+          <div class="form-group">
+            <label for="auth_password">Contraseña Clave Fiscal</label>
+            <input type="password" class="form-control" id="auth_password" name="password" placeholder="Contraseña de Clave Fiscal AFIP">
+            <small class="form-text text-muted">Dejar vacío si ya está configurado en la configuración AFIP</small>
+          </div>
+          <div class="form-group">
+            <label for="auth_alias">Alias del Certificado</label>
+            <input type="text" class="form-control" id="auth_alias" name="alias" value="afipsdk">
+          </div>
+          <div id="auth-error-block" class="alert alert-danger" style="display: none;"></div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btnAuthWS">Autorizar Web Service</button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}

@@ -92,18 +92,18 @@ document.addEventListener('DOMContentLoaded', function() {
     if (companySelect) {
         companySelect.addEventListener('change', updateCuitDisplay);
     }
-    
+
     const createConfigForm = document.getElementById('createConfigForm');
     if (createConfigForm) {
         createConfigForm.addEventListener('submit', function(e) {
             e.preventDefault();
-            
+
             // Asegurar que el campo company_id esté actualizado antes de enviar
             updateCuitDisplay();
-            
+
             const formData = new FormData(this);
             const errorBlock = document.getElementById('error-block');
-            
+
             // Verificar que company_id no esté vacío
             const companyId = document.getElementById('company_id').value;
             if (!companyId) {
@@ -111,10 +111,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 errorBlock.classList.remove('d-none');
                 return;
             }
-            
+
             // Agregar acción de crear configuración
             formData.append('action', 'create_config');
-            
+
             fetch('', {
                 method: 'POST',
                 body: formData,
@@ -139,7 +139,40 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
-    
+
+    // Botones para generar certificado y autorizar WS desde el dashboard
+    document.querySelectorAll('.btn-generate-cert').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const configId = this.getAttribute('data-config-id');
+            const environment = this.getAttribute('data-environment');
+
+            document.getElementById('cert_config_id').value = configId;
+            document.getElementById('cert_type').value = environment === 'prod' ? 'prod' : 'dev';
+
+            // Limpiar campos de credenciales
+            document.getElementById('cert_username').value = '';
+            document.getElementById('cert_password').value = '';
+            document.getElementById('cert-error-block').style.display = 'none';
+
+            showGenerateCertModal();
+        });
+    });
+
+    document.querySelectorAll('.btn-auth-ws').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const configId = this.getAttribute('data-config-id');
+
+            document.getElementById('auth_config_id').value = configId;
+
+            // Limpiar campos de credenciales
+            document.getElementById('auth_username').value = '';
+            document.getElementById('auth_password').value = '';
+            document.getElementById('auth-error-block').style.display = 'none';
+
+            showAuthWebServiceModal();
+        });
+    });
+
     // Manejar el formulario de generación de certificados
     const generateCertForm = document.getElementById('generateCertForm');
     if (generateCertForm) {
@@ -150,13 +183,15 @@ document.addEventListener('DOMContentLoaded', function() {
             const errorBlock = document.getElementById('cert-error-block');
 
             // Verificar que se haya seleccionado una configuración
-            const configSelect = document.getElementById('cert_config_select');
-            const configId = configSelect.value;
+            const configId = document.getElementById('cert_config_id').value;
             if (!configId) {
                 errorBlock.textContent = 'Debe seleccionar una configuración AFIP';
-                errorBlock.classList.remove('d-none');
+                errorBlock.style.display = 'block';
                 return;
             }
+
+            // Agregar acción de generar certificado
+            formData.append('action', 'generate_certificate');
 
             fetch('', {
                 method: 'POST',
@@ -174,13 +209,21 @@ document.addEventListener('DOMContentLoaded', function() {
                     location.reload();
                 } else {
                     errorBlock.textContent = data.error || 'Error al generar certificado';
-                    errorBlock.classList.remove('d-none');
+                    errorBlock.style.display = 'block';
                 }
             })
             .catch(error => {
                 errorBlock.textContent = 'Error de conexión: ' + error;
-                errorBlock.classList.remove('d-none');
+                errorBlock.style.display = 'block';
             });
+        });
+    }
+
+    // Botón de generar certificado dentro del modal
+    const btnGenerateCert = document.getElementById('btnGenerateCert');
+    if (btnGenerateCert) {
+        btnGenerateCert.addEventListener('click', function() {
+            generateCertForm.dispatchEvent(new Event('submit'));
         });
     }
 
@@ -194,13 +237,15 @@ document.addEventListener('DOMContentLoaded', function() {
             const errorBlock = document.getElementById('auth-error-block');
 
             // Verificar que se haya seleccionado una configuración
-            const configSelect = document.getElementById('auth_config_select');
-            const configId = configSelect.value;
+            const configId = document.getElementById('auth_config_id').value;
             if (!configId) {
                 errorBlock.textContent = 'Debe seleccionar una configuración AFIP';
-                errorBlock.classList.remove('d-none');
+                errorBlock.style.display = 'block';
                 return;
             }
+
+            // Agregar acción de autorizar web service
+            formData.append('action', 'auth_web_service');
 
             fetch('', {
                 method: 'POST',
@@ -218,13 +263,21 @@ document.addEventListener('DOMContentLoaded', function() {
                     location.reload();
                 } else {
                     errorBlock.textContent = data.error || 'Error al autorizar Web Service';
-                    errorBlock.classList.remove('d-none');
+                    errorBlock.style.display = 'block';
                 }
             })
             .catch(error => {
                 errorBlock.textContent = 'Error de conexión: ' + error;
-                errorBlock.classList.remove('d-none');
+                errorBlock.style.display = 'block';
             });
+        });
+    }
+
+    // Botón de autorizar WS dentro del modal
+    const btnAuthWS = document.getElementById('btnAuthWS');
+    if (btnAuthWS) {
+        btnAuthWS.addEventListener('click', function() {
+            authWebServiceForm.dispatchEvent(new Event('submit'));
         });
     }
 });
