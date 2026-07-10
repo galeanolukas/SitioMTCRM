@@ -128,6 +128,7 @@ def run_full_sync():
     sync_stats = {
         'empresas': {'before': 0, 'after': 0, 'synced': 0},
         'usuarios': {'before': 0, 'after': 0, 'synced': 0},
+        'afip_configs': {'before': 0, 'after': 0, 'synced': 0},
         'productos': {'before': 0, 'after': 0, 'synced': 0},
         'stock': {'before': 0, 'after': 0, 'synced': 0},
         'categorias': {'before': 0, 'after': 0, 'synced': 0},
@@ -166,11 +167,11 @@ def run_full_sync():
             from django.contrib.auth import get_user_model
             User = get_user_model()
             sync_stats['usuarios']['before'] = User.objects.count()
-            
+
             call_command("sync_users_safe")
             sync_stats['usuarios']['after'] = User.objects.count()
             sync_stats['usuarios']['synced'] = sync_stats['usuarios']['after'] - sync_stats['usuarios']['before']
-            
+
             logger.info(f"✅ Usuarios sincronizados: {sync_stats['usuarios']['synced']} cambios (total: {sync_stats['usuarios']['after']})")
         except Exception as e:
             logger.error(f"Error en sincronización de usuarios: {e}")
@@ -178,6 +179,26 @@ def run_full_sync():
     else:
         logger.warning(f"Sin conexión para destino '{sync_destination}' - omitiendo sincronización de usuarios")
         errors.append(f"Sin conexión para destino '{sync_destination}' - omitiendo sincronización de usuarios")
+
+    # 2.b) Sincronizar configuraciones AFIP (dependen de empresas)
+    logger.info("📋 PASO 2.b/10: Sincronizando configuraciones AFIP (dependen de empresas)...")
+    if sync_destination in ['cloud', 'both'] and _can_reach_remote_db():
+        try:
+            # Contar configuraciones AFIP antes
+            from core.erp.models import AfipConfig
+            sync_stats['afip_configs']['before'] = AfipConfig.objects.count()
+
+            call_command("sync_afip_configs")
+            sync_stats['afip_configs']['after'] = AfipConfig.objects.count()
+            sync_stats['afip_configs']['synced'] = sync_stats['afip_configs']['after'] - sync_stats['afip_configs']['before']
+
+            logger.info(f"✅ Configuraciones AFIP sincronizadas: {sync_stats['afip_configs']['synced']} cambios (total: {sync_stats['afip_configs']['after']})")
+        except Exception as e:
+            logger.error(f"Error en sincronización de configuraciones AFIP: {e}")
+            errors.append(f"sync_afip_configs: {e}")
+    else:
+        logger.warning(f"Sin conexión para destino '{sync_destination}' - omitiendo sincronización de configuraciones AFIP")
+        errors.append(f"Sin conexión para destino '{sync_destination}' - omitiendo sincronización de configuraciones AFIP")
 
     # 3) TERCERO: Sincronizar el resto de datos (productos, categorías, ventas, etc.)
     logger.info("📦 PASO 3/10: Sincronizando resto de datos...")
@@ -351,9 +372,10 @@ def run_full_sync():
     logger.info("=" * 80)
     logger.info(f"🏢 EMPRESAS: {sync_stats['empresas']['synced']} nuevas ({sync_stats['empresas']['before']} → {sync_stats['empresas']['after']})")
     logger.info(f"👥 USUARIOS: {sync_stats['usuarios']['synced']} cambios ({sync_stats['usuarios']['before']} → {sync_stats['usuarios']['after']})")
-    logger.info(f"📦 PRODUCTOS: {sync_stats['productos']['synced']} sincronizados ({sync_stats['productos']['before']} → {sync_stats['productos']['after']})")
-    logger.info(f"� STOCK: {sync_stats['stock']['synced']} actualizados ({sync_stats['stock']['before']} productos con control de stock)")
-    logger.info(f"�📁 CATEGORÍAS: {sync_stats['categorias']['synced']} nuevas ({sync_stats['categorias']['before']} → {sync_stats['categorias']['after']})")
+    logger.info(f"� CONFIGURACIONES AFIP: {sync_stats['afip_configs']['synced']} cambios ({sync_stats['afip_configs']['before']} → {sync_stats['afip_configs']['after']})")
+    logger.info(f"�📦 PRODUCTOS: {sync_stats['productos']['synced']} sincronizados ({sync_stats['productos']['before']} → {sync_stats['productos']['after']})")
+    logger.info(f"📊 STOCK: {sync_stats['stock']['synced']} actualizados ({sync_stats['stock']['before']} productos con control de stock)")
+    logger.info(f"📁 CATEGORÍAS: {sync_stats['categorias']['synced']} nuevas ({sync_stats['categorias']['before']} → {sync_stats['categorias']['after']})")
     logger.info(f"💰 VENTAS: {sync_stats['ventas']['synced']} pendientes ({sync_stats['ventas']['before']} → {sync_stats['ventas']['after']})")
     logger.info(f"👤 CLIENTES: {sync_stats['clientes']['synced']} nuevos ({sync_stats['clientes']['before']} → {sync_stats['clientes']['after']})")
     logger.info(f"🏭 PROVEEDORES: {sync_stats['proveedores']['synced']} nuevos ({sync_stats['proveedores']['before']} → {sync_stats['proveedores']['after']})")
