@@ -48,19 +48,27 @@ class AfipConfigCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
             self.object = form.save()
             crear_punto_venta_por_defecto(self.object.company)
 
-            # Intentar generar certificados y autorizar WSFE automáticamente en producción
-            if self.object.environment == 'prod' and self.object.clave_fiscal_username and self.object.clave_fiscal_password:
+            # Intentar generar certificados y autorizar WSFE automáticamente si hay credenciales
+            if self.object.clave_fiscal_username and self.object.clave_fiscal_password:
                 try:
                     from .client import AfipClient
                     client = AfipClient(company_id=self.object.company_id)
 
-                    # Generar certificado de producción
-                    cert_result = client.create_prod_certificate(
-                        cuit=self.object.cuit,
-                        username=self.object.clave_fiscal_username,
-                        password=self.object.clave_fiscal_password,
-                        user=self.request.user
-                    )
+                    # Generar certificado según ambiente
+                    if self.object.environment == 'prod':
+                        cert_result = client.create_prod_certificate(
+                            cuit=self.object.cuit,
+                            username=self.object.clave_fiscal_username,
+                            password=self.object.clave_fiscal_password,
+                            user=self.request.user
+                        )
+                    else:
+                        cert_result = client.create_dev_certificate(
+                            cuit=self.object.cuit,
+                            username=self.object.clave_fiscal_username,
+                            password=self.object.clave_fiscal_password,
+                            user=self.request.user
+                        )
 
                     if 'error' in cert_result:
                         logger.error(f"[AFIP] Error generando certificado para config {self.object.id}: {cert_result['error']}")
@@ -69,7 +77,7 @@ class AfipConfigCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
                         self.object.cert = cert_result.get('cert', '')
                         self.object.key = cert_result.get('key', '')
                         self.object.save(update_fields=['cert', 'key'])
-                        logger.info(f"[AFIP] Certificado generado exitosamente para config {self.object.id}")
+                        logger.info(f"[AFIP] Certificado {self.object.environment} generado exitosamente para config {self.object.id}")
 
                         # Autorizar WSFE
                         auth_result = client.auth_web_service(
@@ -92,6 +100,8 @@ class AfipConfigCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
 
                 except Exception as e:
                     logger.error(f"[AFIP] Error en configuración automática AFIP para config {self.object.id}: {e}")
+                    import traceback
+                    logger.error(f"[AFIP] Traceback: {traceback.format_exc()}")
 
             data = {'success': True, 'message': 'Configuración AFIP creada exitosamente'}
             return JsonResponse(data)
