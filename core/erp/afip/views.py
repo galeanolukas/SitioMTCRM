@@ -134,8 +134,67 @@ class AfipConfigUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
     def form_valid(self, form):
         # Si es una petición AJAX, devolver JSON
         if self.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            # Guardar el estado anterior del environment
+            old_environment = self.get_object().environment
             self.object = form.save()
-            data = {'success': True, 'message': 'Configuración AFIP actualizada exitosamente'}
+            new_environment = self.object.environment
+
+            # Detectar cambio de dev a prod y regenerar certificados
+            if old_environment == 'dev' and new_environment == 'prod':
+                if self.object.clave_fiscal_username and self.object.clave_fiscal_password:
+                    try:
+                        from .client import AfipClient
+                        client = AfipClient(company_id=self.object.company_id)
+
+                        # Generar certificado de producción
+                        cert_result = client.create_prod_certificate(
+                            cuit=self.object.cuit,
+                            username=self.object.clave_fiscal_username,
+                            password=self.object.clave_fiscal_password,
+                            user=self.request.user
+                        )
+
+                        if 'error' in cert_result:
+                            logger.error(f"[AFIP] Error generando certificado PROD para config {self.object.id}: {cert_result['error']}")
+                            data = {'success': True, 'message': 'Configuración actualizada pero error generando certificado PROD', 'cert_error': cert_result['error']}
+                        else:
+                            # Actualizar cert y key en la configuración
+                            self.object.cert = cert_result.get('cert', '')
+                            self.object.key = cert_result.get('key', '')
+                            self.object.save(update_fields=['cert', 'key'])
+                            logger.info(f"[AFIP] Certificado PROD generado exitosamente para config {self.object.id}")
+
+                            # Reautorizar WSFE en producción
+                            auth_result = client.auth_web_service(
+                                cuit=self.object.cuit,
+                                username=self.object.clave_fiscal_username,
+                                password=self.object.clave_fiscal_password,
+                                service='wsfe',
+                                user=self.request.user
+                            )
+
+                            if 'error' in auth_result:
+                                logger.error(f"[AFIP] Error autorizando WSFE PROD para config {self.object.id}: {auth_result['error']}")
+                            else:
+                                # Actualizar estado de autorización
+                                self.object.wsfe_authorized = True
+                                self.object.wsfe_authorized_at = timezone.now()
+                                self.object.wsfe_automation_id = auth_result.get('automation_id', '')
+                                self.object.save(update_fields=['wsfe_authorized', 'wsfe_authorized_at', 'wsfe_automation_id'])
+                                logger.info(f"[AFIP] WSFE PROD autorizado exitosamente para config {self.object.id}")
+
+                            data = {'success': True, 'message': 'Configuración actualizada a PROD con certificados regenerados'}
+
+                    except Exception as e:
+                        logger.error(f"[AFIP] Error en regeneración de certificados PROD para config {self.object.id}: {e}")
+                        import traceback
+                        logger.error(f"[AFIP] Traceback: {traceback.format_exc()}")
+                        data = {'success': True, 'message': 'Configuración actualizada pero error en regeneración de certificados', 'cert_error': str(e)}
+                else:
+                    data = {'success': True, 'message': 'Configuración actualizada a PROD pero sin credenciales para regenerar certificados'}
+            else:
+                data = {'success': True, 'message': 'Configuración AFIP actualizada exitosamente'}
+
             return JsonResponse(data)
         return super().form_valid(form)
     
