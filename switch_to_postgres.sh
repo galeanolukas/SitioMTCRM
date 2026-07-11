@@ -81,12 +81,26 @@ DB_PORT=${DB_PORT:-5432}
 echo
 echo -e "${YELLOW}Verificando conexión a PostgreSQL...${NC}"
 
-# Verificar conexión
-PGPASSWORD=$DB_PASSWORD psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d postgres -c "SELECT 1;" &> /dev/null
+# Verificar conexión (mostrar error si falla)
+PGPASSWORD=$DB_PASSWORD psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d postgres -c "SELECT 1;" > /dev/null 2>&1
 
 if [ $? -ne 0 ]; then
     echo -e "${RED}ERROR: No se pudo conectar a PostgreSQL${NC}"
-    echo "Verifique las credenciales y que PostgreSQL esté corriendo"
+    echo
+    echo "Detalles de la conexión:"
+    echo "  Host: $DB_HOST"
+    echo "  Puerto: $DB_PORT"
+    echo "  Usuario: $DB_USER"
+    echo "  Base de datos: postgres"
+    echo
+    echo "Verifique:"
+    echo "  1. Que PostgreSQL esté corriendo: sudo systemctl status postgresql"
+    echo "  2. Que el usuario y contraseña sean correctos"
+    echo "  3. Que el host y puerto sean correctos"
+    echo "  4. Que PostgreSQL acepte conexiones desde su dirección IP"
+    echo
+    echo "Pruebe manualmente:"
+    echo "  PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d postgres"
     exit 1
 fi
 
