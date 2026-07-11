@@ -1,0 +1,217 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Ticket X - Comprobante Sin Valor Fiscal</title>
+    <link rel="stylesheet" href="{% static 'sale/ticket.css' %}">
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            width: 80mm;
+            margin: 0 auto;
+            padding: 10px;
+        }
+        .ticket-container {
+            border: 1px dashed #000;
+            padding: 10px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #000;
+            padding-bottom: 10px;
+        }
+        .company-name {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .ticket-type {
+            font-size: 14px;
+            font-weight: bold;
+            margin: 10px 0;
+            text-align: center;
+            background-color: #f0f0f0;
+            padding: 5px;
+        }
+        .ticket-number {
+            text-align: center;
+            margin: 5px 0;
+        }
+        .section {
+            margin: 10px 0;
+        }
+        .section-title {
+            font-weight: bold;
+            border-bottom: 1px solid #000;
+            margin-bottom: 5px;
+        }
+        .field {
+            margin: 3px 0;
+        }
+        .label {
+            font-weight: bold;
+        }
+        .products-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+        .products-table th {
+            border-bottom: 1px solid #000;
+            padding: 5px 2px;
+            text-align: left;
+            font-size: 10px;
+        }
+        .products-table td {
+            padding: 5px 2px;
+            border-bottom: 1px dotted #ccc;
+        }
+        .product-name {
+            font-weight: bold;
+        }
+        .totals {
+            margin-top: 15px;
+            border-top: 1px solid #000;
+            padding-top: 10px;
+        }
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+        }
+        .total-final {
+            font-size: 16px;
+            font-weight: bold;
+            border-top: 2px solid #000;
+            padding-top: 5px;
+            margin-top: 10px;
+        }
+        .footer {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 10px;
+            border-top: 1px solid #000;
+            padding-top: 10px;
+        }
+        .warning {
+            background-color: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 5px;
+            margin: 10px 0;
+            text-align: center;
+            font-size: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="ticket-container">
+        <!-- Encabezado -->
+        <div class="header">
+            {% if company.logo %}
+                <img src="{{ company.logo }}" alt="Logo" style="max-height: 50px; margin-bottom: 5px;">
+            {% endif %}
+            <div class="company-name">{{ company.name }}</div>
+            <div>{{ company.address }}</div>
+            <div>CUIT: {{ company.cuit }}</div>
+            {% if company.phone %}
+            <div>Tel: {{ company.phone }}</div>
+            {% endif %}
+        </div>
+
+        <!-- Tipo de comprobante -->
+        <div class="ticket-type">
+            TICKET X - COMPROBANTE SIN VALOR FISCAL
+        </div>
+
+        <div class="ticket-number">
+            N° {{ sale.id|stringformat:"08d" }}
+        </div>
+
+        <div class="ticket-number">
+            Fecha: {{ sale.date_joined|date:"d/m/Y" }} {{ sale.date_joined|date:"H:i" }}
+        </div>
+
+        <!-- Datos del cliente -->
+        <div class="section">
+            <div class="section-title">DATOS DEL CLIENTE</div>
+            <div class="field">
+                <span class="label">Cliente:</span> {{ sale.cli.names|default:"Consumidor Final" }}
+            </div>
+            {% if sale.cli.dni %}
+            <div class="field">
+                <span class="label">DNI:</span> {{ sale.cli.dni }}
+            </div>
+            {% endif %}
+            {% if sale.cli.address %}
+            <div class="field">
+                <span class="label">Domicilio:</span> {{ sale.cli.address }}
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Productos -->
+        <div class="section">
+            <div class="section-title">DETALLE DE LA COMPRA</div>
+            <table class="products-table">
+                <thead>
+                    <tr>
+                        <th style="width: 10%">Cant.</th>
+                        <th style="width: 50%">Descripción</th>
+                        <th style="width: 20%">P. Unit.</th>
+                        <th style="width: 20%">Subtotal</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for det in dets %}
+                    <tr>
+                        <td>{{ det.cant|floatformat:0 }}</td>
+                        <td class="product-name">{{ det.prod.name }}</td>
+                        <td>$ {{ det.prod.pvp|floatformat:2 }}</td>
+                        <td>$ {{ det.subtotal|floatformat:2 }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Totales -->
+        <div class="totals">
+            <div class="total-row">
+                <span>Subtotal:</span>
+                <span>$ {{ sale.subtotal|floatformat:2 }}</span>
+            </div>
+            <div class="total-row">
+                <span>IVA:</span>
+                <span>$ {{ sale.iva|floatformat:2 }}</span>
+            </div>
+            <div class="total-row total-final">
+                <span>TOTAL:</span>
+                <span>$ {{ sale.total|floatformat:2 }}</span>
+            </div>
+        </div>
+
+        <!-- Forma de pago -->
+        <div class="section">
+            <div class="field">
+                <span class="label">Forma de Pago:</span> {{ sale.get_payment_method_display|default:"Contado" }}
+            </div>
+        </div>
+
+        <!-- Advertencia -->
+        <div class="warning">
+            ⚠ COMPROBANTE SIN VALOR FISCAL ⚠<br>
+            Este documento no es válido como factura<br>
+            ni comprobante fiscal para AFIP.
+        </div>
+
+        <!-- Pie de página -->
+        <div class="footer">
+            <div>Generado el {{ sale.date_joined|date:"d/m/Y" }} a las {{ sale.date_joined|date:"H:i" }}</div>
+            <div style="margin-top: 5px;">Gracias por su compra</div>
+        </div>
+    </div>
+</body>
+</html>

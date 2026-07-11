@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.apps import apps
-from .models import Company, Product, Sale, Client, Supplier, Category, EmployeeAccountSale, AfipConfig, AfipPuntoVenta, LibroIvaRegistro, CuentaCorrienteCliente, AsientoContable, FacturaProveedor, CatalogoConfig, PriceList, PriceListProduct
+from .models import Company, Product, Sale, Client, Supplier, Category, EmployeeAccountSale, AfipConfig, AfipPuntoVenta, LibroIvaRegistro, CuentaCorrienteCliente, AsientoContable, FacturaProveedor, CatalogoConfig, PriceList, PriceListProduct, GlobalPosConfig
 
 # Clase base para admin con filtrado por empresa
 class CompanyFilteredAdmin(admin.ModelAdmin):
@@ -209,6 +209,21 @@ class PriceListProductAdmin(admin.ModelAdmin):
     list_filter = ('price_list', 'is_exception')
     search_fields = ('product__name', 'price_list__name')
 
+class GlobalPosConfigAdmin(admin.ModelAdmin):
+    list_display = ('allow_sales_without_afip', 'updated_at', 'updated_by')
+    list_filter = ('allow_sales_without_afip',)
+    readonly_fields = ('updated_at', 'updated_by')
+
+    def has_add_permission(self, request):
+        # Solo permitir un registro
+        if self.model.objects.count() >= 1:
+            return False
+        return super().has_add_permission(request)
+
+    def has_delete_permission(self, request, obj=None):
+        # No permitir eliminar el único registro
+        return False
+
 # Registrar modelos principales con admin personalizado
 admin.site.register(Company, CompanyAdmin)
 admin.site.register(Product, ProductAdmin)
@@ -226,6 +241,7 @@ admin.site.register(FacturaProveedor, FacturaProveedorAdmin)
 admin.site.register(CatalogoConfig, CatalogoConfigAdmin)
 admin.site.register(PriceList, PriceListAdmin)
 admin.site.register(PriceListProduct, PriceListProductAdmin)
+admin.site.register(GlobalPosConfig, GlobalPosConfigAdmin)
 
 # Obtener todos los modelos de la aplicación
 app_models = apps.get_app_config('erp').get_models()

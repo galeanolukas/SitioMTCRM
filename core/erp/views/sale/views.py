@@ -547,18 +547,29 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     company = sale.company or Company.objects.first()
                     sale.invoice_pos = (company.pos if company else sale.invoice_pos) or '0001'
 
-                    # Obtener tipo de comprobante de la configuración AFIP
-                    from core.erp.models import AfipConfig
+                    # Verificar si se permite ventas sin AFIP
+                    from core.erp.models import GlobalPosConfig, AfipConfig
+                    allow_without_afip = GlobalPosConfig.allow_sales_without_afip()
                     afip_config = AfipConfig.objects.filter(company=company, is_active=True).first()
+
                     if afip_config:
+                        # Hay configuración AFIP, usar flujo normal
                         # Mapear tipo de comprobante numérico a letra
                         tipo_map = {1: 'A', 6: 'B', 11: 'C'}
                         sale.invoice_type = tipo_map.get(afip_config.tipo_comprobante, 'B')
+                        sale.invoice_number = sale.next_sequential_for_pos_type()
+                        sale.is_invoiced = True
+                    elif allow_without_afip:
+                        # No hay configuración AFIP pero está permitido: usar ticket X
+                        sale.invoice_type = 'X'  # Ticket X sin valor fiscal
+                        sale.invoice_number = sale.next_sequential_for_pos_type()
+                        sale.is_invoiced = True
+                        sale.is_ticket_x = True  # Marcar como ticket X
                     else:
-                        sale.invoice_type = 'B'
+                        # No hay configuración AFIP y no está permitido: error
+                        data = {'error': 'No hay configuración AFIP. Configure AFIP o habilite ventas sin AFIP en configuración global.'}
+                        return JsonResponse(data, status=400)
 
-                    sale.invoice_number = sale.next_sequential_for_pos_type()
-                    sale.is_invoiced = True
                     sale.save()
                     # Marcar token como procesado
                     request.session[f'processed_invoice_{sale_token}'] = True
@@ -823,6 +834,21 @@ def ticket_print(request, pk):
         'punto_venta_afip': punto_venta_afip,
     }
     return render(request, 'sale/ticket_print.html', ctx)
+
+
+def ticket_x_print(request, pk):
+    """Imprimir ticket X (comprobante sin valor fiscal)"""
+    sale = get_object_or_404(Sale.objects.select_related('cli', 'company'), pk=pk)
+    dets = sale.detsale_set.select_related('prod').all()
+    # Usar la empresa asociada a la venta; si no hay, caer a la primera definida
+    company = sale.company or Company.objects.first()
+
+    ctx = {
+        'sale': sale,
+        'dets': dets,
+        'company': company,
+    }
+    return render(request, 'sale/ticket_x.html', ctx)
 
 
 class SaleCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, CreateView):

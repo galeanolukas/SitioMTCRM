@@ -50,7 +50,7 @@ class ErpConfig(AppConfig):
             DetEmployeeAccount, DetSale, EmployeeAccountSale, Expense,
             GlobalSyncStatus, InternalTransfer, InternalTransferDetail,
             MercadoPagoConfig, PosTerminal, ProfitReport, QuickOrder, SyncLog,
-            AfipConfig, AfipPuntoVenta
+            AfipConfig, AfipPuntoVenta, GlobalPosConfig
         )
         
         # Crear clases admin inline
@@ -152,6 +152,19 @@ class ErpConfig(AppConfig):
             list_filter = ('company', 'is_active')
             search_fields = ('numero', 'descripcion', 'company__name')
 
+        class GlobalPosConfigAdmin(admin.ModelAdmin):
+            list_display = ('allow_sales_without_afip', 'updated_at', 'updated_by')
+            list_filter = ('allow_sales_without_afip',)
+            readonly_fields = ('updated_at', 'updated_by')
+
+            def has_add_permission(self, request):
+                if self.model.objects.count() >= 1:
+                    return False
+                return super().has_add_permission(request)
+
+            def has_delete_permission(self, request, obj=None):
+                return False
+
         # Registrar todos los modelos
         model_admin_pairs = [
             (Company, CompanyAdmin),
@@ -177,11 +190,12 @@ class ErpConfig(AppConfig):
             (AfipConfig, AfipConfigAdmin),
             (AfipPuntoVenta, AfipPuntoVentaAdmin),
         ]
-        
+
         # Modelos sin filtro de empresa (solo para superusuarios)
         global_models = [
             (GlobalSyncStatus, GlobalSyncStatusAdmin),
             (SyncLog, SyncLogAdmin),
+            (GlobalPosConfig, GlobalPosConfigAdmin),
         ]
         
         # Registrar modelos con filtro de empresa

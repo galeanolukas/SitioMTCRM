@@ -537,9 +537,10 @@ class Sale(models.Model):
     # Facturación
     invoice_number = models.CharField(max_length=20, null=True, blank=True)
     invoice_pos = models.CharField(max_length=5, default='0001')
-    invoice_type = models.CharField(max_length=1, default='B')  # A/B/C
+    invoice_type = models.CharField(max_length=1, default='B')  # A/B/C/X
     is_credit_note = models.BooleanField(default=False, verbose_name='Es Nota de Crédito')
     is_invoiced = models.BooleanField(default=False)
+    is_ticket_x = models.BooleanField(default=False, verbose_name='Es Ticket X (sin valor fiscal)')
     # Campos AFIP
     afip_cae = models.CharField(max_length=14, null=True, blank=True, verbose_name='CAE AFIP')
     afip_cae_vto = models.DateField(null=True, blank=True, verbose_name='Vencimiento CAE')
@@ -1976,11 +1977,11 @@ class GlobalSyncStatus(models.Model):
     sync_enabled = models.BooleanField(default=True)
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.CharField(max_length=100, blank=True)
-    
+
     class Meta:
         verbose_name = "Estado de Sincronización Global"
         verbose_name_plural = "Estados de Sincronización Global"
-    
+
     @classmethod
     def is_sync_enabled(cls):
         """Check if sync is globally enabled - always returns True for operators"""
@@ -1992,39 +1993,39 @@ class GlobalSyncStatus(models.Model):
             # Only return False if explicitly disabled and record exists
             return False
         except Exception:
-            return True  # Default to True on error
-    
-    @classmethod
-    def ensure_sync_enabled(cls):
-        """Ensure sync is enabled - called during login for operators"""
-        try:
-            status, created = cls.objects.get_or_create(
-                pk=1,
-                defaults={'sync_enabled': True, 'updated_by': 'system'}
-            )
-            if not created and not status.sync_enabled:
-                # Auto-enable sync for operators
-                status.sync_enabled = True
-                status.updated_by = 'system_auto_enable'
-                status.save()
-                print("Sincronización automática activada para operadores")
             return True
-        except Exception:
-            return True
-    
-    @classmethod
-    def set_sync_status(cls, enabled, updated_by=None):
-        """Set global sync status"""
-        status, created = cls.objects.get_or_create(
-            pk=1,  # Use a single record
-            defaults={'sync_enabled': enabled, 'updated_by': updated_by or 'system'}
-        )
-        if not created:
-            status.sync_enabled = enabled
-            status.updated_by = updated_by or 'system'
-            status.save()
-    
+
     def __str__(self):
+        return f"Sync {'Enabled' if self.sync_enabled else 'Disabled'}"
+
+
+class GlobalPosConfig(models.Model):
+    """Configuraciones globales del POS"""
+    allow_sales_without_afip = models.BooleanField(
+        default=False,
+        verbose_name='Permitir ventas sin configuración AFIP',
+        help_text='Permite realizar ventas sin configuración fiscal AFIP (emite ticket X sin valor fiscal)'
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.CharField(max_length=100, blank=True)
+
+    class Meta:
+        verbose_name = "Configuración Global del POS"
+        verbose_name_plural = "Configuraciones Globales del POS"
+
+    @classmethod
+    def allow_sales_without_afip(cls):
+        """Check if sales without AFIP are allowed"""
+        try:
+            config = cls.objects.first()
+            if not config:
+                return False  # Default: require AFIP config
+            return config.allow_sales_without_afip
+        except Exception:
+            return False
+
+    def __str__(self):
+        return f"Configuración POS - Ventas sin AFIP: {'Sí' if self.allow_sales_without_afip else 'No'}"
         return f"Sync {'Enabled' if self.sync_enabled else 'Disabled'}"
 
 
