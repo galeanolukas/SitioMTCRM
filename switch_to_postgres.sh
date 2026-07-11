@@ -127,10 +127,35 @@ if [ -f "db.sqlite3" ]; then
     echo
     if [[ $REPLY =~ ^[Ss]$ ]]; then
         echo -e "${YELLOW}Exportando datos de SQLite...${NC}"
-        python manage.py dumpdata > sqlite_backup.json
+        
+        # Asegurar que usamos SQLite para el dumpdata
+        unset USE_LOCAL_POSTGRES
+        unset DB_NAME
+        unset DB_USER
+        unset DB_PASSWORD
+        unset DB_HOST
+        unset DB_PORT
+        
+        # Usar verbosity=0 para evitar salida de sincronización
+        python manage.py dumpdata --verbosity=0 2>/dev/null > sqlite_backup.json
         
         if [ $? -eq 0 ]; then
-            echo -e "${GREEN}✓ Datos exportados a sqlite_backup.json${NC}"
+            # Verificar que el archivo no esté vacío y sea JSON válido
+            if [ -s "sqlite_backup.json" ]; then
+                # Verificar que empiece con '[' (JSON array válido)
+                if head -c 1 sqlite_backup.json | grep -q '\['; then
+                    echo -e "${GREEN}✓ Datos exportados a sqlite_backup.json${NC}"
+                else
+                    echo -e "${RED}ERROR: El archivo exportado no contiene JSON válido${NC}"
+                    echo "El archivo puede contener salida de sincronización en lugar de datos"
+                    rm sqlite_backup.json
+                    echo "Continuando sin migración de datos..."
+                fi
+            else
+                echo -e "${YELLOW}ADVERTENCIA: El archivo exportado está vacío${NC}"
+                echo "No hay datos para migrar"
+                rm sqlite_backup.json
+            fi
         else
             echo -e "${RED}ERROR al exportar datos de SQLite${NC}"
             echo "Continuando sin migración de datos..."
