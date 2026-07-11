@@ -1,32 +1,32 @@
 {% extends 'base/layout.html' %}
 
 {% block content %}
-<div class="container d-flex flex-column justify-content-center" style="min-height: 100vh; padding-top: 1rem; padding-bottom: 1rem;">
+<div class="container d-flex flex-column justify-content-center" style="min-height: 100vh; padding: 0.5rem;">
   <div class="row justify-content-center">
-    <div class="col-12 col-md-8 col-lg-6">
+    <div class="col-12 col-md-10 col-lg-8 col-xl-6">
       <!-- Indicador de Modo Servidor/POS Local -->
-      <div class="mb-3">
+      <div class="mb-2">
         {% if environment == 'production' %}
-          <div class="alert alert-success d-flex align-items-center" role="alert">
+          <div class="alert alert-success d-flex align-items-center py-2" role="alert">
             <div class="flex-shrink-0">
               <i class="fas fa-server me-2"></i>
             </div>
             <div class="flex-grow-1 ms-2">
               <strong>MODO SERVIDOR</strong>
-              <div class="small">Sistema central activado - Sincronización disponible</div>
+              <div class="small mb-0">Sistema central activado - Sincronización disponible</div>
             </div>
             <div class="flex-shrink-0">
               <span class="badge bg-success">ONLINE</span>
             </div>
           </div>
         {% else %}
-          <div class="alert alert-info d-flex align-items-center" role="alert">
+          <div class="alert alert-info d-flex align-items-center py-2" role="alert">
             <div class="flex-shrink-0">
               <i class="fas fa-laptop me-2"></i>
             </div>
             <div class="flex-grow-1 ms-2">
               <strong>POS LOCAL</strong>
-              <div class="small">Modo standalone - Sin sincronización</div>
+              <div class="small mb-0">Modo standalone - Sin sincronización</div>
             </div>
             <div class="flex-shrink-0">
               <span class="badge bg-info">LOCAL</span>
@@ -36,21 +36,21 @@
       </div>
 
       <!-- Indicador de Base de Datos -->
-      <div class="mb-3">
-        <div class="alert alert-secondary d-flex align-items-center" role="alert">
+      <div class="mb-2">
+        <div class="alert alert-secondary d-flex align-items-center py-2" role="alert">
           <div class="flex-shrink-0">
             <i class="fas fa-database me-2"></i>
           </div>
           <div class="flex-grow-1 ms-2">
             <strong>Base de Datos: {{ database_type }}</strong>
-            <div class="small">
+            <div class="small mb-0">
               {{ database_name }}
               {% if database_host %}
               <span class="text-muted">({{ database_host }})</span>
               {% endif %}
             </div>
             {% if remote_database_name %}
-            <div class="small text-muted mt-1">
+            <div class="small text-muted mb-0">
               <i class="fas fa-cloud me-1"></i>Remota: {{ remote_database_name }} ({{ remote_database_host }})
             </div>
             {% endif %}
@@ -68,32 +68,32 @@
       </div>
 
       <div class="card card-outline card-primary">
-        <div class="card-header text-center">
-          <h3 class="card-title">Bienvenido</h3>
+        <div class="card-header text-center py-2">
+          <h3 class="card-title mb-0">Bienvenido</h3>
         </div>
-        <div class="card-body text-center">
-          <p class="mb-4 text-muted">Elegí a dónde ir</p>
+        <div class="card-body text-center py-3">
+          <p class="mb-3 text-muted">Elegí a dónde ir</p>
           
           <!-- Información de Empresa Activa -->
           {% if user.is_authenticated and user.company %}
-          <div class="alert alert-info d-flex align-items-center" role="alert">
+          <div class="alert alert-info d-flex align-items-center py-2 mb-2" role="alert">
             <div class="flex-shrink-0">
               <i class="fas fa-building me-2"></i>
             </div>
             <div class="flex-grow-1 ms-2">
               <strong>Empresa Activa: {{ user.company.name|default:'Sin empresa asignada' }}</strong>
-              <div class="small">ID: {{ user.company.id|default:'N/A' }} | CUIT: {{ user.company.cuit|default:'Sin CUIT' }}</div>
+              <div class="small mb-0">ID: {{ user.company.id|default:'N/A' }} | CUIT: {{ user.company.cuit|default:'Sin CUIT' }}</div>
             </div>
           </div>
           
           <!-- Información del Usuario -->
-          <div class="alert alert-warning d-flex align-items-center" role="alert">
+          <div class="alert alert-warning d-flex align-items-center py-2 mb-2" role="alert">
             <div class="flex-shrink-0">
               <i class="fas fa-user me-2"></i>
             </div>
             <div class="flex-grow-1 ms-2">
               <strong>Usuario: {{ user.username|default:'Invitado' }}</strong>
-              <div class="small">
+              <div class="small mb-0">
                 Tipo: {% if user.is_superuser %}Superusuario{% else %}Operador{% endif %} | 
                 ID: {{ user.id|default:'N/A' }}
               </div>
@@ -102,13 +102,13 @@
           
           <!-- Información del POS Actual -->
           {% if user_info.current_pos %}
-          <div class="alert alert-success d-flex align-items-center" role="alert">
+          <div class="alert alert-success d-flex align-items-center py-2 mb-2" role="alert">
             <div class="flex-shrink-0">
               <i class="fas fa-cash-register me-2"></i>
             </div>
             <div class="flex-grow-1 ms-2">
               <strong>POS Actual: {{ user_info.current_pos.code }}</strong>
-              <div class="small">
+              <div class="small mb-0">
                 ID: {{ user_info.current_pos.id }} | 
                 Nombre: {{ user_info.current_pos.name|default:'Sin nombre' }} | 
                 Número: {{ user_info.current_pos.number }}
@@ -118,7 +118,7 @@
           {% endif %}
           {% endif %}
 
-          <div id="sync-status" class="alert alert-info d-none" role="alert">
+          <div id="sync-status" class="alert alert-info d-none py-2" role="alert">
             <span id="sync-message">Sincronizando datos...</span>
             <div class="progress mt-2">
               <div id="sync-bar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
@@ -126,7 +126,7 @@
           </div>
 
           {% if last_sync %}
-          <div class="mt-2 small text-muted">
+          <div class="mt-2 mb-1 small text-muted">
             Última sincronización: {{ last_sync.created_at|date:"d/m/Y H:i" }} 
             -
             {% if last_sync.success %}
@@ -138,7 +138,7 @@
           {% endif %}
 
           {% if latest_version %}
-          <div class="mt-1 small">
+          <div class="mt-1 mb-2 small">
             <span class="text-muted">Última versión disponible:</span>
             <strong>{{ latest_version }}</strong>
             {% if update_available %}
@@ -148,41 +148,41 @@
           {% endif %}
 
           {% if user.is_superuser %}
-          <div class="d-grid gap-2 mt-2">
+          <div class="d-grid gap-1 mb-2">
             {% if environment == 'production' %}
-            <a href="{% url 'erp:sync_products' %}" class="btn btn-outline-success btn-sm">
+            <a href="{% url 'erp:sync_products' %}" class="btn btn-outline-success btn-sm py-1">
               <i class="fas fa-sync me-1"></i> Sincronizar Productos
             </a>
             {% endif %}
-            <button id="btn-sync-catalogo" type="button" class="btn btn-outline-primary btn-sm">
+            <button id="btn-sync-catalogo" type="button" class="btn btn-outline-primary btn-sm py-1">
               <i class="fas fa-cloud-upload-alt me-1"></i> Sincronizar al Catálogo
             </button>
-            <button id="btn-sync-manual" type="button" class="btn btn-outline-secondary btn-sm">
+            <button id="btn-sync-manual" type="button" class="btn btn-outline-secondary btn-sm py-1">
               <i class="fas fa-sync-alt me-1"></i> Sincronizar ahora
             </button>
           </div>
           {% endif %}
 
-          <div class="d-grid gap-3 mt-3">
-            <a href="{% url 'erp:dashboard' %}" class="btn btn-primary btn-lg">
+          <div class="d-grid gap-2">
+            <a href="{% url 'erp:dashboard' %}" class="btn btn-primary">
               <i class="fas fa-tachometer-alt me-2"></i> Panel / Dashboard
             </a>
-            <a href="{% url 'erp:pos' %}" class="btn btn-success btn-lg">
+            <a href="{% url 'erp:pos' %}" class="btn btn-success">
               <i class="fas fa-cash-register me-2"></i> API de Ventas (POS)
             </a>
-            <a href="{% url 'erp:afip:dashboard' %}" class="btn btn-warning btn-lg">
+            <a href="{% url 'erp:afip:dashboard' %}" class="btn btn-warning">
               <i class="fas fa-file-invoice-dollar me-2"></i> Módulo Fiscal AFIP
             </a>
           </div>
         </div>
-        <div class="card-footer text-muted small text-center">
-          <div class="d-flex justify-content-between align-items-center mb-2">
+        <div class="card-footer text-muted small text-center py-2">
+          <div class="d-flex justify-content-between align-items-center mb-1">
             <span>Accesos rápidos</span>
             <span>Versión {{ app_version }}</span>
           </div>
           
           <!-- Información del entorno -->
-          <div class="border-top pt-2">
+          <div class="border-top pt-1">
             {% if environment == 'production' %}
               <div class="d-flex justify-content-between align-items-center">
                 <span class="text-success">
