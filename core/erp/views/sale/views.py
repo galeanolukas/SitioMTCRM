@@ -107,8 +107,8 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     active_cid = getattr(request.user, 'company_id', None)
                 try:
                     afip_client = AfipClient(company_id=active_cid)
-                    # Usar RegisterInscriptionProof (más completo y actualizado)
-                    result = afip_client.get_taxpayer_inscription_proof(cuit)
+                    # Usar RegisterScopeTen (no requiere autorización adicional)
+                    result = afip_client.get_taxpayer_data(cuit)
                     if 'error' in result:
                         data = {'error': result['error']}
                     else:

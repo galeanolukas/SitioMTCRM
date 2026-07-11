@@ -5,14 +5,14 @@
 # Ir siempre a la carpeta donde está este script
 cd "$(dirname "$0")"
 
-if [ ! -f "venv/bin/activate" ]; then
+if [ ! -f "DJENV/bin/activate" ]; then
     echo "[ERROR] Entorno virtual venv no encontrado. Cree el venv primero:"
     echo "python3 -m venv venv"
     echo "Luego ejecute: ./instalador_pos.sh"
     exit 1
 fi
 
-source venv/bin/activate
+source DJENV/bin/activate
 
 # Asegurar entorno de POS (no production)
 export ENVIRONMENT=development

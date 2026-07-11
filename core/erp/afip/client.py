@@ -534,6 +534,12 @@ class AfipClient:
         Usa RegisterInscriptionProof (Constancia de Inscripción) del AFIP SDK.
         Este método es más completo y actualizado que RegisterScopeTen.
 
+        NOTA: Este método requiere autorización adicional del web service.
+        Si recibe error "Debe autorizar el uso del web service", use get_taxpayer_data
+        (RegisterScopeTen) que no requiere autorización adicional.
+        Para autorizar RegisterInscriptionProof, siga la guía:
+        https://afipsdk.com/docs/automations/auth-web-service-dev/nodejs/
+
         Args:
             cuit: CUIT del contribuyente (con o sin guiones)
 
