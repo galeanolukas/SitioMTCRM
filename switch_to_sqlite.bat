@@ -1,0 +1,142 @@
+@echo off
+REM Script para cambiar de PostgreSQL a SQLite local
+REM SitioMTCRM - Sistema de Gestión
+
+echo ==========================================
+echo   Cambiar a SQLite Local
+echo   SitioMTCRM
+echo ==========================================
+echo.
+
+REM Preguntar si desea migrar datos de PostgreSQL
+set /p MIGRATE="¿Desea migrar los datos de PostgreSQL a SQLite? (s/n): "
+if /i "%MIGRATE%"=="s" (
+    echo Verificando configuracion de PostgreSQL...
+    
+    REM Leer configuracion actual de .env si existe
+    if exist .env (
+        for /f "tokens=1,2 delims==" %%a in (.env) do (
+            if "%%a"=="DB_NAME" set DB_NAME=%%b
+            if "%%a"=="DB_USER" set DB_USER=%%b
+            if "%%a"=="DB_PASSWORD" set DB_PASSWORD=%%b
+            if "%%a"=="DB_HOST" set DB_HOST=%%b
+            if "%%a"=="DB_PORT" set DB_PORT=%%b
+        )
+        
+        REM Valores por defecto si no estan en .env
+        if "%DB_NAME%"=="" set DB_NAME=sitiomtcrm
+        if "%DB_USER%"=="" set DB_USER=postgres
+        if "%DB_HOST%"=="" set DB_HOST=localhost
+        if "%DB_PORT%"=="" set DB_PORT=5432
+    ) else (
+        echo No se encontro archivo .env
+        echo Configuracion de PostgreSQL:
+        set /p DB_NAME="Nombre de la base de datos [sitiomtcrm]: "
+        if "%DB_NAME%"=="" set DB_NAME=sitiomtcrm
+        set /p DB_USER="Usuario de PostgreSQL [postgres]: "
+        if "%DB_USER%"=="" set DB_USER=postgres
+        set /p DB_PASSWORD="Contraseña de PostgreSQL: "
+        set /p DB_HOST="Host [localhost]: "
+        if "%DB_HOST%"=="" set DB_HOST=localhost
+        set /p DB_PORT="Puerto [5432]: "
+        if "%DB_PORT%"=="" set DB_PORT=5432
+    )
+    
+    echo Verificando conexion a PostgreSQL...
+    
+    REM Verificar conexion
+    set PGPASSWORD=%DB_PASSWORD%
+    psql -h %DB_HOST% -p %DB_PORT% -U %DB_USER% -d %DB_NAME% -c "SELECT 1;" >nul 2>&1
+    
+    if %errorlevel% neq 0 (
+        echo ERROR: No se pudo conectar a PostgreSQL
+        echo Verifique las credenciales y que PostgreSQL este corriendo
+        echo Continuando sin migracion de datos...
+    ) else (
+        echo [OK] Conexion exitosa
+        echo.
+        echo Exportando datos de PostgreSQL...
+        
+        REM Exportar datos con variables de entorno de PostgreSQL
+        set USE_LOCAL_POSTGRES=true
+        set DB_NAME=%DB_NAME%
+        set DB_USER=%DB_USER%
+        set DB_PASSWORD=%DB_PASSWORD%
+        set DB_HOST=%DB_HOST%
+        set DB_PORT=%DB_PORT%
+        
+        python manage.py dumpdata > postgres_backup.json
+        
+        if %errorlevel% equ 0 (
+            echo [OK] Datos exportados a postgres_backup.json
+        ) else (
+            echo ERROR al exportar datos de PostgreSQL
+            echo Continuando sin migracion de datos...
+        )
+    )
+    echo.
+)
+
+REM Configurar variables de entorno para SQLite
+echo Configurando variables de entorno para SQLite...
+echo.
+
+REM Crear archivo .env si no existe
+if not exist .env (
+    echo. > .env
+)
+
+REM Funcion para agregar/actualizar variable en .env
+set "ENV_FILE=.env"
+set "TEMP_FILE=.env.tmp"
+
+REM Copiar archivo existente excluyendo USE_LOCAL_POSTGRES
+findstr /v "^USE_LOCAL_POSTGRES=" "%ENV_FILE%" > "%TEMP_FILE%" 2>nul
+move /y "%TEMP_FILE%" "%ENV_FILE%" >nul 2>&1
+
+REM Agregar USE_LOCAL_POSTGRES=false
+echo USE_LOCAL_POSTGRES=false >> "%ENV_FILE%"
+
+echo [OK] Variables de entorno configuradas
+echo.
+
+REM Ejecutar migraciones en SQLite
+echo Ejecutando migraciones en SQLite...
+set USE_LOCAL_POSTGRES=false
+
+python manage.py migrate
+
+if %errorlevel% neq 0 (
+    echo ERROR al ejecutar migraciones
+    pause
+    exit /b 1
+)
+
+echo [OK] Migraciones ejecutadas exitosamente
+echo.
+
+REM Importar datos si se exportaron
+if exist postgres_backup.json (
+    echo Importando datos a SQLite...
+    python manage.py loaddata postgres_backup.json
+    
+    if %errorlevel% equ 0 (
+        echo [OK] Datos importados exitosamente
+        del postgres_backup.json
+        echo [OK] Archivo de backup eliminado
+    ) else (
+        echo ADVERTENCIA: Algunos datos no pudieron importarse
+        echo El archivo postgres_backup.json se mantuvo para revision manual
+    )
+    echo.
+)
+
+echo ==========================================
+echo   ¡Cambio a SQLite completado!
+echo ==========================================
+echo.
+echo El sistema ahora usa SQLite local.
+echo Puede iniciar el servidor con:
+echo   lanzar_pos.bat
+echo.
+pause

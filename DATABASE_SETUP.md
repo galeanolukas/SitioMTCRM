@@ -334,6 +334,84 @@ python manage.py createsuperuser
 python manage.py createsuperuser --database=remote
 ```
 
+## Scripts de Cambio de Base de Datos
+
+Para facilitar el cambio entre SQLite y PostgreSQL local, se proporcionan scripts automatizados:
+
+### Linux/macOS
+
+#### Cambiar a PostgreSQL Local
+
+```bash
+# Dar permisos de ejecución
+chmod +x switch_to_postgres.sh
+
+# Ejecutar script
+./switch_to_postgres.sh
+```
+
+El script:
+- Verifica que PostgreSQL esté instalado y corriendo
+- Solicita credenciales de PostgreSQL
+- Crea la base de datos si no existe
+- Ofrece migrar datos de SQLite a PostgreSQL
+- Configura variables de entorno en archivo `.env`
+- Ejecuta migraciones
+- Importa datos si se seleccionó migración
+
+#### Cambiar a SQLite Local
+
+```bash
+# Dar permisos de ejecución
+chmod +x switch_to_sqlite.sh
+
+# Ejecutar script
+./switch_to_sqlite.sh
+```
+
+El script:
+- Ofrece migrar datos de PostgreSQL a SQLite
+- Configura variables de entorno para usar SQLite
+- Ejecuta migraciones en SQLite
+- Importa datos si se seleccionó migración
+
+### Windows
+
+#### Cambiar a PostgreSQL Local
+
+```cmd
+switch_to_postgres.bat
+```
+
+El script:
+- Verifica que PostgreSQL esté instalado y en el PATH
+- Solicita credenciales de PostgreSQL
+- Crea la base de datos si no existe
+- Ofrece migrar datos de SQLite a PostgreSQL
+- Configura variables de entorno en archivo `.env`
+- Ejecuta migraciones
+- Importa datos si se seleccionó migración
+
+#### Cambiar a SQLite Local
+
+```cmd
+switch_to_sqlite.bat
+```
+
+El script:
+- Ofrece migrar datos de PostgreSQL a SQLite
+- Configura variables de entorno para usar SQLite
+- Ejecuta migraciones en SQLite
+- Importa datos si se seleccionó migración
+
+### Notas sobre los Scripts
+
+- Los scripts crean o actualizan un archivo `.env` en la raíz del proyecto
+- Las migraciones de datos usan `dumpdata` y `loaddata` de Django
+- Los archivos de backup temporales se eliminan automáticamente si la importación es exitosa
+- Si hay errores en la importación, los archivos de backup se mantienen para revisión manual
+- Los scripts requieren que el entorno virtual de Python esté activado
+
 ## Recomendaciones
 
 1. **Para POS Local con alta concurrencia**: Usar PostgreSQL local (`USE_LOCAL_POSTGRES=true`)
@@ -342,3 +420,4 @@ python manage.py createsuperuser --database=remote
 4. **Mantener credenciales seguras**: Nunca commitear contraseñas en el código
 5. **Usar variables de entorno**: Configurar credenciales vía variables de entorno o archivo .env
 6. **Backups regulares**: Implementar backups automáticos de PostgreSQL
+7. **Usar scripts automatizados**: Los scripts `switch_to_postgres.sh/bat` y `switch_to_sqlite.sh/bat` facilitan el cambio entre bases de datos
