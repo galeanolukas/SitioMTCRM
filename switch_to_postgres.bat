@@ -90,6 +90,14 @@ REM Configurar variables de entorno
 echo Configurando variables de entorno...
 echo.
 
+REM Exportar variables de entorno para uso inmediato
+set USE_LOCAL_POSTGRES=true
+set DB_NAME=%DB_NAME%
+set DB_USER=%DB_USER%
+set DB_PASSWORD=%DB_PASSWORD%
+set DB_HOST=%DB_HOST%
+set DB_PORT=%DB_PORT%
+
 REM Crear archivo .env si no existe
 if not exist .env (
     echo. > .env
@@ -123,12 +131,6 @@ echo.
 
 REM Ejecutar migraciones
 echo Ejecutando migraciones en PostgreSQL...
-set USE_LOCAL_POSTGRES=true
-set DB_NAME=%DB_NAME%
-set DB_USER=%DB_USER%
-set DB_PASSWORD=%DB_PASSWORD%
-set DB_HOST=%DB_HOST%
-set DB_PORT=%DB_PORT%
 
 python manage.py migrate
 

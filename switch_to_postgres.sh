@@ -168,6 +168,14 @@ fi
 echo "Configurando variables de entorno..."
 echo
 
+# Exportar variables de entorno para uso inmediato
+export USE_LOCAL_POSTGRES=true
+export DB_NAME=$DB_NAME
+export DB_USER=$DB_USER
+export DB_PASSWORD=$DB_PASSWORD
+export DB_HOST=$DB_HOST
+export DB_PORT=$DB_PORT
+
 # Crear archivo .env si no existe
 if [ ! -f ".env" ]; then
     touch .env
@@ -215,12 +223,6 @@ echo
 
 # Ejecutar migraciones
 echo -e "${YELLOW}Ejecutando migraciones en PostgreSQL...${NC}"
-export USE_LOCAL_POSTGRES=true
-export DB_NAME=$DB_NAME
-export DB_USER=$DB_USER
-export DB_PASSWORD=$DB_PASSWORD
-export DB_HOST=$DB_HOST
-export DB_PORT=$DB_PORT
 
 python manage.py migrate
 
