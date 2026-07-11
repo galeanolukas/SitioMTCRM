@@ -12,7 +12,9 @@ El sistema soporta múltiples configuraciones de bases de datos según el entorn
 
 2. **Desarrollo / POS Local**
    - **Opción A (SQLite local)**: `default` = SQLite, `remote` = PostgreSQL remoto
+     - Se activa cuando `DB_NAME`, `DB_USER`, `DB_PASSWORD` están vacíos o comentados en `.env`
    - **Opción B (PostgreSQL local)**: `default` = PostgreSQL local, `remote` = PostgreSQL remoto
+     - Se activa cuando `DB_NAME`, `DB_USER`, `DB_PASSWORD` están configurados en `.env`
 
 ## Configuración Variables de Entorno
 
@@ -30,10 +32,7 @@ DB_PORT=5432
 ### Para Desarrollo / POS Local con PostgreSQL Local
 
 ```bash
-# Habilitar PostgreSQL local
-USE_LOCAL_POSTGRES=true
-
-# Base de datos local PostgreSQL
+# Base de datos local PostgreSQL (configurar para activar PostgreSQL)
 DB_NAME=sitiomtcrm
 DB_USER=postgres
 DB_PASSWORD=tu_password_seguro
@@ -52,8 +51,12 @@ REMOTE_DB_SSLMODE=require
 ### Para Desarrollo / POS Local con SQLite Local
 
 ```bash
-# Deshabilitar PostgreSQL local (o no definir la variable)
-USE_LOCAL_POSTGRES=false
+# Base de datos local PostgreSQL (dejar vacío o comentado para usar SQLite)
+# DB_NAME=
+# DB_USER=
+# DB_PASSWORD=
+# DB_HOST=
+# DB_PORT=
 
 # Base de datos remota PostgreSQL (servidor central)
 REMOTE_DB_NAME=sitiomtcrm
@@ -355,7 +358,7 @@ El script:
 - Solicita credenciales de PostgreSQL
 - Crea la base de datos si no existe
 - Ofrece migrar datos de SQLite a PostgreSQL
-- Configura variables de entorno en archivo `.env`
+- Configura variables `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT` en archivo `.env`
 - Ejecuta migraciones
 - Importa datos si se seleccionó migración
 
@@ -371,7 +374,7 @@ chmod +x switch_to_sqlite.sh
 
 El script:
 - Ofrece migrar datos de PostgreSQL a SQLite
-- Configura variables de entorno para usar SQLite
+- Comenta las variables `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT` en archivo `.env`
 - Ejecuta migraciones en SQLite
 - Importa datos si se seleccionó migración
 
@@ -388,7 +391,7 @@ El script:
 - Solicita credenciales de PostgreSQL
 - Crea la base de datos si no existe
 - Ofrece migrar datos de SQLite a PostgreSQL
-- Configura variables de entorno en archivo `.env`
+- Configura variables `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT` en archivo `.env`
 - Ejecuta migraciones
 - Importa datos si se seleccionó migración
 
@@ -400,7 +403,7 @@ switch_to_sqlite.bat
 
 El script:
 - Ofrece migrar datos de PostgreSQL a SQLite
-- Configura variables de entorno para usar SQLite
+- Comenta las variables `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT` en archivo `.env`
 - Ejecuta migraciones en SQLite
 - Importa datos si se seleccionó migración
 

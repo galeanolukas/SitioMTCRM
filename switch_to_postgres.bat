@@ -91,7 +91,6 @@ echo Configurando variables de entorno...
 echo.
 
 REM Exportar variables de entorno para uso inmediato
-set USE_LOCAL_POSTGRES=true
 set DB_NAME=%DB_NAME%
 set DB_USER=%DB_USER%
 set DB_PASSWORD=%DB_PASSWORD%

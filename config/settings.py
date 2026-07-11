@@ -139,8 +139,8 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Esquema híbrido:
 # - PRODUCCIÓN (VPS): default = PostgreSQL local
 # - DESARROLLO / POS LOCAL:
-#   - Si USE_LOCAL_POSTGRES=true: default = PostgreSQL local, remote = PostgreSQL remoto
-#   - Si USE_LOCAL_POSTGRES=false: default = SQLite local, remote = PostgreSQL remoto
+#   - Si DB_NAME, DB_USER, DB_PASSWORD están configurados: PostgreSQL local
+#   - Si están vacíos o no existen: SQLite local
 
 
 def get_default_database():
@@ -161,17 +161,16 @@ def get_default_database():
             },
         }
 
-    # DESARROLLO / POS LOCAL: usar PostgreSQL local si está habilitado, sino SQLite
-    use_local_postgres = os.getenv('USE_LOCAL_POSTGRES', 'false').lower() in ('true', '1', 'yes')
+    # DESARROLLO / POS LOCAL: detectar si usar PostgreSQL o SQLite
+    # Usar PostgreSQL si las credenciales están configuradas en .env
+    db_name = os.getenv('DB_NAME', '').strip()
+    db_user = os.getenv('DB_USER', '').strip()
+    db_password = os.getenv('DB_PASSWORD', '').strip()
+    db_host = os.getenv('DB_HOST', 'localhost').strip()
+    db_port = os.getenv('DB_PORT', '5432').strip()
 
-    if use_local_postgres:
-        # Usar PostgreSQL local para mejor rendimiento y evitar bloqueos
-        db_name = os.getenv('DB_NAME', 'sitiomtcrm')
-        db_user = os.getenv('DB_USER', 'postgres')
-        db_password = os.getenv('DB_PASSWORD', 'postgres')
-        db_host = os.getenv('DB_HOST', 'localhost')
-        db_port = os.getenv('DB_PORT', '5432')
-
+    # Si todas las credenciales están configuradas, usar PostgreSQL
+    if db_name and db_user and db_password:
         return {
             'ENGINE': 'django.db.backends.postgresql',
             'NAME': db_name,
@@ -185,7 +184,7 @@ def get_default_database():
             },
         }
 
-    # Fallback a SQLite si USE_LOCAL_POSTGRES no está habilitado
+    # Fallback a SQLite si las credenciales no están configuradas
     return {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',

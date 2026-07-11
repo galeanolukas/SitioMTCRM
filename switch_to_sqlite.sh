@@ -66,7 +66,6 @@ if [[ $REPLY =~ ^[Ss]$ ]]; then
         echo -e "${YELLOW}Exportando datos de PostgreSQL...${NC}"
         
         # Exportar datos con variables de entorno de PostgreSQL
-        export USE_LOCAL_POSTGRES=true
         export DB_NAME=$DB_NAME
         export DB_USER=$DB_USER
         export DB_PASSWORD=$DB_PASSWORD
@@ -94,11 +93,26 @@ if [ ! -f ".env" ]; then
     touch .env
 fi
 
-# Actualizar USE_LOCAL_POSTGRES a false
+# Limpiar variables de PostgreSQL en .env (comentarlas)
+if grep -q "^DB_NAME=" .env; then
+    sed -i "s/^DB_NAME=.*/# DB_NAME=/" .env
+fi
+if grep -q "^DB_USER=" .env; then
+    sed -i "s/^DB_USER=.*/# DB_USER=/" .env
+fi
+if grep -q "^DB_PASSWORD=" .env; then
+    sed -i "s/^DB_PASSWORD=.*/# DB_PASSWORD=/" .env
+fi
+if grep -q "^DB_HOST=" .env; then
+    sed -i "s/^DB_HOST=.*/# DB_HOST=/" .env
+fi
+if grep -q "^DB_PORT=" .env; then
+    sed -i "s/^DB_PORT=.*/# DB_PORT=/" .env
+fi
+
+# Eliminar USE_LOCAL_POSTGRES si existe
 if grep -q "USE_LOCAL_POSTGRES" .env; then
-    sed -i "s/USE_LOCAL_POSTGRES=.*/USE_LOCAL_POSTGRES=false/" .env
-else
-    echo "USE_LOCAL_POSTGRES=false" >> .env
+    sed -i "/USE_LOCAL_POSTGRES/d" .env
 fi
 
 echo -e "${GREEN}✓ Variables de entorno configuradas${NC}"

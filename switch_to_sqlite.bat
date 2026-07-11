@@ -86,16 +86,27 @@ if not exist .env (
     echo. > .env
 )
 
-REM Funcion para agregar/actualizar variable en .env
+REM Comentar variables de PostgreSQL en .env
 set "ENV_FILE=.env"
 set "TEMP_FILE=.env.tmp"
 
-REM Copiar archivo existente excluyendo USE_LOCAL_POSTGRES
-findstr /v "^USE_LOCAL_POSTGRES=" "%ENV_FILE%" > "%TEMP_FILE%" 2>nul
-move /y "%TEMP_FILE%" "%ENV_FILE%" >nul 2>&1
+REM Copiar archivo existente excluyendo variables DB_ y USE_LOCAL_POSTGRES
+findstr /v "^DB_NAME=" "%ENV_FILE%" > "%TEMP_FILE%" 2>nul
+findstr /v "^DB_USER=" "%TEMP_FILE%" > "%ENV_FILE%" 2>nul
+findstr /v "^DB_PASSWORD=" "%ENV_FILE%" > "%TEMP_FILE%" 2>nul
+findstr /v "^DB_HOST=" "%TEMP_FILE%" > "%ENV_FILE%" 2>nul
+findstr /v "^DB_PORT=" "%TEMP_FILE%" > "%ENV_FILE%" 2>nul
+findstr /v "^USE_LOCAL_POSTGRES=" "%TEMP_FILE%" > "%ENV_FILE%" 2>nul
 
-REM Agregar USE_LOCAL_POSTGRES=false
-echo USE_LOCAL_POSTGRES=false >> "%ENV_FILE%"
+REM Agregar variables comentadas
+echo # DB_NAME= >> "%ENV_FILE%"
+echo # DB_USER= >> "%ENV_FILE%"
+echo # DB_PASSWORD= >> "%ENV_FILE%"
+echo # DB_HOST= >> "%ENV_FILE%"
+echo # DB_PORT= >> "%ENV_FILE%"
+
+REM Limpiar archivo temporal
+if exist "%TEMP_FILE%" del "%TEMP_FILE%"
 
 echo [OK] Variables de entorno configuradas
 echo.
