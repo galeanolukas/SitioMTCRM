@@ -169,6 +169,32 @@ class AfipClient:
             import traceback
             logger.error(f"[AFIP] Traceback: {traceback.format_exc()}")
             return {'error': str(e)}
+
+    def create_next_voucher(self, voucher_data, full_response=False):
+        """
+        Crea y asigna CAE al siguiente comprobante automáticamente
+        Calcula el siguiente número de comprobante y lo asigna
+
+        Args:
+            voucher_data: Dict con los datos del comprobante (sin CbteDesde/CbteHasta)
+            full_response: Si es True, devuelve la respuesta completa del WS
+
+        Returns:
+            Dict con CAE, CAEFchVto, voucher_number y otros datos del comprobante
+        """
+        try:
+            logger.debug(f"[AFIP] Creando siguiente voucher - PtoVta: {voucher_data.get('PtoVta')}, CbteTipo: {voucher_data.get('CbteTipo')}, Total: {voucher_data.get('ImpTotal')}")
+            logger.debug(f"[AFIP] Ambiente: {self.config.get('environment', 'unknown')}")
+
+            # Usar el método ElectronicBilling.createNextVoucher de AFIP SDK
+            result = self.afip.ElectronicBilling.createNextVoucher(voucher_data)
+            logger.debug(f"[AFIP] Respuesta createNextVoucher: {result}")
+            return result
+        except Exception as e:
+            logger.error(f"[AFIP] Error en create_next_voucher: {e}")
+            import traceback
+            logger.error(f"[AFIP] Traceback: {traceback.format_exc()}")
+            return {'error': str(e)}
     
     def get_last_voucher_number(self, pto_vta, cbte_tipo):
         """
@@ -210,6 +236,35 @@ class AfipClient:
             return 0
         except Exception as e:
             logger.error(f"[AFIP] Error en get_last_voucher_number: {e}")
+            import traceback
+            logger.error(f"[AFIP] Traceback: {traceback.format_exc()}")
+            return {'error': str(e)}
+
+    def get_voucher_info(self, cbte_nro, pto_vta, cbte_tipo):
+        """
+        Obtiene información de un comprobante ya emitido usando FECompConsultar
+
+        Args:
+            cbte_nro: Número de comprobante (int)
+            pto_vta: Punto de venta (int)
+            cbte_tipo: Tipo de comprobante (int, ej: 6=Factura B)
+
+        Returns:
+            Dict con información del comprobante o {'error': ...} si falla
+        """
+        try:
+            logger.debug(f"[AFIP] Consultando comprobante - CbteNro: {cbte_nro}, PtoVta: {pto_vta}, CbteTipo: {cbte_tipo}")
+            # Usar el método getVoucherInfo de AFIP SDK
+            result = self.afip.ElectronicBilling.getVoucherInfo(cbte_nro, pto_vta, cbte_tipo)
+            logger.debug(f"[AFIP] Respuesta getVoucherInfo: {result}")
+
+            if result is None:
+                logger.warning(f"[AFIP] El comprobante no existe - CbteNro: {cbte_nro}, PtoVta: {pto_vta}, CbteTipo: {cbte_tipo}")
+                return {'error': 'El comprobante no existe'}
+
+            return {'success': True, 'data': result}
+        except Exception as e:
+            logger.error(f"[AFIP] Error en get_voucher_info: {e}")
             import traceback
             logger.error(f"[AFIP] Traceback: {traceback.format_exc()}")
             return {'error': str(e)}
@@ -332,6 +387,25 @@ class AfipClient:
             return {'types': result}
         except Exception as e:
             logger.error(f"[AFIP] Error en get_currency_types: {e}")
+            return {'error': str(e)}
+
+    def get_iva_conditions(self):
+        """
+        Obtiene los tipos de condiciones frente al IVA disponibles usando FEParamGetCondicionIvaReceptor
+
+        Returns:
+            Dict con las condiciones IVA disponibles o {'error': ...} si falla
+        """
+        try:
+            logger.debug(f"[AFIP] Obteniendo condiciones IVA receptor")
+            # Usar executeRequest directo como indica la documentación de AFIP SDK
+            result = self.afip.ElectronicBilling.executeRequest('FEParamGetCondicionIvaReceptor')
+            logger.debug(f"[AFIP] Respuesta FEParamGetCondicionIvaReceptor: {result}")
+            return {'success': True, 'data': result}
+        except Exception as e:
+            logger.error(f"[AFIP] Error en get_iva_conditions: {e}")
+            import traceback
+            logger.error(f"[AFIP] Traceback: {traceback.format_exc()}")
             return {'error': str(e)}
 
     def get_sales_points(self):

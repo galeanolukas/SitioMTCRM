@@ -698,17 +698,6 @@ class Sale(models.Model):
             fecha_afip = datetime.now().strftime('%Y%m%d')
             logger.info(f"[AFIP DEBUG] Preparando voucher - Fecha: {fecha_afip}, Total: {self.total}, Subtotal: {self.subtotal}, IVA: {self.iva}")
 
-            # Obtener el último número de comprobante autorizado en AFIP
-            logger.debug(f"[AFIP DEBUG] Obteniendo último número de comprobante - PtoVta: {punto_venta}, CbteTipo: {config_obj.tipo_comprobante}")
-            last_nro = client.get_last_voucher_number(punto_venta, config_obj.tipo_comprobante)
-            if isinstance(last_nro, dict) and 'error' in last_nro:
-                logger.error(f"[AFIP DEBUG] Error al obtener último número: {last_nro['error']}")
-                self.afip_error = f"Error al obtener último número: {last_nro['error']}"
-                self.save(update_fields=['afip_error'])
-                return False
-            next_nro = last_nro + 1
-            logger.info(f"[AFIP DEBUG] Último número autorizado: {last_nro}, Próximo número: {next_nro}")
-
             # Determinar tipo y número de documento según datos del cliente
             # Para facturas A (tipo_comprobante = 1), DocTipo debe ser 80 (CUIT) obligatoriamente
             if config_obj.tipo_comprobante == 1:  # Factura A
@@ -757,6 +746,7 @@ class Sale(models.Model):
             condicion_iva_receptor_id = condicion_iva_map.get(condicion_iva_cliente, 5)  # Default: Consumidor Final
             logger.info(f"[AFIP DEBUG] Condición IVA cliente: {condicion_iva_cliente}, ID receptor: {condicion_iva_receptor_id}")
 
+            # Preparar voucher_data SIN CbteDesde/CbteHasta (createNextVoucher los calcula automáticamente)
             voucher_data = {
                 'CantReg': 1,
                 'PtoVta': punto_venta,  # Usar punto de venta de AfipPuntoVenta
@@ -764,8 +754,6 @@ class Sale(models.Model):
                 'Concepto': config_obj.concepto,  # Usar concepto de la configuración
                 'DocTipo': doc_tipo,
                 'DocNro': doc_nro,
-                'CbteDesde': next_nro,
-                'CbteHasta': next_nro,
                 'CbteFch': int(fecha_afip),
                 'ImpTotal': float(self.total),
                 'ImpTotConc': 0.0,
@@ -779,12 +767,12 @@ class Sale(models.Model):
                 'Iva': iva_details if iva_details else []
             }
 
-            logger.info(f"[AFIP DEBUG] Voucher data preparado - PtoVta: {punto_venta}, CbteTipo: {config_obj.tipo_comprobante}, CbteDesde: {next_nro}, CbteHasta: {next_nro}")
+            logger.info(f"[AFIP DEBUG] Voucher data preparado - PtoVta: {punto_venta}, CbteTipo: {config_obj.tipo_comprobante}")
             logger.debug(f"[AFIP DEBUG] Datos completos del voucher: {voucher_data}")
 
-            # Crear voucher
-            logger.info(f"[AFIP DEBUG] Enviando solicitud de voucher a AFIP")
-            result = client.create_voucher(voucher_data, full_response=True)
+            # Crear voucher usando createNextVoucher (calcula número automáticamente)
+            logger.info(f"[AFIP DEBUG] Enviando solicitud de voucher a AFIP usando createNextVoucher")
+            result = client.create_next_voucher(voucher_data, full_response=True)
 
             if 'error' in result:
                 logger.error(f"[AFIP DEBUG] Error al crear voucher: {result['error']}")
@@ -809,7 +797,18 @@ class Sale(models.Model):
                         self.afip_cae_vto = None
             else:
                 self.afip_cae_vto = None
-            self.afip_voucher_number = next_nro
+
+            # createNextVoucher devuelve el número de comprobante en 'voucher_number'
+            next_nro = result.get('voucher_number', result.get('CbteDesde', result.get('CbteHasta')))
+            if next_nro:
+                self.afip_voucher_number = next_nro
+                logger.info(f"[AFIP DEBUG] Número de comprobante asignado por AFIP: {next_nro}")
+            else:
+                logger.error(f"[AFIP DEBUG] No se recibió número de comprobante en respuesta AFIP")
+                self.afip_error = "No se recibió número de comprobante de AFIP"
+                self.save(update_fields=['afip_error'])
+                return False
+
             self.afip_result = result
             self.is_invoiced = True
             # Generar código QR
