@@ -138,7 +138,9 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 # Esquema híbrido:
 # - PRODUCCIÓN (VPS): default = PostgreSQL local
-# - DESARROLLO / POS LOCAL: default = SQLite local, y una BD secundaria 'remote' a PostgreSQL
+# - DESARROLLO / POS LOCAL:
+#   - Si USE_LOCAL_POSTGRES=true: default = PostgreSQL local, remote = PostgreSQL remoto
+#   - Si USE_LOCAL_POSTGRES=false: default = SQLite local, remote = PostgreSQL remoto
 
 
 def get_default_database():
@@ -159,7 +161,31 @@ def get_default_database():
             },
         }
 
-    # DESARROLLO / POS LOCAL: usar siempre SQLite como default
+    # DESARROLLO / POS LOCAL: usar PostgreSQL local si está habilitado, sino SQLite
+    use_local_postgres = os.getenv('USE_LOCAL_POSTGRES', 'false').lower() in ('true', '1', 'yes')
+
+    if use_local_postgres:
+        # Usar PostgreSQL local para mejor rendimiento y evitar bloqueos
+        db_name = os.getenv('DB_NAME', 'sitiomtcrm')
+        db_user = os.getenv('DB_USER', 'postgres')
+        db_password = os.getenv('DB_PASSWORD', 'postgres')
+        db_host = os.getenv('DB_HOST', 'localhost')
+        db_port = os.getenv('DB_PORT', '5432')
+
+        return {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': db_name,
+            'USER': db_user,
+            'PASSWORD': db_password,
+            'HOST': db_host,
+            'PORT': db_port,
+            'CONN_MAX_AGE': 600,
+            'OPTIONS': {
+                'connect_timeout': 10,
+            },
+        }
+
+    # Fallback a SQLite si USE_LOCAL_POSTGRES no está habilitado
     return {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
