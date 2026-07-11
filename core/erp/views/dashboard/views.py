@@ -48,6 +48,27 @@ class LauncherView(LoginRequiredMixin, TemplateView):
         # Agregar información del entorno
         ctx['environment'] = os.getenv('ENVIRONMENT', 'development')
         
+        # Agregar información de la base de datos actual
+        db_config = settings.DATABASES.get('default', {})
+        db_engine = db_config.get('ENGINE', '')
+        if 'sqlite' in db_engine:
+            ctx['database_type'] = 'SQLite'
+            ctx['database_name'] = db_config.get('NAME', 'db.sqlite3')
+        elif 'postgresql' in db_engine:
+            ctx['database_type'] = 'PostgreSQL'
+            ctx['database_name'] = db_config.get('NAME', 'N/A')
+            ctx['database_host'] = db_config.get('HOST', 'localhost')
+        else:
+            ctx['database_type'] = 'Desconocido'
+            ctx['database_name'] = 'N/A'
+        
+        # Agregar información de la base de datos remota si existe
+        if 'remote' in connections:
+            remote_db_config = settings.DATABASES.get('remote', {})
+            ctx['remote_database_type'] = 'PostgreSQL'
+            ctx['remote_database_name'] = remote_db_config.get('NAME', 'N/A')
+            ctx['remote_database_host'] = remote_db_config.get('HOST', 'N/A')
+        
         # Obtener último registro de sincronización, priorizando la BD remota si existe
         last_log = None
         try:
