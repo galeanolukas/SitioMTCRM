@@ -803,15 +803,15 @@ class Sale(models.Model):
                 self.afip_cae_vto = None
 
             # createNextVoucher devuelve el número de comprobante en distintas claves según el modo
-            # Intentar múltiples claves para encontrar el número
-            next_nro = result.get('voucher_number') or result.get('CbteDesde') or result.get('CbteHasta') or result.get('cbte_desde') or result.get('cbte_hasta')
+            # Intentar múltiples claves para encontrar el número (incluyendo camelCase)
+            next_nro = result.get('voucherNumber') or result.get('voucher_number') or result.get('CbteDesde') or result.get('CbteHasta') or result.get('cbte_desde') or result.get('cbte_hasta')
 
             # Si no está en las claves principales, buscar en respuestas anidadas
             if not next_nro and isinstance(result, dict):
                 for key in ['FECAESolicitarResponse', 'response', 'result']:
                     if key in result and isinstance(result[key], dict):
                         nested = result[key]
-                        next_nro = nested.get('voucher_number') or nested.get('CbteDesde') or nested.get('CbteHasta') or nested.get('cbte_desde') or nested.get('cbte_hasta')
+                        next_nro = nested.get('voucherNumber') or nested.get('voucher_number') or nested.get('CbteDesde') or nested.get('CbteHasta') or nested.get('cbte_desde') or nested.get('cbte_hasta')
                         if next_nro:
                             logger.debug(f"[AFIP DEBUG] Número encontrado en respuesta anidada [{key}]: {next_nro}")
                             break
