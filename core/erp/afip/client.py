@@ -528,6 +528,90 @@ class AfipClient:
             logger.error(f"[AFIP] Error en get_taxpayer_data: {e}")
             return {'error': str(e)}
 
+    def get_taxpayer_inscription_proof(self, cuit):
+        """
+        Consulta el Padrón de AFIP para obtener datos de un contribuyente.
+        Usa RegisterInscriptionProof (Constancia de Inscripción) del AFIP SDK.
+        Este método es más completo y actualizado que RegisterScopeTen.
+
+        Args:
+            cuit: CUIT del contribuyente (con o sin guiones)
+
+        Returns:
+            Dict con datos del contribuyente: razon_social, domicilio, etc.
+            o {'error': ...} si falla
+        """
+        try:
+            cuit_clean = str(cuit).replace('-', '').strip()
+            logger.debug(f"[AFIP] Consultando Constancia de Inscripción (RegisterInscriptionProof) para CUIT: {cuit_clean}")
+            taxpayer = self.afip.RegisterInscriptionProof
+            result = taxpayer.getTaxpayerDetails(int(cuit_clean))
+            logger.debug(f"[AFIP] Respuesta RegisterInscriptionProof: {result}")
+
+            if isinstance(result, dict) and 'persona' in result:
+                persona = result['persona']
+                data_dict = {
+                    'cuit': cuit_clean,
+                    'razon_social': '',
+                    'domicilio': '',
+                    'localidad': '',
+                    'provincia': '',
+                    'codigo_postal': '',
+                    'telefono': '',
+                    'email': '',
+                    'impuestos': [],
+                    'actividades': [],
+                }
+
+                if 'razonSocial' in persona:
+                    data_dict['razon_social'] = persona.get('razonSocial', '')
+
+                if 'domicilioFiscal' in persona:
+                    dom = persona['domicilioFiscal']
+                    calle = dom.get('calle', '')
+                    numero = dom.get('numero', '')
+                    data_dict['domicilio'] = f"{calle} {numero}".strip()
+                    data_dict['localidad'] = dom.get('localidad', {}).get('nombre', '') if isinstance(dom.get('localidad'), dict) else dom.get('localidad', '')
+                    data_dict['provincia'] = dom.get('provincia', {}).get('nombre', '') if isinstance(dom.get('provincia'), dict) else dom.get('provincia', '')
+                    data_dict['codigo_postal'] = str(dom.get('codPostal', ''))
+
+                if 'telefono' in persona:
+                    data_dict['telefono'] = persona.get('telefono', '')
+
+                if 'email' in persona:
+                    data_dict['email'] = persona.get('email', '')
+
+                if 'impuestos' in persona:
+                    data_dict['impuestos'] = persona.get('impuestos', [])
+
+                if 'actividades' in persona:
+                    data_dict['actividades'] = persona.get('actividades', [])
+
+                # Determinar condición IVA
+                impuestos = data_dict['impuestos']
+                if isinstance(impuestos, list):
+                    imp_ids = [str(i.get('idImpuesto', '')) for i in impuestos if isinstance(i, dict)]
+                else:
+                    imp_ids = []
+
+                # 32 = IVA Responsable Inscripto, 33 = Monotributo
+                if '32' in imp_ids:
+                    data_dict['condicion_iva'] = 'RI'
+                elif '33' in imp_ids:
+                    data_dict['condicion_iva'] = 'M'
+                else:
+                    data_dict['condicion_iva'] = 'CF'
+
+                logger.debug(f"[AFIP] Datos del contribuyente procesados: {data_dict.get('razon_social', 'N/A')}, Condición IVA: {data_dict.get('condicion_iva', 'N/A')}")
+                return {'success': True, 'data': data_dict}
+
+            logger.warning(f"[AFIP] No se encontraron datos para CUIT {cuit_clean}")
+            return {'error': 'No se encontraron datos para el CUIT ingresado'}
+
+        except Exception as e:
+            logger.error(f"[AFIP] Error en get_taxpayer_inscription_proof: {e}")
+            return {'error': str(e)}
+
     def create_pdf(self, pdf_data, user=None):
         """
         Genera un PDF de comprobante fiscal usando el método ElectronicBilling.createPDF() de AFIP SDK.
