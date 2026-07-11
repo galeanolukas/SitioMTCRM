@@ -154,7 +154,6 @@ class ErpConfig(AppConfig):
 
         class GlobalPosConfigAdmin(admin.ModelAdmin):
             list_display = ('allow_sales_without_afip', 'updated_at', 'updated_by')
-            list_filter = ('allow_sales_without_afip',)
             readonly_fields = ('updated_at', 'updated_by')
 
             def has_add_permission(self, request):
