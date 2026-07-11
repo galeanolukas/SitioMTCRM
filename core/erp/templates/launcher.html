@@ -3,7 +3,7 @@
 {% block content %}
 <div class="container d-flex flex-column justify-content-center" style="min-height: 100vh; padding: 0.5rem;">
   <div class="row justify-content-center">
-    <div class="col-12 col-md-10 col-lg-8 col-xl-6">
+    <div class="col-12 col-md-11 col-lg-10 col-xl-9">
       <!-- Indicador de Modo Servidor/POS Local -->
       <div class="mb-2">
         {% if environment == 'production' %}
@@ -71,108 +71,113 @@
         <div class="card-header text-center py-2">
           <h3 class="card-title mb-0">Bienvenido</h3>
         </div>
-        <div class="card-body text-center py-3">
-          <p class="mb-3 text-muted">Elegí a dónde ir</p>
+        <div class="card-body py-3">
+          <p class="mb-3 text-muted text-center">Elegí a dónde ir</p>
           
-          <!-- Información de Empresa Activa -->
-          {% if user.is_authenticated and user.company %}
-          <div class="alert alert-info d-flex align-items-center py-2 mb-2" role="alert">
-            <div class="flex-shrink-0">
-              <i class="fas fa-building me-2"></i>
+          <div class="row g-3">
+            <!-- Columna Izquierda: Información del Usuario -->
+            <div class="col-md-6">
+              {% if user.is_authenticated and user.company %}
+              <div class="alert alert-info d-flex align-items-center py-2 mb-2" role="alert">
+                <div class="flex-shrink-0">
+                  <i class="fas fa-building me-2"></i>
+                </div>
+                <div class="flex-grow-1 ms-2">
+                  <strong>Empresa Activa: {{ user.company.name|default:'Sin empresa asignada' }}</strong>
+                  <div class="small mb-0">ID: {{ user.company.id|default:'N/A' }} | CUIT: {{ user.company.cuit|default:'Sin CUIT' }}</div>
+                </div>
+              </div>
+              
+              <div class="alert alert-warning d-flex align-items-center py-2 mb-2" role="alert">
+                <div class="flex-shrink-0">
+                  <i class="fas fa-user me-2"></i>
+                </div>
+                <div class="flex-grow-1 ms-2">
+                  <strong>Usuario: {{ user.username|default:'Invitado' }}</strong>
+                  <div class="small mb-0">
+                    Tipo: {% if user.is_superuser %}Superusuario{% else %}Operador{% endif %} | 
+                    ID: {{ user.id|default:'N/A' }}
+                  </div>
+                </div>
+              </div>
+              
+              {% if user_info.current_pos %}
+              <div class="alert alert-success d-flex align-items-center py-2 mb-2" role="alert">
+                <div class="flex-shrink-0">
+                  <i class="fas fa-cash-register me-2"></i>
+                </div>
+                <div class="flex-grow-1 ms-2">
+                  <strong>POS Actual: {{ user_info.current_pos.code }}</strong>
+                  <div class="small mb-0">
+                    ID: {{ user_info.current_pos.id }} | 
+                    Nombre: {{ user_info.current_pos.name|default:'Sin nombre' }} | 
+                    Número: {{ user_info.current_pos.number }}
+                  </div>
+                </div>
+              </div>
+              {% endif %}
+              {% endif %}
+
+              <div id="sync-status" class="alert alert-info d-none py-2" role="alert">
+                <span id="sync-message">Sincronizando datos...</span>
+                <div class="progress mt-2">
+                  <div id="sync-bar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
+                </div>
+              </div>
+
+              {% if last_sync %}
+              <div class="mt-2 mb-1 small text-muted">
+                Última sincronización: {{ last_sync.created_at|date:"d/m/Y H:i" }} 
+                -
+                {% if last_sync.success %}
+                  <span class="text-success">OK</span>
+                {% else %}
+                  <span class="text-danger">ERROR</span>
+                {% endif %}
+              </div>
+              {% endif %}
+
+              {% if latest_version %}
+              <div class="mt-1 mb-2 small">
+                <span class="text-muted">Última versión disponible:</span>
+                <strong>{{ latest_version }}</strong>
+                {% if update_available %}
+                  <span class="badge bg-warning text-dark ms-1">Actualización disponible</span>
+                {% endif %}
+              </div>
+              {% endif %}
+
+              {% if user.is_superuser %}
+              <div class="d-grid gap-1 mb-2">
+                {% if environment == 'production' %}
+                <a href="{% url 'erp:sync_products' %}" class="btn btn-outline-success btn-sm py-1">
+                  <i class="fas fa-sync me-1"></i> Sincronizar Productos
+                </a>
+                {% endif %}
+                <button id="btn-sync-catalogo" type="button" class="btn btn-outline-primary btn-sm py-1">
+                  <i class="fas fa-cloud-upload-alt me-1"></i> Sincronizar al Catálogo
+                </button>
+                <button id="btn-sync-manual" type="button" class="btn btn-outline-secondary btn-sm py-1">
+                  <i class="fas fa-sync-alt me-1"></i> Sincronizar ahora
+                </button>
+              </div>
+              {% endif %}
             </div>
-            <div class="flex-grow-1 ms-2">
-              <strong>Empresa Activa: {{ user.company.name|default:'Sin empresa asignada' }}</strong>
-              <div class="small mb-0">ID: {{ user.company.id|default:'N/A' }} | CUIT: {{ user.company.cuit|default:'Sin CUIT' }}</div>
-            </div>
-          </div>
-          
-          <!-- Información del Usuario -->
-          <div class="alert alert-warning d-flex align-items-center py-2 mb-2" role="alert">
-            <div class="flex-shrink-0">
-              <i class="fas fa-user me-2"></i>
-            </div>
-            <div class="flex-grow-1 ms-2">
-              <strong>Usuario: {{ user.username|default:'Invitado' }}</strong>
-              <div class="small mb-0">
-                Tipo: {% if user.is_superuser %}Superusuario{% else %}Operador{% endif %} | 
-                ID: {{ user.id|default:'N/A' }}
+
+            <!-- Columna Derecha: Botones de Navegación -->
+            <div class="col-md-6">
+              <div class="d-grid gap-2 h-100">
+                <a href="{% url 'erp:dashboard' %}" class="btn btn-primary btn-lg">
+                  <i class="fas fa-tachometer-alt me-2"></i> Panel / Dashboard
+                </a>
+                <a href="{% url 'erp:pos' %}" class="btn btn-success btn-lg">
+                  <i class="fas fa-cash-register me-2"></i> API de Ventas (POS)
+                </a>
+                <a href="{% url 'erp:afip:dashboard' %}" class="btn btn-warning btn-lg">
+                  <i class="fas fa-file-invoice-dollar me-2"></i> Módulo Fiscal AFIP
+                </a>
               </div>
             </div>
-          </div>
-          
-          <!-- Información del POS Actual -->
-          {% if user_info.current_pos %}
-          <div class="alert alert-success d-flex align-items-center py-2 mb-2" role="alert">
-            <div class="flex-shrink-0">
-              <i class="fas fa-cash-register me-2"></i>
-            </div>
-            <div class="flex-grow-1 ms-2">
-              <strong>POS Actual: {{ user_info.current_pos.code }}</strong>
-              <div class="small mb-0">
-                ID: {{ user_info.current_pos.id }} | 
-                Nombre: {{ user_info.current_pos.name|default:'Sin nombre' }} | 
-                Número: {{ user_info.current_pos.number }}
-              </div>
-            </div>
-          </div>
-          {% endif %}
-          {% endif %}
-
-          <div id="sync-status" class="alert alert-info d-none py-2" role="alert">
-            <span id="sync-message">Sincronizando datos...</span>
-            <div class="progress mt-2">
-              <div id="sync-bar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
-            </div>
-          </div>
-
-          {% if last_sync %}
-          <div class="mt-2 mb-1 small text-muted">
-            Última sincronización: {{ last_sync.created_at|date:"d/m/Y H:i" }} 
-            -
-            {% if last_sync.success %}
-              <span class="text-success">OK</span>
-            {% else %}
-              <span class="text-danger">ERROR</span>
-            {% endif %}
-          </div>
-          {% endif %}
-
-          {% if latest_version %}
-          <div class="mt-1 mb-2 small">
-            <span class="text-muted">Última versión disponible:</span>
-            <strong>{{ latest_version }}</strong>
-            {% if update_available %}
-              <span class="badge bg-warning text-dark ms-1">Actualización disponible</span>
-            {% endif %}
-          </div>
-          {% endif %}
-
-          {% if user.is_superuser %}
-          <div class="d-grid gap-1 mb-2">
-            {% if environment == 'production' %}
-            <a href="{% url 'erp:sync_products' %}" class="btn btn-outline-success btn-sm py-1">
-              <i class="fas fa-sync me-1"></i> Sincronizar Productos
-            </a>
-            {% endif %}
-            <button id="btn-sync-catalogo" type="button" class="btn btn-outline-primary btn-sm py-1">
-              <i class="fas fa-cloud-upload-alt me-1"></i> Sincronizar al Catálogo
-            </button>
-            <button id="btn-sync-manual" type="button" class="btn btn-outline-secondary btn-sm py-1">
-              <i class="fas fa-sync-alt me-1"></i> Sincronizar ahora
-            </button>
-          </div>
-          {% endif %}
-
-          <div class="d-grid gap-2">
-            <a href="{% url 'erp:dashboard' %}" class="btn btn-primary">
-              <i class="fas fa-tachometer-alt me-2"></i> Panel / Dashboard
-            </a>
-            <a href="{% url 'erp:pos' %}" class="btn btn-success">
-              <i class="fas fa-cash-register me-2"></i> API de Ventas (POS)
-            </a>
-            <a href="{% url 'erp:afip:dashboard' %}" class="btn btn-warning">
-              <i class="fas fa-file-invoice-dollar me-2"></i> Módulo Fiscal AFIP
-            </a>
           </div>
         </div>
         <div class="card-footer text-muted small text-center py-2">
