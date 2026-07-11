@@ -774,6 +774,10 @@ class Sale(models.Model):
             logger.info(f"[AFIP DEBUG] Enviando solicitud de voucher a AFIP usando createNextVoucher")
             result = client.create_next_voucher(voucher_data, full_response=True)
 
+            logger.debug(f"[AFIP DEBUG] Respuesta completa de createNextVoucher: {result}")
+            logger.debug(f"[AFIP DEBUG] Tipo de respuesta: {type(result)}")
+            logger.debug(f"[AFIP DEBUG] Claves en respuesta: {result.keys() if isinstance(result, dict) else 'N/A'}")
+
             if 'error' in result:
                 logger.error(f"[AFIP DEBUG] Error al crear voucher: {result['error']}")
                 self.afip_error = str(result['error'])
@@ -798,13 +802,26 @@ class Sale(models.Model):
             else:
                 self.afip_cae_vto = None
 
-            # createNextVoucher devuelve el número de comprobante en 'voucher_number'
-            next_nro = result.get('voucher_number', result.get('CbteDesde', result.get('CbteHasta')))
+            # createNextVoucher devuelve el número de comprobante en distintas claves según el modo
+            # Intentar múltiples claves para encontrar el número
+            next_nro = result.get('voucher_number') or result.get('CbteDesde') or result.get('CbteHasta') or result.get('cbte_desde') or result.get('cbte_hasta')
+
+            # Si no está en las claves principales, buscar en respuestas anidadas
+            if not next_nro and isinstance(result, dict):
+                for key in ['FECAESolicitarResponse', 'response', 'result']:
+                    if key in result and isinstance(result[key], dict):
+                        nested = result[key]
+                        next_nro = nested.get('voucher_number') or nested.get('CbteDesde') or nested.get('CbteHasta') or nested.get('cbte_desde') or nested.get('cbte_hasta')
+                        if next_nro:
+                            logger.debug(f"[AFIP DEBUG] Número encontrado en respuesta anidada [{key}]: {next_nro}")
+                            break
+
             if next_nro:
                 self.afip_voucher_number = next_nro
                 logger.info(f"[AFIP DEBUG] Número de comprobante asignado por AFIP: {next_nro}")
             else:
                 logger.error(f"[AFIP DEBUG] No se recibió número de comprobante en respuesta AFIP")
+                logger.error(f"[AFIP DEBUG] Estructura de respuesta completa: {result}")
                 self.afip_error = "No se recibió número de comprobante de AFIP"
                 self.save(update_fields=['afip_error'])
                 return False
