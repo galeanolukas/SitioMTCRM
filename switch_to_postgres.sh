@@ -62,21 +62,71 @@ fi
 # Configuración de base de datos
 echo "Configuración de PostgreSQL local:"
 echo "-----------------------------------"
-read -p "Nombre de la base de datos [sitiomtcrm]: " DB_NAME
-DB_NAME=${DB_NAME:-sitiomtcrm}
 
-read -p "Usuario de PostgreSQL [postgres]: " DB_USER
-DB_USER=${DB_USER:-postgres}
+# Intentar leer credenciales del archivo .env si existe
+if [ -f ".env" ]; then
+    echo -e "${YELLOW}Leyendo configuración del archivo .env...${NC}"
+    
+    # Leer valores comentados o no comentados
+    DB_NAME=$(grep -E "^#?DB_NAME=" .env | head -1 | cut -d '=' -f2 | tr -d ' ')
+    DB_USER=$(grep -E "^#?DB_USER=" .env | head -1 | cut -d '=' -f2 | tr -d ' ')
+    DB_PASSWORD=$(grep -E "^#?DB_PASSWORD=" .env | head -1 | cut -d '=' -f2 | tr -d ' ')
+    DB_HOST=$(grep -E "^#?DB_HOST=" .env | head -1 | cut -d '=' -f2 | tr -d ' ')
+    DB_PORT=$(grep -E "^#?DB_PORT=" .env | head -1 | cut -d '=' -f2 | tr -d ' ')
+    
+    # Valores por defecto si no están en .env
+    DB_NAME=${DB_NAME:-sitiomtcrm}
+    DB_USER=${DB_USER:-postgres}
+    DB_HOST=${DB_HOST:-localhost}
+    DB_PORT=${DB_PORT:-5432}
+    
+    # Si no hay contraseña en .env, dejar vacía para pedir
+    if [ -z "$DB_PASSWORD" ]; then
+        DB_PASSWORD=""
+    fi
+    
+    echo -e "${GREEN}✓ Configuración encontrada en .env${NC}"
+    echo
+else
+    echo -e "${YELLOW}No se encontró archivo .env${NC}"
+    DB_NAME="sitiomtcrm"
+    DB_USER="postgres"
+    DB_PASSWORD=""
+    DB_HOST="localhost"
+    DB_PORT="5432"
+fi
 
-read -s -p "Contraseña de PostgreSQL: " DB_PASSWORD
+# Mostrar valores encontrados y permitir modificar
+echo "Valores actuales:"
+echo "  Nombre de la base de datos: $DB_NAME"
+echo "  Usuario de PostgreSQL: $DB_USER"
+echo "  Host: $DB_HOST"
+echo "  Puerto: $DB_PORT"
+echo "  Contraseña: ${DB_PASSWORD:+******}"
+echo
+
+read -p "¿Desea modificar estos valores? (s/n): " -n 1 -r
 echo
 echo
 
-read -p "Host [localhost]: " DB_HOST
-DB_HOST=${DB_HOST:-localhost}
+if [[ $REPLY =~ ^[Ss]$ ]]; then
+    read -p "Nombre de la base de datos [$DB_NAME]: " INPUT_DB_NAME
+    DB_NAME=${INPUT_DB_NAME:-$DB_NAME}
 
-read -p "Puerto [5432]: " DB_PORT
-DB_PORT=${DB_PORT:-5432}
+    read -p "Usuario de PostgreSQL [$DB_USER]: " INPUT_DB_USER
+    DB_USER=${INPUT_DB_USER:-$DB_USER}
+
+    read -s -p "Contraseña de PostgreSQL: " INPUT_DB_PASSWORD
+    echo
+    DB_PASSWORD=${INPUT_DB_PASSWORD:-$DB_PASSWORD}
+
+    read -p "Host [$DB_HOST]: " INPUT_DB_HOST
+    DB_HOST=${INPUT_DB_HOST:-$DB_HOST}
+
+    read -p "Puerto [$DB_PORT]: " INPUT_DB_PORT
+    DB_PORT=${INPUT_DB_PORT:-$DB_PORT}
+    echo
+fi
 
 echo
 echo -e "${YELLOW}Verificando conexión a PostgreSQL...${NC}"

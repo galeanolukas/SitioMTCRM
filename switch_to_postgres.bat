@@ -24,19 +24,81 @@ echo.
 REM Configuración de base de datos
 echo Configuracion de PostgreSQL local:
 echo -----------------------------------
-set /p DB_NAME="Nombre de la base de datos [sitiomtcrm]: "
-if "%DB_NAME%"=="" set DB_NAME=sitiomtcrm
 
-set /p DB_USER="Usuario de PostgreSQL [postgres]: "
-if "%DB_USER%"=="" set DB_USER=postgres
+REM Intentar leer credenciales del archivo .env si existe
+if exist .env (
+    echo Leyendo configuracion del archivo .env...
+    
+    REM Leer valores (primero sin #, luego con #)
+    for /f "tokens=2 delims==" %%a in ('findstr "^DB_NAME=" .env 2^>nul') do set DB_NAME=%%a
+    if "%DB_NAME%"=="" (
+        for /f "tokens=2 delims==" %%a in ('findstr "^#DB_NAME=" .env 2^>nul') do set DB_NAME=%%a
+    )
+    
+    for /f "tokens=2 delims==" %%a in ('findstr "^DB_USER=" .env 2^>nul') do set DB_USER=%%a
+    if "%DB_USER%"=="" (
+        for /f "tokens=2 delims==" %%a in ('findstr "^#DB_USER=" .env 2^>nul') do set DB_USER=%%a
+    )
+    
+    for /f "tokens=2 delims==" %%a in ('findstr "^DB_PASSWORD=" .env 2^>nul') do set DB_PASSWORD=%%a
+    if "%DB_PASSWORD%"=="" (
+        for /f "tokens=2 delims==" %%a in ('findstr "^#DB_PASSWORD=" .env 2^>nul') do set DB_PASSWORD=%%a
+    )
+    
+    for /f "tokens=2 delims==" %%a in ('findstr "^DB_HOST=" .env 2^>nul') do set DB_HOST=%%a
+    if "%DB_HOST%"=="" (
+        for /f "tokens=2 delims==" %%a in ('findstr "^#DB_HOST=" .env 2^>nul') do set DB_HOST=%%a
+    )
+    
+    for /f "tokens=2 delims==" %%a in ('findstr "^DB_PORT=" .env 2^>nul') do set DB_PORT=%%a
+    if "%DB_PORT%"=="" (
+        for /f "tokens=2 delims==" %%a in ('findstr "^#DB_PORT=" .env 2^>nul') do set DB_PORT=%%a
+    )
+    
+    REM Valores por defecto si no estan en .env
+    if "%DB_NAME%"=="" set DB_NAME=sitiomtcrm
+    if "%DB_USER%"=="" set DB_USER=postgres
+    if "%DB_HOST%"=="" set DB_HOST=localhost
+    if "%DB_PORT%"=="" set DB_PORT=5432
+    
+    echo [OK] Configuracion encontrada en .env
+    echo.
+) else (
+    echo No se encontro archivo .env
+    set DB_NAME=sitiomtcrm
+    set DB_USER=postgres
+    set DB_PASSWORD=
+    set DB_HOST=localhost
+    set DB_PORT=5432
+)
 
-set /p DB_PASSWORD="Contraseña de PostgreSQL: "
+REM Mostrar valores encontrados y permitir modificar
+echo Valores actuales:
+echo   Nombre de la base de datos: %DB_NAME%
+echo   Usuario de PostgreSQL: %DB_USER%
+echo   Host: %DB_HOST%
+echo   Puerto: %DB_PORT%
+echo   Contraseña: %DB_PASSWORD%
+echo.
 
-set /p DB_HOST="Host [localhost]: "
-if "%DB_HOST%"=="" set DB_HOST=localhost
-
-set /p DB_PORT="Puerto [5432]: "
-if "%DB_PORT%"=="" set DB_PORT=5432
+set /p MODIFY="¿Desea modificar estos valores? (s/n): "
+if /i "%MODIFY%"=="s" (
+    set /p INPUT_DB_NAME="Nombre de la base de datos [%DB_NAME%]: "
+    if not "%INPUT_DB_NAME%"=="" set DB_NAME=%INPUT_DB_NAME%
+    
+    set /p INPUT_DB_USER="Usuario de PostgreSQL [%DB_USER%]: "
+    if not "%INPUT_DB_USER%"=="" set DB_USER=%INPUT_DB_USER%
+    
+    set /p INPUT_DB_PASSWORD="Contraseña de PostgreSQL: "
+    if not "%INPUT_DB_PASSWORD%"=="" set DB_PASSWORD=%INPUT_DB_PASSWORD%
+    
+    set /p INPUT_DB_HOST="Host [%DB_HOST%]: "
+    if not "%INPUT_DB_HOST%"=="" set DB_HOST=%INPUT_DB_HOST%
+    
+    set /p INPUT_DB_PORT="Puerto [%DB_PORT%]: "
+    if not "%INPUT_DB_PORT%"=="" set DB_PORT=%INPUT_DB_PORT%
+    echo.
+)
 
 echo.
 echo Verificando conexion a PostgreSQL...
