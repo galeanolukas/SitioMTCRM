@@ -1793,6 +1793,22 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
             return self.render_to_response(ctx)
 
     def import_from_server(self, request):
+        """Importar datos desde el servidor remoto según el tipo de entidad"""
+        entity_type = request.POST.get('entity_type', 'product')
+        
+        if entity_type == 'product':
+            return self.import_products_from_server(request)
+        elif entity_type == 'client':
+            return self.import_clients_from_server(request)
+        elif entity_type == 'supplier':
+            return self.import_suppliers_from_server(request)
+        else:
+            return JsonResponse({
+                'success': False,
+                'message': f'Tipo de entidad no válido: {entity_type}'
+            })
+
+    def import_products_from_server(self, request):
         """Importar productos desde el servidor remoto usando sync_products_safe"""
         from django.core.management import call_command
         from core.erp.models import Product, Company
@@ -1844,7 +1860,7 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
             
             return JsonResponse({
                 'success': True,
-                'products': products_list,
+                'items': products_list,
                 'message': f'Sincronización completada para {company.name}. {new_products} productos nuevos importados.',
                 'output': output,
                 'stats': {
@@ -1859,11 +1875,158 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
             # Log detallado del error
             import traceback
             error_details = f"Error: {str(e)}\nTipo: {type(e).__name__}\nTraceback: {traceback.format_exc()}"
-            print(f"ERROR IMPORT FROM SERVER: {error_details}")
+            print(f"ERROR IMPORT PRODUCTS FROM SERVER: {error_details}")
             
             return JsonResponse({
                 'success': False,
                 'message': f'Error al sincronizar productos: {str(e)}',
+                'error_type': type(e).__name__,
+                'debug_info': error_details if settings.DEBUG else None
+            })
+
+    def import_clients_from_server(self, request):
+        """Importar clientes desde el servidor remoto"""
+        from django.core.management import call_command
+        from core.erp.models import Client, Company
+        import io
+        from contextlib import redirect_stdout
+        
+        try:
+            # Obtener empresa del usuario
+            user = request.user
+            if not hasattr(user, 'company') or not user.company:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'El usuario no tiene una empresa asignada'
+                })
+            
+            company = user.company
+            
+            # Obtener conteo antes de sincronizar
+            local_count_before = Client.objects.filter(company=company).count()
+            
+            # Ejecutar sincronización de clientes desde el servidor
+            captured_output = io.StringIO()
+            with redirect_stdout(captured_output):
+                call_command("sync_clients_from_remote_to_local", "--company-id", str(company.id))
+            
+            output = captured_output.getvalue()
+            
+            # Obtener conteo después de sincronizar
+            local_count_after = Client.objects.filter(company=company).count()
+            new_clients = local_count_after - local_count_before
+            
+            # Obtener clientes importados
+            imported_clients = Client.objects.filter(company=company).values(
+                'id', 'names', 'surnames', 'dni', 'email', 'telefono', 'ciudad'
+            )
+            
+            clients_list = []
+            for client in imported_clients:
+                clients_list.append({
+                    'id': client['id'],
+                    'names': client['names'],
+                    'surnames': client['surnames'] or '',
+                    'dni': client['dni'] or '',
+                    'email': client['email'] or '',
+                    'telefono': client['telefono'] or '',
+                    'ciudad': client['ciudad'] or ''
+                })
+            
+            return JsonResponse({
+                'success': True,
+                'items': clients_list,
+                'message': f'Sincronización completada para {company.name}. {new_clients} clientes nuevos importados.',
+                'output': output,
+                'stats': {
+                    'before': local_count_before,
+                    'after': local_count_after,
+                    'new': new_clients,
+                    'company': company.name
+                }
+            })
+            
+        except Exception as e:
+            import traceback
+            error_details = f"Error: {str(e)}\nTipo: {type(e).__name__}\nTraceback: {traceback.format_exc()}"
+            print(f"ERROR IMPORT CLIENTS FROM SERVER: {error_details}")
+            
+            return JsonResponse({
+                'success': False,
+                'message': f'Error al sincronizar clientes: {str(e)}',
+                'error_type': type(e).__name__,
+                'debug_info': error_details if settings.DEBUG else None
+            })
+
+    def import_suppliers_from_server(self, request):
+        """Importar proveedores desde el servidor remoto"""
+        from django.core.management import call_command
+        from core.erp.models import Supplier, Company
+        import io
+        from contextlib import redirect_stdout
+        
+        try:
+            # Obtener empresa del usuario
+            user = request.user
+            if not hasattr(user, 'company') or not user.company:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'El usuario no tiene una empresa asignada'
+                })
+            
+            company = user.company
+            
+            # Obtener conteo antes de sincronizar
+            local_count_before = Supplier.objects.filter(company=company).count()
+            
+            # Ejecutar sincronización de proveedores desde el servidor
+            captured_output = io.StringIO()
+            with redirect_stdout(captured_output):
+                call_command("sync_suppliers_from_remote_to_local", "--company-id", str(company.id))
+            
+            output = captured_output.getvalue()
+            
+            # Obtener conteo después de sincronizar
+            local_count_after = Supplier.objects.filter(company=company).count()
+            new_suppliers = local_count_after - local_count_before
+            
+            # Obtener proveedores importados
+            imported_suppliers = Supplier.objects.filter(company=company).values(
+                'id', 'name', 'code', 'cuit', 'email', 'phone'
+            )
+            
+            suppliers_list = []
+            for supplier in imported_suppliers:
+                suppliers_list.append({
+                    'id': supplier['id'],
+                    'name': supplier['name'],
+                    'code': supplier['code'] or '',
+                    'cuit': supplier['cuit'] or '',
+                    'email': supplier['email'] or '',
+                    'phone': supplier['phone'] or ''
+                })
+            
+            return JsonResponse({
+                'success': True,
+                'items': suppliers_list,
+                'message': f'Sincronización completada para {company.name}. {new_suppliers} proveedores nuevos importados.',
+                'output': output,
+                'stats': {
+                    'before': local_count_before,
+                    'after': local_count_after,
+                    'new': new_suppliers,
+                    'company': company.name
+                }
+            })
+            
+        except Exception as e:
+            import traceback
+            error_details = f"Error: {str(e)}\nTipo: {type(e).__name__}\nTraceback: {traceback.format_exc()}"
+            print(f"ERROR IMPORT SUPPLIERS FROM SERVER: {error_details}")
+            
+            return JsonResponse({
+                'success': False,
+                'message': f'Error al sincronizar proveedores: {str(e)}',
                 'error_type': type(e).__name__,
                 'debug_info': error_details if settings.DEBUG else None
             })
