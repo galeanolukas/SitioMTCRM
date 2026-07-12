@@ -321,6 +321,35 @@ $(function () {
                 }
             })
 
+            // Cargar desglose de IVA por alícuota
+            $.ajax({
+                url: window.location.pathname,
+                type: 'POST',
+                data: {
+                    'action': 'search_vat_breakdown',
+                    'id': data.id
+                },
+                dataType: 'json',
+                success: function(vatData) {
+                    var vatHtml = '';
+                    if (vatData && vatData.length > 0) {
+                        vatData.forEach(function(vat) {
+                            vatHtml += '<tr>';
+                            vatHtml += '<td>' + (vat.vat_code_display || '-') + '</td>';
+                            vatHtml += '<td>$' + (parseFloat(vat.taxable_base) || 0).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</td>';
+                            vatHtml += '<td>$' + (parseFloat(vat.vat_amount) || 0).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</td>';
+                            vatHtml += '</tr>';
+                        });
+                    } else {
+                        vatHtml = '<tr><td colspan="3" class="text-center text-muted">No hay desglose de IVA disponible</td></tr>';
+                    }
+                    $('#tblVatBreakdown tbody').html(vatHtml);
+                },
+                error: function() {
+                    $('#tblVatBreakdown tbody').html('<tr><td colspan="3" class="text-center text-danger">Error al cargar desglose de IVA</td></tr>');
+                }
+            });
+
             $('#myModalDet').modal('show');
 
         })

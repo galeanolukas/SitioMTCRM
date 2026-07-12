@@ -213,6 +213,15 @@ class Product(models.Model):
         ('lt', 'Litro'),
         ('bx', 'Caja'),
     )
+    VAT_CODE_CHOICES = (
+        ('5', '21%'),
+        ('4', '10.5%'),
+        ('6', '27%'),
+        ('3', '0% (Exento)'),
+        ('2', '2.5%'),
+        ('8', '5%'),
+        ('9', 'No gravado'),
+    )
     company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa', null=True, blank=True)
     name = models.CharField(max_length=150, verbose_name='Nombre', unique=True)
     code = models.CharField(max_length=64, verbose_name='Código Barras', null=True, blank=True)
@@ -225,6 +234,7 @@ class Product(models.Model):
     cost_price = models.DecimalField(default=0.00, max_digits=12, decimal_places=2, null=True, blank=True, verbose_name='Precio de costo (sin IVA)')
     pvp = models.DecimalField(default=0.00, max_digits=9, decimal_places=2, verbose_name='Precio neto (sin IVA)')
     iva_rate = models.DecimalField(default=0.21, max_digits=5, decimal_places=2, verbose_name='IVA (%)')
+    vat_code = models.CharField(max_length=1, choices=VAT_CODE_CHOICES, default='5', verbose_name='Código AFIP')
     margin_percentage = models.DecimalField(default=0.00, max_digits=5, decimal_places=2, verbose_name='Margen de ganancia (%)')
     pvp_final = models.DecimalField(default=0.00, max_digits=9, decimal_places=2, verbose_name='Precio final (con IVA)')
     unit = models.CharField(max_length=10, choices=UNIT_CHOICES, default='unit', verbose_name='Unidad de medida')
@@ -1216,16 +1226,68 @@ class DetSale(models.Model):
         self.iva_amount = self.calculate_iva_amount()
         super().save(*args, **kwargs)
 
+
+class SaleVatBreakdown(models.Model):
+    """Apertura de alícuotas de IVA por venta para Libro IVA Digital"""
+    VAT_CODE_CHOICES = (
+        ('5', '21%'),
+        ('4', '10.5%'),
+        ('6', '27%'),
+        ('3', '0% (Exento)'),
+        ('2', '2.5%'),
+        ('8', '5%'),
+        ('9', 'No gravado'),
+    )
+    
+    sale = models.ForeignKey(Sale, on_delete=models.CASCADE, related_name='vat_breakdowns')
+    vat_code = models.CharField(max_length=1, choices=VAT_CODE_CHOICES, verbose_name='Código AFIP')
+    vat_rate = models.DecimalField(max_digits=5, decimal_places=2, verbose_name='Tasa IVA (%)')
+    taxable_base = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Base imponible')
+    vat_amount = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Monto IVA')
+
+    def __str__(self):
+        return f"{self.sale.id} - {self.get_vat_code_display()}: ${self.taxable_base} + ${self.vat_amount}"
+
+    class Meta:
+        verbose_name = 'Apertura de IVA'
+        verbose_name_plural = 'Aperturas de IVA'
+        unique_together = ['sale', 'vat_code']
+
     def toJSON(self):
         item = model_to_dict(self, exclude=['sale'])
-        item['prod'] = self.prod.toJSON()
-        item['price'] = format(self.price, '.2f') if self.price is not None else '0.00'
-        item['subtotal'] = format(self.subtotal, '.2f') if self.subtotal is not None else '0.00'
-        item['iva_amount'] = format(self.iva_amount, '.2f') if self.iva_amount is not None else '0.00'
-        # Agregar información del IVA del producto
-        item['prod']['iva_rate'] = float(self.prod.iva_rate) if self.prod and self.prod.iva_rate else 0.0
-        item['prod']['pvp_with_iva'] = format(self.prod.pvp_final, '.2f') if self.prod and self.prod.pvp_final else '0.00'
+        item['vat_code_display'] = self.get_vat_code_display()
+        item['taxable_base'] = format(self.taxable_base, '.2f') if self.taxable_base is not None else '0.00'
+        item['vat_amount'] = format(self.vat_amount, '.2f') if self.vat_amount is not None else '0.00'
+        item['vat_rate'] = format(self.vat_rate, '.2f') if self.vat_rate is not None else '0.00'
         return item
+
+
+class DetSale(models.Model):
+    sale = models.ForeignKey(Sale, on_delete=models.CASCADE)
+    prod = models.ForeignKey(Product, on_delete=models.CASCADE)
+    price = models.DecimalField(default=0.00, max_digits=9, decimal_places=2)
+    cant = models.DecimalField(default=0, max_digits=9, decimal_places=3)
+    subtotal = models.DecimalField(default=0.00, max_digits=9, decimal_places=2)
+    iva_amount = models.DecimalField(default=0.00, max_digits=9, decimal_places=2, verbose_name='Monto IVA')
+
+    def __str__(self):
+        return self.prod.name
+    
+    def calculate_iva_amount(self):
+        """Calcular el monto de IVA para este detalle"""
+        if self.prod and self.prod.iva_rate:
+            # Calcular IVA basado en el subtotal
+            iva_rate = Decimal(str(self.prod.iva_rate))
+            # Normalizar rate: si es mayor que 1, tratarlo como porcentaje (21 -> 0.21)
+            if iva_rate > Decimal('1.0'):
+                iva_rate = iva_rate / Decimal('100.0')
+            subtotal_decimal = Decimal(str(self.subtotal))
+            return (subtotal_decimal * iva_rate).quantize(Decimal('0.01'))
+        return Decimal('0.00')
+    
+    def save(self, *args, **kwargs):        # Calcular el monto de IVA automáticamente
+        self.iva_amount = self.calculate_iva_amount()
+        super().save(*args, **kwargs)
 
     class Meta:
         verbose_name = 'Detalle de Venta'

@@ -3,7 +3,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.urls import reverse_lazy
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, get_object_or_404
-from core.erp.models import Sale, Product, DetSale, Company, Client, QuickOrder, Category, CashRegister, EmployeeAccountSale, DetEmployeeAccount
+from core.erp.models import Sale, Product, DetSale, Company, Client, QuickOrder, Category, CashRegister, EmployeeAccountSale, DetEmployeeAccount, SaleVatBreakdown
 from django.contrib.auth import get_user_model
 from django.template.loader import get_template
 from django.conf import settings
@@ -18,6 +18,7 @@ from django.db import transaction
 from django.db.models import F, Q
 from django.utils import timezone
 import pytz
+from decimal import Decimal
 import time
 import uuid
 from core.erp.afip.client import AfipClient
@@ -76,6 +77,40 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
         # Desactivar botones POS cuando no hay caja abierta (para todos los usuarios)
         context['pos_locked_by_cash'] = not current_cr
         return context
+
+    def calculate_vat_breakdown(self, sale):
+        """Calcular y guardar la apertura de alícuotas de IVA para una venta"""
+        from django.db.models import Sum
+        
+        # Eliminar aperturas existentes para esta venta
+        SaleVatBreakdown.objects.filter(sale=sale).delete()
+        
+        # Agrupar detalles por código de IVA AFIP
+        vat_breakdown = {}
+        for det in sale.detsale_set.all():
+            if det.prod and det.prod.vat_code:
+                vat_code = det.prod.vat_code
+                vat_rate = det.prod.iva_rate or Decimal('0.00')
+                
+                if vat_code not in vat_breakdown:
+                    vat_breakdown[vat_code] = {
+                        'vat_rate': vat_rate,
+                        'taxable_base': Decimal('0.00'),
+                        'vat_amount': Decimal('0.00')
+                    }
+                
+                vat_breakdown[vat_code]['taxable_base'] += Decimal(str(det.subtotal))
+                vat_breakdown[vat_code]['vat_amount'] += Decimal(str(det.iva_amount))
+        
+        # Crear registros de apertura de IVA
+        for vat_code, data in vat_breakdown.items():
+            SaleVatBreakdown.objects.create(
+                sale=sale,
+                vat_code=vat_code,
+                vat_rate=data['vat_rate'],
+                taxable_base=data['taxable_base'],
+                vat_amount=data['vat_amount']
+            )
 
     def post(self, request, *args, **kwargs):
         data = {}
@@ -979,6 +1014,9 @@ class SaleCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Create
                                 stock_modified_locally=timezone.now(),  # Marcar modificación local
                                 synced_to_server=False  # Marcar para sincronizar
                             )
+                    
+                    # Calcular y guardar apertura de alícuotas de IVA
+                    self.calculate_vat_breakdown(sale)
                 
                 print(f"[DEBUG] Presupuesto creado OK: id={sale.id}, is_budget={sale.is_budget}, status={sale.status}, pos_id={sale.pos_id}, local_uuid={sale.local_uuid}")
                 data = {'id': sale.id, 'is_budget': sale.is_budget, 'local_uuid': sale.local_uuid}
@@ -1085,12 +1123,49 @@ class SaleUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Update
                             stock_modified_locally=timezone.now(),  # Marcar modificación de stock
                             synced_to_server=False  # Marcar para sincronizar
                         )
+                    
+                    # Calcular y guardar apertura de alícuotas de IVA
+                    self.calculate_vat_breakdown_for_sale(sale)
                 
             else:
                 data['error'] = 'No ha ingresado a ninguna opción'
         except Exception as e:
             data['error'] = str(e)
         return JsonResponse(data, safe=False)
+
+    def calculate_vat_breakdown_for_sale(self, sale):
+        """Calcular y guardar la apertura de alícuotas de IVA para una venta (método auxiliar)"""
+        from django.db.models import Sum
+        
+        # Eliminar aperturas existentes para esta venta
+        SaleVatBreakdown.objects.filter(sale=sale).delete()
+        
+        # Agrupar detalles por código de IVA AFIP
+        vat_breakdown = {}
+        for det in sale.detsale_set.all():
+            if det.prod and det.prod.vat_code:
+                vat_code = det.prod.vat_code
+                vat_rate = det.prod.iva_rate or Decimal('0.00')
+                
+                if vat_code not in vat_breakdown:
+                    vat_breakdown[vat_code] = {
+                        'vat_rate': vat_rate,
+                        'taxable_base': Decimal('0.00'),
+                        'vat_amount': Decimal('0.00')
+                    }
+                
+                vat_breakdown[vat_code]['taxable_base'] += Decimal(str(det.subtotal))
+                vat_breakdown[vat_code]['vat_amount'] += Decimal(str(det.iva_amount))
+        
+        # Crear registros de apertura de IVA
+        for vat_code, data in vat_breakdown.items():
+            SaleVatBreakdown.objects.create(
+                sale=sale,
+                vat_code=vat_code,
+                vat_rate=data['vat_rate'],
+                taxable_base=data['taxable_base'],
+                vat_amount=data['vat_amount']
+            )
 
     def get_details_product(self):
         data = []
@@ -1220,6 +1295,18 @@ class SaleListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView
                         details = DetSale.objects.filter(sale_id=sale_id).select_related('prod', 'prod__cat')
                         for detail in details:
                             data.append(detail.toJSON())
+                    except Exception as e:
+                        data = []
+                return JsonResponse(data, safe=False)
+            
+            elif action == 'search_vat_breakdown':
+                data = []
+                sale_id = request.POST.get('id')
+                if sale_id:
+                    try:
+                        vat_breakdowns = SaleVatBreakdown.objects.filter(sale_id=sale_id)
+                        for breakdown in vat_breakdowns:
+                            data.append(breakdown.toJSON())
                     except Exception as e:
                         data = []
                 return JsonResponse(data, safe=False)
