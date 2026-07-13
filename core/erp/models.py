@@ -576,7 +576,9 @@ class Sale(models.Model):
     budget_notes = models.TextField(blank=True, null=True, verbose_name='Notas del Presupuesto')
 
     def __str__(self):
-        return self.cli.names
+        if self.cli:
+            return self.cli.names
+        return f"Venta #{self.id} (Sin cliente)"
 
     def save(self, *args, **kwargs):
         if not self.company_id:
@@ -1160,7 +1162,7 @@ class Sale(models.Model):
 
     def toJSON(self):
         item = model_to_dict(self, exclude=['date_creation', 'date_updated', 'user_creation', 'user_updated'])
-        item['cli'] = (self.cli.names if self.cli_id else 'Anónimo')
+        item['cli'] = (self.cli.names if self.cli else 'Anónimo')
         # Formatear la fecha sin conversión de zona horaria (Django ya maneja esto)
         try:
             # Usar timezone.localtime para convertir a la zona horaria local configurada
@@ -1197,34 +1199,6 @@ class Sale(models.Model):
         verbose_name = 'Venta'
         verbose_name_plural = 'Ventas'
         ordering = ['id']
-
-
-class DetSale(models.Model):
-    sale = models.ForeignKey(Sale, on_delete=models.CASCADE)
-    prod = models.ForeignKey(Product, on_delete=models.CASCADE)
-    price = models.DecimalField(default=0.00, max_digits=9, decimal_places=2)
-    cant = models.DecimalField(default=0, max_digits=9, decimal_places=3)
-    subtotal = models.DecimalField(default=0.00, max_digits=9, decimal_places=2)
-    iva_amount = models.DecimalField(default=0.00, max_digits=9, decimal_places=2, verbose_name='Monto IVA')
-
-    def __str__(self):
-        return self.prod.name
-    
-    def calculate_iva_amount(self):
-        """Calcular el monto de IVA para este detalle"""
-        if self.prod and self.prod.iva_rate:
-            # Calcular IVA basado en el subtotal
-            iva_rate = Decimal(str(self.prod.iva_rate))
-            # Normalizar rate: si es mayor que 1, tratarlo como porcentaje (21 -> 0.21)
-            if iva_rate > Decimal('1.0'):
-                iva_rate = iva_rate / Decimal('100.0')
-            subtotal_decimal = Decimal(str(self.subtotal))
-            return (subtotal_decimal * iva_rate).quantize(Decimal('0.01'))
-        return Decimal('0.00')
-    
-    def save(self, *args, **kwargs):        # Calcular el monto de IVA automáticamente
-        self.iva_amount = self.calculate_iva_amount()
-        super().save(*args, **kwargs)
 
 
 class SaleVatBreakdown(models.Model):
@@ -1272,6 +1246,14 @@ class DetSale(models.Model):
 
     def __str__(self):
         return self.prod.name
+    
+    def toJSON(self):
+        item = model_to_dict(self, exclude=['date_creation', 'date_updated', 'user_creation', 'user_updated'])
+        item['prod'] = self.prod.toJSON() if self.prod else {}
+        item['cant'] = float(self.cant)
+        item['subtotal'] = float(self.subtotal)
+        item['iva_amount'] = float(self.iva_amount)
+        return item
     
     def calculate_iva_amount(self):
         """Calcular el monto de IVA para este detalle"""

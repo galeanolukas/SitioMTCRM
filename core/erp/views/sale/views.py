@@ -472,7 +472,21 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     sale.iva = float(payload.get('iva', 0))
                     sale.total = float(payload.get('total', 0))
                     sale.payment_method = payload.get('payment_method') or 'cash'
-                    sale.invoice_type = payload.get('invoice_type') or 'B'
+                    
+                    # Determinar tipo de comprobante según condición IVA del cliente
+                    if payload.get('invoice_type'):
+                        sale.invoice_type = payload.get('invoice_type')
+                    else:
+                        # Auto-detectar según condición IVA del cliente
+                        client = Client.objects.filter(id=sale.cli_id).first() if sale.cli_id else None
+                        client_cond_iva = client.condicion_iva if client else 'CF'
+                        if client_cond_iva == 'RI':
+                            sale.invoice_type = 'A'
+                        elif client_cond_iva == 'EX':
+                            sale.invoice_type = 'C'
+                        else:
+                            sale.invoice_type = 'B'
+                    
                     sale.is_credit_note = payload.get('is_credit_note', False)
 
                     if is_budget:
@@ -572,7 +586,21 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     sale.iva = float(payload.get('iva', 0))
                     sale.total = float(payload.get('total', 0))
                     sale.payment_method = payload.get('payment_method') or 'cash'
-                    sale.invoice_type = payload.get('invoice_type') or 'B'
+                    
+                    # Determinar tipo de comprobante según condición IVA del cliente
+                    if payload.get('invoice_type'):
+                        sale.invoice_type = payload.get('invoice_type')
+                    else:
+                        # Auto-detectar según condición IVA del cliente
+                        client = Client.objects.filter(id=sale.cli_id).first() if sale.cli_id else None
+                        client_cond_iva = client.condicion_iva if client else 'CF'
+                        if client_cond_iva == 'RI':
+                            sale.invoice_type = 'A'
+                        elif client_cond_iva == 'EX':
+                            sale.invoice_type = 'C'
+                        else:
+                            sale.invoice_type = 'B'
+                    
                     sale.is_credit_note = payload.get('is_credit_note', False)
 
                     # Para tickets (sin factura), asegurar que IVA sea 0 y total sea igual a subtotal
@@ -590,9 +618,20 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
 
                     if afip_config:
                         # Hay configuración AFIP, usar flujo normal
-                        # Mapear tipo de comprobante numérico a letra
-                        tipo_map = {1: 'A', 6: 'B', 11: 'C'}
-                        sale.invoice_type = tipo_map.get(afip_config.tipo_comprobante, 'B')
+                        # Determinar tipo de comprobante según condición IVA del cliente
+                        client_cond_iva = sale.cli.condicion_iva if sale.cli else 'CF'
+                        
+                        # Mapeo según normativa AFIP RG 5616/2024
+                        if client_cond_iva == 'RI':
+                            # Responsable Inscripto → Factura A
+                            sale.invoice_type = 'A'
+                        elif client_cond_iva == 'EX':
+                            # Exento → Factura C
+                            sale.invoice_type = 'C'
+                        else:
+                            # Monotributista o Consumidor Final → Factura B
+                            sale.invoice_type = 'B'
+                        
                         sale.invoice_number = sale.next_sequential_for_pos_type()
                         sale.is_invoiced = True
                     elif allow_without_afip:
@@ -1244,10 +1283,16 @@ class SaleListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView
                 if not request.user.is_superuser:
                     active_cid = active_cid or getattr(request.user, 'company_id', None)
                 
+                # Debug logging
+                print(f"[DEBUG] SaleListView searchdata: user={request.user.username}, is_superuser={request.user.is_superuser}, active_cid={active_cid}")
+                
                 try:
                     qs = Sale.objects.all().order_by('-date_joined')
+                    print(f"[DEBUG] Total ventas sin filtro: {qs.count()}")
+                    
                     if active_cid:
                         qs = qs.filter(company_id=active_cid)
+                        print(f"[DEBUG] Total ventas con company_id={active_cid}: {qs.count()}")
                     
                     for sale in qs:
                         try:
