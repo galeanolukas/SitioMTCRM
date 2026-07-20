@@ -44,3 +44,6 @@ six==1.17.0
 
 # Generación de códigos QR para comprobantes AFIP
 qrcode[pil]==7.4.2
+
+# Comunicación serial para módulos fiscales
+pyserial==3.5

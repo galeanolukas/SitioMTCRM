@@ -691,6 +691,76 @@
   </div>
 </div>
 
+<!-- Modal para selección de tarjeta -->
+<div class="modal fade" id="cardPaymentModal" tabindex="-1" aria-labelledby="cardPaymentLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="cardPaymentLabel">
+          <i class="fas fa-credit-card"></i> Pago con Tarjeta
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label">Tipo de tarjeta</label>
+          <div class="btn-group w-100" role="group">
+            <input type="radio" class="btn-check" name="cardType" id="cardDebit" value="debit" autocomplete="off">
+            <label class="btn btn-outline-primary" for="cardDebit">
+              <i class="fas fa-credit-card"></i> Débito
+            </label>
+            <input type="radio" class="btn-check" name="cardType" id="cardCredit" value="credit" autocomplete="off" checked>
+            <label class="btn btn-outline-primary" for="cardCredit">
+              <i class="fas fa-credit-card"></i> Crédito
+            </label>
+          </div>
+        </div>
+        
+        <div class="mb-3">
+          <label for="cardBrand" class="form-label">Marca de tarjeta</label>
+          <select id="cardBrand" class="form-select">
+            <option value="visa">Visa</option>
+            <option value="mastercard">Mastercard</option>
+            <option value="amex">American Express</option>
+            <option value="other">Otra</option>
+          </select>
+        </div>
+        
+        <div id="creditOptions" class="mb-3">
+          <label for="cardPlan" class="form-label">Plan de cuotas</label>
+          <select id="cardPlan" class="form-select">
+            <option value="">Seleccione un plan...</option>
+            {% for plan in card_plans %}
+            <option value="{{ plan.id }}" data-installments="{{ plan.installments|floatformat:4 }}" data-multiplier="{{ plan.multiplier|floatformat:4 }}">
+              {{ plan.name }} - {{ plan.installments }} cuotas ({{ plan.multiplier|floatformat:4 }}x)
+            </option>
+            {% endfor %}
+          </select>
+          <div id="installmentInfo" class="mt-2 small text-muted" style="display: none;">
+            <span id="installmentCount"></span> cuotas de <span id="installmentAmount"></span> cada una
+          </div>
+        </div>
+        
+        <div class="mb-3">
+          <label for="cardAuthCode" class="form-label">Código de autorización (módulo fiscal)</label>
+          <input type="text" id="cardAuthCode" class="form-control" placeholder="Opcional - Código del módulo fiscal">
+        </div>
+        
+        <div class="alert alert-info small">
+          <i class="fas fa-info-circle"></i> 
+          <span id="cardInfoText">Seleccione las opciones de tarjeta para continuar</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btnConfirmCardPayment">
+          <i class="fas fa-check"></i> Confirmar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Modal para ingresar peso de producto -->
 <div class="modal fade" id="weightModal" tabindex="-1" aria-labelledby="weightModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">

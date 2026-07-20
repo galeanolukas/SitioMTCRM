@@ -528,6 +528,23 @@ class Supplier(models.Model):
         ordering = ['id']
 
 
+class CardInstallmentPlan(models.Model):
+    """Planes de cuotas para pagos con tarjeta de crédito"""
+    name = models.CharField(max_length=50, verbose_name='Nombre del plan')
+    installments = models.IntegerField(verbose_name='Cantidad de cuotas')
+    multiplier = models.DecimalField(max_digits=5, decimal_places=4, verbose_name='Multiplicador (ej: 1.14 para 14% recargo)')
+    afip_code = models.IntegerField(blank=True, null=True, verbose_name='Código AFIP (opcional)')
+    is_active = models.BooleanField(default=True, verbose_name='Activo')
+    
+    def __str__(self):
+        return f"{self.name} - {self.installments} cuotas ({self.multiplier}x)"
+    
+    class Meta:
+        verbose_name = 'Plan de cuotas'
+        verbose_name_plural = 'Planes de cuotas'
+        ordering = ['name', 'installments']
+
+
 class Sale(models.Model):
     STATUS_CHOICES = (
         ('budget', 'Presupuesto'),
@@ -544,6 +561,12 @@ class Sale(models.Model):
     total = models.DecimalField(default=0.00, max_digits=9, decimal_places=2)
     payment_method = models.CharField(max_length=12, choices=payment_method_choices, default='cash', verbose_name='Forma de pago')
     payment_details = models.JSONField(default=dict, blank=True, verbose_name='Detalles de pago combinado')
+    # Campos para pagos con tarjeta
+    card_type = models.CharField(max_length=10, choices=[('debit', 'Débito'), ('credit', 'Crédito')], blank=True, null=True, verbose_name='Tipo de tarjeta')
+    card_brand = models.CharField(max_length=20, choices=[('visa', 'Visa'), ('mastercard', 'Mastercard'), ('amex', 'American Express'), ('other', 'Otra')], blank=True, null=True, verbose_name='Marca de tarjeta')
+    card_installments = models.IntegerField(blank=True, null=True, verbose_name='Cantidad de cuotas')
+    card_plan = models.ForeignKey('erp.CardInstallmentPlan', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Plan de cuotas', related_name='sales')
+    card_auth_code = models.CharField(max_length=20, blank=True, null=True, verbose_name='Código de autorización (módulo fiscal)')
     # Facturación
     invoice_number = models.CharField(max_length=20, null=True, blank=True)
     invoice_pos = models.CharField(max_length=5, default='0001')
@@ -758,11 +781,21 @@ class Sale(models.Model):
             condicion_iva_receptor_id = condicion_iva_map.get(condicion_iva_cliente, 5)  # Default: Consumidor Final
             logger.info(f"[AFIP DEBUG] Condición IVA cliente: {condicion_iva_cliente}, ID receptor: {condicion_iva_receptor_id}")
 
+            # Mapear invoice_type ('A', 'B', 'C') a código AFIP numérico
+            invoice_type_map = {
+                'A': 1,   # Factura A
+                'B': 6,   # Factura B
+                'C': 11,  # Factura C
+                'X': 99   # Ticket X (sin valor fiscal)
+            }
+            cbte_tipo = invoice_type_map.get(self.invoice_type, config_obj.tipo_comprobante)
+            logger.info(f"[AFIP DEBUG] Invoice type: {self.invoice_type}, CbteTipo AFIP: {cbte_tipo}")
+
             # Preparar voucher_data SIN CbteDesde/CbteHasta (createNextVoucher los calcula automáticamente)
             voucher_data = {
                 'CantReg': 1,
                 'PtoVta': punto_venta,  # Usar punto de venta de AfipPuntoVenta
-                'CbteTipo': config_obj.tipo_comprobante,
+                'CbteTipo': cbte_tipo,  # Usar el tipo determinado según condición IVA del cliente
                 'Concepto': config_obj.concepto,  # Usar concepto de la configuración
                 'DocTipo': doc_tipo,
                 'DocNro': doc_nro,
@@ -779,7 +812,7 @@ class Sale(models.Model):
                 'Iva': iva_details if iva_details else []
             }
 
-            logger.info(f"[AFIP DEBUG] Voucher data preparado - PtoVta: {punto_venta}, CbteTipo: {config_obj.tipo_comprobante}")
+            logger.info(f"[AFIP DEBUG] Voucher data preparado - PtoVta: {punto_venta}, CbteTipo: {cbte_tipo}")
             logger.debug(f"[AFIP DEBUG] Datos completos del voucher: {voucher_data}")
 
             # Crear voucher usando createNextVoucher (calcula número automáticamente)
@@ -1736,6 +1769,18 @@ class AfipConfig(models.Model):
     wsfe_authorized = models.BooleanField(default=False, verbose_name='WSFE Autorizado')
     wsfe_authorized_at = models.DateTimeField(blank=True, null=True, verbose_name='Fecha de autorización WSFE')
     wsfe_automation_id = models.CharField(max_length=255, blank=True, null=True, verbose_name='ID de automatización de autorización WSFE')
+    
+    # Configuración de módulo fiscal físico
+    FISCAL_PRINTER_CHOICES = (
+        ('none', 'Sin impresora fiscal'),
+        ('hasar', 'Hasar (715/615)'),
+        ('epson', 'Epson TM-T88'),
+    )
+    fiscal_printer_enabled = models.BooleanField(default=False, verbose_name='Habilitar impresora fiscal física')
+    fiscal_printer_type = models.CharField(max_length=20, choices=FISCAL_PRINTER_CHOICES, default='none', verbose_name='Tipo de impresora fiscal')
+    fiscal_printer_port = models.CharField(max_length=50, blank=True, null=True, verbose_name='Puerto serial (ej: /dev/ttyUSB0)')
+    fiscal_printer_baudrate = models.IntegerField(default=9600, verbose_name='Velocidad de comunicación')
+    
     is_active = models.BooleanField(default=True, verbose_name='Activo')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de creación')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Fecha de actualización')

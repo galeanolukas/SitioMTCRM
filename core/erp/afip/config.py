@@ -26,6 +26,11 @@ def get_afip_config(company_id=None):
     """
     Obtiene la configuración de AFIP para una empresa específica
     o la configuración global si no se especifica empresa
+    
+    Fallback hierarchy:
+    1. Configuración específica de la empresa (si company_id)
+    2. Configuración global del .env
+    3. Configuración de pruebas de AFIP SDK (CUIT de prueba)
     """
     import logging
     logger = logging.getLogger(__name__)
@@ -74,6 +79,19 @@ def get_afip_config(company_id=None):
             'cotizacion': 1.0,
         }
 
-    # No hay configuración válida
-    logger.warning(f"[AFIP CONFIG] No hay configuración AFIP válida (ni específica ni global)")
-    return None
+    # Fallback a configuración de pruebas de AFIP SDK (CUIT de prueba)
+    logger.warning(f"[AFIP CONFIG] No hay configuración AFIP válida (ni específica ni global). Usando configuración de pruebas de AFIP SDK.")
+    return {
+        'CUIT': '20111111112',  # CUIT de prueba de AFIP SDK
+        'access_token': None,  # AFIP SDK puede usar su access token por defecto en modo dev
+        'cert': None,
+        'key': None,
+        'environment': 'dev',  # Siempre en modo desarrollo para pruebas
+        'is_active': True,
+        'company_id': None,
+        'usar_contingencia': True,  # Usar contingencia para evitar errores de AFIP
+        'tipo_comprobante': 6,  # Default: Factura B
+        'concepto': 1,  # Default: Productos
+        'moneda': 'PES',
+        'cotizacion': 1.0,
+    }

@@ -460,7 +460,19 @@ class AfipClient:
         try:
             cuit_clean = str(cuit).replace('-', '').strip()
             logger.debug(f"[AFIP] Consultando Padrón (RegisterScopeTen) para CUIT: {cuit_clean}")
-            taxpayer = self.afip.RegisterScopeTen
+            
+            # Verificar si WSFE está autorizado (especialmente en producción)
+            if self.config.get('environment') == 'prod' and not self.config.get('wsfe_authorized', False):
+                logger.warning(f"[AFIP] WSFE no autorizado en producción. Consulta de padrón puede fallar.")
+                return {'error': 'El web service WSFE no está autorizado en la configuración AFIP. Para autorizarlo, vaya al dashboard AFIP y use la opción "Autorizar WSFE" con sus credenciales de Clave Fiscal.'}
+            
+            # Verificar si el servicio está disponible
+            try:
+                taxpayer = self.afip.RegisterScopeTen
+            except AttributeError as e:
+                logger.error(f"[AFIP] RegisterScopeTen no disponible: {e}")
+                return {'error': 'El servicio RegisterScopeTen no está disponible. Verifique que WSFE esté autorizado en la configuración AFIP.'}
+            
             result = taxpayer.getTaxpayerDetails(int(cuit_clean))
             logger.debug(f"[AFIP] Respuesta RegisterScopeTen: {result}")
 

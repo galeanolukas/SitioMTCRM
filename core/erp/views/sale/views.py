@@ -42,6 +42,14 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
         tipo_map = {1: 'A', 6: 'B', 11: 'C'}
         default_invoice_type = tipo_map.get(afip_config.get('tipo_comprobante', 6), 'B') if afip_config else 'B'
         context['default_invoice_type'] = default_invoice_type
+        
+        # Obtener planes de cuotas de tarjeta
+        from core.erp.models import CardInstallmentPlan
+        card_plans = CardInstallmentPlan.objects.filter(is_active=True).order_by('name', 'installments')
+        context['card_plans'] = card_plans
+        print(f"[DEBUG] Planes de cuotas cargados: {card_plans.count()}")
+        for plan in card_plans:
+            print(f"[DEBUG] Plan: {plan.name}, Cuotas: {plan.installments}, Multiplicador: {plan.multiplier}")
         qs = Sale.objects.all().select_related('cli')
         if active_cid:
             qs = qs.filter(company_id=active_cid)
@@ -473,6 +481,20 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     sale.total = float(payload.get('total', 0))
                     sale.payment_method = payload.get('payment_method') or 'cash'
                     
+                    # Guardar datos de tarjeta si corresponde
+                    if payload.get('payment_method') == 'card':
+                        sale.card_type = payload.get('card_type')
+                        sale.card_brand = payload.get('card_brand')
+                        sale.card_auth_code = payload.get('card_auth_code')
+                        if payload.get('card_plan_id'):
+                            from core.erp.models import CardInstallmentPlan
+                            try:
+                                card_plan = CardInstallmentPlan.objects.get(id=payload.get('card_plan_id'))
+                                sale.card_plan = card_plan
+                                sale.card_installments = card_plan.installments
+                            except CardInstallmentPlan.DoesNotExist:
+                                pass
+                    
                     # Determinar tipo de comprobante según condición IVA del cliente
                     if payload.get('invoice_type'):
                         sale.invoice_type = payload.get('invoice_type')
@@ -586,6 +608,20 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     sale.iva = float(payload.get('iva', 0))
                     sale.total = float(payload.get('total', 0))
                     sale.payment_method = payload.get('payment_method') or 'cash'
+                    
+                    # Guardar datos de tarjeta si corresponde
+                    if payload.get('payment_method') == 'card':
+                        sale.card_type = payload.get('card_type')
+                        sale.card_brand = payload.get('card_brand')
+                        sale.card_auth_code = payload.get('card_auth_code')
+                        if payload.get('card_plan_id'):
+                            from core.erp.models import CardInstallmentPlan
+                            try:
+                                card_plan = CardInstallmentPlan.objects.get(id=payload.get('card_plan_id'))
+                                sale.card_plan = card_plan
+                                sale.card_installments = card_plan.installments
+                            except CardInstallmentPlan.DoesNotExist:
+                                pass
                     
                     # Determinar tipo de comprobante según condición IVA del cliente
                     if payload.get('invoice_type'):

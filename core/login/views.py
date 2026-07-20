@@ -33,8 +33,9 @@ class LoginFormView(LoginView):
         # Llamar al método form_valid del padre para hacer el login
         response = super().form_valid(form)
         
-        # Sesión persistente: no expira hasta logout manual
-        self.request.session.set_expiry(0)
+        # Sesión persistente: no expira hasta logout manual (30 días según settings)
+        # No usar set_expiry(0) porque eso expira al cerrar el navegador
+        # La configuración global SESSION_COOKIE_AGE=2592000 maneja la duración
         
         # Asegurar que la sincronización esté activada para operadores
         if not self.request.user.is_superuser:

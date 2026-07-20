@@ -1014,6 +1014,33 @@
       is_credit_note: isCreditNote, // Indicador de nota de crédito
       sale_token: saleToken  // Agregar token
     };
+    
+    // Agregar datos de tarjeta si corresponde
+    if (payMethod === 'card' && window.cardPaymentData) {
+      payload.card_type = window.cardPaymentData.card_type;
+      payload.card_brand = window.cardPaymentData.card_brand;
+      payload.card_plan_id = window.cardPaymentData.card_plan_id;
+      payload.card_auth_code = window.cardPaymentData.card_auth_code;
+      
+      // Si es crédito con cuotas, recalcular total con multiplicador
+      if (window.cardPaymentData.card_type === 'credit' && window.cardPaymentData.card_plan_id) {
+        const cardPlanOption = $('#cardPlan').find(':selected');
+        const multiplier = parseFloat(cardPlanOption.data('multiplier'));
+        console.log('[DEBUG] Multiplicador para cálculo (doCreateSale):', multiplier);
+        
+        if (multiplier && !isNaN(multiplier) && multiplier > 0) {
+          payload.subtotal = (subtotal * multiplier).toFixed(2);
+          payload.iva = (iva * multiplier).toFixed(2);
+          payload.total = (total * multiplier).toFixed(2);
+          console.log('[DEBUG] Totales con recargo - Subtotal:', payload.subtotal, 'IVA:', payload.iva, 'Total:', payload.total);
+        } else {
+          console.log('[DEBUG] Multiplicador inválido, usando valores originales');
+        }
+      }
+      
+      // Limpiar datos de tarjeta después de usar
+      window.cardPaymentData = null;
+    }
     ajaxAction('create_sale', { action: 'create_sale', sale: JSON.stringify(payload), sale_token: saleToken })
       .done(resp => {
         if (resp && resp.id) {
@@ -1066,6 +1093,33 @@
       is_credit_note: isCreditNote, // Indicador de nota de crédito
       sale_token: saleToken  // Agregar token
     };
+    
+    // Agregar datos de tarjeta si corresponde
+    if (payMethod === 'card' && window.cardPaymentData) {
+      payload.card_type = window.cardPaymentData.card_type;
+      payload.card_brand = window.cardPaymentData.card_brand;
+      payload.card_plan_id = window.cardPaymentData.card_plan_id;
+      payload.card_auth_code = window.cardPaymentData.card_auth_code;
+      
+      // Si es crédito con cuotas, recalcular total con multiplicador
+      if (window.cardPaymentData.card_type === 'credit' && window.cardPaymentData.card_plan_id) {
+        const cardPlanOption = $('#cardPlan').find(':selected');
+        const multiplier = parseFloat(cardPlanOption.data('multiplier'));
+        console.log('[DEBUG] Multiplicador para cálculo (doInvoiceSale):', multiplier);
+        
+        if (multiplier && !isNaN(multiplier) && multiplier > 0) {
+          payload.subtotal = (subtotal * multiplier).toFixed(2);
+          payload.iva = (iva * multiplier).toFixed(2);
+          payload.total = (total * multiplier).toFixed(2);
+          console.log('[DEBUG] Totales con recargo - Subtotal:', payload.subtotal, 'IVA:', payload.iva, 'Total:', payload.total);
+        } else {
+          console.log('[DEBUG] Multiplicador inválido, usando valores originales');
+        }
+      }
+      
+      // Limpiar datos de tarjeta después de usar
+      window.cardPaymentData = null;
+    }
     ajaxAction('invoice', { action: 'invoice', sale: JSON.stringify(payload), sale_token: saleToken })
       .done(resp => {
         if (resp && resp.id) {
@@ -1153,8 +1207,17 @@
     
     // Verificar si se seleccionó pagos combinados
     const payMethod = $('#payMethod').val();
+    console.log('[DEBUG] Método de pago seleccionado:', payMethod);
+    
     if (payMethod === 'combined') {
       openCombinedPaymentModal();
+      return;
+    }
+    
+    // Si el método de pago es tarjeta, abrir modal de selección de tarjeta
+    if (payMethod === 'card') {
+      console.log('[DEBUG] Abriendo modal de tarjeta...');
+      openCardPaymentModal();
       return;
     }
     
@@ -1166,6 +1229,100 @@
     }
     const modal = new bootstrap.Modal(modalEl);
     modal.show();
+  });
+
+  // Funciones para pagos con tarjeta
+  function openCardPaymentModal() {
+    // Resetear modal
+    $('#cardDebit').prop('checked', false);
+    $('#cardCredit').prop('checked', true);
+    $('#cardBrand').val('visa');
+    $('#cardPlan').val('');
+    $('#cardAuthCode').val('');
+    $('#installmentInfo').hide();
+    $('#creditOptions').show();
+    $('#cardInfoText').text('Seleccione las opciones de tarjeta para continuar');
+    
+    const modal = new bootstrap.Modal(document.getElementById('cardPaymentModal'));
+    modal.show();
+  }
+  
+  // Manejar cambio de tipo de tarjeta
+  $(document).on('change', 'input[name="cardType"]', function() {
+    const cardType = $(this).val();
+    if (cardType === 'debit') {
+      $('#creditOptions').hide();
+      $('#cardInfoText').text('Pago con tarjeta de débito - sin recargo');
+    } else {
+      $('#creditOptions').show();
+      $('#cardInfoText').text('Seleccione el plan de cuotas para ver el recargo');
+    }
+  });
+  
+  // Manejar cambio de plan de cuotas
+  $(document).on('change', '#cardPlan', function() {
+    const selectedOption = $(this).find(':selected');
+    const installments = parseFloat(selectedOption.data('installments'));
+    const multiplier = parseFloat(selectedOption.data('multiplier'));
+    
+    console.log('[DEBUG] Plan seleccionado - Installments:', installments, 'Multiplier:', multiplier);
+    
+    if (installments && multiplier && !isNaN(installments) && !isNaN(multiplier)) {
+      const subtotal = items.reduce((sum, it) => sum + (it.subtotal || 0), 0);
+      console.log('[DEBUG] Subtotal:', subtotal);
+      
+      const totalWithMultiplier = subtotal * multiplier;
+      const installmentAmount = totalWithMultiplier / installments;
+      const surchargePercent = ((multiplier - 1) * 100).toFixed(1);
+      
+      console.log('[DEBUG] Total con recargo:', totalWithMultiplier, 'Recargo:', surchargePercent + '%');
+      
+      $('#installmentCount').text(installments);
+      $('#installmentAmount').text(fmt(installmentAmount));
+      $('#installmentInfo').show();
+      $('#cardInfoText').text(`Recargo: ${surchargePercent}% - Total: ${fmt(totalWithMultiplier)}`);
+    } else {
+      $('#installmentInfo').hide();
+      $('#cardInfoText').text('Seleccione un plan de cuotas');
+    }
+  });
+  
+  // Confirmar pago con tarjeta
+  $(document).on('click', '#btnConfirmCardPayment', function() {
+    const cardType = $('input[name="cardType"]:checked').val();
+    const cardBrand = $('#cardBrand').val();
+    const cardPlan = $('#cardPlan').val();
+    const cardAuthCode = $('#cardAuthCode').val();
+    
+    if (!cardType) {
+      showToast('warning', 'Debe seleccionar el tipo de tarjeta');
+      return;
+    }
+    
+    if (cardType === 'credit' && !cardPlan) {
+      showToast('warning', 'Debe seleccionar un plan de cuotas');
+      return;
+    }
+    
+    // Guardar datos de tarjeta en variable global para usar en la venta
+    window.cardPaymentData = {
+      card_type: cardType,
+      card_brand: cardBrand,
+      card_plan_id: cardPlan || null,
+      card_auth_code: cardAuthCode
+    };
+    
+    // Cerrar modal y continuar con el flujo normal
+    bootstrap.Modal.getInstance(document.getElementById('cardPaymentModal')).hide();
+    
+    // Abrir modal de modo de venta (ticket vs factura)
+    const modalEl = document.getElementById('saleModeModal');
+    if (modalEl) {
+      const modal = new bootstrap.Modal(modalEl);
+      modal.show();
+    } else {
+      doCreateSale();
+    }
   });
 
   // Funciones para pagos combinados
