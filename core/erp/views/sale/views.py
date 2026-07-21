@@ -535,6 +535,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     for it in items:
                         raw_cant = it.get('cant', 1)
                         cant = Decimal(str(raw_cant or '1'))
+                        prod = Product.objects.filter(pk=int(it['id'])).first()
                         det = DetSale(
                             sale_id=sale.id,
                             prod_id=int(it['id']),
@@ -542,15 +543,24 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                             price=float(it.get('price', it.get('pvp', 0))),
                             subtotal=float(it.get('subtotal', 0)),
                         )
+                        # Calcular IVA basado en el producto
+                        if prod and prod.iva_rate:
+                            iva_rate = Decimal(str(prod.iva_rate))
+                            if iva_rate > Decimal('1.0'):
+                                iva_rate = iva_rate / Decimal('100.0')
+                            det.iva_amount = float(det.subtotal * iva_rate)
                         det.save()
                         if not is_budget:
-                            prod = Product.objects.filter(pk=det.prod_id).first()
                             if prod and getattr(prod, 'track_stock', True):
                                 Product.objects.filter(pk=det.prod_id).update(
                                     stock=F('stock') - cant,
                                     stock_modified_locally=timezone.now(),
                                     synced_to_server=False
                                 )
+                    
+                    # Calcular y guardar apertura de alícuotas de IVA
+                    self.calculate_vat_breakdown(sale)
+                    
                     data = {
                         'id': sale.id,
                         'is_budget': sale.is_budget,
@@ -688,6 +698,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     for it in items:
                         raw_cant = it.get('cant', 1)
                         cant = Decimal(str(raw_cant or '1'))
+                        prod = Product.objects.filter(pk=int(it['id'])).first()
                         det = DetSale(
                             sale_id=sale.id,
                             prod_id=int(it['id']),
@@ -695,14 +706,23 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                             price=float(it.get('price', it.get('pvp', 0))),
                             subtotal=float(it.get('subtotal', 0)),
                         )
+                        # Calcular IVA basado en el producto
+                        if prod and prod.iva_rate:
+                            iva_rate = Decimal(str(prod.iva_rate))
+                            if iva_rate > Decimal('1.0'):
+                                iva_rate = iva_rate / Decimal('100.0')
+                            det.iva_amount = float(det.subtotal * iva_rate)
                         det.save()
-                        prod = Product.objects.filter(pk=det.prod_id).first()
                         if prod and getattr(prod, 'track_stock', True):
                             Product.objects.filter(pk=det.prod_id).update(
                                 stock=F('stock') - cant,
                                 stock_modified_locally=timezone.now(),  # Marcar modificación de stock
                                 synced_to_server=False  # Marcar para sincronizar
                             )
+                    
+                    # Calcular y guardar apertura de alícuotas de IVA
+                    self.calculate_vat_breakdown_for_sale(sale)
+                    
                     data = {
                         'id': sale.id,
                         'invoice_url': reverse_lazy('erp:invoice_pdf', kwargs={'pk': sale.id}),
