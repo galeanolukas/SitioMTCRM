@@ -721,7 +721,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                             )
                     
                     # Calcular y guardar apertura de alícuotas de IVA
-                    self.calculate_vat_breakdown_for_sale(sale)
+                    self.calculate_vat_breakdown(sale)
                     
                     data = {
                         'id': sale.id,
@@ -1220,7 +1220,7 @@ class SaleUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Update
                         )
                     
                     # Calcular y guardar apertura de alícuotas de IVA
-                    self.calculate_vat_breakdown_for_sale(sale)
+                    self.calculate_vat_breakdown(sale)
                 
             else:
                 data['error'] = 'No ha ingresado a ninguna opción'
