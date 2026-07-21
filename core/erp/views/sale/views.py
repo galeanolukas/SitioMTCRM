@@ -548,7 +548,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                             iva_rate = Decimal(str(prod.iva_rate))
                             if iva_rate > Decimal('1.0'):
                                 iva_rate = iva_rate / Decimal('100.0')
-                            det.iva_amount = float(det.subtotal * iva_rate)
+                            det.iva_amount = float(Decimal(str(det.subtotal)) * iva_rate)
                         det.save()
                         if not is_budget:
                             if prod and getattr(prod, 'track_stock', True):
@@ -711,7 +711,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                             iva_rate = Decimal(str(prod.iva_rate))
                             if iva_rate > Decimal('1.0'):
                                 iva_rate = iva_rate / Decimal('100.0')
-                            det.iva_amount = float(det.subtotal * iva_rate)
+                            det.iva_amount = float(Decimal(str(det.subtotal)) * iva_rate)
                         det.save()
                         if prod and getattr(prod, 'track_stock', True):
                             Product.objects.filter(pk=det.prod_id).update(
