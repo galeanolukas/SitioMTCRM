@@ -101,6 +101,61 @@ function syncAllCatalogo() {
     });
 }
 
+function downloadConfig(button) {
+    const catalogoId = button.getAttribute('data-catalogo-id');
+    
+    console.log('Descargando configuración del catálogo ID:', catalogoId);
+    
+    // Fetch configuration data
+    fetch(`/erp/catalogo/config/${catalogoId}/`, {
+        method: 'GET',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Error al obtener configuración');
+        }
+        return response.json();
+    })
+    .then(data => {
+        // Create JSON file with configuration
+        const configData = {
+            catalogo_id: data.id,
+            empresa: data.company ? data.company.name : 'Global',
+            url_catalogo: data.catalogo_url,
+            api_key: data.api_key,
+            activo: data.is_active,
+            auto_sync: data.auto_sync,
+            intervalo_sync_horas: data.sync_interval_hours,
+            ultima_sync: data.last_sync,
+            fecha_creacion: data.created_at,
+            fecha_actualizacion: data.updated_at,
+            endpoint_ventas: `${data.catalogo_url}/erp/api/ventas/receive/`,
+            instruccion: 'Usar esta API Key en el header Authorization: Bearer {api_key}'
+        };
+        
+        // Create and download file
+        const blob = new Blob([JSON.stringify(configData, null, 2)], { type: 'application/json' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `catalogo_config_${catalogoId}_${data.company ? data.company.name.replace(/\s+/g, '_') : 'global'}.json`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        alert('Configuración descargada exitosamente');
+    })
+    .catch(error => {
+        console.error('Error al descargar configuración:', error);
+        alert('Error al descargar configuración: ' + error);
+    });
+}
+
 function getCookie(name) {
     let cookieValue = null;
     if (document.cookie && document.cookie !== '') {

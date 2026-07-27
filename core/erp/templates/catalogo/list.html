@@ -31,12 +31,13 @@
 
 {% block columns %}
   <tr>
-    <th style="width: 10%;">ID</th>
-    <th style="width: 20%;">Empresa</th>
-    <th style="width: 25%;">URL del Catálogo</th>
+    <th style="width: 8%;">ID</th>
+    <th style="width: 18%;">Empresa</th>
+    <th style="width: 22%;">URL del Catálogo</th>
     <th style="width: 10%;">Estado</th>
-    <th style="width: 15%;">Auto-sync</th>
-    <th style="width: 20%;">Opciones</th>
+    <th style="width: 12%;">Auto-sync</th>
+    <th style="width: 15%;">Última Sync</th>
+    <th style="width: 15%;">Opciones</th>
   </tr>
 {% endblock %}
 
@@ -61,16 +62,26 @@
       {% endif %}
     </td>
     <td>
+      {% if object.last_sync %}
+        <small>{{ object.last_sync|date:"d/m/Y H:i" }}</small>
+      {% else %}
+        <small class="text-muted">Nunca</small>
+      {% endif %}
+    </td>
+    <td>
       <a href="{% url 'erp:catalogo_update' object.id %}" class="btn btn-warning btn-flat btn-sm"><i class="fas fa-edit"></i></a>
       <a href="{% url 'erp:catalogo_delete' object.id %}" class="btn btn-danger btn-flat btn-sm"><i class="fas fa-trash"></i></a>
       <button class="btn btn-primary btn-flat btn-sm" data-catalogo-id="{{ object.id }}" onclick="syncCatalogo(this)">
         <i class="fas fa-sync"></i>
       </button>
+      <button class="btn btn-info btn-flat btn-sm" data-catalogo-id="{{ object.id }}" onclick="downloadConfig(this)">
+        <i class="fas fa-download"></i>
+      </button>
     </td>
   </tr>
   {% empty %}
   <tr>
-    <td colspan="6" class="text-center">No hay configuraciones de catálogo creadas</td>
+    <td colspan="7" class="text-center">No hay configuraciones de catálogo creadas</td>
   </tr>
   {% endfor %}
 {% endblock %}

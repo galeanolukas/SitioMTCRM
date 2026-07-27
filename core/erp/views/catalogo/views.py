@@ -278,6 +278,61 @@ class CatalogoConfigDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMix
         return qs
 
 
+@login_required
+def get_catalogo_config(request, catalogo_id):
+    """
+    Endpoint para obtener la configuración de un catálogo en formato JSON
+    Método: GET
+    """
+    try:
+        catalogo_config = CatalogoConfig.objects.filter(id=catalogo_id).first()
+        
+        if not catalogo_config:
+            return JsonResponse({
+                'success': False,
+                'error': 'Configuración de catálogo no encontrada'
+            }, status=404)
+        
+        # Verificar permisos
+        if not request.user.is_superuser:
+            if hasattr(request.user, 'company') and request.user.company:
+                if catalogo_config.company and catalogo_config.company != request.user.company:
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'No tienes permiso para ver esta configuración'
+                    }, status=403)
+            else:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'No tienes permiso para ver esta configuración'
+                }, status=403)
+        
+        config_data = {
+            'id': catalogo_config.id,
+            'company': {
+                'id': catalogo_config.company.id,
+                'name': catalogo_config.company.name
+            } if catalogo_config.company else None,
+            'catalogo_url': catalogo_config.catalogo_url,
+            'api_key': catalogo_config.api_key,
+            'is_active': catalogo_config.is_active,
+            'auto_sync': catalogo_config.auto_sync,
+            'sync_interval_hours': catalogo_config.sync_interval_hours,
+            'last_sync': catalogo_config.last_sync.isoformat() if catalogo_config.last_sync else None,
+            'created_at': catalogo_config.created_at.isoformat() if catalogo_config.created_at else None,
+            'updated_at': catalogo_config.updated_at.isoformat() if catalogo_config.updated_at else None,
+        }
+        
+        return JsonResponse(config_data)
+        
+    except Exception as e:
+        logger.error(f"Error al obtener configuración de catálogo: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': f'Error interno: {str(e)}'
+        }, status=500)
+
+
 @csrf_exempt
 @require_POST
 def receive_venta_catalogo(request):
