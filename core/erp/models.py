@@ -591,6 +591,7 @@ class Sale(models.Model):
     source = models.CharField(max_length=20, blank=True, null=True, verbose_name='Origen', help_text='Origen de la venta (local_pos, web, etc.)')
     synced_at = models.DateTimeField(blank=True, null=True, verbose_name='Fecha de sincronización')
     pos_id = models.CharField(max_length=50, blank=True, null=True, verbose_name='ID del POS', help_text='Identificador del POS que creó la venta/presupuesto')
+    catalogo_pedido_id = models.CharField(max_length=100, blank=True, null=True, verbose_name='ID de pedido del catálogo', help_text='ID del pedido en el sistema de catálogo integrado')
     # Campos para presupuestos
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='confirmed', verbose_name='Estado')
     is_budget = models.BooleanField(default=False, verbose_name='Es Presupuesto')

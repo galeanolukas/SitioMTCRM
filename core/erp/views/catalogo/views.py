@@ -2,7 +2,7 @@
 Vistas para sincronización con SitioCatalogoMarcos
 """
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_http_methods
+from django.views.decorators.http import require_http_methods, require_POST
 from django.http import JsonResponse
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
@@ -11,10 +11,13 @@ from django.urls import reverse_lazy
 from django.utils.decorators import method_decorator
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.utils import timezone
+from django.db import transaction
 import logging
 import urllib3
+import json
 from core.erp.mixins import ValidatePermissionRequiredMixin
-from core.erp.models import Product, CatalogoConfig, Company
+from core.erp.models import Product, CatalogoConfig, Company, Client, Sale, DetSale
+from django.db import models
 import requests
 
 # Deshabilitar advertencias de SSL para desarrollo
@@ -273,3 +276,168 @@ class CatalogoConfigDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMix
                 qs = qs.none()
         
         return qs
+
+
+@csrf_exempt
+@require_POST
+def receive_venta_catalogo(request):
+    """
+    Endpoint para recibir ventas desde el catálogo online.
+    
+    Autenticación: Bearer token en header Authorization
+    Content-Type: application/json
+    
+    JSON esperado:
+    {
+        "pedido_id": 123,
+        "fecha": "2026-07-27T12:00:00",
+        "cliente": {
+            "id": 456,
+            "nombre": "Juan Pérez",
+            "email": "juan@email.com",
+            "telefono": "+5493701234567"
+        },
+        "productos": [
+            {
+                "sku": "PROD-001",
+                "nombre": "Guitarra Fender Stratocaster",
+                "cantidad": 1,
+                "precio_unitario": 150000,
+                "subtotal": 150000
+            }
+        ],
+        "total": 160000,
+        "costo_envio": 5000,
+        "estado": "pendiente",
+        "metodo_pago": "mercado_pago",
+        "direccion_entrega": {
+            "calle": "Av. Principal 123",
+            "barrio": "Centro",
+            "codigo_postal": "3000",
+            "referencias": "Entre calles"
+        },
+        "observaciones": "Pedido especial"
+    }
+    """
+    # Validar API key
+    api_key = request.headers.get('Authorization', '').replace('Bearer ', '')
+    
+    # Buscar configuración activa (por empresa o global)
+    catalogo_config = CatalogoConfig.objects.filter(api_key=api_key, is_active=True).first()
+    if not catalogo_config:
+        logger.warning(f"Intento de acceso con API key inválida: {api_key[:10]}...")
+        return JsonResponse({
+            'success': False,
+            'error': 'API key inválida o no autorizada'
+        }, status=401)
+    
+    try:
+        data = json.loads(request.body)
+        logger.info(f"Venta recibida del catálogo: pedido_id={data.get('pedido_id')}")
+        
+        # Validar datos requeridos
+        campos_requeridos = ['pedido_id', 'cliente', 'productos', 'total']
+        for campo in campos_requeridos:
+            if campo not in data:
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Campo requerido faltante: {campo}'
+                }, status=400)
+        
+        with transaction.atomic():
+            # Buscar o crear cliente
+            cliente_data = data['cliente']
+            cliente, created = Client.objects.get_or_create(
+                email=cliente_data.get('email', ''),
+                defaults={
+                    'names': cliente_data.get('nombre', ''),
+                    'phone': cliente_data.get('telefono', ''),
+                    'address': data.get('direccion_entrega', {}).get('calle', ''),
+                    'company': catalogo_config.company  # Asignar empresa de la configuración
+                }
+            )
+            
+            if created:
+                logger.info(f"Cliente creado: {cliente.email}")
+            else:
+                # Actualizar datos si el cliente ya existe
+                cliente.names = cliente_data.get('nombre', cliente.names)
+                cliente.phone = cliente_data.get('telefono', cliente.phone)
+                cliente.save()
+                logger.info(f"Cliente actualizado: {cliente.email}")
+            
+            # Calcular subtotal
+            subtotal = sum(p['subtotal'] for p in data['productos'])
+            
+            # Mapear método de pago
+            metodo_pago_map = {
+                'mercado_pago': 'mp',
+                'efectivo': 'cash',
+                'transferencia': 'transfer',
+                'tarjeta': 'card'
+            }
+            metodo_pago = metodo_pago_map.get(data.get('metodo_pago', 'mercado_pago'), 'mp')
+            
+            # Crear venta
+            venta = Sale.objects.create(
+                company=catalogo_config.company,
+                cli=cliente,
+                subtotal=subtotal,
+                total=data['total'],
+                payment_method=metodo_pago,
+                observations=data.get('observaciones', ''),
+                catalogo_pedido_id=data['pedido_id'],
+                source='catalogo'  # Marcar origen como catálogo
+            )
+            
+            logger.info(f"Venta creada: id={venta.id}, pedido_id={data['pedido_id']}")
+            
+            # Agregar detalles de productos
+            productos_creados = 0
+            productos_errores = []
+            
+            for prod_data in data['productos']:
+                # Buscar producto por SKU o código
+                producto = Product.objects.filter(
+                    models.Q(sku=prod_data.get('sku')) | models.Q(code=prod_data.get('sku'))
+                ).first()
+                
+                if producto:
+                    DetSale.objects.create(
+                        sale=venta,
+                        prod=producto,
+                        cant=prod_data['cantidad'],
+                        price=prod_data['precio_unitario'],
+                        subtotal=prod_data['subtotal']
+                    )
+                    productos_creados += 1
+                    logger.info(f"Detalle agregado: {producto.name} x{prod_data['cantidad']}")
+                else:
+                    error_msg = f"Producto no encontrado: SKU={prod_data.get('sku')}"
+                    productos_errores.append(error_msg)
+                    logger.warning(error_msg)
+            
+            logger.info(f"Venta procesada: {productos_creados} productos creados, {len(productos_errores)} errores")
+            
+            return JsonResponse({
+                'success': True,
+                'sale_id': venta.id,
+                'catalogo_pedido_id': data['pedido_id'],
+                'productos_creados': productos_creados,
+                'productos_errores': productos_errores,
+                'message': 'Venta registrada correctamente'
+            })
+            
+    except json.JSONDecodeError:
+        logger.error("JSON inválido en request body")
+        return JsonResponse({
+            'success': False,
+            'error': 'JSON inválido'
+        }, status=400)
+        
+    except Exception as e:
+        logger.error(f"Error al procesar venta del catálogo: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': f'Error interno: {str(e)}'
+        }, status=500)
