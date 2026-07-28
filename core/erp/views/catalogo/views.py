@@ -406,7 +406,7 @@ def receive_venta_catalogo(request):
                 email=cliente_data.get('email', ''),
                 defaults={
                     'names': cliente_data.get('nombre', ''),
-                    'phone': cliente_data.get('telefono', ''),
+                    'telefono': cliente_data.get('telefono', ''),
                     'address': data.get('direccion_entrega', {}).get('calle', ''),
                     'company': catalogo_config.company  # Asignar empresa de la configuración
                 }
@@ -417,7 +417,7 @@ def receive_venta_catalogo(request):
             else:
                 # Actualizar datos si el cliente ya existe
                 cliente.names = cliente_data.get('nombre', cliente.names)
-                cliente.phone = cliente_data.get('telefono', cliente.phone)
+                cliente.telefono = cliente_data.get('telefono', cliente.telefono)
                 cliente.save()
                 logger.info(f"Cliente actualizado: {cliente.email}")
             
