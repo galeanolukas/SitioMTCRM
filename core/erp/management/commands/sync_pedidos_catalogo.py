@@ -4,12 +4,14 @@ from django.db import transaction
 from django.conf import settings
 import requests
 import logging
+import urllib3
 from datetime import datetime, timedelta
 from decimal import Decimal
 
 from core.erp.models import Sale, DetSale, Product, Client, CatalogoConfig
 
 logger = logging.getLogger(__name__)
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 class Command(BaseCommand):
@@ -78,7 +80,7 @@ class Command(BaseCommand):
             self.stdout.write(f"Consultando: {sync_url}")
             self.stdout.write(f"Parámetros: desde_fecha={fecha_desde}")
             
-            response = requests.get(sync_url, params=params, timeout=30)
+            response = requests.get(sync_url, params=params, timeout=30, verify=False)
             response.raise_for_status()
             
             data = response.json()
@@ -170,21 +172,21 @@ class Command(BaseCommand):
                 subtotal=Decimal(str(subtotal)),
                 total=Decimal(str(pedido.get('total', 0))),
                 payment_method=metodo_pago,
-                observations=pedido.get('observaciones', ''),
                 catalogo_pedido_id=str(pedido.get('pedido_id')),
-                source='catalogo'
+                source='catalogo',
+                budget_notes=pedido.get('observaciones', '')
             )
             
             # Crear detalles de productos
             for prod_data in productos:
-                # Buscar producto por SKU o código
+                # Buscar producto por código (code) o código de proveedor
                 producto = Product.objects.filter(
-                    sku=prod_data.get('sku')
+                    code=prod_data.get('sku')
                 ).first()
                 
                 if not producto:
                     producto = Product.objects.filter(
-                        code=prod_data.get('sku')
+                        codigo_proveedor=prod_data.get('sku')
                     ).first()
                 
                 if producto:
