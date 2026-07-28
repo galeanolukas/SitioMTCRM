@@ -4,6 +4,12 @@
 
 Este documento describe cómo integrar el catálogo online (SitioCatalogoJP) con el ERP (SitioMTCRM) para enviar automáticamente las ventas generadas en el catálogo.
 
+**IMPORTANTE:** Esta integración usa un enfoque simplificado donde:
+- **NO se crean clientes en la base de datos del ERP**
+- Se usa un cliente genérico "Cliente Catálogo" para todas las ventas
+- Los datos del cliente (nombre, email, teléfono, dirección) se guardan en campos específicos del modelo Sale
+- Esto evita contaminar la base de datos de clientes del ERP con clientes temporales del catálogo
+
 ---
 
 ## **Información del Endpoint**
@@ -17,12 +23,17 @@ Este documento describe cómo integrar el catálogo online (SitioCatalogoJP) con
 
 ## **Configuración**
 
-### **1. Obtener API Key**
+### **1. Obtener API Key y configurar usuario ERP**
 
-La API Key se configura en el ERP a través del modelo `CatalogoConfig`:
+La API Key y credenciales se configuran en el ERP a través del modelo `CatalogoConfig`:
 
 - Acceder al ERP: `/erp/catalogo/list/`
 - Crear o editar una configuración de catálogo
+- Configurar:
+  - **URL del Catálogo:** URL del catálogo online
+  - **API Key:** Generar y copiar la API Key
+  - **Usuario ERP:** Usuario del ERP para asignar ventas (opcional, para tracking)
+  - **Contraseña ERP:** Contraseña del usuario ERP (opcional)
 - Copiar la `API Key` generada
 
 ### **2. Configurar URL del ERP**
@@ -315,9 +326,14 @@ curl -X POST https://tu-dominio.com/erp/api/ventas/receive/ \
 
 ### **1. Procesamiento de Clientes**
 
-- Si el cliente existe por email: actualiza datos (nombre, teléfono)
-- Si el cliente no existe: crea nuevo cliente con los datos proporcionados
-- El cliente se asigna a la empresa configurada en `CatalogoConfig`
+- **NO crea clientes en la base de datos del ERP**
+- Usa un cliente genérico "Cliente Catálogo" (email: `cliente_catalogo@catalogo.com`)
+- Los datos del cliente del catálogo se guardan en campos específicos del modelo Sale:
+  - `catalogo_cliente_nombre`: Nombre del cliente
+  - `catalogo_cliente_email`: Email del cliente
+  - `catalogo_cliente_telefono`: Teléfono del cliente
+  - `catalogo_direccion_entrega`: Dirección de entrega
+- Esto permite identificar al cliente sin contaminar la DB de clientes del ERP
 
 ### **2. Procesamiento de Productos**
 
@@ -329,7 +345,9 @@ curl -X POST https://tu-dominio.com/erp/api/ventas/receive/ \
 ### **3. Creación de Venta**
 
 - Crea registro en modelo `Sale`
+- Asigna el cliente genérico "Cliente Catálogo"
 - Asigna `catalogo_pedido_id` para tracking
+- Guarda datos del cliente en campos específicos del catálogo
 - Marca `source='catalogo'` para identificar origen
 - Calcula subtotal automáticamente desde los productos
 
@@ -348,6 +366,13 @@ curl -X POST https://tu-dominio.com/erp/api/ventas/receive/ \
 - Los SKU del catálogo deben coincidir con los `sku` o `code` del ERP
 - Se recomienda sincronizar productos del ERP al catálogo
 - Si un producto no existe, la venta se crea pero sin ese detalle
+
+### **Clientes**
+
+- **NO se crean clientes en la DB del ERP**
+- Todos los clientes del catálogo se mapean al cliente genérico "Cliente Catálogo"
+- Los datos del cliente se guardan en campos específicos del modelo Sale para referencia
+- Si necesitas crear clientes reales, implementa lógica adicional
 
 ### **Duplicados**
 
@@ -402,11 +427,12 @@ curl -X POST https://tu-dominio.com/erp/api/ventas/receive/ \
 3. Catálogo prepara JSON con datos de venta
 4. Catálogo envía POST al ERP con API Key
 5. ERP valida API Key
-6. ERP busca/crea cliente
-7. ERP crea venta con detalles
-8. ERP responde con sale_id y resultado
-9. Catálogo guarda sale_id para tracking
-10. Catálogo muestra confirmación al cliente
+6. ERP usa cliente genérico "Cliente Catálogo"
+7. ERP guarda datos del cliente en campos específicos del catálogo
+8. ERP crea venta con detalles
+9. ERP responde con sale_id y resultado
+10. Catálogo guarda sale_id para tracking
+11. Catálogo muestra confirmación al cliente
 ```
 
 ---
@@ -422,6 +448,11 @@ Para dudas o problemas con la integración:
 
 ## **Version**
 
-- **Versión del endpoint:** 1.0
+- **Versión del endpoint:** 2.0 (Simplificado - sin creación de clientes)
 - **Fecha:** 27/07/2026
 - **ERP:** SitioMTCRM
+- **Cambios v2.0:**
+  - Ya no se crean clientes en la DB del ERP
+  - Se usa cliente genérico "Cliente Catálogo"
+  - Datos del cliente guardados en campos específicos del modelo Sale
+  - Agregados campos de usuario/ERP en CatalogoConfig para tracking

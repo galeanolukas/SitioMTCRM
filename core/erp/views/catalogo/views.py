@@ -337,7 +337,10 @@ def get_catalogo_config(request, catalogo_id):
 @require_POST
 def receive_venta_catalogo(request):
     """
-    Endpoint para recibir ventas desde el catálogo online.
+    Endpoint simplificado para recibir ventas desde el catálogo online.
+    
+    NO crea clientes en la DB. Usa un cliente genérico "Cliente Catálogo".
+    Los datos del cliente se guardan en campos específicos del catálogo.
     
     Autenticación: Bearer token en header Authorization
     Content-Type: application/json
@@ -347,7 +350,6 @@ def receive_venta_catalogo(request):
         "pedido_id": 123,
         "fecha": "2026-07-27T12:00:00",
         "cliente": {
-            "id": 456,
             "nombre": "Juan Pérez",
             "email": "juan@email.com",
             "telefono": "+5493701234567"
@@ -355,21 +357,17 @@ def receive_venta_catalogo(request):
         "productos": [
             {
                 "sku": "PROD-001",
-                "nombre": "Guitarra Fender Stratocaster",
+                "nombre": "Producto Test",
                 "cantidad": 1,
-                "precio_unitario": 150000,
-                "subtotal": 150000
+                "precio_unitario": 1000,
+                "subtotal": 1000
             }
         ],
-        "total": 160000,
-        "costo_envio": 5000,
-        "estado": "pendiente",
+        "total": 1000,
         "metodo_pago": "mercado_pago",
         "direccion_entrega": {
             "calle": "Av. Principal 123",
-            "barrio": "Centro",
-            "codigo_postal": "3000",
-            "referencias": "Entre calles"
+            "barrio": "Centro"
         },
         "observaciones": "Pedido especial"
     }
@@ -388,7 +386,7 @@ def receive_venta_catalogo(request):
     
     try:
         data = json.loads(request.body)
-        logger.info(f"Venta recibida del catálogo: pedido_id={data.get('pedido_id')}")
+        logger.info(f"Venta recibida del catálogo: pedido_id={data.get('pedido_id')}, usuario_erp={catalogo_config.erp_username}")
         
         # Validar datos requeridos
         campos_requeridos = ['pedido_id', 'cliente', 'productos', 'total']
@@ -400,26 +398,17 @@ def receive_venta_catalogo(request):
                 }, status=400)
         
         with transaction.atomic():
-            # Buscar o crear cliente
-            cliente_data = data['cliente']
-            cliente, created = Client.objects.get_or_create(
-                email=cliente_data.get('email', ''),
+            # Buscar o crear cliente genérico "Cliente Catálogo"
+            cliente_generico, created = Client.objects.get_or_create(
+                email='cliente_catalogo@catalogo.com',
                 defaults={
-                    'names': cliente_data.get('nombre', ''),
-                    'telefono': cliente_data.get('telefono', ''),
-                    'address': data.get('direccion_entrega', {}).get('calle', ''),
-                    'company': catalogo_config.company  # Asignar empresa de la configuración
+                    'names': 'Cliente Catálogo',
+                    'company': catalogo_config.company
                 }
             )
             
             if created:
-                logger.info(f"Cliente creado: {cliente.email}")
-            else:
-                # Actualizar datos si el cliente ya existe
-                cliente.names = cliente_data.get('nombre', cliente.names)
-                cliente.telefono = cliente_data.get('telefono', cliente.telefono)
-                cliente.save()
-                logger.info(f"Cliente actualizado: {cliente.email}")
+                logger.info(f"Cliente genérico creado: {cliente_generico.email}")
             
             # Calcular subtotal
             subtotal = sum(p['subtotal'] for p in data['productos'])
@@ -433,19 +422,32 @@ def receive_venta_catalogo(request):
             }
             metodo_pago = metodo_pago_map.get(data.get('metodo_pago', 'mercado_pago'), 'mp')
             
-            # Crear venta
+            # Formatear dirección de entrega
+            direccion_entrega = data.get('direccion_entrega', {})
+            direccion_str = ', '.join(filter(None, [
+                direccion_entrega.get('calle', ''),
+                direccion_entrega.get('barrio', ''),
+                direccion_entrega.get('codigo_postal', ''),
+                direccion_entrega.get('referencias', '')
+            ]))
+            
+            # Crear venta con datos del catálogo en campos específicos
             venta = Sale.objects.create(
                 company=catalogo_config.company,
-                cli=cliente,
+                cli=cliente_generico,
                 subtotal=subtotal,
                 total=data['total'],
                 payment_method=metodo_pago,
                 observations=data.get('observaciones', ''),
                 catalogo_pedido_id=data['pedido_id'],
-                source='catalogo'  # Marcar origen como catálogo
+                catalogo_cliente_nombre=data['cliente'].get('nombre', ''),
+                catalogo_cliente_email=data['cliente'].get('email', ''),
+                catalogo_cliente_telefono=data['cliente'].get('telefono', ''),
+                catalogo_direccion_entrega=direccion_str,
+                source='catalogo'
             )
             
-            logger.info(f"Venta creada: id={venta.id}, pedido_id={data['pedido_id']}")
+            logger.info(f"Venta creada: id={venta.id}, pedido_id={data['pedido_id']}, usuario_erp={catalogo_config.erp_username}")
             
             # Agregar detalles de productos
             productos_creados = 0
