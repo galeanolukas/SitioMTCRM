@@ -207,6 +207,7 @@ class CatalogoConfigCreateView(LoginRequiredMixin, ValidatePermissionRequiredMix
         return form
     
     def form_valid(self, form):
+        form.instance.created_by = self.request.user
         response = super().form_valid(form)
         if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
             return JsonResponse({'success': True, 'message': 'Configuración creada correctamente'})

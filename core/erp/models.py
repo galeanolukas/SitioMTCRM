@@ -2068,6 +2068,7 @@ class CatalogoConfig(models.Model):
     api_key = models.CharField(max_length=255, verbose_name='API Key del Catálogo')
     erp_username = models.CharField(max_length=100, blank=True, null=True, verbose_name='Usuario ERP', help_text='Usuario del ERP para asignar ventas')
     erp_password = models.CharField(max_length=255, blank=True, null=True, verbose_name='Contraseña ERP', help_text='Contraseña del usuario ERP')
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Creado por', related_name='catalogo_configs')
     is_active = models.BooleanField(default=True, verbose_name='Activo')
     auto_sync = models.BooleanField(default=False, verbose_name='Sincronización automática')
     sync_interval_hours = models.IntegerField(default=24, verbose_name='Intervalo de sincronización (horas)')
