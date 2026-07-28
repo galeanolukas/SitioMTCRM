@@ -141,7 +141,8 @@ def run_full_sync(company_id=None):
         'clientes': {'before': 0, 'after': 0, 'synced': 0},
         'proveedores': {'before': 0, 'after': 0, 'synced': 0},
         'gastos': {'before': 0, 'after': 0, 'synced': 0},
-        'cierres': {'before': 0, 'after': 0, 'synced': 0}
+        'cierres': {'before': 0, 'after': 0, 'synced': 0},
+        'pedidos_catalogo': {'before': 0, 'after': 0, 'synced': 0}
     }
     
     # 1) PRIMERO: Sincronizar empresas (base para usuarios)
@@ -346,6 +347,23 @@ def run_full_sync(company_id=None):
         except Exception as e:
             logger.error(f"Error en sincronización de listas de precios: {e}")
             errors.append(f"sync_price_lists_to_remote: {e}")
+
+        # 3.i) Pedidos entregados del catálogo (solo si hay configuración activa)
+        logger.info("🛒 PASO 3.i/10: Sincronizando pedidos entregados del catálogo...")
+        try:
+            from core.erp.models import CatalogoConfig
+            if CatalogoConfig.objects.filter(is_active=True).exists():
+                from core.erp.models import Sale
+                sync_stats['pedidos_catalogo']['before'] = Sale.objects.exclude(catalogo_pedido_id__isnull=True).exclude(catalogo_pedido_id='').count()
+                call_command("sync_pedidos_catalogo")
+                sync_stats['pedidos_catalogo']['after'] = Sale.objects.exclude(catalogo_pedido_id__isnull=True).exclude(catalogo_pedido_id='').count()
+                sync_stats['pedidos_catalogo']['synced'] = sync_stats['pedidos_catalogo']['after'] - sync_stats['pedidos_catalogo']['before']
+                logger.info(f"✅ Pedidos del catálogo sincronizados: {sync_stats['pedidos_catalogo']['synced']} nuevos")
+            else:
+                logger.info("ℹ️ No hay configuraciones de catálogo activas - omitiendo sincronización de pedidos")
+        except Exception as e:
+            logger.error(f"Error en sincronización de pedidos del catálogo: {e}")
+            errors.append(f"sync_pedidos_catalogo: {e}")
             
         try:
             # Verificar si el modelo InternalTransfer existe antes de usarlo
@@ -391,6 +409,7 @@ def run_full_sync(company_id=None):
     logger.info(f"🏭 PROVEEDORES: {sync_stats['proveedores']['synced']} nuevos ({sync_stats['proveedores']['before']} → {sync_stats['proveedores']['after']})")
     logger.info(f"💸 GASTOS: {sync_stats['gastos']['synced']} nuevos ({sync_stats['gastos']['before']} → {sync_stats['gastos']['after']})")
     logger.info(f"💰 CIERRES: {sync_stats['cierres']['synced']} pendientes ({sync_stats['cierres']['before']} → {sync_stats['cierres']['after']})")
+    logger.info(f"🛒 PEDIDOS CATÁLOGO: {sync_stats['pedidos_catalogo']['synced']} nuevos ({sync_stats['pedidos_catalogo']['before']} → {sync_stats['pedidos_catalogo']['after']})")
     logger.info("=" * 80)
     logger.info(f"📈 TOTALES: {total_synced} cambios en {len([k for k in sync_stats.keys() if sync_stats[k]['synced'] > 0])} categorías")
     logger.info(f"📊 REGISTROS ANTES: {total_before} totales")
