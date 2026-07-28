@@ -32,9 +32,11 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
         context = super().get_context_data(**kwargs)
         context['title'] = 'POS / API de Ventas'
         context['entity'] = 'Ventas'
-        active_cid = self.request.session.get('company_id')
-        if not self.request.user.is_superuser:
-            active_cid = active_cid or getattr(self.request.user, 'company_id', None)
+        # Usuarios normales: siempre usar su empresa asignada
+        if self.request.user.is_superuser:
+            active_cid = self.request.session.get('company_id')
+        else:
+            active_cid = getattr(self.request.user, 'company_id', None)
 
         # Obtener tipo de factura por defecto desde configuración AFIP
         from core.erp.afip.config import get_afip_config
@@ -470,9 +472,11 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                                 raise Exception(f"Stock insuficiente para {prod.name}. Disponible: {format(prod.stock, '.2f')} {prod.get_unit_display()}, requerido: {format(cant, '.2f')} {prod.get_unit_display()}")
                     
                     sale = Sale()
-                    active_cid = request.session.get('company_id')
-                    if not request.user.is_superuser:
-                        active_cid = active_cid or getattr(request.user, 'company_id', None)
+                    # Usuarios normales solo pueden vender para su propia empresa
+                    if request.user.is_superuser:
+                        active_cid = request.session.get('company_id')
+                    else:
+                        active_cid = getattr(request.user, 'company_id', None)
                     if active_cid:
                         sale.company_id = active_cid
                     sale.cli_id = payload.get('cli') or None
@@ -1334,10 +1338,11 @@ class SaleListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView
             
             if action == 'searchdata':
                 data = []
-                active_cid = request.session.get('company_id') if hasattr(request, 'session') else None
-                
-                if not request.user.is_superuser:
-                    active_cid = active_cid or getattr(request.user, 'company_id', None)
+                # Usuarios normales solo ven ventas de su propia empresa
+                if request.user.is_superuser:
+                    active_cid = request.session.get('company_id') if hasattr(request, 'session') else None
+                else:
+                    active_cid = getattr(request.user, 'company_id', None)
                 
                 # Debug logging
                 print(f"[DEBUG] SaleListView searchdata: user={request.user.username}, is_superuser={request.user.is_superuser}, active_cid={active_cid}")
