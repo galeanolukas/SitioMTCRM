@@ -592,10 +592,6 @@ class Sale(models.Model):
     synced_at = models.DateTimeField(blank=True, null=True, verbose_name='Fecha de sincronización')
     pos_id = models.CharField(max_length=50, blank=True, null=True, verbose_name='ID del POS', help_text='Identificador del POS que creó la venta/presupuesto')
     catalogo_pedido_id = models.CharField(max_length=100, blank=True, null=True, verbose_name='ID de pedido del catálogo', help_text='ID del pedido en el sistema de catálogo integrado')
-    catalogo_cliente_nombre = models.CharField(max_length=200, blank=True, null=True, verbose_name='Nombre cliente catálogo', help_text='Nombre del cliente del catálogo (no se crea en DB)')
-    catalogo_cliente_email = models.CharField(max_length=200, blank=True, null=True, verbose_name='Email cliente catálogo', help_text='Email del cliente del catálogo (no se crea en DB)')
-    catalogo_cliente_telefono = models.CharField(max_length=50, blank=True, null=True, verbose_name='Teléfono cliente catálogo', help_text='Teléfono del cliente del catálogo (no se crea en DB)')
-    catalogo_direccion_entrega = models.TextField(blank=True, null=True, verbose_name='Dirección entrega catálogo', help_text='Dirección de entrega del catálogo (no se crea en DB)')
     # Campos para presupuestos
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='confirmed', verbose_name='Estado')
     is_budget = models.BooleanField(default=False, verbose_name='Es Presupuesto')

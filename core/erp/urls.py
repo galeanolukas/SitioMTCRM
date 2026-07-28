@@ -74,7 +74,6 @@ from core.erp.views.catalogo.views import (
     CatalogoConfigCreateView,
     CatalogoConfigUpdateView,
     CatalogoConfigDeleteView,
-    receive_venta_catalogo,
     get_catalogo_config,
 )
 from core.erp.views.api.budget_views import receive_budget, confirm_budget
@@ -226,7 +225,6 @@ urlpatterns = [
     path('catalogo/delete/<int:pk>/', CatalogoConfigDeleteView.as_view(), name='catalogo_delete'),
     path('catalogo/sync/', enviar_productos_catalogo, name='enviar_productos_catalogo'),
     path('catalogo/config/<int:catalogo_id>/', get_catalogo_config, name='catalogo_config'),
-    path('api/ventas/receive/', receive_venta_catalogo, name='api_ventas_receive'),
     # Descuentos y Ofertas (comentado temporalmente para evitar errores de importación)
     # path('discounts/', DiscountRuleListView.as_view(), name='discount_list'),
     # path('discounts/add/', DiscountRuleCreateView.as_view(), name='discount_create'),
