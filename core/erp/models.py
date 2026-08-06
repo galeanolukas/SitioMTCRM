@@ -815,8 +815,14 @@ class Sale(models.Model):
                 'MonId': config_obj.moneda,  # Usar moneda de la configuración
                 'MonCotiz': float(config_obj.cotizacion),  # Usar cotización de la configuración
                 'CondicionIVAReceptorId': condicion_iva_receptor_id,  # Condición IVA del receptor (RG 5616/2024)
-                'Iva': iva_details if iva_details else []
             }
+            
+            # Para facturas tipo C (CbteTipo 11), NO enviar el objeto Iva (error 10071)
+            if cbte_tipo != 11:
+                voucher_data['Iva'] = iva_details if iva_details else []
+                logger.info(f"[AFIP DEBUG] Incluyendo objeto Iva - Tipo: {cbte_tipo}, Detalles: {len(iva_details)}")
+            else:
+                logger.info(f"[AFIP DEBUG] Factura tipo C - NO enviando objeto Iva (AFIP error 10071)")
 
             logger.info(f"[AFIP DEBUG] Voucher data preparado - PtoVta: {punto_venta}, CbteTipo: {cbte_tipo}")
             logger.debug(f"[AFIP DEBUG] Datos completos del voucher: {voucher_data}")
