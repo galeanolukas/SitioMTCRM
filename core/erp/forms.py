@@ -551,6 +551,7 @@ class ExpenseForm(ModelForm):
             'supplier': Select(attrs={'class': 'select2', 'style': 'width: 100%'}),
             'description': TextInput(attrs={'placeholder': 'Descripción del gasto'}),
             'amount': NumberInput(attrs={'step': '0.01'}),
+            'payment_method': Select(attrs={'class': 'form-control'}),
             'payer': TextInput(attrs={'placeholder': 'Pagado por'}),
         }
 

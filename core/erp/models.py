@@ -1384,6 +1384,15 @@ EXPENSE_RECURRING_REASONS = [
     ('otro', 'Otro'),
 ]
 
+EXPENSE_PAYMENT_METHOD_CHOICES = (
+    ('efectivo', 'Efectivo'),
+    ('transferencia', 'Transferencia'),
+    ('mercadopago', 'MercadoPago'),
+    ('tarjeta', 'Tarjeta'),
+    ('cheque', 'Cheque'),
+    ('otro', 'Otro'),
+)
+
 class Expense(models.Model):
     company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa', null=True, blank=True)
     supplier = models.ForeignKey('Supplier', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Proveedor')
@@ -1392,6 +1401,7 @@ class Expense(models.Model):
     description = models.CharField(max_length=255, verbose_name='Descripción', blank=True, null=True)
     recurring_reason = models.CharField(max_length=30, choices=EXPENSE_RECURRING_REASONS, blank=True, null=True, verbose_name='Motivo recurrente')
     amount = models.DecimalField(default=0.00, max_digits=12, decimal_places=2, verbose_name='Importe')
+    payment_method = models.CharField(max_length=20, choices=EXPENSE_PAYMENT_METHOD_CHOICES, default='efectivo', verbose_name='Método de pago')
     payer = models.CharField(max_length=150, verbose_name='Pagado por', blank=True, null=True)
     receipt = models.FileField(upload_to='expenses/%Y/%m/%d', null=True, blank=True, verbose_name='Comprobante (PDF/Imagen)')
     synced_to_server = models.BooleanField(default=False, verbose_name='Sincronizado con servidor')
