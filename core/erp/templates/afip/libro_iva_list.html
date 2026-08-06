@@ -98,6 +98,11 @@
                         <a href="{% url 'erp:afip:libro_iva_export' %}?tipo_registro={{ tipo_registro }}&fecha_desde={{ fecha_desde }}&fecha_hasta={{ fecha_hasta }}" class="btn btn-success">
                             <i class="fas fa-file-csv"></i> Exportar CSV
                         </a>
+                        {% if request.user.is_superuser %}
+                        <button type="button" class="btn btn-danger" onclick="confirmarEliminarTodo()">
+                            <i class="fas fa-trash"></i> Eliminar Todos los Registros
+                        </button>
+                        {% endif %}
                     </div>
 
                     <!-- Tabla -->
@@ -150,4 +155,30 @@
         </div>
     </div>
 </div>
+
+<script>
+function confirmarEliminarTodo() {
+    if (confirm('¿Está seguro de eliminar TODOS los registros del Libro IVA? Esta acción no se puede deshacer.')) {
+        fetch('{% url "erp:afip:libro_iva_delete_all" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Todos los registros han sido eliminados correctamente.');
+                window.location.reload();
+            } else {
+                alert('Error: ' + (data.error || 'No se pudieron eliminar los registros'));
+            }
+        })
+        .catch(error => {
+            alert('Error de conexión: ' + error);
+        });
+    }
+}
+</script>
 {% endblock %}

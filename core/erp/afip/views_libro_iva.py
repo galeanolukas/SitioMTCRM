@@ -5,12 +5,14 @@ from django.shortcuts import render
 from django.views.generic import ListView, TemplateView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from core.erp.mixins import ValidatePermissionRequiredMixin
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.urls import reverse_lazy
 from core.erp.models import LibroIvaRegistro, Company
 from django.db.models import Sum
 from datetime import datetime
 import csv
+from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth.decorators import login_required
 
 
 class LibroIvaListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView):
@@ -125,3 +127,21 @@ class LibroIvaExportView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Te
             ])
 
         return response
+
+
+@login_required
+@csrf_exempt
+def libro_iva_delete_all(request):
+    """Eliminar todos los registros del Libro IVA (solo superuser)"""
+    if not request.user.is_superuser:
+        return JsonResponse({'success': False, 'error': 'No tiene permisos para realizar esta acción'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Método no permitido'}, status=405)
+    
+    try:
+        # Eliminar todos los registros
+        count = LibroIvaRegistro.objects.all().delete()[0]
+        return JsonResponse({'success': True, 'deleted_count': count})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)

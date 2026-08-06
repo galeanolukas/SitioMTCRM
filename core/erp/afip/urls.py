@@ -22,6 +22,7 @@ urlpatterns = [
     path('generate-pdf/', views.generate_afip_pdf, name='generate_pdf'),
     path('libro-iva/', views_libro_iva.LibroIvaListView.as_view(), name='libro_iva'),
     path('libro-iva/export/', views_libro_iva.LibroIvaExportView.as_view(), name='libro_iva_export'),
+    path('libro-iva/delete-all/', views_libro_iva.libro_iva_delete_all, name='libro_iva_delete_all'),
     # Reportes fiscales
     path('asientos-contables/', views_reportes.asientos_contables_list, name='asientos_contables'),
     path('asientos-contables/export/', views_reportes.asientos_contables_export, name='asientos_contables_export'),
