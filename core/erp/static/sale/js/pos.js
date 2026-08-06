@@ -1238,11 +1238,12 @@
     calculateChange();
   });
 
-  // Actualizar vuelto cuando cambian los totales
+  // Actualizar vuelto y resumen de cuenta corriente cuando cambian los totales
   const originalRecalc = recalc;
   recalc = function() {
     originalRecalc();
     calculateChange();
+    updateEmployeeAccountSummary();
   };
 
   // Inicializar estado del campo de efectivo
@@ -1731,12 +1732,7 @@
     $('#empTotal').text(fmt(total));
   }
 
-  // Actualizar resumen cuando cambian los items
-  const originalRecalc = recalc;
-  recalc = function() {
-    originalRecalc();
-    updateEmployeeAccountSummary();
-  };
+  // La función recalc ya fue modificada para incluir updateEmployeeAccountSummary()
 
   // Mostrar/ocultar sección de pago combinado en cuenta corriente
   $(document).on('change', '#employeeCombinedPayment', function() {
