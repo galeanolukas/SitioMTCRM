@@ -173,6 +173,12 @@ class Command(BaseCommand):
                             existing_cr.transfer_sales=cr.transfer_sales
                             existing_cr.mp_sales=cr.mp_sales
                             existing_cr.expenses=cr.expenses
+                            existing_cr.cash_expenses=cr.cash_expenses
+                            existing_cr.transfer_expenses=cr.transfer_expenses
+                            existing_cr.mp_expenses=cr.mp_expenses
+                            existing_cr.card_expenses=cr.card_expenses
+                            existing_cr.cheque_expenses=cr.cheque_expenses
+                            existing_cr.other_expenses=cr.other_expenses
                             existing_cr.notes=cr.notes
                             existing_cr.is_closed=cr.is_closed
                             # Mantener local_uuid si ya existe
@@ -196,6 +202,12 @@ class Command(BaseCommand):
                                 transfer_sales=cr.transfer_sales,
                                 mp_sales=cr.mp_sales,
                                 expenses=cr.expenses,
+                                cash_expenses=cr.cash_expenses,
+                                transfer_expenses=cr.transfer_expenses,
+                                mp_expenses=cr.mp_expenses,
+                                card_expenses=cr.card_expenses,
+                                cheque_expenses=cr.cheque_expenses,
+                                other_expenses=cr.other_expenses,
                                 notes=cr.notes,
                                 is_closed=cr.is_closed,
                                 sync_id=sync_id,

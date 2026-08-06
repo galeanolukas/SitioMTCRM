@@ -99,6 +99,30 @@ class Command(BaseCommand):
                         if remote_cr.expenses != local_cr.expenses:
                             needs_update = True
                             self.stdout.write(f"Actualizando caja {local_cr.id}: expenses {remote_cr.expenses} -> {local_cr.expenses}")
+                        
+                        if remote_cr.cash_expenses != local_cr.cash_expenses:
+                            needs_update = True
+                            self.stdout.write(f"Actualizando caja {local_cr.id}: cash_expenses {remote_cr.cash_expenses} -> {local_cr.cash_expenses}")
+                        
+                        if remote_cr.transfer_expenses != local_cr.transfer_expenses:
+                            needs_update = True
+                            self.stdout.write(f"Actualizando caja {local_cr.id}: transfer_expenses {remote_cr.transfer_expenses} -> {local_cr.transfer_expenses}")
+                        
+                        if remote_cr.mp_expenses != local_cr.mp_expenses:
+                            needs_update = True
+                            self.stdout.write(f"Actualizando caja {local_cr.id}: mp_expenses {remote_cr.mp_expenses} -> {local_cr.mp_expenses}")
+                        
+                        if remote_cr.card_expenses != local_cr.card_expenses:
+                            needs_update = True
+                            self.stdout.write(f"Actualizando caja {local_cr.id}: card_expenses {remote_cr.card_expenses} -> {local_cr.card_expenses}")
+                        
+                        if remote_cr.cheque_expenses != local_cr.cheque_expenses:
+                            needs_update = True
+                            self.stdout.write(f"Actualizando caja {local_cr.id}: cheque_expenses {remote_cr.cheque_expenses} -> {local_cr.cheque_expenses}")
+                        
+                        if remote_cr.other_expenses != local_cr.other_expenses:
+                            needs_update = True
+                            self.stdout.write(f"Actualizando caja {local_cr.id}: other_expenses {remote_cr.other_expenses} -> {local_cr.other_expenses}")
 
                         if needs_update:
                             # Actualizar todos los campos
@@ -112,6 +136,12 @@ class Command(BaseCommand):
                             remote_cr.transfer_sales = local_cr.transfer_sales
                             remote_cr.mp_sales = local_cr.mp_sales
                             remote_cr.expenses = local_cr.expenses
+                            remote_cr.cash_expenses = local_cr.cash_expenses
+                            remote_cr.transfer_expenses = local_cr.transfer_expenses
+                            remote_cr.mp_expenses = local_cr.mp_expenses
+                            remote_cr.card_expenses = local_cr.card_expenses
+                            remote_cr.cheque_expenses = local_cr.cheque_expenses
+                            remote_cr.other_expenses = local_cr.other_expenses
                             remote_cr.notes = local_cr.notes
                             remote_cr.is_closed = local_cr.is_closed
                             remote_cr.save()

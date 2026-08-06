@@ -1511,6 +1511,12 @@ class CashRegister(models.Model):
     transfer_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Ventas por transferencia')
     mp_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Ventas por Mercado Pago')
     expenses = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name='Gastos')
+    cash_expenses = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name='Gastos en efectivo')
+    transfer_expenses = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name='Gastos por transferencia')
+    mp_expenses = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name='Gastos por Mercado Pago')
+    card_expenses = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name='Gastos con tarjeta')
+    cheque_expenses = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name='Gastos con cheque')
+    other_expenses = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name='Otros gastos')
     notes = models.TextField(blank=True, null=True, verbose_name='Notas')
     is_closed = models.BooleanField(default=False, verbose_name='Caja cerrada')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -1544,8 +1550,12 @@ class CashRegister(models.Model):
         return self.cash_sales + self.card_sales + self.transfer_sales + self.mp_sales
 
     @property
+    def total_expenses(self):
+        return self.cash_expenses + self.transfer_expenses + self.mp_expenses + self.card_expenses + self.cheque_expenses + self.other_expenses
+
+    @property
     def calculated_balance(self):
-        return self.opening_balance + self.total_sales - self.expenses
+        return self.opening_balance + self.total_sales - self.total_expenses
 
     @property
     def difference(self):

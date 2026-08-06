@@ -56,12 +56,27 @@ class CashRegisterListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
             live_mp = sales_agg['live_mp'] or 0
             live_total_sales = live_cash + live_card + live_transfer + live_mp
 
-            # Una sola query para gastos
+            # Una sola query para gastos por método de pago
             expenses_date = cr.date if cr.is_closed else current_date
-            live_expenses = Expense.objects.filter(
+            expenses_agg = Expense.objects.filter(
                 company_id=cr.company_id,
                 date=expenses_date,
-            ).aggregate(total=Sum('amount'))['total'] or 0
+            ).aggregate(
+                live_cash_exp=Sum('amount', filter=Q(payment_method='efectivo')),
+                live_transfer_exp=Sum('amount', filter=Q(payment_method='transferencia')),
+                live_mp_exp=Sum('amount', filter=Q(payment_method='mercadopago')),
+                live_card_exp=Sum('amount', filter=Q(payment_method='tarjeta')),
+                live_cheque_exp=Sum('amount', filter=Q(payment_method='cheque')),
+                live_other_exp=Sum('amount', filter=Q(payment_method='otro')),
+            )
+
+            live_cash_expenses = expenses_agg['live_cash_exp'] or 0
+            live_transfer_expenses = expenses_agg['live_transfer_exp'] or 0
+            live_mp_expenses = expenses_agg['live_mp_exp'] or 0
+            live_card_expenses = expenses_agg['live_card_exp'] or 0
+            live_cheque_expenses = expenses_agg['live_cheque_exp'] or 0
+            live_other_expenses = expenses_agg['live_other_exp'] or 0
+            live_total_expenses = live_cash_expenses + live_transfer_expenses + live_mp_expenses + live_card_expenses + live_cheque_expenses + live_other_expenses
 
             # Asignar valores como atributos dinámicos (sin guardar en BD)
             cr.live_cash_sales = live_cash
@@ -69,7 +84,13 @@ class CashRegisterListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
             cr.live_transfer_sales = live_transfer
             cr.live_mp_sales = live_mp
             cr.live_total_sales = live_total_sales
-            cr.live_expenses = live_expenses
+            cr.live_cash_expenses = live_cash_expenses
+            cr.live_transfer_expenses = live_transfer_expenses
+            cr.live_mp_expenses = live_mp_expenses
+            cr.live_card_expenses = live_card_expenses
+            cr.live_cheque_expenses = live_cheque_expenses
+            cr.live_other_expenses = live_other_expenses
+            cr.live_total_expenses = live_total_expenses
 
         context['title'] = 'Cierres de Caja'
         context['create_url'] = reverse_lazy('erp:cash_register_create')
@@ -171,17 +192,29 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
             date=cash_register.date,
             company_id=cash_register.company_id,
         )
-        dynamic_expenses = expenses_qs.aggregate(total=Sum('amount'))['total'] or 0
+        dynamic_cash_expenses = expenses_qs.filter(payment_method='efectivo').aggregate(total=Sum('amount'))['total'] or 0
+        dynamic_transfer_expenses = expenses_qs.filter(payment_method='transferencia').aggregate(total=Sum('amount'))['total'] or 0
+        dynamic_mp_expenses = expenses_qs.filter(payment_method='mercadopago').aggregate(total=Sum('amount'))['total'] or 0
+        dynamic_card_expenses = expenses_qs.filter(payment_method='tarjeta').aggregate(total=Sum('amount'))['total'] or 0
+        dynamic_cheque_expenses = expenses_qs.filter(payment_method='cheque').aggregate(total=Sum('amount'))['total'] or 0
+        dynamic_other_expenses = expenses_qs.filter(payment_method='otro').aggregate(total=Sum('amount'))['total'] or 0
+        dynamic_total_expenses = dynamic_cash_expenses + dynamic_transfer_expenses + dynamic_mp_expenses + dynamic_card_expenses + dynamic_cheque_expenses + dynamic_other_expenses
 
         dynamic_total_sales = dynamic_cash + dynamic_card + dynamic_transfer + dynamic_mp
-        dynamic_calculated_balance = cash_register.opening_balance + dynamic_total_sales - dynamic_expenses
+        dynamic_calculated_balance = cash_register.opening_balance + dynamic_total_sales - dynamic_total_expenses
 
         context['movements'] = cash_register.movements.all()
         context['dynamic_cash_sales'] = dynamic_cash
         context['dynamic_card_sales'] = dynamic_card
         context['dynamic_transfer_sales'] = dynamic_transfer
         context['dynamic_mp_sales'] = dynamic_mp
-        context['dynamic_expenses'] = dynamic_expenses
+        context['dynamic_cash_expenses'] = dynamic_cash_expenses
+        context['dynamic_transfer_expenses'] = dynamic_transfer_expenses
+        context['dynamic_mp_expenses'] = dynamic_mp_expenses
+        context['dynamic_card_expenses'] = dynamic_card_expenses
+        context['dynamic_cheque_expenses'] = dynamic_cheque_expenses
+        context['dynamic_other_expenses'] = dynamic_other_expenses
+        context['dynamic_total_expenses'] = dynamic_total_expenses
         context['dynamic_total_sales'] = dynamic_total_sales
         context['dynamic_calculated_balance'] = dynamic_calculated_balance
         context['title'] = 'Cierre de Caja'
@@ -206,9 +239,15 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
         transfer_total = sales_qs.filter(payment_method='transfer').aggregate(total=Sum('total'))['total'] or 0
         mp_total = sales_qs.filter(payment_method='mp').aggregate(total=Sum('total'))['total'] or 0
 
-        # Calcular gastos del día (usando fecha de la caja y empresa de la caja)
+        # Calcular gastos del día por método de pago (usando fecha de la caja y empresa de la caja)
         expenses_qs = Expense.objects.filter(date=cash_register_date, company_id=company_id)
-        expenses_total = expenses_qs.aggregate(total=Sum('amount'))['total'] or 0
+        cash_expenses_total = expenses_qs.filter(payment_method='efectivo').aggregate(total=Sum('amount'))['total'] or 0
+        transfer_expenses_total = expenses_qs.filter(payment_method='transferencia').aggregate(total=Sum('amount'))['total'] or 0
+        mp_expenses_total = expenses_qs.filter(payment_method='mercadopago').aggregate(total=Sum('amount'))['total'] or 0
+        card_expenses_total = expenses_qs.filter(payment_method='tarjeta').aggregate(total=Sum('amount'))['total'] or 0
+        cheque_expenses_total = expenses_qs.filter(payment_method='cheque').aggregate(total=Sum('amount'))['total'] or 0
+        other_expenses_total = expenses_qs.filter(payment_method='otro').aggregate(total=Sum('amount'))['total'] or 0
+        expenses_total = cash_expenses_total + transfer_expenses_total + mp_expenses_total + card_expenses_total + cheque_expenses_total + other_expenses_total
 
         # Actualizar caja
         form.instance.cash_sales = cash_total
@@ -216,6 +255,12 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
         form.instance.transfer_sales = transfer_total
         form.instance.mp_sales = mp_total
         form.instance.expenses = expenses_total
+        form.instance.cash_expenses = cash_expenses_total
+        form.instance.transfer_expenses = transfer_expenses_total
+        form.instance.mp_expenses = mp_expenses_total
+        form.instance.card_expenses = card_expenses_total
+        form.instance.cheque_expenses = cheque_expenses_total
+        form.instance.other_expenses = other_expenses_total
         form.instance.is_closed = True
         # Resetear is_synced para forzar sincronización del cierre
         form.instance.is_synced = False
@@ -223,7 +268,8 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
         # Debug: imprimir valores para verificar
         print(f"Cerrando caja ID {cash_register.id} - Fecha: {cash_register_date} - Empresa: {company_id}")
         print(f"Ventas efectivo: {cash_total}, tarjeta: {card_total}, transfer: {transfer_total}, MP: {mp_total}")
-        print(f"Gastos: {expenses_total}")
+        print(f"Gastos efectivo: {cash_expenses_total}, transfer: {transfer_expenses_total}, MP: {mp_expenses_total}, tarjeta: {card_expenses_total}, cheque: {cheque_expenses_total}, otro: {other_expenses_total}")
+        print(f"Total gastos: {expenses_total}")
         print(f"Saldo calculado esperado: {cash_register.opening_balance + cash_total + card_total + transfer_total + mp_total - expenses_total}")
 
         messages.success(self.request, 'Caja cerrada correctamente')
@@ -299,10 +345,16 @@ class CashRegisterDetailView(LoginRequiredMixin, ValidatePermissionRequiredMixin
                 date=current_date,  # Gastos del día actual
                 company_id=cash_register.company_id,
             )
-        dynamic_expenses = expenses_qs.aggregate(total=Sum('amount'))['total'] or 0
+        dynamic_cash_expenses = expenses_qs.filter(payment_method='efectivo').aggregate(total=Sum('amount'))['total'] or 0
+        dynamic_transfer_expenses = expenses_qs.filter(payment_method='transferencia').aggregate(total=Sum('amount'))['total'] or 0
+        dynamic_mp_expenses = expenses_qs.filter(payment_method='mercadopago').aggregate(total=Sum('amount'))['total'] or 0
+        dynamic_card_expenses = expenses_qs.filter(payment_method='tarjeta').aggregate(total=Sum('amount'))['total'] or 0
+        dynamic_cheque_expenses = expenses_qs.filter(payment_method='cheque').aggregate(total=Sum('amount'))['total'] or 0
+        dynamic_other_expenses = expenses_qs.filter(payment_method='otro').aggregate(total=Sum('amount'))['total'] or 0
+        dynamic_total_expenses = dynamic_cash_expenses + dynamic_transfer_expenses + dynamic_mp_expenses + dynamic_card_expenses + dynamic_cheque_expenses + dynamic_other_expenses
 
         dynamic_total_sales = dynamic_cash + dynamic_card + dynamic_transfer + dynamic_mp + dynamic_check
-        dynamic_calculated_balance = cash_register.opening_balance + dynamic_total_sales - dynamic_expenses
+        dynamic_calculated_balance = cash_register.opening_balance + dynamic_total_sales - dynamic_total_expenses
 
         context['movements'] = cash_register.movements.all()
         context['dynamic_cash_sales'] = dynamic_cash
@@ -310,7 +362,13 @@ class CashRegisterDetailView(LoginRequiredMixin, ValidatePermissionRequiredMixin
         context['dynamic_transfer_sales'] = dynamic_transfer
         context['dynamic_mp_sales'] = dynamic_mp
         context['dynamic_check_sales'] = dynamic_check
-        context['dynamic_expenses'] = dynamic_expenses
+        context['dynamic_cash_expenses'] = dynamic_cash_expenses
+        context['dynamic_transfer_expenses'] = dynamic_transfer_expenses
+        context['dynamic_mp_expenses'] = dynamic_mp_expenses
+        context['dynamic_card_expenses'] = dynamic_card_expenses
+        context['dynamic_cheque_expenses'] = dynamic_cheque_expenses
+        context['dynamic_other_expenses'] = dynamic_other_expenses
+        context['dynamic_total_expenses'] = dynamic_total_expenses
         context['dynamic_total_sales'] = dynamic_total_sales
         context['dynamic_calculated_balance'] = dynamic_calculated_balance
         return context
