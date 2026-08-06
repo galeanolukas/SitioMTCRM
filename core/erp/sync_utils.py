@@ -236,7 +236,24 @@ def run_full_sync(company_id=None):
         try:
             logger.info("📦 Sincronizando stock de productos local → servidor...")
             
-            call_command("sync_stock_to_remote")
+            # Obtener empresa del usuario para sincronizar solo esa empresa
+            from crum import get_current_user
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            user = get_current_user()
+            company_id = None
+            
+            if user and user.is_authenticated:
+                company = getattr(user, 'company', None)
+                if company:
+                    company_id = company.id
+                    logger.info(f"📦 Sincronizando stock solo para empresa: {company.name} (ID: {company_id})")
+            
+            # Pasar company_id al comando si está disponible
+            if company_id:
+                call_command("sync_stock_to_remote", company_id=company_id)
+            else:
+                call_command("sync_stock_to_remote")
             
             # Contar productos con stock desincronizado
             from core.erp.models import Product

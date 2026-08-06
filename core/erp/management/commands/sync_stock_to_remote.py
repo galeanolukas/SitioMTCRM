@@ -9,14 +9,26 @@ from core.erp.models import Product, Company, Category
 class Command(BaseCommand):
     help = "Sincroniza stock de productos desde la BD local (default) hacia la BD remota (remote)."
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--company-id',
+            type=int,
+            help='ID de la empresa a sincronizar (opcional). Si no se especifica, sincroniza todas las empresas.',
+        )
+
     def handle(self, *args, **options):
+        company_id = options.get('company_id')
         self.stdout.write(self.style.NOTICE("Iniciando sincronización de stock hacia servidor remoto..."))
 
         synced = 0
         errors = 0
 
-        # Obtener todas las empresas
-        companies = Company.objects.using('default').all()
+        # Obtener empresas (todas o solo la especificada)
+        if company_id:
+            companies = Company.objects.using('default').filter(id=company_id)
+            self.stdout.write(f"Sincronizando solo empresa ID: {company_id}")
+        else:
+            companies = Company.objects.using('default').all()
         
         for company in companies:
             self.stdout.write(f"Procesando empresa: {company.name}")
