@@ -147,6 +147,13 @@
         displayCant = Math.round(it.cant);
       }
       
+      // Calcular PVP con IVA para mostrar en la columna
+      let rate = (typeof it.iva_rate !== 'undefined' && !isNaN(parseFloat(it.iva_rate))) ? parseFloat(it.iva_rate) : getIvaRate();
+      if (rate > 1) {
+        rate = rate / 100;
+      }
+      const pvp_with_iva = it.pvp_final && !isNaN(parseFloat(it.pvp_final)) ? parseFloat(it.pvp_final) : it.price * (1 + rate);
+      
       const tr = $(`
         <tr data-idx="${idx}" class="${idx===selectedIndex ? 'table-primary' : ''}">
           <td>${it.name}${it.unit === 'kg' ? ' <small class="text-muted">(kg)</small>' : ''}</td>
@@ -158,7 +165,7 @@
             </div>
           </td>
           <td class="text-end">
-            <input type="number" class="form-control form-control-sm text-end inpPrice" value="${it.price}" min="0" step="0.01" style="max-width: 90px; margin: 0 auto;">
+            <input type="number" class="form-control form-control-sm text-end inpPrice" value="${pvp_with_iva}" min="0" step="0.01" style="max-width: 90px; margin: 0 auto;">
           </td>
           <td class="text-end">${fmt(it.subtotal)}</td>
           <td class="text-center">
@@ -416,7 +423,15 @@
   $tbody.on('change', '.inpPrice', function () {
     const idx = $(this).closest('tr').data('idx');
     const v = parseFloat($(this).val() || 0);
-    items[idx].price = Math.max(0, v || 0);
+    // El input muestra PVP con IVA, calcular PVP sin IVA
+    let rate = (typeof items[idx].iva_rate !== 'undefined' && !isNaN(parseFloat(items[idx].iva_rate))) ? parseFloat(items[idx].iva_rate) : getIvaRate();
+    if (rate > 1) {
+      rate = rate / 100;
+    }
+    // PVP sin IVA = PVP con IVA / (1 + tasa)
+    items[idx].price = Math.max(0, v / (1 + rate));
+    // Actualizar pvp_final también
+    items[idx].pvp_final = v;
     selectedIndex = idx; recalc();
   });
   $tbody.on('click', '.btnDel', function () {
