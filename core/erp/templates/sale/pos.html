@@ -263,29 +263,29 @@
             }
           </script>
 
-          <div class="mb-3">
-            <label for="invoiceType" class="form-label">Tipo de Comprobante</label>
-            <select id="invoiceType" class="form-select" data-default-invoice-type="{{ default_invoice_type }}">
-              <option value="A" {% if default_invoice_type == 'A' %}selected{% endif %}>Factura A</option>
-              <option value="B" {% if default_invoice_type == 'B' %}selected{% endif %}>Factura B</option>
-              <option value="C" {% if default_invoice_type == 'C' %}selected{% endif %}>Factura C</option>
-              <option value="NC-A">Nota de Crédito A</option>
-              <option value="NC-B">Nota de Crédito B</option>
-              <option value="NC-C">Nota de Crédito C</option>
-            </select>
-            <small class="text-muted">Automático según condición IVA del cliente</small>
-          </div>
-
-          <div class="mb-3">
-            <label for="payMethod" class="form-label">Forma de pago</label>
-            <select id="payMethod" class="form-select">
-              <option value="cash" selected>Efectivo</option>
-              <option value="card">Tarjeta</option>
-              <option value="transfer">Transferencia</option>
-              <option value="mp">Mercado Pago</option>
-              <option value="check">Cheque</option>
-              <option value="combined">Pagos Combinados</option>
-            </select>
+          <div class="row mb-3">
+            <div class="col-6">
+              <label for="invoiceType" class="form-label">Comprobante</label>
+              <select id="invoiceType" class="form-select" data-default-invoice-type="{{ default_invoice_type }}">
+                <option value="A" {% if default_invoice_type == 'A' %}selected{% endif %}>Factura A</option>
+                <option value="B" {% if default_invoice_type == 'B' %}selected{% endif %}>Factura B</option>
+                <option value="C" {% if default_invoice_type == 'C' %}selected{% endif %}>Factura C</option>
+                <option value="NC-A">Nota de Crédito A</option>
+                <option value="NC-B">Nota de Crédito B</option>
+                <option value="NC-C">Nota de Crédito C</option>
+              </select>
+            </div>
+            <div class="col-6">
+              <label for="payMethod" class="form-label">Pago con:</label>
+              <select id="payMethod" class="form-select">
+                <option value="cash" selected>Efectivo</option>
+                <option value="card">Tarjeta</option>
+                <option value="transfer">Transferencia</option>
+                <option value="mp">Mercado Pago</option>
+                <option value="check">Cheque</option>
+                <option value="combined">Pagos Combinados</option>
+              </select>
+            </div>
           </div>
 
           <!-- Importe recibido y vuelto (solo para efectivo) -->
