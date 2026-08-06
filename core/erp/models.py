@@ -655,6 +655,11 @@ class Sale(models.Model):
 
             logger.info(f"[AFIP DEBUG] Iniciando emisión de factura AFIP - Venta ID: {self.id}, Empresa: {self.company.name if self.company else 'N/A'}")
 
+            # Validar que la venta tiene una empresa asignada
+            if not self.company:
+                logger.warning(f"[AFIP DEBUG] La venta {self.id} no tiene empresa asignada. No se puede emitir factura AFIP.")
+                return False
+
             # Validar que el usuario pertenece a la misma empresa que tiene configurado AFIP
             if user and hasattr(user, 'company') and user.company:
                 logger.debug(f"[AFIP DEBUG] Validando empresa - Usuario: {user.username}, Empresa usuario: {user.company.name}, Empresa venta: {self.company.name}")

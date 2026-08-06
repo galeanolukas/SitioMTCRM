@@ -21,7 +21,10 @@ import pytz
 from decimal import Decimal
 import time
 import uuid
+import logging
 from core.erp.afip.client import AfipClient
+
+logger = logging.getLogger(__name__)
 
 @method_decorator(csrf_exempt, name='dispatch')
 class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView):
@@ -478,6 +481,15 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         active_cid = request.session.get('company_id')
                     else:
                         active_cid = getattr(request.user, 'company_id', None)
+                    
+                    # Si no hay empresa activa, usar la primera empresa disponible como fallback
+                    if not active_cid:
+                        from core.erp.models import Company
+                        first_company = Company.objects.first()
+                        if first_company:
+                            active_cid = first_company.id
+                            logger.warning(f"[POS] No hay empresa activa en sesión/usuario, usando empresa por defecto: {first_company.name}")
+                    
                     if active_cid:
                         sale.company_id = active_cid
                     sale.cli_id = payload.get('cli') or None
