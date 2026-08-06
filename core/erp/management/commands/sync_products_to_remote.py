@@ -76,6 +76,9 @@ class Command(BaseCommand):
                     # Siempre usar el código del local si existe
                     if prod.code:
                         remote_prod.code = prod.code
+                    # Siempre usar el código de proveedor del local si existe
+                    if prod.codigo_proveedor:
+                        remote_prod.codigo_proveedor = prod.codigo_proveedor
                     if remote_cat:
                         remote_prod.cat = remote_cat
                     remote_prod.supplier = remote_supplier
@@ -102,6 +105,8 @@ class Command(BaseCommand):
                     }
                     if prod.code:
                         defaults['code'] = prod.code
+                    if prod.codigo_proveedor:
+                        defaults['codigo_proveedor'] = prod.codigo_proveedor
                     try:
                         Product.objects.using('remote').create(**defaults)
                     except Exception as create_err:
@@ -115,6 +120,9 @@ class Command(BaseCommand):
                                 # Siempre usar el código del local si existe
                                 if prod.code:
                                     remote_prod.code = prod.code
+                                # Siempre usar el código de proveedor del local si existe
+                                if prod.codigo_proveedor:
+                                    remote_prod.codigo_proveedor = prod.codigo_proveedor
                                 if remote_cat:
                                     remote_prod.cat = remote_cat
                                 remote_prod.supplier = remote_supplier
