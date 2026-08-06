@@ -494,10 +494,9 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                                 raise Exception(f"Stock insuficiente para {prod.name}. Disponible: {format(prod.stock, '.2f')} {prod.get_unit_display()}, requerido: {format(cant, '.2f')} {prod.get_unit_display()}")
                     
                     sale = Sale()
-                    # Usuarios normales solo pueden vender para su propia empresa
-                    if request.user.is_superuser:
-                        active_cid = request.session.get('company_id')
-                    else:
+                    # Obtener empresa activa: primero de sesión, luego del usuario
+                    active_cid = request.session.get('company_id')
+                    if not active_cid:
                         active_cid = getattr(request.user, 'company', None)
                         if active_cid:
                             active_cid = active_cid.id
