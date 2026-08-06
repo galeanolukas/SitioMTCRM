@@ -77,13 +77,13 @@
   }
 
   function recalc() {
-    let subtotal = 0;
-    let iva = 0;
+    let subtotal = 0;  // PVP sin IVA (Base imponible)
+    let iva = 0;       // IVA total
     let originalSubtotal = 0; // Subtotal sin descuento de lista
     
     // Calcular totales
     items.forEach(it => {
-      const price = parseFloat(it.price) || 0;
+      const price = parseFloat(it.price) || 0;  // PVP sin IVA
       const cant = parseFloat(it.cant) || 0;
       it.subtotal = price * cant;
       subtotal += it.subtotal;
@@ -92,19 +92,17 @@
       const origPrice = originalPrices[it.id] || price;
       originalSubtotal += origPrice * cant;
       
+      // Calcular IVA: PVP sin IVA * tasa IVA
       let rate = (typeof it.iva_rate !== 'undefined' && !isNaN(parseFloat(it.iva_rate))) ? parseFloat(it.iva_rate) : getIvaRate();
       // Convert to decimal if it's in percentage format (> 1)
       if (rate > 1) {
         rate = rate / 100;
       }
-      // Calcular IVA basado en PVP final (precio con IVA incluido)
-      // IVA = (PVP_final / (1 + rate)) * rate
-      const pvp_final = it.pvp_final && !isNaN(parseFloat(it.pvp_final)) ? parseFloat(it.pvp_final) : it.price * (1 + rate);
-      const iva_item = (pvp_final / (1 + rate)) * rate * cant;
+      const iva_item = price * rate * cant;
       iva += iva_item;
     });
     
-    const total = subtotal + iva;
+    const total = subtotal + iva;  // Total a cobrar (PVP con IVA)
     const savings = originalSubtotal - subtotal;
     
     // Actualizar totales
@@ -600,20 +598,19 @@
   });
 
   function buildPayload(forInvoice = false) {
-    let subtotal_neto = 0;
-    let iva_total = 0;
+    let subtotal_neto = 0;  // PVP sin IVA (Base imponible)
+    let iva_total = 0;       // IVA total
     items.forEach(it => {
-      const net = parseFloat(it.price) || 0;           // pvp neto
+      const net = parseFloat(it.price) || 0;           // PVP sin IVA
       const cant = parseFloat(it.cant) || 0;
       const sub_neto = net * cant;
       subtotal_neto += sub_neto;
+      
+      // Calcular IVA: PVP sin IVA * tasa IVA
       const rate = (typeof it.iva_rate !== 'undefined' && !isNaN(parseFloat(it.iva_rate))) ? parseFloat(it.iva_rate) : getIvaRate(forInvoice);
       // Convert to decimal if it's in percentage format (> 1)
       const rate_decimal = rate > 1 ? rate / 100 : rate;
-      // Calcular IVA basado en PVP final (precio con IVA incluido)
-      // IVA = (PVP_final / (1 + rate)) * rate
-      const pvp_final = it.pvp_final && !isNaN(parseFloat(it.pvp_final)) ? parseFloat(it.pvp_final) : net * (1 + rate_decimal);
-      const iva_item = (pvp_final / (1 + rate_decimal)) * rate_decimal * cant;
+      const iva_item = net * rate_decimal * cant;
       iva_total += iva_item;
     });
     const items_net = items.map(it => {
