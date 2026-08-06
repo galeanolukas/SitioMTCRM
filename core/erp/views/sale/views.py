@@ -295,6 +295,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         'unit_display': p.get_unit_display()
                     }
                     data.append(item)
+                return JsonResponse(data)
             elif action == 'quick_create_product':
                 from decimal import Decimal
                 name = (request.POST.get('name') or 'PRODUCTO GENERICO').strip()
