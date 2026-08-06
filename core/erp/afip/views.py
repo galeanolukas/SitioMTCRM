@@ -36,6 +36,15 @@ class AfipConfigCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
     fields = ['company', 'cuit', 'access_token', 'clave_fiscal_username', 'clave_fiscal_password', 'cert', 'key', 'environment', 'tipo_comprobante', 'concepto', 'moneda', 'cotizacion', 'usar_contingencia', 'is_active']
     success_url = reverse_lazy('erp:afip:dashboard')
     
+    def get_initial(self):
+        initial = super().get_initial()
+        # Pre-llenar access_token con el valor del .env si existe
+        from django.conf import settings
+        default_token = getattr(settings, 'AFIP_ACCESS_TOKEN', None)
+        if default_token:
+            initial['access_token'] = default_token
+        return initial
+    
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         # Pasar datos de empresas para autocompletar CUIT
@@ -124,6 +133,15 @@ class AfipConfigUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
     permission_required = 'erp.change_afipconfig'
     fields = ['company', 'cuit', 'access_token', 'clave_fiscal_username', 'clave_fiscal_password', 'cert', 'key', 'environment', 'tipo_comprobante', 'concepto', 'moneda', 'cotizacion', 'usar_contingencia', 'is_active']
     success_url = reverse_lazy('erp:afip:dashboard')
+    
+    def get_initial(self):
+        initial = super().get_initial()
+        # Si el campo access_token está vacío en el objeto, usar el valor del .env
+        from django.conf import settings
+        default_token = getattr(settings, 'AFIP_ACCESS_TOKEN', None)
+        if default_token and not self.object.access_token:
+            initial['access_token'] = default_token
+        return initial
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
