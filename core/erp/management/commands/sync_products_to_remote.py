@@ -73,7 +73,8 @@ class Command(BaseCommand):
                     if remote_company:
                         remote_prod.company_id = remote_company.id
                     remote_prod.name = prod.name
-                    if prod.code and not remote_prod.code:
+                    # Siempre usar el código del local si existe
+                    if prod.code:
                         remote_prod.code = prod.code
                     if remote_cat:
                         remote_prod.cat = remote_cat
@@ -111,7 +112,8 @@ class Command(BaseCommand):
                                 if remote_company:
                                     remote_prod.company_id = remote_company.id
                                 remote_prod.name = prod.name
-                                if prod.code and not remote_prod.code:
+                                # Siempre usar el código del local si existe
+                                if prod.code:
                                     remote_prod.code = prod.code
                                 if remote_cat:
                                     remote_prod.cat = remote_cat
