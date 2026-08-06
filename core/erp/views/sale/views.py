@@ -951,8 +951,6 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 except Exception as e:
                     data['error'] = f'Error al crear empleado: {str(e)}'
         except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
             logger.error(f"Error en POST de POS: {str(e)}", exc_info=True)
             data['error'] = str(e)
         return JsonResponse(data, safe=False)
