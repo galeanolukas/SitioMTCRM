@@ -39,7 +39,9 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
         if self.request.user.is_superuser:
             active_cid = self.request.session.get('company_id')
         else:
-            active_cid = getattr(self.request.user, 'company_id', None)
+            active_cid = getattr(self.request.user, 'company', None)
+            if active_cid:
+                active_cid = active_cid.id
 
         # Obtener tipo de factura por defecto desde configuración AFIP
         from core.erp.afip.config import get_afip_config
@@ -152,7 +154,9 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     return JsonResponse({'error': 'CUIT requerido'}, status=400)
                 active_cid = request.session.get('company_id')
                 if not active_cid:
-                    active_cid = getattr(request.user, 'company_id', None)
+                    active_cid = getattr(request.user, 'company', None)
+                if active_cid:
+                    active_cid = active_cid.id
                 try:
                     afip_client = AfipClient(company_id=active_cid)
                     # Usar RegisterScopeTen (no requiere autorización adicional)
@@ -201,7 +205,9 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         # Crear nuevo cliente desde datos AFIP
                         active_cid = request.session.get('company_id')
                         if not request.user.is_superuser:
-                            active_cid = active_cid or getattr(request.user, 'company_id', None)
+                            active_cid = active_cid or getattr(request.user, 'company', None)
+                            if active_cid:
+                                active_cid = active_cid.id
 
                         new_client = Client()
                         if active_cid:
@@ -225,7 +231,9 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     return JsonResponse({'error': 'Código vacío'}, status=400)
                 active_cid = request.session.get('company_id')
                 if not request.user.is_superuser:
-                    active_cid = active_cid or getattr(request.user, 'company_id', None)
+                    active_cid = active_cid or getattr(request.user, 'company', None)
+                    if active_cid:
+                        active_cid = active_cid.id
                 qs = Product.objects.all()
                 if active_cid:
                     qs = qs.filter(company_id=active_cid)
@@ -276,7 +284,9 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 term = (request.POST.get('term') or '').strip()
                 active_cid = request.session.get('company_id')
                 if not request.user.is_superuser:
-                    active_cid = active_cid or getattr(request.user, 'company_id', None)
+                    active_cid = active_cid or getattr(request.user, 'company', None)
+                    if active_cid:
+                        active_cid = active_cid.id
                 qs = Product.objects.all()
                 if active_cid:
                     qs = qs.filter(company_id=active_cid)
@@ -314,7 +324,9 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
 
                 active_cid = request.session.get('company_id')
                 if not request.user.is_superuser:
-                    active_cid = active_cid or getattr(request.user, 'company_id', None)
+                    active_cid = active_cid or getattr(request.user, 'company', None)
+                    if active_cid:
+                        active_cid = active_cid.id
 
                 # Obtener la categoría proporcionada o usar 'Varios' por defecto
                 category_name = (request.POST.get('category') or 'Varios').strip()
@@ -393,7 +405,9 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 # Filtrar por empresa actual
                 active_cid = request.session.get('company_id')
                 if not request.user.is_superuser:
-                    active_cid = active_cid or getattr(request.user, 'company_id', None)
+                    active_cid = active_cid or getattr(request.user, 'company', None)
+                    if active_cid:
+                        active_cid = active_cid.id
                 
                 employees = User.objects.filter(is_active=True).exclude(is_superuser=True)
                 
@@ -428,7 +442,9 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 # Asignar empresa si es necesario
                 active_cid = request.session.get('company_id')
                 if not request.user.is_superuser:
-                    active_cid = active_cid or getattr(request.user, 'company_id', None)
+                    active_cid = active_cid or getattr(request.user, 'company', None)
+                    if active_cid:
+                        active_cid = active_cid.id
                 if active_cid and hasattr(Category, 'company'):
                     category.company_id = active_cid
                     
@@ -454,7 +470,9 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     is_operator = request.user.groups.filter(name='operadores').exists()
                     active_cid = request.session.get('company_id')
                     if not request.user.is_superuser:
-                        active_cid = active_cid or getattr(request.user, 'company_id', None)
+                        active_cid = active_cid or getattr(request.user, 'company', None)
+                    if active_cid:
+                        active_cid = active_cid.id
                     cr_qs = CashRegister.objects.filter(user=request.user, is_closed=False)
                     if active_cid:
                         cr_qs = cr_qs.filter(company_id=active_cid)
@@ -480,7 +498,9 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     if request.user.is_superuser:
                         active_cid = request.session.get('company_id')
                     else:
-                        active_cid = getattr(request.user, 'company_id', None)
+                        active_cid = getattr(request.user, 'company', None)
+                        if active_cid:
+                            active_cid = active_cid.id
                     
                     # Si no hay empresa activa, usar la primera empresa disponible como fallback
                     if not active_cid:
@@ -602,7 +622,9 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 is_operator = request.user.groups.filter(name='operadores').exists()
                 active_cid = request.session.get('company_id')
                 if not request.user.is_superuser:
-                    active_cid = active_cid or getattr(request.user, 'company_id', None)
+                    active_cid = active_cid or getattr(request.user, 'company', None)
+                    if active_cid:
+                        active_cid = active_cid.id
                 cr_qs = CashRegister.objects.filter(user=request.user, is_closed=False)
                 if active_cid:
                     cr_qs = cr_qs.filter(company_id=active_cid)
@@ -625,9 +647,13 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     # Asignar empresa activa a la venta
                     active_cid = request.session.get('company_id')
                     if not request.user.is_superuser:
-                        active_cid = active_cid or getattr(request.user, 'company_id', None)
+                        active_cid = active_cid or getattr(request.user, 'company', None)
+                    if active_cid:
+                        active_cid = active_cid.id
                     else:
-                        active_cid = active_cid or getattr(request.user, 'company_id', None)
+                        active_cid = active_cid or getattr(request.user, 'company', None)
+                    if active_cid:
+                        active_cid = active_cid.id
                     if active_cid:
                         sale.company_id = active_cid
                     sale.cli_id = payload.get('cli') or None
@@ -824,7 +850,9 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 is_operator = request.user.groups.filter(name='operadores').exists()
                 active_cid = request.session.get('company_id')
                 if not request.user.is_superuser:
-                    active_cid = active_cid or getattr(request.user, 'company_id', None)
+                    active_cid = active_cid or getattr(request.user, 'company', None)
+                    if active_cid:
+                        active_cid = active_cid.id
                 cr_qs = CashRegister.objects.filter(user=request.user, is_closed=False)
                 if active_cid:
                     cr_qs = cr_qs.filter(company_id=active_cid)
@@ -937,7 +965,9 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     # Asociar el empleado a la empresa activa
                     active_cid = request.session.get('company_id')
                     if not request.user.is_superuser:
-                        active_cid = active_cid or getattr(request.user, 'company_id', None)
+                        active_cid = active_cid or getattr(request.user, 'company', None)
+                    if active_cid:
+                        active_cid = active_cid.id
                     
                     if active_cid:
                         user.company_id = active_cid
@@ -1018,7 +1048,9 @@ class SaleCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Create
         form = super().get_form(form_class)
         active_cid = self.request.session.get('company_id')
         if not self.request.user.is_superuser:
-            active_cid = active_cid or getattr(self.request.user, 'company_id', None)
+            active_cid = active_cid or getattr(self.request.user, 'company', None)
+            if active_cid:
+                active_cid = active_cid.id
         qs = Client.objects.all()
         if active_cid:
             qs = qs.filter(company_id=active_cid)
@@ -1033,7 +1065,9 @@ class SaleCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Create
                 data = []
                 active_cid = request.session.get('company_id')
                 if not request.user.is_superuser:
-                    active_cid = active_cid or getattr(request.user, 'company_id', None)
+                    active_cid = active_cid or getattr(request.user, 'company', None)
+                    if active_cid:
+                        active_cid = active_cid.id
                 prods = Product.objects.filter(name__icontains=request.POST['term'][0:10])
                 if active_cid:
                     prods = prods.filter(company_id=active_cid)
@@ -1083,7 +1117,9 @@ class SaleCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Create
                     # Asignar company_id explícitamente
                     active_cid = request.session.get('company_id')
                     if not request.user.is_superuser:
-                        active_cid = active_cid or getattr(request.user, 'company_id', None)
+                        active_cid = active_cid or getattr(request.user, 'company', None)
+                    if active_cid:
+                        active_cid = active_cid.id
                     if active_cid:
                         sale.company_id = active_cid
                     
@@ -1178,7 +1214,9 @@ class SaleUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Update
                 data = []
                 active_cid = request.session.get('company_id')
                 if not request.user.is_superuser:
-                    active_cid = active_cid or getattr(request.user, 'company_id', None)
+                    active_cid = active_cid or getattr(request.user, 'company', None)
+                    if active_cid:
+                        active_cid = active_cid.id
                 prods = Product.objects.filter(name__icontains=request.POST['term'][0:10])
                 if active_cid:
                     prods = prods.filter(company_id=active_cid)
@@ -1353,7 +1391,9 @@ class SaleListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView
                 if request.user.is_superuser:
                     active_cid = request.session.get('company_id') if hasattr(request, 'session') else None
                 else:
-                    active_cid = getattr(request.user, 'company_id', None)
+                    active_cid = getattr(request.user, 'company', None)
+                if active_cid:
+                    active_cid = active_cid.id
                 
                 # Debug logging
                 print(f"[DEBUG] SaleListView searchdata: user={request.user.username}, is_superuser={request.user.is_superuser}, active_cid={active_cid}")
@@ -1472,7 +1512,9 @@ class SaleListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView
                     with transaction.atomic():
                         active_cid = request.session.get('company_id')
                         if not request.user.is_superuser:
-                            active_cid = active_cid or getattr(request.user, 'company_id', None)
+                            active_cid = active_cid or getattr(request.user, 'company', None)
+                            if active_cid:
+                                active_cid = active_cid.id
                         qs = Sale.objects.all()
                         if active_cid:
                             qs = qs.filter(company_id=active_cid)
@@ -1523,7 +1565,9 @@ class InvoiceListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListV
                 data = []
                 active_cid = request.session.get('company_id') if hasattr(request, 'session') else None
                 if not request.user.is_superuser:
-                    active_cid = active_cid or getattr(request.user, 'company_id', None)
+                    active_cid = active_cid or getattr(request.user, 'company', None)
+                    if active_cid:
+                        active_cid = active_cid.id
                 qs = Sale.objects.filter(is_invoiced=True)
                 if active_cid:
                     qs = qs.filter(company_id=active_cid)
@@ -1569,7 +1613,9 @@ class InvoiceCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Cre
         form = super().get_form(form_class)
         active_cid = self.request.session.get('company_id')
         if not self.request.user.is_superuser:
-            active_cid = active_cid or getattr(self.request.user, 'company_id', None)
+            active_cid = active_cid or getattr(self.request.user, 'company', None)
+            if active_cid:
+                active_cid = active_cid.id
         qs = Client.objects.all()
         if active_cid:
             qs = qs.filter(company_id=active_cid)
@@ -1584,7 +1630,9 @@ class InvoiceCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Cre
                 data = []
                 active_cid = request.session.get('company_id')
                 if not request.user.is_superuser:
-                    active_cid = active_cid or getattr(request.user, 'company_id', None)
+                    active_cid = active_cid or getattr(request.user, 'company', None)
+                    if active_cid:
+                        active_cid = active_cid.id
                 prods = Product.objects.filter(name__icontains=request.POST['term'][0:10])
                 if active_cid:
                     prods = prods.filter(company_id=active_cid)
@@ -1846,7 +1894,9 @@ class EmployeeAccountListView(LoginRequiredMixin, ValidatePermissionRequiredMixi
         queryset = super().get_queryset()
         active_cid = self.request.session.get('company_id')
         if not self.request.user.is_superuser:
-            active_cid = active_cid or getattr(self.request.user, 'company_id', None)
+            active_cid = active_cid or getattr(self.request.user, 'company', None)
+            if active_cid:
+                active_cid = active_cid.id
         if active_cid:
             queryset = queryset.filter(company_id=active_cid)
         
@@ -1882,7 +1932,9 @@ class EmployeeAccountListView(LoginRequiredMixin, ValidatePermissionRequiredMixi
         # Filtrar por empresa del usuario
         active_cid = self.request.session.get('company_id')
         if not self.request.user.is_superuser:
-            active_cid = active_cid or getattr(self.request.user, 'company_id', None)
+            active_cid = active_cid or getattr(self.request.user, 'company', None)
+            if active_cid:
+                active_cid = active_cid.id
         if active_cid:
             employees = employees.filter(company_id=active_cid)
         
@@ -1977,7 +2029,9 @@ class EmployeeAccountListView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                         # Obtener empresa activa
                         active_cid = request.session.get('company_id')
                         if not request.user.is_superuser:
-                            active_cid = active_cid or getattr(request.user, 'company_id', None)
+                            active_cid = active_cid or getattr(request.user, 'company', None)
+                            if active_cid:
+                                active_cid = active_cid.id
                         
                         sales_created = []
                         
@@ -2167,7 +2221,9 @@ def employee_account_pdf_export(request):
         queryset = EmployeeAccountSale.objects.all()
         active_cid = request.session.get('company_id')
         if not request.user.is_superuser:
-            active_cid = active_cid or getattr(request.user, 'company_id', None)
+            active_cid = active_cid or getattr(request.user, 'company', None)
+            if active_cid:
+                active_cid = active_cid.id
         if active_cid:
             queryset = queryset.filter(company_id=active_cid)
         
