@@ -1198,6 +1198,56 @@
     modal.show();
   }
 
+  // Mostrar/ocultar campo de importe recibido según método de pago
+  function updateCashPaymentSection() {
+    const payMethod = $('#payMethod').val();
+    const $cashSection = $('#cashPaymentSection');
+    
+    if (payMethod === 'cash') {
+      $cashSection.show();
+      // Calcular vuelto inicial
+      calculateChange();
+    } else {
+      $cashSection.hide();
+    }
+  }
+
+  // Calcular vuelto
+  function calculateChange() {
+    const total = parseFloat($('#tTotal').text().replace('$', '').replace(/,/g, '')) || 0;
+    const amountReceived = parseFloat($('#amountReceived').val()) || 0;
+    const change = amountReceived - total;
+    
+    $('#changeAmount').text(fmt(change >= 0 ? change : 0));
+    
+    // Si el importe recibido es menor al total, mostrar en rojo
+    if (change < 0) {
+      $('#changeAmount').removeClass('text-success').addClass('text-danger');
+    } else {
+      $('#changeAmount').removeClass('text-danger').addClass('text-success');
+    }
+  }
+
+  // Event listener para cambio de método de pago
+  $('#payMethod').on('change', function() {
+    updateCashPaymentSection();
+  });
+
+  // Event listener para cambio de importe recibido
+  $('#amountReceived').on('input', function() {
+    calculateChange();
+  });
+
+  // Actualizar vuelto cuando cambian los totales
+  const originalRecalc = recalc;
+  recalc = function() {
+    originalRecalc();
+    calculateChange();
+  };
+
+  // Inicializar estado del campo de efectivo
+  updateCashPaymentSection();
+
   // Botón principal: abrir modal para elegir modo de registro
   $('#btnCheckout').on('click', function () {
     // Prevenir doble clic
