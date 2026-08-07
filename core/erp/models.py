@@ -631,6 +631,10 @@ class Sale(models.Model):
         
         super().save(*args, **kwargs)
 
+        # Crear registro en Libro IVA para ventas confirmadas (incluso sin factura AFIP)
+        if self.status == 'confirmed' and not self.is_budget:
+            self._crear_registro_libro_iva_simple()
+
         # Emitir factura AFIP automáticamente si está configurado y la venta está confirmada
         if self.status == 'confirmed' and not self.is_budget and not self.afip_cae:
             import logging
@@ -944,6 +948,126 @@ class Sale(models.Model):
             else:
                 self.save(update_fields=['afip_error'])
                 return False
+
+    def _crear_registro_libro_iva_simple(self):
+        """
+        Crea un registro en el Libro IVA para ventas sin factura AFIP (tickets, ventas locales).
+        """
+        from .models import LibroIvaRegistro
+
+        try:
+            # Verificar si ya existe un registro para esta venta
+            if LibroIvaRegistro.objects.filter(sale=self).exists():
+                return
+
+            # Calcular IVA por alícuota y neto gravado usando SaleVatBreakdown
+            iva_21 = 0
+            iva_10_5 = 0
+            iva_27 = 0
+            iva_2_5 = 0
+            iva_0 = 0
+            neto_gravado = 0
+
+            # Usar los registros de apertura de IVA si existen
+            for vat_breakdown in self.vat_breakdowns.all():
+                vat_rate = float(vat_breakdown.vat_rate)
+                vat_amount = float(vat_breakdown.vat_amount)
+                taxable_base = float(vat_breakdown.taxable_base)
+                
+                neto_gravado += taxable_base
+                
+                # Comparación flexible para tasas de IVA
+                if abs(vat_rate - 21) < 0.1:
+                    iva_21 += vat_amount
+                elif abs(vat_rate - 10.5) < 0.1:
+                    iva_10_5 += vat_amount
+                elif abs(vat_rate - 27) < 0.1:
+                    iva_27 += vat_amount
+                elif abs(vat_rate - 2.5) < 0.1:
+                    iva_2_5 += vat_amount
+                elif abs(vat_rate - 0) < 0.1:
+                    iva_0 += vat_amount
+            
+            # Fallback: si no hay vat_breakdowns, calcular desde detalles
+            if neto_gravado == 0 and iva_21 == 0 and iva_10_5 == 0:
+                for det in self.detsale_set.all():
+                    if det.iva_amount > 0:
+                        iva_rate = (det.iva_amount / det.subtotal) * 100 if det.subtotal > 0 else 0
+                        neto_gravado += float(det.subtotal)
+                        
+                        if abs(iva_rate - 21) < 0.1:
+                            iva_21 += float(det.iva_amount)
+                        elif abs(iva_rate - 10.5) < 0.1:
+                            iva_10_5 += float(det.iva_amount)
+                        elif abs(iva_rate - 27) < 0.1:
+                            iva_27 += float(det.iva_amount)
+                        elif abs(iva_rate - 2.5) < 0.1:
+                            iva_2_5 += float(det.iva_amount)
+                        elif abs(iva_rate - 0) < 0.1:
+                            iva_0 += float(det.iva_amount)
+
+            # Determinar condición IVA del cliente
+            condicion_iva = self.cli.condicion_iva if self.cli else 'CF'
+
+            # Determinar aplicación IVA según condición del cliente
+            if condicion_iva == 'RI':
+                aplicacion_iva = 3  # Gravado
+            elif condicion_iva == 'M':
+                aplicacion_iva = 2  # Exento
+            elif condicion_iva == 'CF':
+                aplicacion_iva = 3  # Gravado
+            else:
+                aplicacion_iva = 3  # Gravado por defecto
+
+            # Ajustar neto gravado según aplicación IVA
+            if aplicacion_iva != 3:
+                neto_gravado = 0
+            neto_exento = float(self.subtotal) if aplicacion_iva == 2 else 0
+
+            # Calcular total del Libro IVA: neto gravado + todos los IVAs
+            total_libro_iva = neto_gravado + iva_21 + iva_10_5 + iva_27 + iva_2_5 + iva_0 + neto_exento
+
+            # Determinar tipo de comprobante según invoice_type
+            tipo_map = {'A': 1, 'B': 6, 'C': 11, 'X': 99}
+            tipo_comprobante_libro = tipo_map.get(self.invoice_type, 6)
+
+            # Usar invoice_number si existe, sino usar ID local
+            if self.invoice_number:
+                punto_venta = int(self.invoice_pos) if self.invoice_pos else 1
+                numero_comprobante = int(self.invoice_number)
+            else:
+                punto_venta = 1
+                numero_comprobante = self.id
+
+            LibroIvaRegistro.objects.create(
+                company=self.company,
+                tipo_registro='venta',
+                fecha=self.date_joined.date() if self.date_joined else timezone.now().date(),
+                tipo_comprobante=tipo_comprobante_libro,
+                punto_venta=punto_venta,
+                numero_comprobante=numero_comprobante,
+                cuit_emisor=self.company.cuit if self.company else '',
+                cuit_receptor=self.cli.cuit_cuil if self.cli else None,
+                razon_social=f"{self.cli.names} {self.cli.surnames or ''}".strip() if self.cli else 'Consumidor Final',
+                condicion_iva=condicion_iva,
+                aplicacion_iva=aplicacion_iva,
+                neto_gravado=neto_gravado,
+                neto_no_gravado=0,
+                neto_exento=neto_exento,
+                iva_21=iva_21,
+                iva_10_5=iva_10_5,
+                iva_27=iva_27,
+                iva_2_5=iva_2_5,
+                iva_0=iva_0,
+                impuesto_interno=0,
+                total=total_libro_iva,
+                cae=self.afip_cae or '',
+                cae_vto=self.afip_cae_vto,
+                sale=self
+            )
+        except Exception as e:
+            # No fallar la venta si falla el registro del libro IVA
+            print(f"Error creando registro Libro IVA simple: {e}")
 
     def _crear_registro_libro_iva(self, config_obj, punto_venta, nro_cbte):
         """
