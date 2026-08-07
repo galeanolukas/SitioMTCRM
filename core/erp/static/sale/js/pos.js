@@ -1006,10 +1006,10 @@
   }
 
   function doCreateSale() {
-    const calc = buildPayload(false); // Ticket sin IVA
-    const subtotal = calc.subtotal_con_iva; // Usar subtotal con IVA
-    const iva = 0; // Tickets no tienen IVA
-    const total = subtotal; // Total es el subtotal con IVA
+    const calc = buildPayload(false); // Ticket
+    const subtotal = calc.subtotal_neto; // Usar subtotal sin IVA
+    const iva = calc.iva_total; // Calcular IVA
+    const total = calc.subtotal_con_iva; // Total es subtotal + IVA
     const payMethod = ($('#payMethod').val() || 'cash');
     const invoiceType = ($('#invoiceType').val() || 'B'); // Tipo de factura seleccionado
 
@@ -1086,9 +1086,9 @@
 
   function doInvoiceSale() {
     const calc = buildPayload(true); // Factura con IVA
-    const subtotal = calc.subtotal_con_iva; // Usar subtotal con IVA
+    const subtotal = calc.subtotal_neto; // Usar subtotal sin IVA
     const iva = calc.iva_total;
-    const total = subtotal; // Total es el subtotal con IVA
+    const total = calc.subtotal_con_iva; // Total es subtotal + IVA
     const payMethod = ($('#payMethod').val() || 'cash');
     const invoiceType = ($('#invoiceType').val() || 'B'); // Tipo de factura seleccionado
 

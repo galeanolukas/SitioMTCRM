@@ -124,6 +124,14 @@
 
     <!-- Totales -->
     <table class="totals">
+      {% if sale.iva > 0 %}
+      <tr>
+        <td style="width:32mm;">IVA</td>
+        <td class="amount" style="width:16mm; font-size: 8pt; padding-right: 0.5mm;">
+          ${{ sale.iva|floatformat:"-2" }}
+        </td>
+      </tr>
+      {% endif %}
       <tr>
         <td class="bold" style="width:32mm;">TOTAL</td>
         <td class="amount" style="width:16mm; font-size: 8pt; padding-right: 0.5mm;">
