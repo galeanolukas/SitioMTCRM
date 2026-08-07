@@ -1077,6 +1077,17 @@ class Sale(models.Model):
         from .models import LibroIvaRegistro
 
         try:
+            # Verificar si ya existe un registro para esta venta
+            if LibroIvaRegistro.objects.filter(sale=self).exists():
+                # Actualizar el registro existente con datos de AFIP
+                registro = LibroIvaRegistro.objects.filter(sale=self).first()
+                registro.cae = self.afip_cae or ''
+                registro.cae_vto = self.afip_cae_vto
+                registro.punto_venta = punto_venta
+                registro.numero_comprobante = nro_cbte
+                registro.save(update_fields=['cae', 'cae_vto', 'punto_venta', 'numero_comprobante'])
+                return
+
             # Mapear tipo de comprobante AFIP a tipo de comprobante del Libro IVA
             tipo_map = {1: 1, 6: 6, 11: 11}  # A, B, C
             tipo_comprobante_libro = tipo_map.get(config_obj.tipo_comprobante, 6)
