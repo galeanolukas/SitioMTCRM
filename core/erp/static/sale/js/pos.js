@@ -77,13 +77,13 @@
   }
 
   function recalc() {
-    let subtotal = 0;  // PVP con IVA (Subtotal)
+    let subtotal = 0;  // PVP con IVA (precio original sin descuento)
     let iva = 0;       // IVA total
-    let originalSubtotal = 0; // Subtotal sin descuento de lista (con IVA)
+    let total = 0;     // Total a pagar (con descuento aplicado)
     
     // Calcular totales
     items.forEach(it => {
-      const price = parseFloat(it.price) || 0;  // PVP sin IVA
+      const price = parseFloat(it.price) || 0;  // PVP sin IVA (con descuento si aplica)
       const cant = parseFloat(it.cant) || 0;
       
       // Calcular IVA: PVP sin IVA * tasa IVA
@@ -94,19 +94,18 @@
       const iva_item = price * rate * cant;
       iva += iva_item;
       
-      // Calcular PVP con IVA para el subtotal
+      // Calcular PVP con IVA para el total (con descuento)
       const price_with_iva = price * (1 + rate);
       it.subtotal = price_with_iva * cant;
-      subtotal += it.subtotal;
+      total += it.subtotal;
       
-      // Calcular subtotal original (sin descuento de lista, con IVA)
+      // Calcular subtotal usando precio original (sin descuento de lista)
       const origPrice = originalPrices[it.id] || price;
       const origPriceWithIva = origPrice * (1 + rate);
-      originalSubtotal += origPriceWithIva * cant;
+      subtotal += origPriceWithIva * cant;
     });
     
-    const total = subtotal;  // Total a pagar es el subtotal (ya incluye IVA)
-    const savings = originalSubtotal - subtotal;
+    const savings = subtotal - total;
     
     // Actualizar totales
     $tItems.text(items.length);
