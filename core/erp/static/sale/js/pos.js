@@ -993,10 +993,130 @@
     $('#selectedClientName').text('Anónimo');
     restoreOriginalPrices();
     restoreDefaultInvoiceType();
+    // También limpiar lista de precios seleccionada manualmente
+    $('#selectedPriceListId').val('');
+    $('#selectedPriceListName').text('-');
     const modalEl = document.getElementById('clientSelectModal');
     const modal = bootstrap.Modal.getInstance(modalEl);
     if (modal) modal.hide();
     showToast('info', 'Cliente limpiado');
+  });
+
+  // Evento para abrir modal de selección de lista de precios
+  $('#btnSelectPriceList').on('click', function() {
+    const modalEl = document.getElementById('priceListSelectModal');
+    const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+    modal.show();
+    loadPriceLists();
+  });
+
+  // Cargar listas de precios disponibles
+  function loadPriceLists() {
+    $.ajax({
+      url: window.location.pathname,
+      type: 'POST',
+      data: {
+        action: 'get_price_lists',
+        csrfmiddlewaretoken: csrftoken()
+      },
+      dataType: 'json',
+      success: function(resp) {
+        const tbody = $('#priceListTableBody');
+        tbody.empty();
+        
+        if (resp.length === 0) {
+          tbody.append('<tr><td colspan="2" class="text-center text-muted">No hay listas de precios disponibles</td></tr>');
+          return;
+        }
+        
+        resp.forEach(pl => {
+          tbody.append(`
+            <tr>
+              <td>${pl.name}</td>
+              <td>
+                <button class="btn btn-sm btn-outline-primary" onclick="selectPriceList(${pl.id}, '${pl.name}', ${pl.discount_percentage})">
+                  <i class="fas fa-check"></i> Seleccionar
+                </button>
+              </td>
+            </tr>
+          `);
+        });
+      },
+      error: function() {
+        showToast('error', 'Error al cargar listas de precios');
+      }
+    });
+  }
+
+  // Seleccionar lista de precios
+  window.selectPriceList = function(priceListId, priceListName, discountPercentage) {
+    $('#selectedPriceListId').val(priceListId);
+    $('#selectedPriceListName').text(priceListName);
+    
+    // Guardar precios originales si no están guardados
+    if (Object.keys(originalPrices).length === 0) {
+      items.forEach(it => {
+        originalPrices[it.id] = it.price;
+      });
+    }
+    
+    // Aplicar lista de precios
+    currentPriceList = {
+      list_name: priceListName,
+      discount_percentage: discountPercentage,
+      has_price_list: true
+    };
+    
+    // Obtener precios ajustados para los productos actuales
+    if (items.length > 0) {
+      const productIds = items.map(it => it.id).join(',');
+      $.ajax({
+        url: window.location.pathname,
+        type: 'POST',
+        data: {
+          action: 'get_price_list_prices',
+          price_list_id: priceListId,
+          product_ids: productIds,
+          csrfmiddlewaretoken: csrftoken()
+        },
+        dataType: 'json',
+        success: function(resp) {
+          if (resp.has_price_list) {
+            items.forEach(it => {
+              const newPrice = resp.prices[String(it.id)];
+              if (newPrice && newPrice !== it.price) {
+                it.price = newPrice;
+                it.pvp_final = newPrice;
+              }
+            });
+            recalc();
+            showToast('success', `Lista "${priceListName}" aplicada`);
+          }
+        },
+        error: function() {
+          showToast('error', 'Error al aplicar lista de precios');
+        }
+      });
+    } else {
+      recalc();
+      showToast('success', `Lista "${priceListName}" seleccionada`);
+    }
+    
+    // Cerrar modal
+    const modalEl = document.getElementById('priceListSelectModal');
+    const modal = bootstrap.Modal.getInstance(modalEl);
+    if (modal) modal.hide();
+  };
+
+  // Evento para limpiar lista de precios
+  $('#btnClearPriceList').on('click', function() {
+    $('#selectedPriceListId').val('');
+    $('#selectedPriceListName').text('-');
+    restoreOriginalPrices();
+    const modalEl = document.getElementById('priceListSelectModal');
+    const modal = bootstrap.Modal.getInstance(modalEl);
+    if (modal) modal.hide();
+    showToast('info', 'Lista de precios limpiada');
   });
 
   function showAfipInfo(resp) {

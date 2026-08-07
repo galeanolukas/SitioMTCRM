@@ -426,6 +426,44 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         }
                     else:
                         data = {'has_price_list': False}
+            elif action == 'get_price_lists':
+                # Obtener listas de precios disponibles
+                from core.erp.models import PriceList
+                price_lists = PriceList.objects.filter(is_active=True).order_by('name')
+                data = [
+                    {
+                        'id': pl.id,
+                        'name': pl.name,
+                        'discount_percentage': float(pl.discount_percentage) if pl.discount_percentage else 0
+                    }
+                    for pl in price_lists
+                ]
+            elif action == 'get_price_list_prices':
+                # Obtener precios de una lista específica para los productos del carrito
+                from core.erp.models import PriceList
+                price_list_id = request.POST.get('price_list_id')
+                product_ids = request.POST.get('product_ids', '')
+                
+                if not price_list_id:
+                    data = {'has_price_list': False}
+                else:
+                    pl = PriceList.objects.filter(pk=price_list_id, is_active=True).first()
+                    if not pl:
+                        data = {'has_price_list': False}
+                    else:
+                        product_ids = [int(pid) for pid in product_ids.split(',') if pid]
+                        prices = {}
+                        for pid in product_ids:
+                            prod = Product.objects.filter(pk=pid).first()
+                            if prod:
+                                adjusted = pl.get_price_for_product(prod)
+                                prices[str(pid)] = float(adjusted)
+                        data = {
+                            'has_price_list': True,
+                            'list_name': pl.name,
+                            'discount_percentage': float(pl.discount_percentage) if pl.discount_percentage else 0,
+                            'prices': prices,
+                        }
             elif action == 'get_employees':
                 # Obtener lista de empleados para cuenta corriente
                 from django.contrib.auth import get_user_model
