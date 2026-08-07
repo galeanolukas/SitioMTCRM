@@ -84,6 +84,22 @@
                             </div>
                         </div>
                         <div class="col-md-2">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <small>IVA 2.5%</small>
+                                    <h5>${{ total_iva_2_5|floatformat:2 }}</h5>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <small>IVA 0%</small>
+                                    <h5>${{ total_iva_0|floatformat:2 }}</h5>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
                             <div class="card bg-primary text-white">
                                 <div class="card-body text-center">
                                     <small>Total General</small>
@@ -119,6 +135,8 @@
                                     <th>IVA 21%</th>
                                     <th>IVA 10.5%</th>
                                     <th>IVA 27%</th>
+                                    <th>IVA 2.5%</th>
+                                    <th>IVA 0%</th>
                                     <th>Total</th>
                                     <th>CAE</th>
                                 </tr>
@@ -139,12 +157,14 @@
                                     <td>${{ reg.iva_21|floatformat:2 }}</td>
                                     <td>${{ reg.iva_10_5|floatformat:2 }}</td>
                                     <td>${{ reg.iva_27|floatformat:2 }}</td>
+                                    <td>${{ reg.iva_2_5|floatformat:2 }}</td>
+                                    <td>${{ reg.iva_0|floatformat:2 }}</td>
                                     <td><strong>${{ reg.total|floatformat:2 }}</strong></td>
                                     <td>{{ reg.cae|default:"-" }}</td>
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="11" class="text-center">No hay registros</td>
+                                    <td colspan="13" class="text-center">No hay registros</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>

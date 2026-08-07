@@ -56,6 +56,8 @@ class LibroIvaListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, List
         context['total_iva_21'] = qs.aggregate(Sum('iva_21'))['iva_21__sum'] or 0
         context['total_iva_10_5'] = qs.aggregate(Sum('iva_10_5'))['iva_10_5__sum'] or 0
         context['total_iva_27'] = qs.aggregate(Sum('iva_27'))['iva_27__sum'] or 0
+        context['total_iva_2_5'] = qs.aggregate(Sum('iva_2_5'))['iva_2_5__sum'] or 0
+        context['total_iva_0'] = qs.aggregate(Sum('iva_0'))['iva_0__sum'] or 0
         context['total_general'] = qs.aggregate(Sum('total'))['total__sum'] or 0
 
         return context
