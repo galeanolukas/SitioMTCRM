@@ -77,7 +77,7 @@
   }
 
   function recalc() {
-    let subtotal = 0;  // PVP con IVA (Total línea)
+    let subtotal = 0;  // PVP sin IVA (Total línea)
     let iva = 0;       // IVA total
     let originalSubtotal = 0; // Subtotal sin descuento de lista
     
@@ -86,26 +86,24 @@
       const price = parseFloat(it.price) || 0;  // PVP sin IVA
       const cant = parseFloat(it.cant) || 0;
       
-      // Calcular PVP con IVA para el subtotal
-      let rate = (typeof it.iva_rate !== 'undefined' && !isNaN(parseFloat(it.iva_rate))) ? parseFloat(it.iva_rate) : getIvaRate();
-      if (rate > 1) {
-        rate = rate / 100;
-      }
-      const pvp_with_iva = it.pvp_final && !isNaN(parseFloat(it.pvp_final)) ? parseFloat(it.pvp_final) : price * (1 + rate);
-      it.subtotal = pvp_with_iva * cant;
+      // Calcular PVP sin IVA para el subtotal
+      it.subtotal = price * cant;
       subtotal += it.subtotal;
       
       // Calcular subtotal original (sin descuento de lista)
       const origPrice = originalPrices[it.id] || price;
-      const origPvpWithIva = origPrice * (1 + rate);
-      originalSubtotal += origPvpWithIva * cant;
+      originalSubtotal += origPrice * cant;
       
       // Calcular IVA: PVP sin IVA * tasa IVA
+      let rate = (typeof it.iva_rate !== 'undefined' && !isNaN(parseFloat(it.iva_rate))) ? parseFloat(it.iva_rate) : getIvaRate();
+      if (rate > 1) {
+        rate = rate / 100;
+      }
       const iva_item = price * rate * cant;
       iva += iva_item;
     });
     
-    const total = subtotal;  // Total a cobrar es el subtotal (ya incluye IVA)
+    const total = subtotal + iva;  // Total a cobrar es subtotal + IVA
     const savings = originalSubtotal - subtotal;
     
     // Actualizar totales
