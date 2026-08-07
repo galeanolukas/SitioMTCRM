@@ -131,9 +131,6 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
         """Crear apertura de alícuotas de IVA desde el payload del POS"""
         from decimal import Decimal
         
-        # Eliminar aperturas existentes para esta venta
-        SaleVatBreakdown.objects.filter(sale=sale).delete()
-        
         # Mapeo de tasas de IVA a códigos AFIP
         vat_code_mapping = {
             '21.0': '5',   # 21%
@@ -144,17 +141,19 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
             '5.0': '8',   # 5%
         }
         
-        # Crear registros de apertura de IVA desde el payload
+        # Crear o actualizar registros de apertura de IVA desde el payload
         for rate_percent, data in vat_breakdown.items():
             vat_code = vat_code_mapping.get(rate_percent, '5')  # Default a 21%
             vat_rate = Decimal(str(rate_percent))
             
-            SaleVatBreakdown.objects.create(
+            SaleVatBreakdown.objects.update_or_create(
                 sale=sale,
                 vat_code=vat_code,
-                vat_rate=vat_rate,
-                taxable_base=Decimal(str(data['base'])),
-                vat_amount=Decimal(str(data['amount']))
+                defaults={
+                    'vat_rate': vat_rate,
+                    'taxable_base': Decimal(str(data['base'])),
+                    'vat_amount': Decimal(str(data['amount']))
+                }
             )
 
     def post(self, request, *args, **kwargs):
