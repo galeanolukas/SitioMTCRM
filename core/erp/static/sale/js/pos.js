@@ -77,22 +77,14 @@
   }
 
   function recalc() {
-    let subtotal = 0;  // PVP sin IVA (Total línea)
+    let subtotal = 0;  // PVP con IVA (Subtotal)
     let iva = 0;       // IVA total
-    let originalSubtotal = 0; // Subtotal sin descuento de lista
+    let originalSubtotal = 0; // Subtotal sin descuento de lista (con IVA)
     
     // Calcular totales
     items.forEach(it => {
       const price = parseFloat(it.price) || 0;  // PVP sin IVA
       const cant = parseFloat(it.cant) || 0;
-      
-      // Calcular PVP sin IVA para el subtotal
-      it.subtotal = price * cant;
-      subtotal += it.subtotal;
-      
-      // Calcular subtotal original (sin descuento de lista)
-      const origPrice = originalPrices[it.id] || price;
-      originalSubtotal += origPrice * cant;
       
       // Calcular IVA: PVP sin IVA * tasa IVA
       let rate = (typeof it.iva_rate !== 'undefined' && !isNaN(parseFloat(it.iva_rate))) ? parseFloat(it.iva_rate) : getIvaRate();
@@ -101,9 +93,19 @@
       }
       const iva_item = price * rate * cant;
       iva += iva_item;
+      
+      // Calcular PVP con IVA para el subtotal
+      const price_with_iva = price * (1 + rate);
+      it.subtotal = price_with_iva * cant;
+      subtotal += it.subtotal;
+      
+      // Calcular subtotal original (sin descuento de lista, con IVA)
+      const origPrice = originalPrices[it.id] || price;
+      const origPriceWithIva = origPrice * (1 + rate);
+      originalSubtotal += origPriceWithIva * cant;
     });
     
-    const total = subtotal + iva;  // Total a cobrar es subtotal + IVA
+    const total = subtotal;  // Total a pagar es el subtotal (ya incluye IVA)
     const savings = originalSubtotal - subtotal;
     
     // Actualizar totales
@@ -1020,9 +1022,9 @@
 
   function doCreateSale() {
     const calc = buildPayload(false); // Ticket
-    const subtotal = calc.subtotal_neto; // Usar subtotal sin IVA
-    const iva = calc.iva_total; // Calcular IVA
-    const total = calc.subtotal_con_iva; // Total es subtotal + IVA
+    const subtotal = calc.subtotal_con_iva; // Subtotal = PVP con IVA
+    const iva = calc.iva_total; // IVA total
+    const total = calc.subtotal_con_iva; // Total a Pagar = Subtotal
     const payMethod = ($('#payMethod').val() || 'cash');
     const invoiceType = ($('#invoiceType').val() || 'B'); // Tipo de factura seleccionado
 
@@ -1100,9 +1102,9 @@
 
   function doInvoiceSale() {
     const calc = buildPayload(true); // Factura con IVA
-    const subtotal = calc.subtotal_neto; // Usar subtotal sin IVA
+    const subtotal = calc.subtotal_con_iva; // Subtotal = PVP con IVA
     const iva = calc.iva_total;
-    const total = calc.subtotal_con_iva; // Total es subtotal + IVA
+    const total = calc.subtotal_con_iva; // Total a Pagar = Subtotal
     const payMethod = ($('#payMethod').val() || 'cash');
     const invoiceType = ($('#invoiceType').val() || 'B'); // Tipo de factura seleccionado
 
