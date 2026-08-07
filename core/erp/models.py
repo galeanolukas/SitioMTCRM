@@ -973,16 +973,35 @@ class Sale(models.Model):
                 
                 neto_gravado += taxable_base
                 
-                if vat_rate == 21:
+                # Comparación flexible para tasas de IVA
+                if abs(vat_rate - 21) < 0.1:
                     iva_21 += vat_amount
-                elif vat_rate == 10.5:
+                elif abs(vat_rate - 10.5) < 0.1:
                     iva_10_5 += vat_amount
-                elif vat_rate == 27:
+                elif abs(vat_rate - 27) < 0.1:
                     iva_27 += vat_amount
-                elif vat_rate == 2.5:
+                elif abs(vat_rate - 2.5) < 0.1:
                     iva_2_5 += vat_amount
-                elif vat_rate == 0:
+                elif abs(vat_rate - 0) < 0.1:
                     iva_0 += vat_amount
+            
+            # Fallback: si no hay vat_breakdowns, calcular desde detalles
+            if neto_gravado == 0 and iva_21 == 0 and iva_10_5 == 0:
+                for det in self.detsale_set.all():
+                    if det.iva_amount > 0:
+                        iva_rate = (det.iva_amount / det.subtotal) * 100 if det.subtotal > 0 else 0
+                        neto_gravado += float(det.subtotal)
+                        
+                        if abs(iva_rate - 21) < 0.1:
+                            iva_21 += float(det.iva_amount)
+                        elif abs(iva_rate - 10.5) < 0.1:
+                            iva_10_5 += float(det.iva_amount)
+                        elif abs(iva_rate - 27) < 0.1:
+                            iva_27 += float(det.iva_amount)
+                        elif abs(iva_rate - 2.5) < 0.1:
+                            iva_2_5 += float(det.iva_amount)
+                        elif abs(iva_rate - 0) < 0.1:
+                            iva_0 += float(det.iva_amount)
 
             # Determinar condición IVA del cliente
             condicion_iva = self.cli.condicion_iva if self.cli else 'CF'
