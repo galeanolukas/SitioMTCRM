@@ -127,6 +127,36 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 vat_amount=data['vat_amount']
             )
 
+    def create_vat_breakdown_from_payload(self, sale, vat_breakdown):
+        """Crear apertura de alícuotas de IVA desde el payload del POS"""
+        from decimal import Decimal
+        
+        # Eliminar aperturas existentes para esta venta
+        SaleVatBreakdown.objects.filter(sale=sale).delete()
+        
+        # Mapeo de tasas de IVA a códigos AFIP
+        vat_code_mapping = {
+            '21.0': '5',   # 21%
+            '10.5': '4',  # 10.5%
+            '27.0': '6',  # 27%
+            '0.0': '3',   # 0% (Exento)
+            '2.5': '2',   # 2.5%
+            '5.0': '8',   # 5%
+        }
+        
+        # Crear registros de apertura de IVA desde el payload
+        for rate_percent, data in vat_breakdown.items():
+            vat_code = vat_code_mapping.get(rate_percent, '5')  # Default a 21%
+            vat_rate = Decimal(str(rate_percent))
+            
+            SaleVatBreakdown.objects.create(
+                sale=sale,
+                vat_code=vat_code,
+                vat_rate=vat_rate,
+                taxable_base=Decimal(str(data['base'])),
+                vat_amount=Decimal(str(data['amount']))
+            )
+
     def post(self, request, *args, **kwargs):
         data = {}
         try:
@@ -595,7 +625,12 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                                 )
                     
                     # Calcular y guardar apertura de alícuotas de IVA
-                    self.calculate_vat_breakdown(sale)
+                    # Usar vat_breakdown del payload si está disponible, sino calcular desde detalles
+                    vat_breakdown = payload.get('vat_breakdown')
+                    if vat_breakdown:
+                        self.create_vat_breakdown_from_payload(sale, vat_breakdown)
+                    else:
+                        self.calculate_vat_breakdown(sale)
                     
                     data = {
                         'id': sale.id,

@@ -617,6 +617,10 @@
     let subtotal_neto = 0;  // PVP sin IVA (Base imponible)
     let iva_total = 0;       // IVA total
     let subtotal_con_iva = 0;  // PVP con IVA (Total a cobrar)
+    
+    // Agrupar IVA por alícuota para Libro IVA Digital
+    let vat_breakdown = {};  // { '21': { base: 0, amount: 0 }, '10.5': { base: 0, amount: 0 }, ... }
+    
     items.forEach(it => {
       const net = parseFloat(it.price) || 0;           // PVP sin IVA
       const cant = parseFloat(it.cant) || 0;
@@ -629,6 +633,14 @@
       const rate_decimal = rate > 1 ? rate / 100 : rate;
       const iva_item = net * rate_decimal * cant;
       iva_total += iva_item;
+      
+      // Agrupar por alícuota para Libro IVA
+      const rate_percent = (rate_decimal * 100).toFixed(1); // 21.0, 10.5, 27.0, etc.
+      if (!vat_breakdown[rate_percent]) {
+        vat_breakdown[rate_percent] = { base: 0, amount: 0 };
+      }
+      vat_breakdown[rate_percent].base += sub_neto;
+      vat_breakdown[rate_percent].amount += iva_item;
       
       // Calcular subtotal con IVA
       const pvp_with_iva = it.pvp_final && !isNaN(parseFloat(it.pvp_final)) ? parseFloat(it.pvp_final) : net * (1 + rate_decimal);
@@ -676,6 +688,7 @@
       subtotal_neto,
       iva_total,
       subtotal_con_iva,
+      vat_breakdown,  // Desglose de IVA por alícuota para Libro IVA Digital
       items_net: items_with_names,
       items_final,
       client_id: clientId,
@@ -1028,6 +1041,7 @@
       cli: calc.client_id,
       items: calc.items_net,     // Detalle con precio neto
       subtotal, iva, total,
+      vat_breakdown: calc.vat_breakdown,  // Desglose de IVA por alícuota
       payment_method: payMethod,
       invoice_type: invoiceLetter, // Letra de factura (A, B, C)
       is_credit_note: isCreditNote, // Indicador de nota de crédito
@@ -1107,6 +1121,7 @@
       cli: calc.client_id,
       items: calc.items_final,   // Detalle con IVA incluido
       subtotal, iva, total,
+      vat_breakdown: calc.vat_breakdown,  // Desglose de IVA por alícuota
       payment_method: payMethod,
       invoice_type: invoiceLetter, // Letra de factura (A, B, C)
       is_credit_note: isCreditNote, // Indicador de nota de crédito

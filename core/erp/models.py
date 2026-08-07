@@ -948,6 +948,7 @@ class Sale(models.Model):
     def _crear_registro_libro_iva(self, config_obj, punto_venta, nro_cbte):
         """
         Crea automáticamente un registro en el Libro IVA para ventas.
+        Usa SaleVatBreakdown para obtener el desglose de IVA por alícuota.
         """
         from .models import LibroIvaRegistro
 
@@ -956,26 +957,28 @@ class Sale(models.Model):
             tipo_map = {1: 1, 6: 6, 11: 11}  # A, B, C
             tipo_comprobante_libro = tipo_map.get(config_obj.tipo_comprobante, 6)
 
-            # Calcular IVA por alícuota
+            # Calcular IVA por alícuota usando SaleVatBreakdown
             iva_21 = 0
             iva_10_5 = 0
             iva_27 = 0
             iva_2_5 = 0
             iva_0 = 0
 
-            for det in self.detsale_set.all():
-                if det.iva_amount > 0:
-                    iva_rate = (det.iva_amount / det.subtotal) * 100 if det.subtotal > 0 else 0
-                    if iva_rate == 21:
-                        iva_21 += float(det.iva_amount)
-                    elif iva_rate == 10.5:
-                        iva_10_5 += float(det.iva_amount)
-                    elif iva_rate == 27:
-                        iva_27 += float(det.iva_amount)
-                    elif iva_rate == 2.5:
-                        iva_2_5 += float(det.iva_amount)
-                    elif iva_rate == 0:
-                        iva_0 += float(det.iva_amount)
+            # Usar los registros de apertura de IVA si existen
+            for vat_breakdown in self.vat_breakdowns.all():
+                vat_rate = float(vat_breakdown.vat_rate)
+                vat_amount = float(vat_breakdown.vat_amount)
+                
+                if vat_rate == 21:
+                    iva_21 += vat_amount
+                elif vat_rate == 10.5:
+                    iva_10_5 += vat_amount
+                elif vat_rate == 27:
+                    iva_27 += vat_amount
+                elif vat_rate == 2.5:
+                    iva_2_5 += vat_amount
+                elif vat_rate == 0:
+                    iva_0 += vat_amount
 
             # Determinar condición IVA del cliente
             condicion_iva = self.cli.condicion_iva if self.cli else 'CF'
