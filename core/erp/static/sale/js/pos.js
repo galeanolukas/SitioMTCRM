@@ -118,7 +118,7 @@
     if (currentPriceList && savings > 0.01) {
       $('#priceListSavingsRow').show();
       $('#priceListName').text('(' + currentPriceList.list_name + ')');
-      $tSavings.text(fmt(savings));
+      $tSavings.text('-' + fmt(savings));
     } else {
       $('#priceListSavingsRow').hide();
     }
