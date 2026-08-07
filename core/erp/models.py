@@ -957,17 +957,21 @@ class Sale(models.Model):
             tipo_map = {1: 1, 6: 6, 11: 11}  # A, B, C
             tipo_comprobante_libro = tipo_map.get(config_obj.tipo_comprobante, 6)
 
-            # Calcular IVA por alícuota usando SaleVatBreakdown
+            # Calcular IVA por alícuota y neto gravado usando SaleVatBreakdown
             iva_21 = 0
             iva_10_5 = 0
             iva_27 = 0
             iva_2_5 = 0
             iva_0 = 0
+            neto_gravado = 0
 
             # Usar los registros de apertura de IVA si existen
             for vat_breakdown in self.vat_breakdowns.all():
                 vat_rate = float(vat_breakdown.vat_rate)
                 vat_amount = float(vat_breakdown.vat_amount)
+                taxable_base = float(vat_breakdown.taxable_base)
+                
+                neto_gravado += taxable_base
                 
                 if vat_rate == 21:
                     iva_21 += vat_amount
@@ -993,9 +997,13 @@ class Sale(models.Model):
             else:
                 aplicacion_iva = 3  # Gravado por defecto
 
-            # Calcular neto gravado
-            neto_gravado = float(self.subtotal) if aplicacion_iva == 3 else 0
+            # Ajustar neto gravado según aplicación IVA
+            if aplicacion_iva != 3:
+                neto_gravado = 0
             neto_exento = float(self.subtotal) if aplicacion_iva == 2 else 0
+
+            # Calcular total del Libro IVA: neto gravado + todos los IVAs
+            total_libro_iva = neto_gravado + iva_21 + iva_10_5 + iva_27 + iva_2_5 + iva_0 + neto_exento
 
             LibroIvaRegistro.objects.create(
                 company=self.company,
@@ -1018,7 +1026,7 @@ class Sale(models.Model):
                 iva_2_5=iva_2_5,
                 iva_0=iva_0,
                 impuesto_interno=0,
-                total=float(self.total),
+                total=total_libro_iva,
                 cae=self.afip_cae,
                 cae_vto=self.afip_cae_vto,
                 sale=self
