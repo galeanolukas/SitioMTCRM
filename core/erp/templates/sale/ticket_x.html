@@ -179,10 +179,16 @@
 
         <!-- Totales -->
         <div class="totals">
+            {% if sale.subtotal_original > 0 and sale.discount_amount > 0 %}
             <div class="total-row">
                 <span>Subtotal:</span>
-                <span>$ {{ sale.subtotal|floatformat:2 }}</span>
+                <span>$ {{ sale.subtotal_original|floatformat:2 }}</span>
             </div>
+            <div class="total-row">
+                <span>Descuento{% if sale.price_list %} ({{ sale.price_list.name }}){% endif %}:</span>
+                <span>- $ {{ sale.discount_amount|floatformat:2 }}</span>
+            </div>
+            {% endif %}
             <div class="total-row">
                 <span>IVA:</span>
                 <span>$ {{ sale.iva|floatformat:2 }}</span>

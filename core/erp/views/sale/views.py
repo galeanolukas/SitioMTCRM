@@ -1185,6 +1185,17 @@ class SaleCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Create
                     sale.total = vents['total']
                     sale.payment_method = vents.get('payment_method', 'cash')
                     
+                    # Guardar información de lista de precios y descuento
+                    sale.subtotal_original = vents.get('subtotal_original', 0)
+                    sale.discount_amount = vents.get('discount_amount', 0)
+                    price_list_id = vents.get('price_list_id')
+                    if price_list_id:
+                        from core.erp.models import PriceList
+                        try:
+                            sale.price_list = PriceList.objects.get(pk=price_list_id)
+                        except PriceList.DoesNotExist:
+                            pass
+                    
                     # Asignar company_id explícitamente
                     active_cid = request.session.get('company_id')
                     if not request.user.is_superuser:

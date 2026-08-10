@@ -1,84 +1,82 @@
 {% extends 'base/home.html' %}
 {% load static %}
 {% block body %}
-<style>
-  .home-page {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .home-box {
-    width: 100%;
-    max-width: 400px;
-    padding: 20px;
-  }
-  .home-card {
-    background: white;
-    border-radius: 20px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-    overflow: hidden;
-  }
-  .home-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    padding: 40px 20px;
-    text-align: center;
-  }
-  .home-header h1 {
-    color: white;
-    font-size: 2.5rem;
-    font-weight: 700;
-    margin: 0;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
-  }
-  .home-body {
-    padding: 40px 30px;
-  }
-  .home-logo {
-    width: 100px;
-    height: 100px;
-    margin-bottom: 25px;
-    border-radius: 50%;
-    background: white;
-    padding: 15px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-  }
-  .btn-primary {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border: none;
-    border-radius: 10px;
-    padding: 15px;
-    font-weight: 600;
-    font-size: 1.1rem;
-    transition: all 0.3s ease;
-  }
-  .btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
-  }
-  .tagline {
-    color: #666;
-    font-size: 1.1rem;
-    margin-bottom: 30px;
-  }
-</style>
-<body class="home-page">
-  <div class="home-box">
-    <div class="home-card">
-      <div class="home-header">
-        <h1>TechVentas</h1>
+<div class="container d-flex flex-column justify-content-center" style="min-height: 100vh; padding: 0.5rem;">
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-8 col-lg-6 col-xl-5">
+      <!-- Indicador de Base de Datos -->
+      <div class="mb-2">
+        <div class="alert alert-secondary d-flex align-items-center py-2" role="alert">
+          <div class="flex-shrink-0">
+            <i class="fas fa-database me-2"></i>
+          </div>
+          <div class="flex-grow-1 ms-2">
+            <strong>Sistema TechVentas</strong>
+            <div class="small mb-0">Gestión simple para tu negocio</div>
+          </div>
+          <div class="flex-shrink-0">
+            <span class="badge bg-primary">ERP</span>
+          </div>
+        </div>
       </div>
-      <div class="home-body text-center">
-        <img src="{% static 'img/icon.png' %}" alt="Logo" class="home-logo"/>
-        <p class="tagline">Gestión simple para tu negocio</p>
-        <div class="d-grid">
-          <a href="{% url 'login' %}" class="btn btn-primary">
-            <i class="fas fa-sign-in-alt me-2"></i>Ingresar
-          </a>
+
+      <div class="card card-outline card-primary">
+        <div class="card-header text-center py-2">
+          <h3 class="card-title mb-0">Bienvenido</h3>
+        </div>
+        <div class="card-body py-3">
+          <p class="mb-3 text-muted text-center">Inicia sesión para acceder al sistema</p>
+          
+          <div class="row g-3">
+            <!-- Columna Izquierda: Logo e Información -->
+            <div class="col-md-6">
+              <div class="text-center mb-3">
+                <img src="{% static 'img/icon.png' %}" alt="Logo" style="width: 100px; height: 100px; border-radius: 50%; padding: 15px; background: white; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);"/>
+              </div>
+              
+              <div class="alert alert-info d-flex align-items-center py-2 mb-2" role="alert">
+                <div class="flex-shrink-0">
+                  <i class="fas fa-info-circle me-2"></i>
+                </div>
+                <div class="flex-grow-1 ms-2">
+                  <strong>Sistema de Gestión</strong>
+                  <div class="small mb-0">Ventas, Clientes, Inventario y más</div>
+                </div>
+              </div>
+              
+              <div class="alert alert-success d-flex align-items-center py-2 mb-2" role="alert">
+                <div class="flex-shrink-0">
+                  <i class="fas fa-check-circle me-2"></i>
+                </div>
+                <div class="flex-grow-1 ms-2">
+                  <strong>Características</strong>
+                  <div class="small mb-0">POS, Facturación AFIP, Sincronización</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Columna Derecha: Botón de Login -->
+            <div class="col-md-6">
+              <div class="d-grid gap-2 h-100">
+                <a href="{% url 'login' %}" class="btn btn-primary btn-lg d-flex align-items-center justify-content-center" style="height: 100%;">
+                  <div class="text-center">
+                    <i class="fas fa-sign-in-alt me-2" style="font-size: 2rem;"></i>
+                    <div class="mt-2">Ingresar</div>
+                    <div class="small">Acceder al sistema</div>
+                  </div>
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card-footer text-muted small text-center py-2">
+          <div class="d-flex justify-content-between align-items-center">
+            <span>TechVentas ERP</span>
+            <span>Sistema de Gestión Integral</span>
+          </div>
         </div>
       </div>
     </div>
   </div>
-</body>
+</div>
 {% endblock %}

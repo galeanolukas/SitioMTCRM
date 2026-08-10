@@ -232,6 +232,16 @@
         <!-- Totales -->
         <div class="totals-section">
             <table class="totals-table">
+                {% if sale.subtotal_original > 0 and sale.discount_amount > 0 %}
+                <tr>
+                    <td class="totals-label">Subtotal:</td>
+                    <td class="totals-value">$ {{ sale.subtotal_original|floatformat:0 }}</td>
+                </tr>
+                <tr>
+                    <td class="totals-label">Descuento{% if sale.price_list %} ({{ sale.price_list.name }}){% endif %}:</td>
+                    <td class="totals-value">- $ {{ sale.discount_amount|floatformat:0 }}</td>
+                </tr>
+                {% endif %}
                 <tr>
                     <td class="totals-label">Importe Otros Tributos:</td>
                     <td class="totals-value">$0</td>

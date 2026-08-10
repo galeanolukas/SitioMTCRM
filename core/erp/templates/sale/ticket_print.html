@@ -124,6 +124,20 @@
 
     <!-- Totales -->
     <table class="totals">
+      {% if sale.subtotal_original > 0 and sale.discount_amount > 0 %}
+      <tr>
+        <td style="width:32mm;">Subtotal</td>
+        <td class="amount" style="width:16mm; font-size: 8pt; padding-right: 0.5mm;">
+          ${{ sale.subtotal_original|floatformat:"-2" }}
+        </td>
+      </tr>
+      <tr>
+        <td style="width:32mm;">Descuento{% if sale.price_list %} ({{ sale.price_list.name }}){% endif %}</td>
+        <td class="amount" style="width:16mm; font-size: 8pt; padding-right: 0.5mm;">
+          -${{ sale.discount_amount|floatformat:"-2" }}
+        </td>
+      </tr>
+      {% endif %}
       {% if sale.iva > 0 %}
       <tr>
         <td style="width:32mm;">IVA</td>

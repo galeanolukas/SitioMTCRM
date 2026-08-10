@@ -78,7 +78,6 @@
 
   function recalc() {
     let subtotal = 0;  // PVP con IVA (precio original sin descuento)
-    let iva = 0;       // IVA total
     let total = 0;     // Total a pagar (con descuento aplicado)
     
     // Calcular totales
@@ -91,18 +90,16 @@
       if (rate > 1) {
         rate = rate / 100;
       }
-      const iva_item = price * rate * cant;
-      iva += iva_item;
-      
-      // Calcular PVP con IVA para el total (con descuento)
-      const price_with_iva = price * (1 + rate);
-      it.subtotal = price_with_iva * cant;
-      total += it.subtotal;
       
       // Calcular subtotal usando precio original (sin descuento de lista)
       const origPrice = originalPrices[it.id] || price;
       const origPriceWithIva = origPrice * (1 + rate);
       subtotal += origPriceWithIva * cant;
+      
+      // Calcular PVP con IVA para el total (con descuento)
+      const price_with_iva = price * (1 + rate);
+      it.subtotal = price_with_iva * cant;
+      total += it.subtotal;
     });
     
     const savings = subtotal - total;
@@ -110,7 +107,6 @@
     // Actualizar totales
     $tItems.text(items.length);
     $tSubtotal.text(fmt(subtotal));
-    $tIva.text(fmt(iva));
     $tTotal.text(fmt(total));
     
     // Mostrar/ocultar ahorro por lista
@@ -618,12 +614,13 @@
     let subtotal_neto = 0;  // PVP sin IVA (Base imponible)
     let iva_total = 0;       // IVA total
     let subtotal_con_iva = 0;  // PVP con IVA (Total a cobrar)
+    let subtotal_original = 0;  // Subtotal original sin descuento (con IVA)
     
     // Agrupar IVA por alícuota para Libro IVA Digital
     let vat_breakdown = {};  // { '21': { base: 0, amount: 0 }, '10.5': { base: 0, amount: 0 }, ... }
     
     items.forEach(it => {
-      const net = parseFloat(it.price) || 0;           // PVP sin IVA
+      const net = parseFloat(it.price) || 0;           // PVP sin IVA (con descuento si aplica)
       const cant = parseFloat(it.cant) || 0;
       const sub_neto = net * cant;
       subtotal_neto += sub_neto;
@@ -643,10 +640,18 @@
       vat_breakdown[rate_percent].base += sub_neto;
       vat_breakdown[rate_percent].amount += iva_item;
       
-      // Calcular subtotal con IVA
+      // Calcular subtotal con IVA (con descuento)
       const pvp_with_iva = it.pvp_final && !isNaN(parseFloat(it.pvp_final)) ? parseFloat(it.pvp_final) : net * (1 + rate_decimal);
       subtotal_con_iva += pvp_with_iva * cant;
+      
+      // Calcular subtotal original (sin descuento, con IVA)
+      const origPrice = originalPrices[it.id] || net;
+      const origPriceWithIva = origPrice * (1 + rate_decimal);
+      subtotal_original += origPriceWithIva * cant;
     });
+    
+    const discount_amount = subtotal_original - subtotal_con_iva;
+    
     const items_net = items.map(it => {
       const net = parseFloat(it.price) || 0;
       const cant = parseFloat(it.cant) || 0;
@@ -673,6 +678,9 @@
     });
     const clientId = $('#selectedClientId').val() || null;
     const clientName = $('#selectedClientName').text() || 'Anónimo';
+    const priceListId = $('#selectedPriceListId').val() || null;
+    const priceListName = $('#selectedPriceListName').text() || null;
+    
     const items_with_names = items.map(it => {
       const net = parseFloat(it.price) || 0;
       const cant = parseFloat(it.cant) || 0;
@@ -689,11 +697,15 @@
       subtotal_neto,
       iva_total,
       subtotal_con_iva,
+      subtotal_original,
+      discount_amount,
       vat_breakdown,  // Desglose de IVA por alícuota para Libro IVA Digital
       items_net: items_with_names,
       items_final,
       client_id: clientId,
       client_name: clientName,
+      price_list_id: priceListId,
+      price_list_name: priceListName,
     };
   }
 

@@ -598,6 +598,10 @@ class Sale(models.Model):
     sent_to_local = models.BooleanField(default=False, verbose_name='Enviado a Servidor Local')
     local_server_response = models.JSONField(default=dict, blank=True, verbose_name='Respuesta del Servidor Local')
     budget_notes = models.TextField(blank=True, null=True, verbose_name='Notas del Presupuesto')
+    # Campos para lista de precios y descuento
+    subtotal_original = models.DecimalField(default=0.00, max_digits=9, decimal_places=2, verbose_name='Subtotal Original (sin descuento)')
+    discount_amount = models.DecimalField(default=0.00, max_digits=9, decimal_places=2, verbose_name='Monto de Descuento')
+    price_list = models.ForeignKey('erp.PriceList', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Lista de Precios')
 
     def __str__(self):
         if self.cli:

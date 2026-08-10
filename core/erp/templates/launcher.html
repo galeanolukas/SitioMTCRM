@@ -35,38 +35,6 @@
         {% endif %}
       </div>
 
-      <!-- Indicador de Base de Datos -->
-      <div class="mb-2">
-        <div class="alert alert-secondary d-flex align-items-center py-2" role="alert">
-          <div class="flex-shrink-0">
-            <i class="fas fa-database me-2"></i>
-          </div>
-          <div class="flex-grow-1 ms-2">
-            <strong>Base de Datos: {{ database_type }}</strong>
-            <div class="small mb-0">
-              {{ database_name }}
-              {% if database_host %}
-              <span class="text-muted">({{ database_host }})</span>
-              {% endif %}
-            </div>
-            {% if remote_database_name %}
-            <div class="small text-muted mb-0">
-              <i class="fas fa-cloud me-1"></i>Remota: {{ remote_database_name }} ({{ remote_database_host }})
-            </div>
-            {% endif %}
-          </div>
-          <div class="flex-shrink-0">
-            {% if database_type == 'PostgreSQL' %}
-              <span class="badge bg-primary">PostgreSQL</span>
-            {% elif database_type == 'SQLite' %}
-              <span class="badge bg-warning text-dark">SQLite</span>
-            {% else %}
-              <span class="badge bg-secondary">{{ database_type }}</span>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-
       <div class="card card-outline card-primary">
         <div class="card-header text-center py-2">
           <h3 class="card-title mb-0">Bienvenido</h3>
