@@ -108,10 +108,10 @@
             <button id="btnGenericProduct" class="btn btn-outline-primary">
               <i class="fas fa-plus"></i> Productos Varios
             </button>
-            <button id="btnSelectClient" class="btn btn-outline-info">
+            <button id="btnSelectClient" class="btn btn-outline-info" onclick="if (typeof openClientModal === 'function') openClientModal(); return false;">
               <i class="fas fa-user"></i> Cliente
             </button>
-            <button id="btnSelectPriceList" class="btn btn-outline-warning">
+            <button id="btnSelectPriceList" class="btn btn-outline-warning" onclick="if (typeof openPriceListModal === 'function') openPriceListModal(); return false;">
               <i class="fas fa-tags"></i> Lista Precios
             </button>
           </div>

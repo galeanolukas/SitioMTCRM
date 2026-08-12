@@ -760,12 +760,23 @@
     });
   }
 
-  // Evento para abrir modal de selección de cliente
-  $('#btnSelectClient').on('click', function() {
+  // Función global para abrir modal de cliente (accesible desde onclick)
+  window.openClientModal = function() {
     const modalEl = document.getElementById('clientSelectModal');
+    if (!modalEl) {
+      console.error('[POS] Modal clientSelectModal no encontrado');
+      return;
+    }
     const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
     modal.show();
     loadClients();
+  };
+
+  // Evento para abrir modal de selección de cliente (respaldo jQuery)
+  $('#btnSelectClient').on('click', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    window.openClientModal();
   });
 
   // Evento para buscar clientes
@@ -1013,12 +1024,23 @@
     showToast('info', 'Cliente limpiado');
   });
 
-  // Evento para abrir modal de selección de lista de precios
-  $('#btnSelectPriceList').on('click', function() {
+  // Función global para abrir modal de lista de precios (accesible desde onclick)
+  window.openPriceListModal = function() {
     const modalEl = document.getElementById('priceListSelectModal');
+    if (!modalEl) {
+      console.error('[POS] Modal priceListSelectModal no encontrado');
+      return;
+    }
     const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
     modal.show();
     loadPriceLists();
+  };
+
+  // Evento para abrir modal de selección de lista de precios (respaldo jQuery)
+  $('#btnSelectPriceList').on('click', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    window.openPriceListModal();
   });
 
   // Cargar listas de precios disponibles
