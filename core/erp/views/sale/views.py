@@ -621,10 +621,6 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         import socket
                         sale.pos_id = socket.gethostname() or 'pos_default'
                         print(f"[DEBUG] Presupuesto configurado: pos_id={sale.pos_id}")
-                    else:
-                        if not payload.get('invoice_number'):
-                            sale.iva = 0.0
-                            sale.total = sale.subtotal
                     
                     if 'combined_payments' in payload and payload['combined_payments']:
                         sale.payment_details = payload['combined_payments']
@@ -763,10 +759,6 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     
                     sale.is_credit_note = payload.get('is_credit_note', False)
 
-                    # Para tickets (sin factura), asegurar que IVA sea 0 y total sea igual a subtotal
-                    if not payload.get('invoice_number'):
-                        sale.iva = 0.0
-                        sale.total = sale.subtotal
                     # Generar facturación: usar el POS configurado en la empresa de la venta
                     company = sale.company or Company.objects.first()
                     sale.invoice_pos = (company.pos if company else sale.invoice_pos) or '0001'

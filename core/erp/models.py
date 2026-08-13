@@ -747,6 +747,14 @@ class Sale(models.Model):
             fecha_afip = datetime.now().strftime('%Y%m%d')
             logger.info(f"[AFIP DEBUG] Preparando voucher - Fecha: {fecha_afip}, Total: {self.total}, Subtotal: {self.subtotal}, IVA: {self.iva}")
 
+            # Calcular ImpIVA como suma de iva_details para evitar error AFIP 10023
+            imp_iva = sum(float(detail['Importe']) for detail in iva_details) if iva_details else float(self.iva)
+            logger.info(f"[AFIP DEBUG] ImpIVA calculado: {imp_iva} (suma de iva_details)")
+
+            # Calcular ImpTotal como suma de componentes para evitar error AFIP 10048
+            imp_total = float(self.subtotal) + imp_iva  # ImpNeto + ImpIVA
+            logger.info(f"[AFIP DEBUG] ImpTotal calculado: {imp_total} (subtotal: {self.subtotal} + iva: {imp_iva})")
+
             # Determinar tipo y número de documento según datos del cliente
             # Para facturas A (tipo_comprobante = 1), DocTipo debe ser 80 (CUIT) obligatoriamente
             if config_obj.tipo_comprobante == 1:  # Factura A
@@ -814,11 +822,11 @@ class Sale(models.Model):
                 'DocTipo': doc_tipo,
                 'DocNro': doc_nro,
                 'CbteFch': int(fecha_afip),
-                'ImpTotal': float(self.total),
+                'ImpTotal': imp_total,  # Usar el valor calculado como suma de componentes
                 'ImpTotConc': 0.0,
                 'ImpNeto': float(self.subtotal),
                 'ImpOpEx': 0.0,
-                'ImpIVA': float(self.iva),
+                'ImpIVA': imp_iva,  # Usar el valor calculado como suma de iva_details
                 'ImpTrib': 0.0,
                 'MonId': config_obj.moneda,  # Usar moneda de la configuración
                 'MonCotiz': float(config_obj.cotizacion),  # Usar cotización de la configuración

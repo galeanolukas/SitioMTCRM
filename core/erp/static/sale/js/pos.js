@@ -6,8 +6,8 @@
   const $summaryCard = $('#posSummaryCard');
 
   const getIvaRate = (forInvoice = false) => {
-    // Para facturas usar 21%, para tickets usar 0% (IVA global desactivado)
-    return forInvoice ? 0.21 : 0;
+    // Usar siempre 21% por defecto (se sobrescribe con iva_rate del producto si está disponible)
+    return 0.21;
   };
   let items = [];
   let selectedIndex = -1;
@@ -1118,8 +1118,11 @@
             items.forEach(it => {
               const newPrice = resp.prices[String(it.id)];
               if (newPrice && newPrice !== it.price) {
-                it.price = newPrice;
-                it.pvp_final = newPrice;
+                it.price = newPrice; // Precio neto con descuento (sin IVA)
+                // Calcular pvp_final con IVA
+                const rate = (typeof it.iva_rate !== 'undefined' && !isNaN(parseFloat(it.iva_rate))) ? parseFloat(it.iva_rate) : getIvaRate();
+                const rate_decimal = rate > 1 ? rate / 100 : rate;
+                it.pvp_final = newPrice * (1 + rate_decimal); // Precio con IVA
               }
             });
             recalc();
@@ -1175,9 +1178,9 @@
 
   function doCreateSale() {
     const calc = buildPayload(false); // Ticket
-    const subtotal = calc.subtotal_con_iva; // Subtotal = PVP con IVA
+    const subtotal = calc.subtotal_neto; // Subtotal = PVP sin IVA (neto)
     const iva = calc.iva_total; // IVA total
-    const total = calc.subtotal_con_iva; // Total a Pagar = Subtotal
+    const total = calc.subtotal_con_iva; // Total a Pagar = Subtotal + IVA
     const payMethod = ($('#payMethod').val() || 'cash');
     const invoiceType = ($('#invoiceType').val() || 'B'); // Tipo de factura seleccionado
 
@@ -1255,9 +1258,9 @@
 
   function doInvoiceSale() {
     const calc = buildPayload(true); // Factura con IVA
-    const subtotal = calc.subtotal_con_iva; // Subtotal = PVP con IVA
+    const subtotal = calc.subtotal_neto; // Subtotal = PVP sin IVA (neto)
     const iva = calc.iva_total;
-    const total = calc.subtotal_con_iva; // Total a Pagar = Subtotal
+    const total = calc.subtotal_con_iva; // Total a Pagar = Subtotal + IVA
     const payMethod = ($('#payMethod').val() || 'cash');
     const invoiceType = ($('#invoiceType').val() || 'B'); // Tipo de factura seleccionado
 
