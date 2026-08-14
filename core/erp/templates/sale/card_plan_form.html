@@ -1,0 +1,79 @@
+{% extends 'base/form.html' %}
+{% load static %}
+
+{% block head_form %}
+  <style>
+    .form-label {
+      font-weight: 500;
+    }
+    .form-control:focus {
+      border-color: #0d6efd;
+      box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+  </style>
+{% endblock %}
+
+{% block buttons_form %}
+  <a href="{{ list_url }}" class="btn btn-secondary btn-flat"><i class="fas fa-arrow-left"></i> Cancelar</a>
+  <button type="submit" class="btn btn-primary btn-flat"><i class="fas fa-save"></i> Guardar</button>
+{% endblock %}
+
+{% block form_content %}
+  <div class="row g-3">
+    <div class="col-md-6">
+      <div class="mb-3">
+        <label for="{{ form.name.id_for_label }}" class="form-label">Nombre del plan</label>
+        {{ form.name }}
+        <div class="form-text">Ej: CUOTAS MI PYME, PLAN Z, OTROS PLANES</div>
+      </div>
+    </div>
+    
+    <div class="col-md-6">
+      <div class="mb-3">
+        <label for="{{ form.installments.id_for_label }}" class="form-label">Cantidad de cuotas</label>
+        {{ form.installments }}
+        <div class="form-text">Número de cuotas (ej: 3, 6, 12)</div>
+      </div>
+    </div>
+    
+    <div class="col-md-6">
+      <div class="mb-3">
+        <label for="{{ form.multiplier.id_for_label }}" class="form-label">Multiplicador</label>
+        {{ form.multiplier }}
+        <div class="form-text">Coeficiente de recargo (ej: 1.14 para 14% recargo)</div>
+      </div>
+    </div>
+    
+    <div class="col-md-6">
+      <div class="mb-3">
+        <label for="{{ form.afip_code.id_for_label }}" class="form-label">Código AFIP (opcional)</label>
+        {{ form.afip_code }}
+        <div class="form-text">Código de forma de pago AFIP si corresponde</div>
+      </div>
+    </div>
+    
+    <div class="col-md-12">
+      <div class="mb-3">
+        <div class="form-check form-switch">
+          {{ form.is_active }}
+          <label for="{{ form.is_active.id_for_label }}" class="form-check-label">Plan activo</label>
+        </div>
+        <div class="form-text">Desactive para ocultar este plan en el POS</div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block javascript %}
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Agregar clases de Bootstrap a los campos del formulario
+      const formFields = document.querySelectorAll('input, select');
+      formFields.forEach(field => {
+        if (!field.classList.contains('form-control') && !field.classList.contains('form-check-input')) {
+          field.classList.add('form-control');
+        }
+      });
+    });
+  </script>
+{% endblock %}

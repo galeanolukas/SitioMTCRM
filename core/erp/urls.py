@@ -2,7 +2,7 @@ from django.urls import path, include
 from core.erp.views.category.views import *
 from core.erp.views.product.views import *
 from core.erp.views.client.views import ClientListView, ClientCreateView, ClientUpdateView, ClientDeleteView
-from core.erp.views.sale.views import SaleListView, SaleCreateView, SaleUpdateView, SaleDeleteView, ticket_print, ticket_x_print, POSView, InvoiceListView, InvoiceCreateView, invoice_pdf, sync_sales_api, EmployeeAccountListView, employee_account_pdf_export, BudgetListView, BudgetConvertView, BudgetDetailView
+from core.erp.views.sale.views import SaleListView, SaleCreateView, SaleUpdateView, SaleDeleteView, ticket_print, ticket_x_print, POSView, InvoiceListView, InvoiceCreateView, invoice_pdf, sync_sales_api, EmployeeAccountListView, employee_account_pdf_export, BudgetListView, BudgetConvertView, BudgetDetailView, CardPlanListView, CardPlanCreateView, CardPlanUpdateView, CardPlanDeleteView
 from core.erp.views.transfer.views import TransferListView, TransferCreateView, TransferDetailView, TransferReceiveView, TransferSearchView, TransferProductSearchView
 from core.erp.views.operator_reports.views import OperatorSalesReportView, operator_sales_export
 from core.erp.views.sync.views import SyncToggleView, SyncStatusView, ProductSyncView
@@ -118,6 +118,11 @@ urlpatterns = [
     path('sale/update/<int:pk>/', SaleUpdateView.as_view(), name='sale_update'),
     path('sale/ticket/<int:pk>/print/', ticket_print, name='sale_ticket_print'),
     path('sale/ticket/<int:pk>/print/x/', ticket_x_print, name='sale_ticket_x_print'),
+    # card plans (solo superusuarios)
+    path('card-plan/list/', CardPlanListView.as_view(), name='card_plan_list'),
+    path('card-plan/add/', CardPlanCreateView.as_view(), name='card_plan_create'),
+    path('card-plan/update/<int:pk>/', CardPlanUpdateView.as_view(), name='card_plan_update'),
+    path('card-plan/delete/<int:pk>/', CardPlanDeleteView.as_view(), name='card_plan_delete'),
     # transferencias internas
     path('transfer/list/', TransferListView.as_view(), name='transfer_list'),
     path('transfer/add/', TransferCreateView.as_view(), name='transfer_create'),

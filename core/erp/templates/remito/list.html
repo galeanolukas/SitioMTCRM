@@ -53,10 +53,6 @@
             <a href="{% url 'erp:remito_update' obj.id %}" class="btn btn-sm btn-warning btn-flat" title="Editar">
                 <i class="fas fa-edit"></i>
             </a>
-            <a href="{% url 'erp:remito_delete' obj.id %}" class="btn btn-sm btn-danger btn-flat" title="Eliminar">
-                <i class="fas fa-trash"></i>
-            </a>
-            {% elif obj.estado == 'processed' %}
             <button onclick="anularRemito({{ obj.id }})" class="btn btn-sm btn-danger btn-flat" title="Anular">
                 <i class="fas fa-undo"></i>
             </button>
@@ -73,7 +69,7 @@
 {% block javascript %}
 <script>
 function anularRemito(id) {
-    if (confirm('¿Está seguro de anular este remito? Esto revertirá el stock.')) {
+    if (confirm('¿Está seguro de anular este remito?')) {
         fetch(`/erp/remito/anular/${id}/`, {
             method: 'POST',
             headers: {

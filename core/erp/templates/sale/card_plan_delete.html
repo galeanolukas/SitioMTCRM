@@ -1,0 +1,44 @@
+{% extends 'base/delete.html' %}
+{% load static %}
+
+{% block head_delete %}
+  <style>
+    .alert-warning {
+      border-left: 4px solid #ffc107;
+    }
+  </style>
+{% endblock %}
+
+{% block delete_content %}
+  <div class="alert alert-warning">
+    <i class="fas fa-exclamation-triangle"></i>
+    <strong>¿Está seguro de eliminar el plan de cuotas?</strong>
+  </div>
+  
+  <div class="card mb-3">
+    <div class="card-body">
+      <h5 class="card-title">{{ object.name }}</h5>
+      <p class="card-text">
+        <strong>Cuotas:</strong> {{ object.installments }}<br>
+        <strong>Multiplicador:</strong> {{ object.multiplier|floatformat:4 }}<br>
+        <strong>Código AFIP:</strong> {{ object.afip_code|default:"-" }}<br>
+        <strong>Estado:</strong> 
+        {% if object.is_active %}
+          <span class="badge bg-success">Activo</span>
+        {% else %}
+          <span class="badge bg-secondary">Inactivo</span>
+        {% endif %}
+      </p>
+    </div>
+  </div>
+  
+  <div class="alert alert-info">
+    <i class="fas fa-info-circle"></i>
+    Esta acción no se puede deshacer. El plan será eliminado permanentemente del sistema.
+  </div>
+{% endblock %}
+
+{% block buttons_delete %}
+  <a href="{{ list_url }}" class="btn btn-secondary btn-flat"><i class="fas fa-times"></i> Cancelar</a>
+  <button type="submit" class="btn btn-danger btn-flat"><i class="fas fa-trash-alt"></i> Eliminar</button>
+{% endblock %}

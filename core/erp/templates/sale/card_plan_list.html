@@ -1,0 +1,60 @@
+{% extends 'base/list.html' %}
+{% load static %}
+
+{% block head_list %}
+  <script src="{% static 'sale/js/card_plan_list.js' %}"></script>
+{% endblock %}
+
+{% block buttons_list %}
+  <a href="{% url 'erp:card_plan_create' %}" class="btn btn-primary btn-flat"><i class="fas fa-plus"></i> Nuevo plan</a>
+  <a href="{% url 'erp:card_plan_list' %}" class="btn btn-success btn-flat"><i class="fas fa-sync"></i> Actualizar</a>
+{% endblock %}
+
+{% block columns %}
+  <tr>
+    <th scope="col" style="width: 05%;">ID</th>
+    <th scope="col" style="width: 25%;">Nombre</th>
+    <th scope="col" style="width: 15%;">Cuotas</th>
+    <th scope="col" style="width: 15%;">Multiplicador</th>
+    <th scope="col" style="width: 10%;">Código AFIP</th>
+    <th scope="col" style="width: 10%;">Estado</th>
+    <th scope="col" style="width: 10%;">Opciones</th>
+  </tr>
+{% endblock %}
+
+{% block rows %}
+  {% for plan in plans %}
+  <tr>
+    <td>{{ plan.id }}</td>
+    <td>{{ plan.name }}</td>
+    <td>{{ plan.installments }}</td>
+    <td>{{ plan.multiplier|floatformat:4 }}</td>
+    <td>{{ plan.afip_code|default:"-" }}</td>
+    <td>
+      {% if plan.is_active %}
+        <span class="badge bg-success">Activo</span>
+      {% else %}
+        <span class="badge bg-secondary">Inactivo</span>
+      {% endif %}
+    </td>
+    <td>
+      <a href="{% url 'erp:card_plan_update' plan.id %}" class="btn btn-warning btn-flat btn-sm" title="Editar">
+        <i class="fas fa-edit"></i>
+      </a>
+      <a href="{% url 'erp:card_plan_delete' plan.id %}" class="btn btn-danger btn-flat btn-sm" title="Eliminar">
+        <i class="fas fa-trash-alt"></i>
+      </a>
+    </td>
+  </tr>
+  {% empty %}
+  <tr>
+    <td colspan="7" class="text-center">No hay planes de cuotas registrados</td>
+  </tr>
+  {% endfor %}
+{% endblock %}
+
+{% block javascript %}
+  <script>
+    // Scripts adicionales si son necesarios
+  </script>
+{% endblock %}

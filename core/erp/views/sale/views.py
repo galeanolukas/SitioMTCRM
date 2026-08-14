@@ -3,7 +3,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.urls import reverse_lazy
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, get_object_or_404
-from core.erp.models import Sale, Product, DetSale, Company, Client, QuickOrder, Category, CashRegister, EmployeeAccountSale, DetEmployeeAccount, SaleVatBreakdown
+from core.erp.models import Sale, Product, DetSale, Company, Client, QuickOrder, Category, CashRegister, EmployeeAccountSale, DetEmployeeAccount, SaleVatBreakdown, CardInstallmentPlan
 from django.contrib.auth import get_user_model
 from django.template.loader import get_template
 from django.conf import settings
@@ -22,7 +22,11 @@ from decimal import Decimal
 import time
 import uuid
 import logging
-from core.erp.afip.client import AfipClient
+
+try:
+    from core.erp.afip.client import AfipClient
+except ImportError:
+    AfipClient = None
 
 logger = logging.getLogger(__name__)
 
@@ -2630,3 +2634,63 @@ class BudgetDetailView(LoginRequiredMixin, View):
             return JsonResponse(data)
         except Sale.DoesNotExist:
             return JsonResponse({'error': 'Presupuesto no encontrado'}, status=404)
+
+
+class CardPlanListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView):
+    model = CardInstallmentPlan
+    template_name = 'sale/card_plan_list.html'
+    context_object_name = 'plans'
+    permission_required = 'erp.view_cardinstallmentplan'
+
+    def get_queryset(self):
+        return CardInstallmentPlan.objects.all().order_by('name', 'installments')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Planes de Cuotas de Tarjeta'
+        context['entity'] = 'Planes de Cuotas'
+        return context
+
+
+class CardPlanCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, CreateView):
+    model = CardInstallmentPlan
+    template_name = 'sale/card_plan_form.html'
+    fields = ['name', 'installments', 'multiplier', 'afip_code', 'is_active']
+    success_url = reverse_lazy('erp:card_plan_list')
+    permission_required = 'erp.add_cardinstallmentplan'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Crear Plan de Cuotas'
+        context['entity'] = 'Plan de Cuotas'
+        context['list_url'] = self.success_url
+        return context
+
+
+class CardPlanUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, UpdateView):
+    model = CardInstallmentPlan
+    template_name = 'sale/card_plan_form.html'
+    fields = ['name', 'installments', 'multiplier', 'afip_code', 'is_active']
+    success_url = reverse_lazy('erp:card_plan_list')
+    permission_required = 'erp.change_cardinstallmentplan'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Editar Plan de Cuotas'
+        context['entity'] = 'Plan de Cuotas'
+        context['list_url'] = self.success_url
+        return context
+
+
+class CardPlanDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin, DeleteView):
+    model = CardInstallmentPlan
+    template_name = 'sale/card_plan_delete.html'
+    success_url = reverse_lazy('erp:card_plan_list')
+    permission_required = 'erp.delete_cardinstallmentplan'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Eliminar Plan de Cuotas'
+        context['entity'] = 'Plan de Cuotas'
+        context['list_url'] = self.success_url
+        return context

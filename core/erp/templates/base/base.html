@@ -127,6 +127,15 @@
             </a>
           </li>
           {% endif %}
+          
+          {% if user.is_superuser or perms.erp.view_cardinstallmentplan %}
+          <li class="nav-item">
+            <a href="{% url 'erp:card_plan_list' %}" class="nav-link">
+              <i class="nav-icon fas fa-credit-card"></i>
+              <p>Planes de Cuotas</p>
+            </a>
+          </li>
+          {% endif %}
           {% endif %}
         </ul>
       </nav>

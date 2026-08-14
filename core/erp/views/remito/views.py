@@ -185,32 +185,34 @@ def procesar_remito(request, pk):
 
 
 def anular_remito(request, pk):
-    """Anular un remito procesado: revertir stock"""
+    """Anular un remito: revertir stock si está procesado, solo cancelar si está pendiente"""
     if not request.user.has_perm('erp.manage_remitos'):
         return JsonResponse({'error': 'No tiene permisos'}, status=403)
-    
+
     remito = get_object_or_404(Remito, pk=pk)
-    
-    if remito.estado != 'processed':
-        return JsonResponse({'error': 'Solo se pueden anular remitos procesados'}, status=400)
-    
+
+    if remito.estado == 'cancelled':
+        return JsonResponse({'error': 'El remito ya está anulado'}, status=400)
+
     try:
         with transaction.atomic():
-            for detalle in remito.detalleremito_set.all():
-                producto = detalle.prod
-                if remito.tipo == 'entrada':
-                    # Entrada anulado: restar stock
-                    producto.stock -= detalle.cantidad
-                    if producto.stock < 0:
-                        return JsonResponse({'error': f'Stock insuficiente para {producto.name}'}, status=400)
-                else:
-                    # Salida anulado: sumar stock
-                    producto.stock += detalle.cantidad
-                producto.save()
-            
+            # Solo revertir stock si estaba procesado
+            if remito.estado == 'processed':
+                for detalle in remito.detalleremito_set.all():
+                    producto = detalle.prod
+                    if remito.tipo == 'entrada':
+                        # Entrada anulado: restar stock
+                        producto.stock -= detalle.cantidad
+                        if producto.stock < 0:
+                            return JsonResponse({'error': f'Stock insuficiente para {producto.name}'}, status=400)
+                    else:
+                        # Salida anulado: sumar stock
+                        producto.stock += detalle.cantidad
+                    producto.save()
+
             remito.estado = 'cancelled'
             remito.save()
-        
+
         return JsonResponse({'success': True, 'message': 'Remito anulado exitosamente'})
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
