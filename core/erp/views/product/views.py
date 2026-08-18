@@ -11,6 +11,7 @@ import json
 import logging
 import os
 from datetime import datetime
+from django.db import transaction
 
 # Importar librerías para manejo de Excel/CSV
 import numpy
