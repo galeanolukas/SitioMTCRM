@@ -74,7 +74,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="afipHelpModalLabel">Configuración AFIP en 2 pasos</h5>
-        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
         <ol>
@@ -85,7 +85,7 @@
         <p class="text-muted">En modo Desarrollo no se requieren certificados. AFIP SDK los genera automáticamente.</p>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
       </div>
     </div>
   </div>
@@ -98,7 +98,7 @@ $(document).ready(function() {
   // Mostrar automáticamente el modal de ayuda si no hay configs
   var afipConfigsCount = parseInt($('#afip-configs-count').val() || '0');
   if (afipConfigsCount === 0) {
-    $('#afipHelpModal').modal('show');
+    new bootstrap.Modal(document.getElementById('afipHelpModal')).show();
   }
 });
 </script>
