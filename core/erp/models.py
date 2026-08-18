@@ -248,6 +248,37 @@ class Product(models.Model):
     stock_modified_locally = models.DateTimeField(blank=True, null=True, verbose_name='Última modificación local de stock')
     track_stock = models.BooleanField(default=True, verbose_name='Controlar stock')
 
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        # Validar que precios no sean negativos
+        if self.cost_price and self.cost_price < 0:
+            raise ValidationError({'cost_price': 'El precio de costo no puede ser negativo'})
+        if self.pvp < 0:
+            raise ValidationError({'pvp': 'El precio neto no puede ser negativo'})
+        if self.pvp_final < 0:
+            raise ValidationError({'pvp_final': 'El precio final no puede ser negativo'})
+
+        # Validar que stock no sea negativo
+        if self.stock < 0:
+            raise ValidationError({'stock': 'El stock no puede ser negativo'})
+
+        # Validar que stock mínimo no sea negativo
+        if self.min_stock < 0:
+            raise ValidationError({'min_stock': 'El stock mínimo no puede ser negativo'})
+
+        # Validar consistencia de precio final
+        expected_final = self.pvp * (1 + (self.iva_rate / 100))
+        if abs(self.pvp_final - expected_final) > Decimal('0.01'):
+            # Solo advertir, no bloquear (puede haber precios especiales)
+            pass
+
+        # Validar que código de barras sea único si está presente
+        if self.code:
+            existing = Product.objects.filter(code=self.code).exclude(pk=self.pk)
+            if existing.exists():
+                raise ValidationError({'code': 'El código de barras ya existe en otro producto'})
+
     def __str__(self):
         return self.name
 
@@ -276,6 +307,20 @@ class Product(models.Model):
             # Solo calcular pvp_final si está vacío, es 0, o no se ha modificado manualmente
             if not self.pvp_final or self.pvp_final == Decimal('0.00'):
                 self.pvp_final = (pvp * (Decimal('1.0') + rate)).quantize(Decimal('0.01'))
+
+            # Actualizar código AFIP según tasa de IVA
+            if rate == Decimal('0.21'):
+                self.vat_code = '5'
+            elif rate == Decimal('0.105'):
+                self.vat_code = '4'
+            elif rate == Decimal('0.27'):
+                self.vat_code = '6'
+            elif rate == Decimal('0.00'):
+                self.vat_code = '3'
+            elif rate == Decimal('0.025'):
+                self.vat_code = '2'
+            elif rate == Decimal('0.05'):
+                self.vat_code = '8'
         except Exception:
             # Solo asignar 0 si pvp_final está vacío
             if not self.pvp_final or self.pvp_final == Decimal('0.00'):
@@ -403,6 +448,24 @@ class Client(models.Model):
     def __str__(self):
         return self.names
 
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        # Validar CUIT/CUIL si está presente
+        if self.cuit_cuil:
+            try:
+                validate_cuit(self.cuit_cuil)
+            except ValidationError as e:
+                raise ValidationError({'cuit_cuil': str(e)})
+
+        # Validar que fecha de nacimiento no sea futura
+        if self.date_birthday and self.date_birthday > timezone.now().date():
+            raise ValidationError({'date_birthday': 'La fecha de nacimiento no puede ser futura'})
+
+        # Validar email si está presente
+        if self.email and '@' not in self.email:
+            raise ValidationError({'email': 'El email debe ser válido'})
+
     def save(self, *args, **kwargs):
         if not self.company_id:
             user = get_current_user()
@@ -437,12 +500,13 @@ class PriceList(models.Model):
     company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa', null=True, blank=True)
     name = models.CharField(max_length=100, verbose_name='Nombre')
     discount_percentage = models.DecimalField(default=0, max_digits=5, decimal_places=2, verbose_name='Descuento (%)')
+    interest_percentage = models.DecimalField(default=0, max_digits=5, decimal_places=2, verbose_name='Interés (%)')
     is_active = models.BooleanField(default=True, verbose_name='Activa')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de creación')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Fecha de actualización')
 
     def __str__(self):
-        return f"{self.name} ({self.discount_percentage}%)"
+        return f"{self.name} (Desc {self.discount_percentage}% / Int {self.interest_percentage}%)"
 
     def save(self, *args, **kwargs):
         if not self.company_id:
@@ -451,11 +515,16 @@ class PriceList(models.Model):
                 self.company_id = getattr(user, 'company_id', None)
         super().save(*args, **kwargs)
 
+    def _adjust_base_price(self, base_price, discount, interest):
+        from decimal import Decimal
+        factor = Decimal('1') - (discount or 0) / Decimal('100') + (interest or 0) / Decimal('100')
+        return (Decimal(base_price) * factor).quantize(Decimal('0.01'))
+
     def get_price_for_product(self, product):
         """Devuelve el precio para un producto dado.
         Si hay un PriceListProduct con precio fijo, usa ese.
-        Si no, aplica el descuento porcentual al pvp del producto.
-        Si el producto está marcado como excepción sin precio, devuelve el pvp original.
+        Si no, aplica descuento/interés porcentual al pvp del producto.
+        Si el producto está marcado como excepción, devuelve el pvp original.
         """
         from decimal import Decimal
         try:
@@ -464,15 +533,12 @@ class PriceList(models.Model):
                 return product.pvp
             if plp.fixed_price is not None:
                 return plp.fixed_price
-            # excepción con descuento override
-            if plp.discount_override is not None:
-                discount = plp.discount_override
-            else:
-                discount = self.discount_percentage
-            return (Decimal(product.pvp) * (Decimal('1') - discount / Decimal('100'))).quantize(Decimal('0.01'))
+            discount = plp.discount_override if plp.discount_override is not None else self.discount_percentage
+            interest = plp.interest_override if plp.interest_override is not None else self.interest_percentage
+            return self._adjust_base_price(product.pvp, discount, interest)
         except PriceListProduct.DoesNotExist:
-            # No hay override: aplicar descuento general
-            return (Decimal(product.pvp) * (Decimal('1') - self.discount_percentage / Decimal('100'))).quantize(Decimal('0.01'))
+            # No hay override: aplicar descuento/interés general
+            return self._adjust_base_price(product.pvp, self.discount_percentage, self.interest_percentage)
 
     class Meta:
         verbose_name = 'Lista de Precios'
@@ -485,6 +551,7 @@ class PriceListProduct(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, verbose_name='Producto')
     fixed_price = models.DecimalField(max_digits=9, decimal_places=2, null=True, blank=True, verbose_name='Precio fijo (override)')
     discount_override = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True, verbose_name='Descuento override (%)')
+    interest_override = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True, verbose_name='Interés override (%)')
     is_exception = models.BooleanField(default=False, verbose_name='Excepción (no aplicar descuento)')
 
     def __str__(self):
@@ -608,6 +675,49 @@ class Sale(models.Model):
             return self.cli.names
         return f"Venta #{self.id} (Sin cliente)"
 
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        # Validar montos no negativos
+        if self.subtotal < 0:
+            raise ValidationError({'subtotal': 'El subtotal no puede ser negativo'})
+        if self.iva < 0:
+            raise ValidationError({'iva': 'El IVA no puede ser negativo'})
+        if self.total < 0:
+            raise ValidationError({'total': 'El total no puede ser negativo'})
+
+        # Validar consistencia de montos
+        if self.subtotal_original < 0:
+            raise ValidationError({'subtotal_original': 'El subtotal original no puede ser negativo'})
+        if self.discount_amount < 0:
+            raise ValidationError({'discount_amount': 'El descuento no puede ser negativo'})
+
+        # Validar que subtotal + iva = total (con tolerancia por decimales)
+        expected_total = self.subtotal + self.iva
+        if abs(self.total - expected_total) > Decimal('0.01'):
+            raise ValidationError({
+                'total': f'El total ({self.total}) no coincide con subtotal + IVA ({expected_total})'
+            })
+
+        # Validar campos de tarjeta si payment_method es 'card'
+        if self.payment_method == 'card':
+            if not self.card_type:
+                raise ValidationError({'card_type': 'Debe especificar el tipo de tarjeta'})
+            if not self.card_brand:
+                raise ValidationError({'card_brand': 'Debe especificar la marca de tarjeta'})
+            if self.card_installments and self.card_installments < 1:
+                raise ValidationError({'card_installments': 'Las cuotas deben ser al menos 1'})
+
+        # Validar que presupuesto no tenga CAE AFIP
+        if self.is_budget and self.afip_cae:
+            raise ValidationError({
+                'afip_cae': 'Un presupuesto no puede tener CAE AFIP. Conviértalo a venta primero.'
+            })
+
+        # Validar que venta confirmada tenga cliente
+        if self.status == 'confirmed' and not self.cli_id:
+            raise ValidationError({'cli': 'Una venta confirmada debe tener un cliente asignado'})
+
     def save(self, *args, **kwargs):
         if not self.company_id:
             user = get_current_user()
@@ -632,574 +742,286 @@ class Sale(models.Model):
             except Exception:
                 # Si hay error, usar zona horaria por defecto
                 self.local_timezone = 'America/Argentina/Buenos_Aires'
-        
+
+        # Extraer parámetro personalizado antes de llamar a super().save()
+        skip_afip = kwargs.pop('skip_afip_call_on_save', False)
+
         super().save(*args, **kwargs)
 
         # Crear registro en Libro IVA para ventas confirmadas (incluso sin factura AFIP)
         if self.status == 'confirmed' and not self.is_budget:
             self._crear_registro_libro_iva_simple()
 
-        # Emitir factura AFIP automáticamente si está configurado y la venta está confirmada
-        if self.status == 'confirmed' and not self.is_budget and not self.afip_cae:
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.info(f"[AFIP DEBUG] Venta confirmada - Iniciando emisión automática de factura AFIP - Venta ID: {self.id}, Empresa: {self.company.name if self.company else 'N/A'}")
-            self.emitir_factura_afip()
+            # Emitir factura AFIP automáticamente si está configurado y la venta está confirmada
+            # Solo si skip_afip_call_on_save es False (evita recursión)
+            # Solo si ya hay detalles cargados para evitar emitir comprobantes vacíos
+            if not skip_afip and self.status == 'confirmed' and not self.is_budget and not self.afip_cae and self.detsale_set.exists():
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.info("afip_auto_emit_triggered", extra={
+                    'sale_id': self.id,
+                    'company_id': self.company_id,
+                    'status': self.status,
+                    'is_budget': self.is_budget,
+                    'afip_cae': self.afip_cae
+                })
+                self.emitir_factura_afip(skip_afip_call_on_save=True)
 
-    def emitir_factura_afip(self, user=None):
+    def emitir_factura_afip(self, user=None, skip_afip_call_on_save=False):
         """
-        Emite la factura electrónica AFIP para esta venta
+        Emite la factura electrónica AFIP para esta venta usando el servicio AfipService.
 
         Args:
             user: Usuario que está emitiendo la factura (opcional, para validación de empresa)
+            skip_afip_call_on_save: Si es True, evita recursión al guardar errores
         """
         import logging
         logger = logging.getLogger(__name__)
 
         try:
-            from core.erp.afip.client import AfipClient, AfipCompanyMismatchError
-            from core.erp.afip.config import get_afip_config
-            from datetime import datetime
+            from core.erp.services.afip_service import AfipService
 
-            logger.info(f"[AFIP DEBUG] Iniciando emisión de factura AFIP - Venta ID: {self.id}, Empresa: {self.company.name if self.company else 'N/A'}")
+            logger.info("afip_invoice_using_service", extra={
+                'sale_id': self.id,
+                'sale_company_id': self.company_id
+            })
 
-            # Validar que la venta tiene una empresa asignada
-            if not self.company:
-                logger.warning(f"[AFIP DEBUG] La venta {self.id} no tiene empresa asignada. No se puede emitir factura AFIP.")
-                return False
+            # Inicializar servicio AFIP
+            afip_service = AfipService(company_id=self.company_id)
 
-            # Validar que el usuario pertenece a la misma empresa que tiene configurado AFIP
-            if user and hasattr(user, 'company') and user.company:
-                logger.debug(f"[AFIP DEBUG] Validando empresa - Usuario: {user.username}, Empresa usuario: {user.company.name}, Empresa venta: {self.company.name}")
-                if user.company.id != self.company_id:
-                    raise AfipCompanyMismatchError(
-                        f"El usuario {user.username} pertenece a la empresa {user.company.name} "
-                        f"pero la venta pertenece a la empresa {self.company.name}. "
-                        "No tiene permiso para emitir facturas AFIP de esta empresa."
-                    )
+            # Emitir factura usando el servicio
+            success, result = afip_service.emitir_factura(self, user=user)
 
-            # Obtener configuración AFIP
-            logger.debug(f"[AFIP DEBUG] Obteniendo configuración AFIP para empresa ID: {self.company_id}")
-            afip_config = get_afip_config(self.company_id)
-            if not afip_config or not afip_config.get('is_active'):
-                logger.warning(f"[AFIP DEBUG] No hay configuración AFIP activa para empresa {self.company.name}")
-                return False
-
-            logger.info(f"[AFIP DEBUG] Configuración AFIP encontrada - CUIT: {afip_config.get('CUIT')}, Ambiente: {afip_config.get('environment')}, Activa: {afip_config.get('is_active')}")
-
-            # Inicializar cliente AFIP
-            logger.debug(f"[AFIP DEBUG] Inicializando cliente AFIP para empresa ID: {self.company_id}")
-            client = AfipClient(company_id=self.company_id)
-
-            # Obtener configuración de punto de venta y tipo de comprobante
-            config_obj = self.company.afipconfig_set.filter(is_active=True).first()
-            if not config_obj:
-                logger.warning(f"[AFIP DEBUG] No hay configuración AfipConfig activa para empresa {self.company.name}")
-                return False
-
-            logger.info(f"[AFIP DEBUG] Configuración AfipConfig encontrada - Tipo comprobante: {config_obj.tipo_comprobante}, Concepto: {config_obj.concepto}, Moneda: {config_obj.moneda}")
-
-            # Obtener punto de venta activo (usar el primero disponible)
-            punto_venta_obj = self.company.afippuntoventa_set.filter(is_active=True).first()
-            if not punto_venta_obj:
-                # Fallback: usar punto de venta 1 por defecto
-                punto_venta = 1
-                logger.warning(f"[AFIP DEBUG] No hay punto de venta activo, usando fallback: {punto_venta}")
-            else:
-                punto_venta = punto_venta_obj.numero
-                logger.info(f"[AFIP DEBUG] Punto de venta activo: {punto_venta}")
-
-            # Calcular IVA por alícuota
-            iva_details = []
-            logger.debug(f"[AFIP DEBUG] Calculando IVA por alícuota - Detalles de venta: {self.detsale_set.count()} items")
-            for det in self.detsale_set.all():
-                if det.iva_amount > 0:
-                    # Determinar tipo de IVA según el porcentaje
-                    iva_rate = (det.iva_amount / det.subtotal) * 100 if det.subtotal > 0 else 0
-                    if iva_rate == 21:
-                        iva_id = 5
-                    elif iva_rate == 10.5:
-                        iva_id = 4
-                    elif iva_rate == 0:
-                        iva_id = 3
-                    else:
-                        iva_id = 5  # Default 21%
-
-                    logger.debug(f"[AFIP DEBUG] IVA detalle - Tasa: {iva_rate}%, ID: {iva_id}, Base: {det.subtotal}, Importe: {det.iva_amount}")
-
-                    iva_details.append({
-                        'Id': iva_id,
-                        'BaseImp': float(det.subtotal),
-                        'Importe': float(det.iva_amount)
-                    })
-
-            # Si hay importe neto pero no hay detalles de IVA, agregar alícuota 0 (No gravado/Exento)
-            # AFIP requiere el objeto Iva cuando ImpNeto > 0 (error 10070)
-            if self.subtotal > 0 and not iva_details:
-                logger.info(f"[AFIP DEBUG] Agregando alícuota IVA 0 (No gravado) - Base: {self.subtotal}")
-                iva_details.append({
-                    'Id': 3,  # No gravado/Exento
-                    'BaseImp': float(self.subtotal),
-                    'Importe': 0.0
+            if not success:
+                logger.error("afip_invoice_service_failed", extra={
+                    'sale_id': self.id,
+                    'error': result.get('error')
                 })
-
-            # Preparar datos del voucher
-            fecha_afip = datetime.now().strftime('%Y%m%d')
-            logger.info(f"[AFIP DEBUG] Preparando voucher - Fecha: {fecha_afip}, Total: {self.total}, Subtotal: {self.subtotal}, IVA: {self.iva}")
-
-            # Calcular ImpIVA como suma de iva_details para evitar error AFIP 10023
-            imp_iva = sum(float(detail['Importe']) for detail in iva_details) if iva_details else float(self.iva)
-            logger.info(f"[AFIP DEBUG] ImpIVA calculado: {imp_iva} (suma de iva_details)")
-
-            # Calcular ImpTotal como suma de componentes para evitar error AFIP 10048
-            imp_total = float(self.subtotal) + imp_iva  # ImpNeto + ImpIVA
-            logger.info(f"[AFIP DEBUG] ImpTotal calculado: {imp_total} (subtotal: {self.subtotal} + iva: {imp_iva})")
-
-            # Determinar tipo y número de documento según datos del cliente
-            # Para facturas A (tipo_comprobante = 1), DocTipo debe ser 80 (CUIT) obligatoriamente
-            if config_obj.tipo_comprobante == 1:  # Factura A
-                # Para facturas A, AFIP requiere CUIT obligatoriamente
-                if self.cli and self.cli.cuit_cuil:
-                    doc_tipo = 80  # CUIT
-                    doc_nro = int(self.cli.cuit_cuil.replace('-', ''))
-                    logger.info(f"[AFIP DEBUG] Factura A - Cliente con CUIT - DocTipo: {doc_tipo}, DocNro: {doc_nro}")
-                else:
-                    # Si el cliente no tiene CUIT, usar CUIT de la empresa
-                    if config_obj.cuit:
-                        doc_tipo = 80  # CUIT
-                        doc_nro = int(config_obj.cuit.replace('-', ''))
-                        logger.info(f"[AFIP DEBUG] Factura A - Sin CUIT cliente, usando CUIT empresa - DocTipo: {doc_tipo}, DocNro: {doc_nro}")
-                    else:
-                        # Error: Factura A requiere CUIT
-                        logger.error(f"[AFIP DEBUG] Factura A requiere CUIT pero no hay CUIT de cliente ni empresa")
-                        self.afip_error = "Factura A requiere CUIT del cliente o de la empresa"
-                        self.save(update_fields=['afip_error'])
-                        return False
-            else:
-                # Para otros tipos de comprobante (B, C, etc.), usar lógica normal
-                if self.cli and self.cli.cuit_cuil:
-                    doc_tipo = 80  # CUIT
-                    doc_nro = int(self.cli.cuit_cuil.replace('-', ''))
-                    logger.info(f"[AFIP DEBUG] Cliente con CUIT - DocTipo: {doc_tipo}, DocNro: {doc_nro}")
-                elif self.cli and self.cli.dni:
-                    doc_tipo = 96  # DNI
-                    doc_nro = int(self.cli.dni)
-                    logger.info(f"[AFIP DEBUG] Cliente con DNI - DocTipo: {doc_tipo}, DocNro: {doc_nro}")
-                else:
-                    doc_tipo = 99  # Consumidor Final sin datos
-                    doc_nro = 0
-                    logger.info(f"[AFIP DEBUG] Cliente consumidor final - DocTipo: {doc_tipo}, DocNro: {doc_nro}")
-
-            # Determinar condición IVA del receptor según normativa AFIP RG 5616/2024
-            # Mapeo: RI=1, M=4, CF=5, EX=6, NC=9
-            condicion_iva_cliente = self.cli.condicion_iva if self.cli else 'CF'
-            condicion_iva_map = {
-                'RI': 1,  # Responsable Inscripto
-                'M': 4,   # Monotributista
-                'CF': 5,  # Consumidor Final
-                'EX': 6,  # Exento
-                'NC': 9   # No Categorizado
-            }
-            condicion_iva_receptor_id = condicion_iva_map.get(condicion_iva_cliente, 5)  # Default: Consumidor Final
-            logger.info(f"[AFIP DEBUG] Condición IVA cliente: {condicion_iva_cliente}, ID receptor: {condicion_iva_receptor_id}")
-
-            # Mapear invoice_type ('A', 'B', 'C') a código AFIP numérico
-            invoice_type_map = {
-                'A': 1,   # Factura A
-                'B': 6,   # Factura B
-                'C': 11,  # Factura C
-                'X': 99   # Ticket X (sin valor fiscal)
-            }
-            cbte_tipo = invoice_type_map.get(self.invoice_type, config_obj.tipo_comprobante)
-            logger.info(f"[AFIP DEBUG] Invoice type: {self.invoice_type}, CbteTipo AFIP: {cbte_tipo}")
-
-            # Preparar voucher_data SIN CbteDesde/CbteHasta (createNextVoucher los calcula automáticamente)
-            voucher_data = {
-                'CantReg': 1,
-                'PtoVta': punto_venta,  # Usar punto de venta de AfipPuntoVenta
-                'CbteTipo': cbte_tipo,  # Usar el tipo determinado según condición IVA del cliente
-                'Concepto': config_obj.concepto,  # Usar concepto de la configuración
-                'DocTipo': doc_tipo,
-                'DocNro': doc_nro,
-                'CbteFch': int(fecha_afip),
-                'ImpTotal': imp_total,  # Usar el valor calculado como suma de componentes
-                'ImpTotConc': 0.0,
-                'ImpNeto': float(self.subtotal),
-                'ImpOpEx': 0.0,
-                'ImpIVA': imp_iva,  # Usar el valor calculado como suma de iva_details
-                'ImpTrib': 0.0,
-                'MonId': config_obj.moneda,  # Usar moneda de la configuración
-                'MonCotiz': float(config_obj.cotizacion),  # Usar cotización de la configuración
-                'CondicionIVAReceptorId': condicion_iva_receptor_id,  # Condición IVA del receptor (RG 5616/2024)
-            }
-            
-            # Para facturas tipo C (CbteTipo 11), NO enviar el objeto Iva (error 10071)
-            if cbte_tipo != 11:
-                voucher_data['Iva'] = iva_details if iva_details else []
-                logger.info(f"[AFIP DEBUG] Incluyendo objeto Iva - Tipo: {cbte_tipo}, Detalles: {len(iva_details)}")
-            else:
-                logger.info(f"[AFIP DEBUG] Factura tipo C - NO enviando objeto Iva (AFIP error 10071)")
-
-            logger.info(f"[AFIP DEBUG] Voucher data preparado - PtoVta: {punto_venta}, CbteTipo: {cbte_tipo}")
-            logger.debug(f"[AFIP DEBUG] Datos completos del voucher: {voucher_data}")
-
-            # Crear voucher usando createNextVoucher (calcula número automáticamente)
-            logger.info(f"[AFIP DEBUG] Enviando solicitud de voucher a AFIP usando createNextVoucher")
-            result = client.create_next_voucher(voucher_data, full_response=True)
-
-            logger.debug(f"[AFIP DEBUG] Respuesta completa de createNextVoucher: {result}")
-            logger.debug(f"[AFIP DEBUG] Tipo de respuesta: {type(result)}")
-            logger.debug(f"[AFIP DEBUG] Claves en respuesta: {result.keys() if isinstance(result, dict) else 'N/A'}")
-
-            if 'error' in result:
-                logger.error(f"[AFIP DEBUG] Error al crear voucher: {result['error']}")
-                self.afip_error = str(result['error'])
-                self.save(update_fields=['afip_error'])
+                self.afip_error = result.get('error', 'Error desconocido')
+                self.save(update_fields=['afip_error'], skip_afip_call_on_save=True)
                 return False
 
             # Guardar resultado AFIP
-            self.afip_cae = result.get('CAE', '')
-            # AFIP devuelve fecha en formato YYYY-MM-DD (ej: 2026-07-20)
-            cae_fch_vto = result.get('CAEFchVto', '')
-            if cae_fch_vto:
+            self.afip_cae = result.get('cae', '')
+
+            # Convertir vencimiento a date si viene como string 'YYYY-MM-DD'
+            cae_vto_raw = result.get('cae_vto')
+            if isinstance(cae_vto_raw, str):
                 try:
-                    # Intentar formato YYYY-MM-DD
-                    self.afip_cae_vto = datetime.strptime(cae_fch_vto, '%Y-%m-%d').date()
-                except ValueError:
-                    try:
-                        # Fallback a formato YYYYMMDD
-                        self.afip_cae_vto = datetime.strptime(cae_fch_vto, '%Y%m%d').date()
-                    except ValueError:
-                        logger.error(f"[AFIP] Error parseando fecha CAE vencimiento: {cae_fch_vto}")
-                        self.afip_cae_vto = None
+                    from datetime import datetime
+                    self.afip_cae_vto = datetime.strptime(cae_vto_raw, '%Y-%m-%d').date()
+                except Exception:
+                    self.afip_cae_vto = None
             else:
-                self.afip_cae_vto = None
+                self.afip_cae_vto = cae_vto_raw
 
-            # createNextVoucher devuelve el número de comprobante en distintas claves según el modo
-            # Intentar múltiples claves para encontrar el número (incluyendo camelCase)
-            next_nro = result.get('voucherNumber') or result.get('voucher_number') or result.get('CbteDesde') or result.get('CbteHasta') or result.get('cbte_desde') or result.get('cbte_hasta')
+            self.afip_error = ''
 
-            # Si no está en las claves principales, buscar en respuestas anidadas
-            if not next_nro and isinstance(result, dict):
-                for key in ['FECAESolicitarResponse', 'response', 'result']:
-                    if key in result and isinstance(result[key], dict):
-                        nested = result[key]
-                        next_nro = nested.get('voucherNumber') or nested.get('voucher_number') or nested.get('CbteDesde') or nested.get('CbteHasta') or nested.get('cbte_desde') or nested.get('cbte_hasta')
-                        if next_nro:
-                            logger.debug(f"[AFIP DEBUG] Número encontrado en respuesta anidada [{key}]: {next_nro}")
-                            break
+            # Actualizar número de comprobante si está disponible
+            if result.get('voucher_number'):
+                self.afip_voucher_number = result.get('voucher_number')
 
-            if next_nro:
-                self.afip_voucher_number = next_nro
-                logger.info(f"[AFIP DEBUG] Número de comprobante asignado por AFIP: {next_nro}")
-            else:
-                logger.error(f"[AFIP DEBUG] No se recibió número de comprobante en respuesta AFIP")
-                logger.error(f"[AFIP DEBUG] Estructura de respuesta completa: {result}")
-                self.afip_error = "No se recibió número de comprobante de AFIP"
-                self.save(update_fields=['afip_error'])
-                return False
+            # Generar QR con datos del comprobante
+            try:
+                config_obj = afip_service.get_afip_config_obj()
+                punto_venta = afip_service.get_punto_venta()
+                if config_obj and self.afip_cae and self.afip_voucher_number:
+                    qr = self._generate_afip_qr(config_obj, self.afip_voucher_number, punto_venta)
+                    self.afip_qr = qr or ''
+                else:
+                    self.afip_qr = ''
+            except Exception as e:
+                logger.warning("afip_qr_generation_failed", extra={'sale_id': self.id, 'error': str(e)})
+                self.afip_qr = ''
 
-            self.afip_result = result
-            self.is_invoiced = True
-            # Generar código QR
-            self.afip_qr = self._generate_afip_qr(config_obj, next_nro, punto_venta)
-            self.save(update_fields=['afip_cae', 'afip_cae_vto', 'afip_voucher_number', 'afip_result', 'is_invoiced', 'afip_qr'])
+            self.save(update_fields=['afip_cae', 'afip_cae_vto', 'afip_qr', 'afip_error', 'afip_voucher_number'], skip_afip_call_on_save=True)
 
-            logger.info(f"[AFIP DEBUG] Factura AFIP emitida exitosamente - CAE: {self.afip_cae}, Vencimiento: {self.afip_cae_vto}, Número: {self.afip_voucher_number}")
+            # Actualizar Libro IVA con datos reales de AFIP
+            self._crear_registro_libro_iva(config_obj, punto_venta, self.afip_voucher_number)
 
-            # Crear registro en Libro IVA para ventas
-            logger.debug(f"[AFIP DEBUG] Creando registro en Libro IVA")
-            self._crear_registro_libro_iva(config_obj, punto_venta, next_nro)
+            logger.info("afip_invoice_service_success", extra={
+                'sale_id': self.id,
+                'cae': self.afip_cae,
+                'cae_vto': str(self.afip_cae_vto) if self.afip_cae_vto else None
+            })
 
-            # Crear movimiento en cuenta corriente del cliente
-            if self.cli:
-                logger.debug(f"[AFIP DEBUG] Creando movimiento en cuenta corriente del cliente")
-                self._crear_movimiento_cuenta_corriente(config_obj, punto_venta, next_nro)
-
-            # Crear asiento contable básico
-            logger.debug(f"[AFIP DEBUG] Creando asiento contable básico")
-            self._crear_asiento_contable(config_obj, punto_venta, next_nro)
-
-            logger.info(f"[AFIP DEBUG] Proceso de emisión de factura AFIP completado exitosamente para venta ID: {self.id}")
             return True
 
+        except ImportError:
+            logger.error("afip_service_not_available", extra={'sale_id': self.id})
+            self.afip_error = "Servicio AFIP no disponible"
+            self.save(update_fields=['afip_error'], skip_afip_call_on_save=True)
+            return False
         except Exception as e:
-            # Si falla AFIP, marcar como contingencia si está configurado
-            error_msg = str(e)
-            logger.error(f"[AFIP DEBUG] Error en emisión de factura AFIP: {error_msg}")
-            self.afip_error = error_msg
+            logger.error("afip_invoice_service_exception", extra={
+                'sale_id': self.id,
+                'error': str(e)
+            })
+            self.afip_error = str(e)
+            self.save(update_fields=['afip_error'], skip_afip_call_on_save=True)
+            return False
 
-            # Verificar si debe activar modo contingencia
-            from .afip.config import get_afip_config
-            afip_config = get_afip_config(self.company_id)
-            usar_contingencia = afip_config.get('usar_contingencia', False) if afip_config else False
+    def _calcular_valores_libro_iva(self):
+        """Calcula el desglose de IVA, neto gravado, exento y no gravado."""
+        iva_21 = 0.0
+        iva_10_5 = 0.0
+        iva_27 = 0.0
+        iva_2_5 = 0.0
+        iva_0 = 0.0
+        neto_gravado = 0.0
+        neto_no_gravado = 0.0
+        neto_exento = 0.0
 
-            logger.info(f"[AFIP DEBUG] Modo contingencia configurado: {usar_contingencia}")
-
-            if usar_contingencia:
-                # Activar modo contingencia
-                logger.warning(f"[AFIP DEBUG] Activando modo contingencia para venta ID: {self.id}")
-                self.afip_contingencia = True
-                self.afip_contingencia_fecha = timezone.now()
-                self.afip_pendiente_autorizacion = True
-                self.is_invoiced = True  # Marcar como facturada aunque sin CAE
-
-                # Generar número de comprobante local
-                punto_venta_obj = self.company.afippuntoventa_set.filter(is_active=True).first()
-                punto_venta = punto_venta_obj.numero if punto_venta_obj else 1
-                config_obj = self.company.afipconfig_set.filter(is_active=True).first()
-                tipo_map = {1: 1, 6: 6, 11: 11}
-                tipo_comprobante_libro = tipo_map.get(config_obj.tipo_comprobante, 6) if config_obj else 6
-
-                # Asignar número de comprobante temporal (se actualizará al autorizar)
-                if not self.afip_voucher_number:
-                    self.afip_voucher_number = 0  # Temporal, se actualizará al autorizar
-
-                self.save(update_fields=['afip_error', 'afip_contingencia', 'afip_contingencia_fecha', 'afip_pendiente_autorizacion', 'is_invoiced', 'afip_voucher_number'])
-                return True  # Retornar True para no bloquear la venta
-            else:
-                self.save(update_fields=['afip_error'])
-                return False
-
-    def _crear_registro_libro_iva_simple(self):
-        """
-        Crea un registro en el Libro IVA para ventas sin factura AFIP (tickets, ventas locales).
-        """
-        from .models import LibroIvaRegistro
-
-        try:
-            # Verificar si ya existe un registro para esta venta
-            if LibroIvaRegistro.objects.filter(sale=self).exists():
-                return
-
-            # Calcular IVA por alícuota y neto gravado usando SaleVatBreakdown
-            iva_21 = 0
-            iva_10_5 = 0
-            iva_27 = 0
-            iva_2_5 = 0
-            iva_0 = 0
-            neto_gravado = 0
-
-            # Usar los registros de apertura de IVA si existen
-            for vat_breakdown in self.vat_breakdowns.all():
+        # Preferir SaleVatBreakdown; sino calcular desde DetSale
+        breakdowns = list(self.vat_breakdowns.all())
+        if breakdowns:
+            for vat_breakdown in breakdowns:
                 vat_rate = float(vat_breakdown.vat_rate)
                 vat_amount = float(vat_breakdown.vat_amount)
                 taxable_base = float(vat_breakdown.taxable_base)
-                
-                neto_gravado += taxable_base
-                
-                # Comparación flexible para tasas de IVA
-                if abs(vat_rate - 21) < 0.1:
-                    iva_21 += vat_amount
-                elif abs(vat_rate - 10.5) < 0.1:
-                    iva_10_5 += vat_amount
-                elif abs(vat_rate - 27) < 0.1:
-                    iva_27 += vat_amount
-                elif abs(vat_rate - 2.5) < 0.1:
-                    iva_2_5 += vat_amount
-                elif abs(vat_rate - 0) < 0.1:
-                    iva_0 += vat_amount
-            
-            # Fallback: si no hay vat_breakdowns, calcular desde detalles
-            if neto_gravado == 0 and iva_21 == 0 and iva_10_5 == 0:
-                for det in self.detsale_set.all():
-                    if det.iva_amount > 0:
-                        iva_rate = (det.iva_amount / det.subtotal) * 100 if det.subtotal > 0 else 0
-                        neto_gravado += float(det.subtotal)
-                        
-                        if abs(iva_rate - 21) < 0.1:
-                            iva_21 += float(det.iva_amount)
-                        elif abs(iva_rate - 10.5) < 0.1:
-                            iva_10_5 += float(det.iva_amount)
-                        elif abs(iva_rate - 27) < 0.1:
-                            iva_27 += float(det.iva_amount)
-                        elif abs(iva_rate - 2.5) < 0.1:
-                            iva_2_5 += float(det.iva_amount)
-                        elif abs(iva_rate - 0) < 0.1:
-                            iva_0 += float(det.iva_amount)
+                code = vat_breakdown.vat_code
 
-            # Determinar condición IVA del cliente
-            condicion_iva = self.cli.condicion_iva if self.cli else 'CF'
+                if code == '9' or (code != '3' and abs(vat_rate) < 0.1):
+                    neto_no_gravado += taxable_base
+                elif code == '3' or abs(vat_rate) < 0.1:
+                    neto_exento += taxable_base
+                    iva_0 += 0.0
+                else:
+                    neto_gravado += taxable_base
+                    if abs(vat_rate - 21) < 0.1:
+                        iva_21 += vat_amount
+                    elif abs(vat_rate - 10.5) < 0.1:
+                        iva_10_5 += vat_amount
+                    elif abs(vat_rate - 27) < 0.1:
+                        iva_27 += vat_amount
+                    elif abs(vat_rate - 2.5) < 0.1:
+                        iva_2_5 += vat_amount
+        else:
+            for det in self.detsale_set.all():
+                if det.subtotal and det.subtotal > 0:
+                    iva_rate = (float(det.iva_amount) / float(det.subtotal)) * 100
+                else:
+                    iva_rate = 0
+                vat_amount = float(det.iva_amount)
+                taxable_base = float(det.subtotal)
+                code = det.prod.vat_code if det.prod else '5'
 
-            # Determinar aplicación IVA según condición del cliente
-            if condicion_iva == 'RI':
-                aplicacion_iva = 3  # Gravado
-            elif condicion_iva == 'M':
-                aplicacion_iva = 2  # Exento
-            elif condicion_iva == 'CF':
-                aplicacion_iva = 3  # Gravado
-            else:
-                aplicacion_iva = 3  # Gravado por defecto
+                if code == '9' or (code != '3' and abs(iva_rate) < 0.1):
+                    neto_no_gravado += taxable_base
+                elif code == '3' or abs(iva_rate) < 0.1:
+                    neto_exento += taxable_base
+                    iva_0 += 0.0
+                else:
+                    neto_gravado += taxable_base
+                    if abs(iva_rate - 21) < 0.1:
+                        iva_21 += vat_amount
+                    elif abs(iva_rate - 10.5) < 0.1:
+                        iva_10_5 += vat_amount
+                    elif abs(iva_rate - 27) < 0.1:
+                        iva_27 += vat_amount
+                    elif abs(iva_rate - 2.5) < 0.1:
+                        iva_2_5 += vat_amount
 
-            # Ajustar neto gravado según aplicación IVA
-            if aplicacion_iva != 3:
-                neto_gravado = 0
-            neto_exento = float(self.subtotal) if aplicacion_iva == 2 else 0
+        return {
+            'iva_21': iva_21,
+            'iva_10_5': iva_10_5,
+            'iva_27': iva_27,
+            'iva_2_5': iva_2_5,
+            'iva_0': iva_0,
+            'neto_gravado': neto_gravado,
+            'neto_no_gravado': neto_no_gravado,
+            'neto_exento': neto_exento,
+        }
 
-            # Calcular total del Libro IVA: neto gravado + todos los IVAs
-            total_libro_iva = neto_gravado + iva_21 + iva_10_5 + iva_27 + iva_2_5 + iva_0 + neto_exento
+    def _get_aplicacion_iva_cliente(self):
+        condicion_iva = self.cli.condicion_iva if self.cli else 'CF'
+        if condicion_iva == 'RI':
+            return 3  # Gravado
+        if condicion_iva == 'M':
+            return 2  # Exento
+        return 3  # Gravado por defecto
 
-            # Determinar tipo de comprobante según invoice_type
-            tipo_map = {'A': 1, 'B': 6, 'C': 11, 'X': 99}
-            tipo_comprobante_libro = tipo_map.get(self.invoice_type, 6)
-
-            # Usar invoice_number si existe, sino usar ID local
-            if self.invoice_number:
-                punto_venta = int(self.invoice_pos) if self.invoice_pos else 1
-                numero_comprobante = int(self.invoice_number)
-            else:
-                punto_venta = 1
-                numero_comprobante = self.id
-
-            LibroIvaRegistro.objects.create(
-                company=self.company,
-                tipo_registro='venta',
-                fecha=self.date_joined.date() if self.date_joined else timezone.now().date(),
-                tipo_comprobante=tipo_comprobante_libro,
-                punto_venta=punto_venta,
-                numero_comprobante=numero_comprobante,
-                cuit_emisor=self.company.cuit if self.company else '',
-                cuit_receptor=self.cli.cuit_cuil if self.cli else None,
-                razon_social=f"{self.cli.names} {self.cli.surnames or ''}".strip() if self.cli else 'Consumidor Final',
-                condicion_iva=condicion_iva,
-                aplicacion_iva=aplicacion_iva,
-                neto_gravado=neto_gravado,
-                neto_no_gravado=0,
-                neto_exento=neto_exento,
-                iva_21=iva_21,
-                iva_10_5=iva_10_5,
-                iva_27=iva_27,
-                iva_2_5=iva_2_5,
-                iva_0=iva_0,
-                impuesto_interno=0,
-                total=total_libro_iva,
-                cae=self.afip_cae or '',
-                cae_vto=self.afip_cae_vto,
-                sale=self
-            )
-        except Exception as e:
-            # No fallar la venta si falla el registro del libro IVA
-            print(f"Error creando registro Libro IVA simple: {e}")
+    def _crear_registro_libro_iva_simple(self):
+        """
+        Crea o actualiza un registro en el Libro IVA para ventas sin factura AFIP.
+        """
+        self._crear_registro_libro_iva(None, None, None)
 
     def _crear_registro_libro_iva(self, config_obj, punto_venta, nro_cbte):
         """
-        Crea automáticamente un registro en el Libro IVA para ventas.
+        Crea o actualiza un registro en el Libro IVA para ventas.
         Usa SaleVatBreakdown para obtener el desglose de IVA por alícuota.
         """
         from .models import LibroIvaRegistro
 
         try:
-            # Verificar si ya existe un registro para esta venta
-            if LibroIvaRegistro.objects.filter(sale=self).exists():
-                # Actualizar el registro existente con datos de AFIP
-                registro = LibroIvaRegistro.objects.filter(sale=self).first()
-                registro.cae = self.afip_cae or ''
-                registro.cae_vto = self.afip_cae_vto
-                registro.punto_venta = punto_venta
-                registro.numero_comprobante = nro_cbte
-                registro.save(update_fields=['cae', 'cae_vto', 'punto_venta', 'numero_comprobante'])
-                return
-
-            # Mapear tipo de comprobante AFIP a tipo de comprobante del Libro IVA
-            tipo_map = {1: 1, 6: 6, 11: 11}  # A, B, C
-            tipo_comprobante_libro = tipo_map.get(config_obj.tipo_comprobante, 6)
-
-            # Calcular IVA por alícuota y neto gravado usando SaleVatBreakdown
-            iva_21 = 0
-            iva_10_5 = 0
-            iva_27 = 0
-            iva_2_5 = 0
-            iva_0 = 0
-            neto_gravado = 0
-
-            # Usar los registros de apertura de IVA si existen
-            for vat_breakdown in self.vat_breakdowns.all():
-                vat_rate = float(vat_breakdown.vat_rate)
-                vat_amount = float(vat_breakdown.vat_amount)
-                taxable_base = float(vat_breakdown.taxable_base)
-                
-                neto_gravado += taxable_base
-                
-                # Comparación flexible para tasas de IVA
-                if abs(vat_rate - 21) < 0.1:
-                    iva_21 += vat_amount
-                elif abs(vat_rate - 10.5) < 0.1:
-                    iva_10_5 += vat_amount
-                elif abs(vat_rate - 27) < 0.1:
-                    iva_27 += vat_amount
-                elif abs(vat_rate - 2.5) < 0.1:
-                    iva_2_5 += vat_amount
-                elif abs(vat_rate - 0) < 0.1:
-                    iva_0 += vat_amount
-            
-            # Fallback: si no hay vat_breakdowns, calcular desde detalles
-            if neto_gravado == 0 and iva_21 == 0 and iva_10_5 == 0:
-                for det in self.detsale_set.all():
-                    if det.iva_amount > 0:
-                        iva_rate = (det.iva_amount / det.subtotal) * 100 if det.subtotal > 0 else 0
-                        neto_gravado += float(det.subtotal)
-                        
-                        if abs(iva_rate - 21) < 0.1:
-                            iva_21 += float(det.iva_amount)
-                        elif abs(iva_rate - 10.5) < 0.1:
-                            iva_10_5 += float(det.iva_amount)
-                        elif abs(iva_rate - 27) < 0.1:
-                            iva_27 += float(det.iva_amount)
-                        elif abs(iva_rate - 2.5) < 0.1:
-                            iva_2_5 += float(det.iva_amount)
-                        elif abs(iva_rate - 0) < 0.1:
-                            iva_0 += float(det.iva_amount)
-
-            # Determinar condición IVA del cliente
+            valores = self._calcular_valores_libro_iva()
             condicion_iva = self.cli.condicion_iva if self.cli else 'CF'
+            aplicacion_iva = self._get_aplicacion_iva_cliente()
 
-            # Determinar aplicación IVA según condición del cliente
-            if condicion_iva == 'RI':
-                aplicacion_iva = 3  # Gravado
-            elif condicion_iva == 'M':
-                aplicacion_iva = 2  # Exento
-            elif condicion_iva == 'CF':
-                aplicacion_iva = 3  # Gravado
+            total_libro_iva = (
+                valores['neto_gravado'] + valores['neto_no_gravado'] + valores['neto_exento'] +
+                valores['iva_21'] + valores['iva_10_5'] + valores['iva_27'] + valores['iva_2_5'] + valores['iva_0']
+            )
+
+            if config_obj:
+                tipo_map = {1: 1, 6: 6, 11: 11}
+                tipo_comprobante_libro = tipo_map.get(config_obj.tipo_comprobante, 6)
             else:
-                aplicacion_iva = 3  # Gravado por defecto
+                tipo_map = {'A': 1, 'B': 6, 'C': 11, 'X': 99}
+                tipo_comprobante_libro = tipo_map.get(self.invoice_type, 6)
 
-            # Ajustar neto gravado según aplicación IVA
-            if aplicacion_iva != 3:
-                neto_gravado = 0
-            neto_exento = float(self.subtotal) if aplicacion_iva == 2 else 0
+            if punto_venta is None:
+                if self.invoice_number:
+                    punto_venta = int(self.invoice_pos) if self.invoice_pos else 1
+                else:
+                    punto_venta = 1
 
-            # Calcular total del Libro IVA: neto gravado + todos los IVAs
-            total_libro_iva = neto_gravado + iva_21 + iva_10_5 + iva_27 + iva_2_5 + iva_0 + neto_exento
+            if nro_cbte is None:
+                if self.invoice_number:
+                    nro_cbte = int(self.invoice_number)
+                else:
+                    nro_cbte = self.id
 
-            LibroIvaRegistro.objects.create(
-                company=self.company,
-                tipo_registro='venta',
-                fecha=self.date_joined.date() if self.date_joined else timezone.now().date(),
-                tipo_comprobante=tipo_comprobante_libro,
-                punto_venta=punto_venta,
-                numero_comprobante=nro_cbte,
-                cuit_emisor=self.company.cuit or config_obj.cuit,
-                cuit_receptor=self.cli.cuit_cuil if self.cli else None,
-                razon_social=f"{self.cli.names} {self.cli.surnames or ''}".strip() if self.cli else 'Consumidor Final',
-                condicion_iva=condicion_iva,
-                aplicacion_iva=aplicacion_iva,
-                neto_gravado=neto_gravado,
-                neto_no_gravado=0,
-                neto_exento=neto_exento,
-                iva_21=iva_21,
-                iva_10_5=iva_10_5,
-                iva_27=iva_27,
-                iva_2_5=iva_2_5,
-                iva_0=iva_0,
-                impuesto_interno=0,
-                total=total_libro_iva,
-                cae=self.afip_cae,
-                cae_vto=self.afip_cae_vto,
-                sale=self
+            defaults = {
+                'company': self.company,
+                'tipo_registro': 'venta',
+                'fecha': self.date_joined.date() if self.date_joined else timezone.now().date(),
+                'tipo_comprobante': tipo_comprobante_libro,
+                'punto_venta': punto_venta,
+                'numero_comprobante': nro_cbte,
+                'cuit_emisor': (self.company.cuit or config_obj.cuit if config_obj and config_obj.cuit else self.company.cuit) if self.company else '',
+                'cuit_receptor': self.cli.cuit_cuil if self.cli else None,
+                'razon_social': f"{self.cli.names} {self.cli.surnames or ''}".strip() if self.cli else 'Consumidor Final',
+                'condicion_iva': condicion_iva,
+                'aplicacion_iva': aplicacion_iva,
+                'neto_gravado': valores['neto_gravado'],
+                'neto_no_gravado': valores['neto_no_gravado'],
+                'neto_exento': valores['neto_exento'],
+                'iva_21': valores['iva_21'],
+                'iva_10_5': valores['iva_10_5'],
+                'iva_27': valores['iva_27'],
+                'iva_2_5': valores['iva_2_5'],
+                'iva_0': valores['iva_0'],
+                'impuesto_interno': 0,
+                'total': total_libro_iva,
+                'cae': self.afip_cae or '',
+                'cae_vto': self.afip_cae_vto,
+                'sale': self,
+            }
+
+            LibroIvaRegistro.objects.update_or_create(
+                sale=self,
+                defaults=defaults
             )
         except Exception as e:
-            # No fallar la factura si falla el registro del libro IVA
-            print(f"Error creando registro Libro IVA: {e}")
+            # No fallar la venta si falla el registro del libro IVA
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error("libro_iva_error", extra={
+                'sale_id': self.id,
+                'error': str(e)
+            })
 
     def _crear_movimiento_cuenta_corriente(self, config_obj, punto_venta, nro_cbte):
         """
@@ -1975,6 +1797,7 @@ class AfipConfig(models.Model):
     moneda = models.CharField(max_length=3, choices=MONEDA_CHOICES, default='PES', verbose_name='Moneda')
     cotizacion = models.DecimalField(max_digits=10, decimal_places=2, default=1.0, verbose_name='Cotización (si no es PES)')
     usar_contingencia = models.BooleanField(default=False, verbose_name='Usar Modo Contingencia (operar sin AFIP)')
+    cbte_nro = models.IntegerField(default=0, verbose_name='Último número de comprobante emitido')
     wsfe_authorized = models.BooleanField(default=False, verbose_name='WSFE Autorizado')
     wsfe_authorized_at = models.DateTimeField(blank=True, null=True, verbose_name='Fecha de autorización WSFE')
     wsfe_automation_id = models.CharField(max_length=255, blank=True, null=True, verbose_name='ID de automatización de autorización WSFE')
@@ -2389,9 +2212,10 @@ class ActivityLog(models.Model):
 
 
 class EmployeeAccountSale(models.Model):
-    """Ventas por cuenta corriente de empleados - descuentan stock pero no suman al total de ventas"""
+    """Ventas por cuenta corriente - descuentan stock pero no suman al total de ventas"""
     company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa', null=True, blank=True)
-    employee = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name='Empleado')
+    employee = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name='Empleado', null=True, blank=True)
+    client = models.ForeignKey('Client', on_delete=models.CASCADE, verbose_name='Cliente', null=True, blank=True)
     date_joined = models.DateTimeField(default=timezone.now, verbose_name='Fecha y hora')
     local_timezone = models.CharField(max_length=50, blank=True, null=True, verbose_name='Zona horaria local')
     subtotal = models.DecimalField(default=0.00, max_digits=9, decimal_places=2, verbose_name='Subtotal')
@@ -2405,8 +2229,15 @@ class EmployeeAccountSale(models.Model):
     local_uuid = models.CharField(max_length=64, blank=True, null=True, db_index=True, verbose_name='UUID local', help_text='UUID para sincronización (índice para búsquedas rápidas)')
     payment_details = models.JSONField(default=dict, blank=True, verbose_name='Detalles de pago combinado')
 
+    def account_holder_name(self):
+        if self.client:
+            return f"{self.client.names} {self.client.surnames or ''}".strip()
+        if self.employee:
+            return self.employee.get_full_name() or self.employee.username
+        return 'Sin titular'
+
     def __str__(self):
-        return f"Cta. Cte. {self.employee.get_full_name()} - {self.date_joined.strftime('%d/%m/%Y')}"
+        return f"Cta. Cte. {self.account_holder_name()} - {self.date_joined.strftime('%d/%m/%Y')}"
 
     def save(self, *args, **kwargs):
         if not self.company_id:
@@ -2436,7 +2267,8 @@ class EmployeeAccountSale(models.Model):
 
     def toJSON(self):
         item = model_to_dict(self, exclude=['date_creation', 'date_updated', 'user_creation', 'user_updated'])
-        item['employee'] = self.employee.get_full_name() or self.employee.username
+        item['employee'] = self.account_holder_name()
+        item['client'] = self.account_holder_name()
         # Formatear la fecha sin conversión de zona horaria
         try:
             local_dt = timezone.localtime(self.date_joined)

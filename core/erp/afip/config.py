@@ -38,9 +38,10 @@ def get_afip_config(company_id=None):
 
     if company_id:
         try:
+            logger.warning(f"[AFIP CONFIG] Buscando config para empresa ID {company_id}")
             config = AfipConfig.objects.filter(company_id=company_id, is_active=True).first()
             if config:
-                logger.debug(f"[AFIP CONFIG] Configuración encontrada para empresa ID {company_id}: CUIT {config.cuit}")
+                logger.warning(f"[AFIP CONFIG] Configuración encontrada para empresa ID {company_id}: CUIT {config.cuit}, token={bool(config.access_token)}, active={config.is_active}")
                 return {
                     'CUIT': config.cuit,
                     'access_token': config.access_token,

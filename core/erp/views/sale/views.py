@@ -426,6 +426,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                             'has_price_list': True,
                             'list_name': pl.name,
                             'discount_percentage': float(pl.discount_percentage),
+                            'interest_percentage': float(pl.interest_percentage),
                             'prices': prices,
                         }
                     else:
@@ -438,7 +439,8 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     {
                         'id': pl.id,
                         'name': pl.name,
-                        'discount_percentage': float(pl.discount_percentage) if pl.discount_percentage else 0
+                        'discount_percentage': float(pl.discount_percentage) if pl.discount_percentage else 0,
+                        'interest_percentage': float(pl.interest_percentage) if pl.interest_percentage else 0
                     }
                     for pl in price_lists
                 ]
@@ -466,6 +468,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                             'has_price_list': True,
                             'list_name': pl.name,
                             'discount_percentage': float(pl.discount_percentage) if pl.discount_percentage else 0,
+                            'interest_percentage': float(pl.interest_percentage) if pl.interest_percentage else 0,
                             'prices': prices,
                         }
             elif action == 'get_employees':
@@ -495,6 +498,26 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         'username': emp.username
                     })
                 
+            elif action == 'get_clients':
+                # Obtener lista de clientes para cuenta corriente
+                active_cid = request.session.get('company_id')
+                if not request.user.is_superuser:
+                    active_cid = active_cid or getattr(request.user, 'company', None)
+                    if active_cid:
+                        active_cid = active_cid.id
+
+                clients = Client.objects.filter(is_active=True)
+                if active_cid:
+                    clients = clients.filter(company_id=active_cid)
+
+                clients = clients.order_by('names', 'surnames')
+                data = []
+                for cli in clients:
+                    data.append({
+                        'id': cli.id,
+                        'name': f"{cli.names} {cli.surnames or ''}".strip(),
+                    })
+
             elif action == 'create_category':
                 name = (request.POST.get('name') or '').strip()
                 if not name:
@@ -630,15 +653,20 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         sale.payment_details = payload['combined_payments']
                     
                     sale.save()
-                    print(f"[DEBUG] Sale guardada: id={sale.id}, is_budget={sale.is_budget}, status={sale.status}")
-                    
+                    logger.info("pos_sale_saved", extra={
+                        'sale_id': sale.id,
+                        'is_budget': sale.is_budget,
+                        'status': sale.status,
+                        'total': float(sale.total)
+                    })
+
                     request.session[f'processed_sale_{sale_token}'] = True
                     request.session.save()
                     
                     for it in items:
                         raw_cant = it.get('cant', 1)
                         cant = Decimal(str(raw_cant or '1'))
-                        prod = Product.objects.filter(pk=int(it['id'])).first()
+                        prod = Product.objects.select_for_update().get(pk=int(it['id']))
                         det = DetSale(
                             sale_id=sale.id,
                             prod_id=int(it['id']),
@@ -668,7 +696,14 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         self.create_vat_breakdown_from_payload(sale, vat_breakdown)
                     else:
                         self.calculate_vat_breakdown(sale)
-                    
+
+                    # Actualizar Libro IVA con detalles ya cargados
+                    sale._crear_registro_libro_iva_simple()
+
+                    # Emitir factura AFIP una vez que los detalles están cargados
+                    if not sale.is_budget and not sale.afip_cae:
+                        sale.emitir_factura_afip(skip_afip_call_on_save=True)
+
                     data = {
                         'id': sale.id,
                         'is_budget': sale.is_budget,
@@ -832,7 +867,14 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     
                     # Calcular y guardar apertura de alícuotas de IVA
                     self.calculate_vat_breakdown(sale)
-                    
+
+                    # Actualizar Libro IVA con detalles ya cargados
+                    sale._crear_registro_libro_iva_simple()
+
+                    # Emitir factura AFIP una vez que los detalles están cargados
+                    if not sale.is_budget and not sale.afip_cae and afip_config:
+                        sale.emitir_factura_afip(skip_afip_call_on_save=True)
+
                     data = {
                         'id': sale.id,
                         'invoice_url': reverse_lazy('erp:invoice_pdf', kwargs={'pk': sale.id}),
@@ -929,9 +971,10 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     
                 payload = json.loads(request.POST.get('sale') or '{}')
                 employee_id = payload.get('employee_id')
-                if not employee_id:
-                    return JsonResponse({'error': 'Debe seleccionar un empleado'}, status=400)
-                    
+                client_id = payload.get('client_id')
+                if not employee_id and not client_id:
+                    return JsonResponse({'error': 'Debe seleccionar un cliente o empleado'}, status=400)
+
                 with transaction.atomic():
                     items = payload.get('items', [])
                     # Validar stock con cantidades decimales
@@ -943,12 +986,15 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                             raise Exception("Cantidad inválida")
                         if getattr(prod, 'track_stock', True) and prod.stock < cant:
                             raise Exception(f"Stock insuficiente para {prod.name}. Disponible: {format(prod.stock, '.2f')} {prod.get_unit_display()}, requerido: {format(cant, '.2f')} {prod.get_unit_display()}")
-                    
+
                     # Crear venta por cuenta corriente
                     emp_sale = EmployeeAccountSale()
                     if active_cid:
                         emp_sale.company_id = active_cid
-                    emp_sale.employee_id = employee_id
+                    if client_id:
+                        emp_sale.client_id = client_id
+                    if employee_id:
+                        emp_sale.employee_id = employee_id
                     emp_sale.subtotal = float(payload.get('subtotal', 0))
                     emp_sale.iva = float(payload.get('iva', 0))
                     emp_sale.total = float(payload.get('total', 0))
@@ -1146,29 +1192,40 @@ class SaleCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Create
                 with transaction.atomic():
                     vents = json.loads(request.POST['vents'])
                     is_budget = vents.get('is_budget', False)
-                    print(f"[DEBUG] action=add, is_budget={is_budget}, vents keys={list(vents.keys())}, products={vents.get('products', 'MISSING')}, date_joined={vents.get('date_joined', 'MISSING')}")
+                    logger.info("sale_create_start", extra={
+                        'user': request.user.username,
+                        'is_budget': is_budget,
+                        'products_count': len(vents.get('products', [])),
+                        'total': vents.get('total', 0)
+                    })
 
                     # Validación de stock suficiente (solo si no es presupuesto)
                     if not is_budget:
                         for i in vents['products']:
                             prod = Product.objects.select_for_update().get(pk=i['id'])
-                            
+
                             # Determinar la cantidad según la unidad del producto
                             if prod.unit == 'kg':
                                 cant = float(i['cant'])
                             else:
                                 cant = int(i['cant'])
-                                
+
                             if prod.stock < cant:
+                                logger.warning("stock_insufficient", extra={
+                                    'product_id': prod.id,
+                                    'product_name': prod.name,
+                                    'available': float(prod.stock),
+                                    'required': cant
+                                })
                                 raise Exception(f"Stock insuficiente para {prod.name}. Disponible: {format(prod.stock, '.2f')}, requerido: {cant}")
 
                     sale = Sale()
                     # Parse the date string to a timezone-aware datetime
                     from django.utils import timezone
-                    
+
                     # Parse the date string (assuming it's in local time)
                     date_joined = datetime.strptime(vents['date_joined'], '%Y-%m-%d %H:%M:%S')
-                    
+
                     # Make it timezone-aware using the current timezone
                     date_joined = timezone.make_aware(date_joined, timezone.get_current_timezone())
                     
@@ -1241,20 +1298,31 @@ class SaleCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Create
                     
                     # Calcular y guardar apertura de alícuotas de IVA
                     self.calculate_vat_breakdown(sale)
-                
-                print(f"[DEBUG] Presupuesto creado OK: id={sale.id}, is_budget={sale.is_budget}, status={sale.status}, pos_id={sale.pos_id}, local_uuid={sale.local_uuid}")
-                data = {'id': sale.id, 'is_budget': sale.is_budget, 'local_uuid': sale.local_uuid}
-            
+
+                    logger.info("sale_create_success", extra={
+                        'sale_id': sale.id,
+                        'is_budget': sale.is_budget,
+                        'status': sale.status,
+                        'pos_id': sale.pos_id,
+                        'local_uuid': sale.local_uuid,
+                        'total': float(sale.total)
+                    })
+                    data = {'id': sale.id, 'is_budget': sale.is_budget, 'local_uuid': sale.local_uuid}
+
             elif action == 'send_budget_to_local':
                 from core.erp.services.budget_service import send_budget_to_local_server
                 sale_id = request.POST.get('sale_id')
                 result = send_budget_to_local_server(sale_id)
                 data = result
-                
+
             else:
                 data['error'] = 'No ha ingresado a ninguna opción'
         except Exception as e:
-            print(f"[DEBUG] ERROR en POS post action={request.POST.get('action')}: {e}")
+            logger.error("sale_create_error", extra={
+                'action': request.POST.get('action'),
+                'user': request.user.username,
+                'error': str(e)
+            })
             data['error'] = str(e)
         return JsonResponse(data, safe=False)
 
@@ -1429,15 +1497,16 @@ class SaleDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Delete
     def post(self, request, *args, **kwargs):
         data = {}
         try:
-            # Restaurar stock antes de eliminar
-            from django.utils import timezone
-            for d in self.object.detsale_set.all():
-                Product.objects.filter(pk=d.prod_id).update(
-                    stock=F('stock') + d.cant,
-                    stock_modified_locally=timezone.now(),  # Marcar modificación local
-                    synced_to_server=False  # Marcar para sincronizar
-                )
-            self.object.delete()
+            with transaction.atomic():
+                # Restaurar stock antes de eliminar
+                from django.utils import timezone
+                for d in self.object.detsale_set.all():
+                    Product.objects.filter(pk=d.prod_id).update(
+                        stock=F('stock') + d.cant,
+                        stock_modified_locally=timezone.now(),  # Marcar modificación local
+                        synced_to_server=False  # Marcar para sincronizar
+                    )
+                self.object.delete()
         except Exception as e:
             data['error'] = str(e)
         return JsonResponse(data)
@@ -1977,48 +2046,54 @@ class EmployeeAccountListView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                 active_cid = active_cid.id
         if active_cid:
             queryset = queryset.filter(company_id=active_cid)
-        
+
         # Filtros
+        client_id = self.request.GET.get('client')
+        if client_id:
+            queryset = queryset.filter(client_id=client_id)
         employee_id = self.request.GET.get('employee')
         if employee_id:
             queryset = queryset.filter(employee_id=employee_id)
-        
+
         is_paid = self.request.GET.get('is_paid')
         if is_paid == 'true':
             queryset = queryset.filter(is_paid=True)
         elif is_paid == 'false':
             queryset = queryset.filter(is_paid=False)
-        
+
         date_from = self.request.GET.get('date_from')
         date_to = self.request.GET.get('date_to')
         if date_from:
             queryset = queryset.filter(date_joined__date__gte=date_from)
         if date_to:
             queryset = queryset.filter(date_joined__date__lte=date_to)
-        
-        return queryset.select_related('employee')
+
+        return queryset.select_related('client', 'employee')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['title'] = 'Cuenta Corriente de Empleados'
+        context['title'] = 'Cuenta Corriente'
         context['entity'] = 'Cuenta Corriente'
-        
-        # Obtener empleados para el filtro (solo de la misma empresa)
-        User = get_user_model()
-        employees = User.objects.filter(is_active=True).exclude(is_superuser=True)
-        
-        # Filtrar por empresa del usuario
+
         active_cid = self.request.session.get('company_id')
         if not self.request.user.is_superuser:
             active_cid = active_cid or getattr(self.request.user, 'company', None)
             if active_cid:
                 active_cid = active_cid.id
+
+        # Clientes para el filtro
+        clients = Client.objects.filter(is_active=True)
+        if active_cid:
+            clients = clients.filter(company_id=active_cid)
+        context['clients'] = clients.order_by('names', 'surnames')
+
+        # Empleados para el filtro (registros antiguos)
+        User = get_user_model()
+        employees = User.objects.filter(is_active=True).exclude(is_superuser=True)
         if active_cid:
             employees = employees.filter(company_id=active_cid)
-        
-        employees = employees.order_by('first_name', 'last_name')
-        context['employees'] = employees
-        
+        context['employees'] = employees.order_by('first_name', 'last_name')
+
         # Calcular totales
         queryset = self.get_queryset()
         from django.db.models import Sum
@@ -2031,15 +2106,16 @@ class EmployeeAccountListView(LoginRequiredMixin, ValidatePermissionRequiredMixi
         context['total_general'] = queryset.aggregate(
             total=Sum('total')
         )['total'] or 0
-        
+
         # Mantener filtros en el contexto
         context['filters'] = {
+            'client': self.request.GET.get('client', ''),
             'employee': self.request.GET.get('employee', ''),
             'is_paid': self.request.GET.get('is_paid', ''),
             'date_from': self.request.GET.get('date_from', ''),
             'date_to': self.request.GET.get('date_to', ''),
         }
-        
+
         return context
 
     def post(self, request, *args, **kwargs):
@@ -2067,7 +2143,8 @@ class EmployeeAccountListView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                     'success': True,
                     'account': {
                         'id': account.id,
-                        'employee': account.employee.get_full_name() or account.employee.username,
+                        'employee': account.account_holder_name(),
+                        'client': account.account_holder_name(),
                         'date_joined': account.date_joined.strftime('%d/%m/%Y %H:%M'),
                         'total': float(account.total),
                         'subtotal': float(account.subtotal),
@@ -2129,7 +2206,7 @@ class EmployeeAccountListView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                             # Crear una sola venta con el total completo
                             sale = Sale.objects.create(
                                 company_id=active_cid,
-                                cli_id=None,
+                                cli=account.client,
                                 subtotal=account.total,
                                 iva=0,
                                 total=account.total,
@@ -2168,7 +2245,7 @@ class EmployeeAccountListView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                             # Pago simple normal
                             sale = Sale.objects.create(
                                 company_id=active_cid,
-                                cli_id=None,
+                                cli=account.client,
                                 subtotal=account.total,
                                 iva=0,
                                 total=account.total,

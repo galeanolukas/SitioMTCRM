@@ -5,6 +5,7 @@
 <tr>
     <th>Nombre</th>
     <th>Descuento (%)</th>
+    <th>Interés (%)</th>
     <th>Productos con override</th>
     <th>Estado</th>
     <th>Acciones</th>
@@ -16,6 +17,7 @@
 <tr>
     <td>{{ pl.name }}</td>
     <td>{{ pl.discount_percentage }}%</td>
+    <td>{{ pl.interest_percentage }}%</td>
     <td>{{ pl.products.count }}</td>
     <td>
         {% if pl.is_active %}
@@ -35,7 +37,7 @@
 </tr>
 {% empty %}
 <tr>
-    <td colspan="5" class="text-center">No hay listas de precios creadas</td>
+    <td colspan="6" class="text-center">No hay listas de precios creadas</td>
 </tr>
 {% endfor %}
 {% endblock %}

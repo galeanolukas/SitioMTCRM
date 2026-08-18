@@ -8,6 +8,9 @@ from django.shortcuts import get_object_or_404
 from core.erp.models import Remito, DetalleRemito, Product, Supplier
 from core.erp.forms import RemitoForm
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class RemitoListView(LoginRequiredMixin, PermissionRequiredMixin, ListView):
@@ -155,17 +158,26 @@ class RemitoDeleteView(LoginRequiredMixin, PermissionRequiredMixin, DeleteView):
 def procesar_remito(request, pk):
     """Procesar un remito: actualizar stock de productos"""
     if not request.user.has_perm('erp.manage_remitos'):
+        logger.warning("remito_process_permission_denied", extra={
+            'user': request.user.username,
+            'remito_id': pk
+        })
         return JsonResponse({'error': 'No tiene permisos'}, status=403)
-    
+
     remito = get_object_or_404(Remito, pk=pk)
-    
+
     if remito.estado != 'pending':
+        logger.warning("remito_process_invalid_state", extra={
+            'remito_id': pk,
+            'current_state': remito.estado
+        })
         return JsonResponse({'error': 'El remito ya fue procesado'}, status=400)
-    
+
     try:
         with transaction.atomic():
             for detalle in remito.detalleremito_set.all():
-                producto = detalle.prod
+                # Usar select_for_update para evitar race conditions
+                producto = Product.objects.select_for_update().get(pk=detalle.prod_id)
                 if remito.tipo == 'entrada':
                     # Entrada: sumar stock
                     producto.stock += detalle.cantidad
@@ -173,25 +185,50 @@ def procesar_remito(request, pk):
                     # Salida: restar stock
                     producto.stock -= detalle.cantidad
                     if producto.stock < 0:
+                        logger.warning("remito_process_stock_insufficient", extra={
+                            'remito_id': pk,
+                            'product_id': producto.id,
+                            'product_name': producto.name,
+                            'available': float(producto.stock),
+                            'required': float(detalle.cantidad)
+                        })
                         return JsonResponse({'error': f'Stock insuficiente para {producto.name}'}, status=400)
                 producto.save()
-            
+
             remito.estado = 'processed'
             remito.save()
-        
+
+            logger.info("remito_process_success", extra={
+                'remito_id': pk,
+                'tipo': remito.tipo,
+                'user': request.user.username
+            })
+
         return JsonResponse({'success': True, 'message': 'Remito procesado exitosamente'})
     except Exception as e:
+        logger.error("remito_process_error", extra={
+            'remito_id': pk,
+            'user': request.user.username,
+            'error': str(e)
+        })
         return JsonResponse({'error': str(e)}, status=500)
 
 
 def anular_remito(request, pk):
     """Anular un remito: revertir stock si está procesado, solo cancelar si está pendiente"""
     if not request.user.has_perm('erp.manage_remitos'):
+        logger.warning("remito_anular_permission_denied", extra={
+            'user': request.user.username,
+            'remito_id': pk
+        })
         return JsonResponse({'error': 'No tiene permisos'}, status=403)
 
     remito = get_object_or_404(Remito, pk=pk)
 
     if remito.estado == 'cancelled':
+        logger.warning("remito_anular_already_cancelled", extra={
+            'remito_id': pk
+        })
         return JsonResponse({'error': 'El remito ya está anulado'}, status=400)
 
     try:
@@ -199,11 +236,19 @@ def anular_remito(request, pk):
             # Solo revertir stock si estaba procesado
             if remito.estado == 'processed':
                 for detalle in remito.detalleremito_set.all():
-                    producto = detalle.prod
+                    # Usar select_for_update para evitar race conditions
+                    producto = Product.objects.select_for_update().get(pk=detalle.prod_id)
                     if remito.tipo == 'entrada':
                         # Entrada anulado: restar stock
                         producto.stock -= detalle.cantidad
                         if producto.stock < 0:
+                            logger.warning("remito_anular_stock_insufficient", extra={
+                                'remito_id': pk,
+                                'product_id': producto.id,
+                                'product_name': producto.name,
+                                'available': float(producto.stock),
+                                'required': float(detalle.cantidad)
+                            })
                             return JsonResponse({'error': f'Stock insuficiente para {producto.name}'}, status=400)
                     else:
                         # Salida anulado: sumar stock
@@ -213,8 +258,19 @@ def anular_remito(request, pk):
             remito.estado = 'cancelled'
             remito.save()
 
+            logger.info("remito_anular_success", extra={
+                'remito_id': pk,
+                'previous_state': remito.estado,
+                'user': request.user.username
+            })
+
         return JsonResponse({'success': True, 'message': 'Remito anulado exitosamente'})
     except Exception as e:
+        logger.error("remito_anular_error", extra={
+            'remito_id': pk,
+            'user': request.user.username,
+            'error': str(e)
+        })
         return JsonResponse({'error': str(e)}, status=500)
 
 

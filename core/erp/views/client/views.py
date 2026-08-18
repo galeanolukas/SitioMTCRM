@@ -156,8 +156,9 @@ class ClientCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Comp
         try:
             action = request.POST['action']
             if action == 'add':
-                form = self.get_form()
-                data = form.save()
+                with transaction.atomic():
+                    form = self.get_form()
+                    data = form.save()
             elif action == 'search_cuit':
                 cuit = request.POST.get('cuit', '').strip()
                 if not cuit:
@@ -212,8 +213,9 @@ class ClientUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Upda
         try:
             action = request.POST['action']
             if action == 'edit':
-                form = self.get_form()
-                data = form.save()
+                with transaction.atomic():
+                    form = self.get_form()
+                    data = form.save()
             elif action == 'search_cuit':
                 cuit = request.POST.get('cuit', '').strip()
                 if not cuit:

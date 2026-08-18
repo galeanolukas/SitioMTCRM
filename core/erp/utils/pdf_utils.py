@@ -4,12 +4,15 @@ from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from decimal import Decimal
 import os
 from django.conf import settings
+import base64
+import io
 
 def invoice_pdf_reportlab(request, sale):
     """
@@ -139,7 +142,35 @@ def invoice_pdf_reportlab(request, sale):
     ]))
     story.append(totals_table)
     
+    # Datos AFIP y QR
+    if sale.afip_cae:
+        story.append(Spacer(1, 12))
+        afip_data = [
+            ['CAE:', sale.afip_cae],
+            ['Vto. CAE:', sale.afip_cae_vto.strftime('%d/%m/%Y') if sale.afip_cae_vto else '-'],
+        ]
+        afip_table = Table(afip_data, colWidths=[1.5*inch, 4*inch])
+        afip_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, -1), colors.lightgrey),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        story.append(afip_table)
+
+    if sale.afip_qr and sale.afip_qr.startswith('data:image'):
+        try:
+            b64 = sale.afip_qr.split('base64,')[1]
+            img_bytes = base64.b64decode(b64)
+            img_reader = ImageReader(io.BytesIO(img_bytes))
+            story.append(Spacer(1, 12))
+            story.append(Image(img_reader, width=1.5*inch, height=1.5*inch))
+        except Exception:
+            pass
+
     # Construir PDF
     doc.build(story)
-    
+
     return response

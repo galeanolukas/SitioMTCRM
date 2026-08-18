@@ -149,8 +149,8 @@
         <h5 class="mb-1">Reporte de Cuentas Corrientes | Fecha: {% now "d/m/Y H:i" %} | Empresa: {{ request.user.company|default:"Todas las empresas" }}</h5>
       </div>
 
-      <h2 class="h4 mb-4 no-print">
-        <i class="fas fa-user-tie me-2"></i>Cuenta Corriente
+        <h2 class="h4 mb-4 no-print">
+        <i class="fas fa-users me-2"></i>Cuenta Corriente
       </h2>
     </div>
   </div>
@@ -190,12 +190,12 @@
         <div class="card-body">
           <form method="GET" class="row g-3">
             <div class="col-md-3">
-              <label for="employee" class="form-label">Empleado</label>
-              <select name="employee" id="employee" class="form-select">
-                <option value="">Todos los empleados</option>
-                {% for emp in employees %}
-                  <option value="{{ emp.id }}" {% if filters.employee == emp.id|stringformat:"s" %}selected{% endif %}>
-                    {{ emp.get_full_name|default:emp.username }}
+              <label for="client" class="form-label">Cliente</label>
+              <select name="client" id="client" class="form-select">
+                <option value="">Todos los clientes</option>
+                {% for cli in clients %}
+                  <option value="{{ cli.id }}" {% if filters.client == cli.id|stringformat:"s" %}selected{% endif %}>
+                    {{ cli.names }} {{ cli.surnames|default:'' }}
                   </option>
                 {% endfor %}
               </select>
@@ -252,7 +252,7 @@
               <table class="table table-hover">
                 <thead>
                   <tr>
-                    <th>Empleado</th>
+                    <th>Cliente / Titular</th>
                     <th>Fecha</th>
                     <th>Productos</th>
                     <th class="text-end">Subtotal</th>
@@ -266,7 +266,7 @@
                   {% for account in object_list %}
                     <tr class="{% if account.is_paid %}table-success{% else %}table-danger{% endif %}">
                       <td>
-                        <strong>{{ account.employee.get_full_name|default:account.employee.username }}</strong>
+                        <strong>{% if account.client %}{{ account.client.names }} {{ account.client.surnames|default:'' }}{% else %}{{ account.employee.get_full_name|default:account.employee.username }}{% endif %}</strong>
                         {% if account.notes %}
                           <br><small class="text-muted">{{ account.notes|truncatewords:5 }}</small>
                         {% endif %}

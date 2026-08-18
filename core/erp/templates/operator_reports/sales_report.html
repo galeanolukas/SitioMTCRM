@@ -40,6 +40,7 @@
                                 <select name="report_format" id="report_format" class="form-control">
                                     <option value="payment">Por Método de Pago</option>
                                     <option value="products">Ranking de Productos</option>
+                                    <option value="fiscal">Detalle Fiscal (IVA/AFIP)</option>
                                 </select>
                             </div>
                         </div>
@@ -290,10 +291,90 @@ function displayReport(data) {
     if (data.report_format === 'products') {
         // Mostrar reporte de ranking de productos
         displayProductsReport(data);
+    } else if (data.report_format === 'fiscal') {
+        displayFiscalReport(data);
     } else {
         // Mostrar reporte por método de pago (original)
         displayPaymentReport(data);
     }
+}
+
+function displayFiscalReport(data) {
+    const tbody = $('#sales-tbody');
+    tbody.empty();
+
+    const tableHead = $('#table-head');
+    tableHead.html(`
+        <tr>
+            <th>Fecha/Hora</th>
+            <th>Comprobante</th>
+            <th>Tipo</th>
+            <th>Cliente</th>
+            <th>CUIT</th>
+            <th>Productos</th>
+            <th class="text-right">Subtotal</th>
+            <th class="text-right">IVA</th>
+            <th class="text-right">Total</th>
+            <th>Forma de Pago</th>
+            <th>Empresa</th>
+        </tr>
+    `);
+
+    const tableFoot = $('#table-foot');
+    tableFoot.html(`
+        <tr class="font-weight-bold">
+            <td colspan="6">Resumen</td>
+            <td id="fiscal-subtotal" class="text-right">$0.00</td>
+            <td id="fiscal-iva" class="text-right">$0.00</td>
+            <td id="fiscal-total" class="text-right">$0.00</td>
+            <td colspan="2"></td>
+        </tr>
+    `);
+
+    if (!data.sales || data.sales.length === 0) {
+        $('#empty-state').show();
+        $('#report-table').hide();
+        return;
+    }
+
+    let subtotalTotal = 0;
+    let ivaTotal = 0;
+    let totalTotal = 0;
+
+    data.sales.forEach(function(sale) {
+        const subtotal = parseFloat(sale.subtotal) || 0;
+        const iva = parseFloat(sale.iva) || 0;
+        const total = parseFloat(sale.total) || 0;
+
+        subtotalTotal += subtotal;
+        ivaTotal += iva;
+        totalTotal += total;
+
+        const row = `
+            <tr>
+                <td><small>${sale.date}</small></td>
+                <td><small>${sale.ticket_number}</small></td>
+                <td><small>${sale.invoice_type}</small></td>
+                <td><small>${sale.client}</small></td>
+                <td><small>${sale.client_cuit}</small></td>
+                <td><small>${sale.products}</small></td>
+                <td class="text-right">$${subtotal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td class="text-right">$${iva.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td class="text-right font-weight-bold">$${total.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td><small>${sale.payment_method_name}</small></td>
+                <td><small>${sale.company}</small></td>
+            </tr>
+        `;
+        tbody.append(row);
+    });
+
+    $('#fiscal-subtotal').text('$' + subtotalTotal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+    $('#fiscal-iva').text('$' + ivaTotal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+    $('#fiscal-total').text('$' + totalTotal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+
+    $('#empty-state').hide();
+    $('#report-table').show();
+    $('#observations-section').show();
 }
 
 function displayProductsReport(data) {

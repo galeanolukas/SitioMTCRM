@@ -57,9 +57,9 @@ class CategoryAdmin(CompanyFilteredAdmin):
     search_fields = ('name',)
 
 class EmployeeAccountSaleAdmin(CompanyFilteredAdmin):
-    list_display = ('employee', 'date_joined', 'total', 'is_paid', 'paid_date', 'company')
+    list_display = ('account_holder_name', 'date_joined', 'total', 'is_paid', 'paid_date', 'company')
     list_filter = ('company', 'is_paid', 'date_joined')
-    search_fields = ('employee__username', 'employee__first_name', 'employee__last_name', 'notes')
+    search_fields = ('employee__username', 'employee__first_name', 'employee__last_name', 'client__names', 'client__surnames', 'notes')
     date_hierarchy = 'date_joined'
     readonly_fields = ('local_uuid', 'synced_to_server')
     
@@ -199,13 +199,13 @@ class CatalogoConfigAdmin(CompanyFilteredAdmin):
 
 
 class PriceListAdmin(CompanyFilteredAdmin):
-    list_display = ('name', 'discount_percentage', 'is_active', 'company', 'created_at')
+    list_display = ('name', 'discount_percentage', 'interest_percentage', 'is_active', 'company', 'created_at')
     list_filter = ('company', 'is_active')
     search_fields = ('name', 'company__name')
 
 
-class PriceListProductAdmin(admin.ModelAdmin):
-    list_display = ('product', 'price_list', 'fixed_price', 'discount_override', 'is_exception')
+class PriceListProductAdmin(CompanyFilteredAdmin):
+    list_display = ('product', 'price_list', 'fixed_price', 'discount_override', 'interest_override', 'is_exception')
     list_filter = ('price_list', 'is_exception')
     search_fields = ('product__name', 'price_list__name')
 

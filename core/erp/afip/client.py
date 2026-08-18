@@ -34,8 +34,12 @@ class AfipClient:
         if not self.config:
             logger.error(f"[AFIP CLIENT] No se pudo obtener configuración AFIP para company_id: {company_id}")
         else:
-            logger.info(f"[AFIP CLIENT] Configuración obtenida - CUIT: {self.config.get('CUIT')}, Environment: {self.config.get('environment')}")
+            using_contingency = self.config.get('usar_contingencia', False)
+            is_test_cuit = self.config.get('CUIT') == '20111111112'
+            logger.info(f"[AFIP CLIENT] Configuración obtenida - CUIT: {self.config.get('CUIT')}, Environment: {self.config.get('environment')}, Contingencia: {using_contingency}")
             logger.info(f"[AFIP CLIENT] Cert exists: {bool(self.config.get('cert'))}, Key exists: {bool(self.config.get('key'))}")
+            if using_contingency or is_test_cuit:
+                logger.warning(f"[AFIP CLIENT] MODO CONTINGENCIA/PRUEBA: No se conectará con AFIP real. No se obtendrá CAE real.")
         self.afip = None
         self._initialize_client()
     
@@ -154,7 +158,7 @@ class AfipClient:
             full_response: Si es True, devuelve la respuesta completa del WS
 
         Returns:
-            Dict con CAE, CAEFchVto y otros datos del comprobante
+            Dict con success, CAE, CAEFchVto y otros datos del comprobante
         """
         try:
             logger.debug(f"[AFIP] Creando voucher - PtoVta: {voucher_data.get('PtoVta')}, CbteTipo: {voucher_data.get('CbteTipo')}, Total: {voucher_data.get('ImpTotal')}")
@@ -162,13 +166,48 @@ class AfipClient:
 
             # Usar el método ElectronicBilling.createVoucher de AFIP SDK
             result = self.afip.ElectronicBilling.createVoucher(voucher_data)
-            logger.debug(f"[AFIP] Respuesta createVoucher: {result}")
-            return result
+            logger.warning(f"[AFIP] Respuesta createVoucher: {result}")
+
+            # Normalizar respuesta del SDK
+            if isinstance(result, dict):
+                if 'CAE' in result:
+                    return {
+                        'success': True,
+                        'cae': result.get('CAE'),
+                        'cae_vto': result.get('CAEFchVto'),
+                        'raw': result,
+                    }
+                if 'error' in result:
+                    return result
+                if 'Errors' in result or 'errors' in result:
+                    errors = result.get('Errors') or result.get('errors')
+                    if isinstance(errors, list) and errors:
+                        err = errors[0]
+                        return {'error': f"AFIP {err.get('Code', '')}: {err.get('Msg', str(result))}"}
+                    return {'error': f"Respuesta AFIP inesperada: {result}"}
+                return {'error': f"Respuesta AFIP sin CAE: {result}"}
+            elif isinstance(result, str):
+                # SDK a veces devuelve CAE directamente
+                return {'success': True, 'cae': result, 'cae_vto': ''}
+            else:
+                return {'error': f"Respuesta AFIP no reconocida: {type(result)} - {result}"}
         except Exception as e:
             logger.error(f"[AFIP] Error en create_voucher: {e}")
             import traceback
             logger.error(f"[AFIP] Traceback: {traceback.format_exc()}")
             return {'error': str(e)}
+
+    def emitir_factura(self, voucher_data):
+        """
+        Alias para create_voucher para mantener compatibilidad con código existente
+
+        Args:
+            voucher_data: Dict con los datos del comprobante
+
+        Returns:
+            Dict con success, CAE, CAEFchVto y otros datos del comprobante
+        """
+        return self.create_voucher(voucher_data)
 
     def create_next_voucher(self, voucher_data, full_response=False):
         """

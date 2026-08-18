@@ -166,7 +166,7 @@
             <div class="invoice-date">Punto de Venta: {{ punto_venta_afip|default:company.pos|default:"0001" }}</div>
             <div class="invoice-number">Comp. Nro: {{ sale.invoice_number|default:sale.id|stringformat:"08d" }}</div>
             <div class="invoice-date">Fecha de Emisión: {{ sale.date_joined|date:"d/m/Y" }}</div>
-            <div class="invoice-date">Condición IVA: Responsable Inscripto</div>
+            <div class="invoice-date">Condición IVA: {{ company.condicion_iva|default:"Responsable Inscripto" }}</div>
             <div class="invoice-date">Período Facturado Desde: {{ sale.date_joined|date:"d/m/Y" }}</div>
             <div class="invoice-date">Hasta: {{ sale.date_joined|date:"d/m/Y" }}</div>
             <div class="invoice-date">Fecha de Vto. para el pago: {{ sale.date_joined|date:"d/m/Y" }}</div>
@@ -221,9 +221,9 @@
                 <tr>
                     <td class="product-code">{{ det.prod.code|default:"—" }}</td>
                     <td class="product-description">{{ det.prod.name }}</td>
-                    <td class="product-quantity">{{ det.cant|floatformat:0 }}</td>
-                    <td class="product-price">$ {{ det.prod.pvp|floatformat:0 }}</td>
-                    <td class="product-subtotal">$ {{ det.subtotal|floatformat:0 }}</td>
+                    <td class="product-quantity">{{ det.cant|floatformat:2 }}</td>
+                    <td class="product-price">$ {{ det.price|floatformat:2 }}</td>
+                    <td class="product-subtotal">$ {{ det.subtotal|floatformat:2 }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -244,15 +244,15 @@
                 {% endif %}
                 <tr>
                     <td class="totals-label">Importe Otros Tributos:</td>
-                    <td class="totals-value">$0</td>
+                    <td class="totals-value">$ 0.00</td>
                 </tr>
                 <tr>
                     <td class="totals-label">Régimen de Transparencia Fiscal al Consumidor (Ley 27.743) IVA contenido:</td>
-                    <td class="totals-value">$ {{ sale.iva|floatformat:0 }}</td>
+                    <td class="totals-value">$ {{ sale.iva|floatformat:2 }}</td>
                 </tr>
                 <tr class="total-row">
                     <td class="totals-label">Importe Total:</td>
-                    <td class="totals-value">$ {{ sale.total|floatformat:0 }}</td>
+                    <td class="totals-value">$ {{ sale.total|floatformat:2 }}</td>
                 </tr>
             </table>
         </div>
@@ -279,7 +279,7 @@
             </div>
             {% if sale.afip_qr %}
             <div style="text-align: right;">
-                <img src="data:image/png;base64,{{ sale.afip_qr }}" alt="QR AFIP" style="max-width: 100px; max-height: 100px;">
+                <img src="{{ sale.afip_qr }}" alt="QR AFIP" style="max-width: 100px; max-height: 100px;">
             </div>
             {% endif %}
         </div>

@@ -977,12 +977,14 @@
                     }
                   });
                   recalc();
-                  showToast('info', 'Lista de precios aplicada: ' + resp.list_name + ' (' + resp.discount_percentage + '%)');
+                  const interestText = resp.interest_percentage > 0 ? ' + ' + resp.interest_percentage + '% int' : '';
+                  showToast('info', 'Lista de precios aplicada: ' + resp.list_name + ' (' + resp.discount_percentage + '% desc' + interestText + ')');
                 }
               }
             });
           } else {
-            showToast('info', 'Lista de precios activa: ' + resp.list_name + ' (' + resp.discount_percentage + '%)');
+            const interestText = resp.interest_percentage > 0 ? ' + ' + resp.interest_percentage + '% int' : '';
+            showToast('info', 'Lista de precios activa: ' + resp.list_name + ' (' + resp.discount_percentage + '% desc' + interestText + ')');
           }
         } else {
           restoreOriginalPrices();
@@ -1063,11 +1065,12 @@
         }
         
         resp.forEach(pl => {
-          tbody.append(`
+          const infoText = `${pl.discount_percentage}% desc` + (pl.interest_percentage > 0 ? ` + ${pl.interest_percentage}% int` : '');
+        tbody.append(`
             <tr>
-              <td>${pl.name}</td>
+              <td>${pl.name} <span class="text-muted small">(${infoText})</span></td>
               <td>
-                <button class="btn btn-sm btn-outline-primary" onclick="selectPriceList(${pl.id}, '${pl.name}', ${pl.discount_percentage})">
+                <button class="btn btn-sm btn-outline-primary" onclick="selectPriceList(${pl.id}, '${pl.name}', ${pl.discount_percentage}, ${pl.interest_percentage})">
                   <i class="fas fa-check"></i> Seleccionar
                 </button>
               </td>
@@ -1082,7 +1085,7 @@
   }
 
   // Seleccionar lista de precios
-  window.selectPriceList = function(priceListId, priceListName, discountPercentage) {
+  window.selectPriceList = function(priceListId, priceListName, discountPercentage, interestPercentage) {
     $('#selectedPriceListId').val(priceListId);
     $('#selectedPriceListName').text(priceListName);
     
@@ -1097,6 +1100,7 @@
     currentPriceList = {
       list_name: priceListName,
       discount_percentage: discountPercentage,
+      interest_percentage: interestPercentage || 0,
       has_price_list: true
     };
     
@@ -1881,33 +1885,33 @@
     }
   });
 
-  // Funcionalidad para cuenta corriente de empleados
-  let employees = [];
+  // Funcionalidad para cuenta corriente
+  let clients = [];
 
-  // Cargar empleados al abrir el modal
+  // Cargar clientes al abrir el modal
   $(document).on('show.bs.modal', '#employeeAccountModal', function () {
-    loadEmployees();
+    loadClients();
     updateEmployeeAccountSummary();
   });
 
-  function loadEmployees() {
+  function loadClients() {
     $.ajax({
       url: window.location.pathname,
       type: 'POST',
       data: {
-        action: 'get_employees',
+        action: 'get_clients',
         csrfmiddlewaretoken: csrftoken()
       },
       success: function(response) {
-        employees = response;
+        clients = response;
         const $select = $('#employeeSelect');
-        $select.empty().append('<option value="">Seleccione un empleado...</option>');
-        employees.forEach(emp => {
-          $select.append(`<option value="${emp.id}">${emp.name}</option>`);
+        $select.empty().append('<option value="">Seleccione un cliente...</option>');
+        clients.forEach(cli => {
+          $select.append(`<option value="${cli.id}">${cli.name}</option>`);
         });
       },
       error: function() {
-        showToast('error', 'Error al cargar empleados');
+        showToast('error', 'Error al cargar clientes');
       }
     });
   }
@@ -1999,13 +2003,11 @@
       });
   });
 
-  // Botón para agregar nuevo empleado
-  $('#btnAddEmployee').on('click', function() {
-    const modal = new bootstrap.Modal(document.getElementById('addEmployeeModal'));
-    modal.show();
-  });
+  // Botón para agregar nuevo empleado (desactivado, ahora se usan clientes)
+  // $('#btnAddEmployee').on('click', function() { ... });
 
-  // Guardar nuevo empleado
+  // Guardar nuevo empleado (desactivado)
+  /*
   $('#btnSaveEmployee').on('click', function() {
     const name = $('#newEmployeeName').val().trim();
     const email = $('#newEmployeeEmail').val().trim();
@@ -2060,6 +2062,8 @@
     });
   });
 
+*/
+
   // Confirmar peso de producto
   $(document).on('click', '#btnConfirmWeight', function() {
     const weight = parseFloat($('#weightInput').val() || 0);
@@ -2093,19 +2097,19 @@
     }
   });
 
-  // Confirmar cuenta corriente de empleado
+  // Confirmar cuenta corriente
   $(document).on('click', '#btnConfirmEmployeeAccount', function() {
-    const employeeId = $('#employeeSelect').val();
+    const clientId = $('#employeeSelect').val();
     const notes = $('#employeeNotes').val();
     const isCombinedPayment = $('#employeeCombinedPayment').is(':checked');
 
-    if (!employeeId) {
-      showToast('warning', 'Debe seleccionar un empleado');
+    if (!clientId) {
+      showToast('warning', 'Debe seleccionar un cliente');
       return;
     }
 
     if (items.length === 0) {
-      showToast('warning', 'Debe agregar productos');
+      showToast('warning', 'Debe agregar productos antes de registrar una cuenta corriente');
       return;
     }
 
@@ -2113,12 +2117,12 @@
     if (isCombinedPayment) {
       const paymentAmount = parseFloat($('#employeePaymentAmount').val()) || 0;
       const paymentMethod = $('#employeePaymentMethod').val();
-      
+
       if (paymentAmount <= 0) {
         showToast('warning', 'Debe ingresar un monto de pago válido');
         return;
       }
-      
+
       const subtotal = items.reduce((sum, it) => sum + (it.subtotal || 0), 0);
       if (paymentAmount > subtotal) {
         showToast('warning', 'El monto de pago no puede ser mayor al total');
@@ -2131,12 +2135,12 @@
     $(this).prop('disabled', true);
 
     const subtotal = items.reduce((sum, it) => sum + (it.subtotal || 0), 0);
-    // Para empleados, el IVA es 0
+    // Para clientes en cuenta corriente, el IVA es 0
     const iva = 0;
     const total = subtotal + iva;
 
     const saleData = {
-      employee_id: employeeId,
+      client_id: clientId,
       notes: notes,
       items: items.map(it => ({
         id: it.id,
@@ -2153,7 +2157,7 @@
     if (isCombinedPayment) {
       const paymentAmount = parseFloat($('#employeePaymentAmount').val()) || 0;
       const paymentMethod = $('#employeePaymentMethod').val();
-      
+
       saleData.payment_details = {
         method: paymentMethod,
         amount: paymentAmount,

@@ -55,9 +55,11 @@
   {% endfor %}
 {% endblock %}
 
+<input type="hidden" id="afip-configs-count" value="{{ configs|length }}">
+
 {% block buttons_list %}
   <a href="{% url 'erp:afip:create' %}" class="btn btn-primary btn-flat">
-    <i class="fas fa-plus"></i> Nueva Configuración
+    <i class="fas fa-plus"></i> Configuración Rápida
   </a>
   <a href="{% url 'erp:afip:test' %}" class="btn btn-info btn-flat"><i class="fas fa-vial"></i> Probar Conexión</a>
   <a href="{% url 'erp:afip:vouchers' %}" class="btn btn-secondary btn-flat"><i class="fas fa-file-invoice"></i> Comprobantes</a>
@@ -65,8 +67,39 @@
   <a href="{% url 'erp:afip:dashboard' %}" class="btn btn-success btn-flat"><i class="fas fa-sync"></i> Actualizar</a>
 {% endblock %}
 
-{% block javascript %}
+{% block modals %}
+<!-- Modal de ayuda simplificada -->
+<div class="modal fade" id="afipHelpModal" tabindex="-1" role="dialog" aria-labelledby="afipHelpModalLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="afipHelpModalLabel">Configuración AFIP en 2 pasos</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+      </div>
+      <div class="modal-body">
+        <ol>
+          <li>Obtener el <strong>Access Token</strong> desde <a href="https://app.afipsdk.com" target="_blank">afipsdk.com</a> (gratis).</li>
+          <li>Crear la configuración con la empresa, el token y ambiente <strong>Desarrollo</strong>.</li>
+          <li>(Opcional) Ingresar usuario y contraseña de Clave Fiscal solo si se quiere generar certificado PROD.</li>
+        </ol>
+        <p class="text-muted">En modo Desarrollo no se requieren certificados. AFIP SDK los genera automáticamente.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
-{% block modals %}
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+  // Mostrar automáticamente el modal de ayuda si no hay configs
+  var afipConfigsCount = parseInt($('#afip-configs-count').val() || '0');
+  if (afipConfigsCount === 0) {
+    $('#afipHelpModal').modal('show');
+  }
+});
+</script>
 {% endblock %}

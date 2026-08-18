@@ -31,6 +31,11 @@
         <div class="form-text">Se aplica a todos los productos salvo excepciones.</div>
       </div>
       <div class="mb-3">
+        <label class="form-label fw-bold">Interés general (%)</label>
+        <input type="number" name="interest_percentage" class="form-control" step="0.01" min="0" max="100" value="{{ form.interest_percentage.value|default:'0' }}" required>
+        <div class="form-text">Recargo que se aplica sobre el precio base.</div>
+      </div>
+      <div class="mb-3">
         <div class="form-check form-switch">
           <input class="form-check-input" type="checkbox" id="id_is_active" name="is_active" {% if form.is_active.value %}checked{% endif %}>
           <label class="form-check-label" for="id_is_active">Lista activa</label>
@@ -99,6 +104,11 @@
                   <input type="number" id="overrideDiscount" class="form-control" step="0.01" min="0" max="100">
                   <div class="form-text">Descuento específico para este producto (reemplaza al general).</div>
                 </div>
+                <div class="mb-2">
+                  <label class="form-label">Interés override % (opcional)</label>
+                  <input type="number" id="overrideInterest" class="form-control" step="0.01" min="0" max="100">
+                  <div class="form-text">Interés específico para este producto (reemplaza al general).</div>
+                </div>
                 <div class="form-check">
                   <input class="form-check-input" type="checkbox" id="overrideException">
                   <label class="form-check-label" for="overrideException">Excepción (no aplicar descuento, precio base)</label>
@@ -121,6 +131,7 @@
                 <th>Precio base</th>
                 <th>Precio fijo</th>
                 <th>Desc. override</th>
+                <th>Int. override</th>
                 <th>Excepción</th>
                 <th></th>
               </tr>
@@ -132,6 +143,7 @@
                 <td>${{ ov.product.pvp }}</td>
                 <td>{% if ov.fixed_price %}${{ ov.fixed_price }}{% else %}-{% endif %}</td>
                 <td>{% if ov.discount_override %}{{ ov.discount_override }}%{% else %}-{% endif %}</td>
+                <td>{% if ov.interest_override %}{{ ov.interest_override }}%{% else %}-{% endif %}</td>
                 <td>{% if ov.is_exception %}<i class="fas fa-check text-warning"></i>{% endif %}</td>
                 <td>
                   <button class="btn btn-danger btn-sm btn-remove-override" data-plp-id="{{ ov.id }}">
@@ -192,6 +204,7 @@ function openOverrideModal(product) {
   document.getElementById('overrideProductId').value = product.id;
   document.getElementById('overrideFixedPrice').value = '';
   document.getElementById('overrideDiscount').value = '';
+  document.getElementById('overrideInterest').value = '';
   document.getElementById('overrideException').checked = false;
   new bootstrap.Modal(document.getElementById('overrideModal')).show();
 }
@@ -200,6 +213,7 @@ document.getElementById('btnSaveOverride')?.addEventListener('click', function()
   const productId = document.getElementById('overrideProductId').value;
   const fixedPrice = document.getElementById('overrideFixedPrice').value;
   const discountOverride = document.getElementById('overrideDiscount').value;
+  const interestOverride = document.getElementById('overrideInterest').value;
   const isException = document.getElementById('overrideException').checked;
 
   fetch(manageUrl, {
@@ -210,6 +224,7 @@ document.getElementById('btnSaveOverride')?.addEventListener('click', function()
       product_id: productId,
       fixed_price: fixedPrice,
       discount_override: discountOverride,
+      interest_override: interestOverride,
       is_exception: isException ? 'on' : '',
     })
   })

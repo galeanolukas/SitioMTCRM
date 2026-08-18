@@ -38,7 +38,7 @@ class PriceListListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Lis
 class PriceListCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, CreateView):
     model = PriceList
     template_name = 'price_list/form.html'
-    fields = ['name', 'discount_percentage', 'is_active']
+    fields = ['name', 'discount_percentage', 'interest_percentage', 'is_active']
     success_url = reverse_lazy('erp:pricelist_list')
     permission_required = 'erp.add_pricelist'
 
@@ -63,7 +63,7 @@ class PriceListCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, C
 class PriceListUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, UpdateView):
     model = PriceList
     template_name = 'price_list/form.html'
-    fields = ['name', 'discount_percentage', 'is_active']
+    fields = ['name', 'discount_percentage', 'interest_percentage', 'is_active']
     success_url = reverse_lazy('erp:pricelist_list')
     permission_required = 'erp.change_pricelist'
 
@@ -99,6 +99,7 @@ class PriceListDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin, D
 class PriceListProductManageView(LoginRequiredMixin, View):
     """Vista AJAX para agregar/quitar productos de una lista (overrides y excepciones)"""
 
+    @transaction.atomic
     def post(self, request, pk):
         if not request.user.has_perm('erp.change_pricelist'):
             return HttpResponseForbidden()
@@ -112,6 +113,8 @@ class PriceListProductManageView(LoginRequiredMixin, View):
             discount_override = request.POST.get('discount_override') or None
             is_exception = request.POST.get('is_exception') == 'on'
 
+            interest_override = request.POST.get('interest_override') or None
+
             product = get_object_or_404(Product, pk=product_id)
 
             plp, created = PriceListProduct.objects.get_or_create(
@@ -120,12 +123,14 @@ class PriceListProductManageView(LoginRequiredMixin, View):
                 defaults={
                     'fixed_price': Decimal(fixed_price) if fixed_price else None,
                     'discount_override': Decimal(discount_override) if discount_override else None,
+                    'interest_override': Decimal(interest_override) if interest_override else None,
                     'is_exception': is_exception,
                 }
             )
             if not created:
                 plp.fixed_price = Decimal(fixed_price) if fixed_price else None
                 plp.discount_override = Decimal(discount_override) if discount_override else None
+                plp.interest_override = Decimal(interest_override) if interest_override else None
                 plp.is_exception = is_exception
                 plp.save()
 

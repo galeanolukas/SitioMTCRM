@@ -3,6 +3,7 @@ from django.urls import reverse_lazy
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.utils import timezone
 from django.db.models import Sum, Q, F
+from django.db import transaction
 from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect
 from django.http import JsonResponse
@@ -118,6 +119,7 @@ class CashRegisterCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin
         obj.company_id = active_cid
         obj.user = self.request.user
 
+    @transaction.atomic
     def post(self, request, *args, **kwargs):
         data = {}
         try:
@@ -127,7 +129,7 @@ class CashRegisterCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin
                 if form.is_valid():
                     cash_register = form.save(commit=False)
                     self._assign_company_and_user(cash_register)
-                    
+
                     # Check if cash register already exists for this company, date, and user
                     from django.utils import timezone
                     # Usar fecha local del sistema, no UTC
@@ -138,7 +140,7 @@ class CashRegisterCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin
                         date=today_local,
                         user=cash_register.user
                     ).first()
-                    
+
                     if existing and not existing.is_closed:
                         data['error'] = f'Ya existe una caja abierta para {existing.user.get_full_name() or existing.user.username} en la fecha {today_local}. Debe cerrarla antes de abrir una nueva.'
                     else:
@@ -408,6 +410,7 @@ class CashRegisterDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin
             return redirect('erp:cash_register_list')
         return super().dispatch(request, *args, **kwargs)
 
+    @transaction.atomic
     def post(self, request, *args, **kwargs):
         data = {}
         try:

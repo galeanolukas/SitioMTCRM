@@ -61,16 +61,18 @@
               </div>
               <div class="card-body">
                 <div class="row">
-                  <div class="col-md-6">
+                  <div class="col-md-12">
                     <div class="form-group">
                       <label for="{{ form.access_token.id_for_label }}">{{ form.access_token.label }}:</label>
                       {{ form.access_token }}
                       {% if form.access_token.errors %}
                       <div class="text-danger">{{ form.access_token.errors }}</div>
                       {% endif %}
-                      <small class="form-text text-muted">Token de AFIP SDK (obtener en https://app.afipsdk.com). Se pre-llena con el valor del .env pero puede cambiarlo.</small>
+                      <small class="form-text text-muted">Token de <a href="https://app.afipsdk.com" target="_blank">afipsdk.com</a>. En testing no se requiere certificado.</small>
                     </div>
                   </div>
+                </div>
+                <div class="row">
                   <div class="col-md-6">
                     <div class="form-group">
                       <label for="{{ form.environment.id_for_label }}">{{ form.environment.label }}:</label>
@@ -78,37 +80,10 @@
                       {% if form.environment.errors %}
                       <div class="text-danger">{{ form.environment.errors }}</div>
                       {% endif %}
-                      <small class="form-text text-muted">
-                        <strong>Desarrollo:</strong> Testing sin validez fiscal<br>
-                        <strong>Producción:</strong> Operaciones reales con validez fiscal
-                      </small>
-                    </div>
-                  </div>
-                </div>
-                <div class="row">
-                  <div class="col-md-6">
-                    <div class="form-group">
-                      <label for="{{ form.clave_fiscal_username.id_for_label }}">{{ form.clave_fiscal_username.label }}:</label>
-                      {{ form.clave_fiscal_username }}
-                      {% if form.clave_fiscal_username.errors %}
-                      <div class="text-danger">{{ form.clave_fiscal_username.errors }}</div>
-                      {% endif %}
-                      <small class="form-text text-muted">Usuario de Clave Fiscal AFIP (necesario para generar certificados en producción)</small>
+                      <small class="form-text text-muted">Desarrollo: testing sin validez fiscal. Producción: comprobantes reales.</small>
                     </div>
                   </div>
                   <div class="col-md-6">
-                    <div class="form-group">
-                      <label for="{{ form.clave_fiscal_password.id_for_label }}">{{ form.clave_fiscal_password.label }}:</label>
-                      {{ form.clave_fiscal_password }}
-                      {% if form.clave_fiscal_password.errors %}
-                      <div class="text-danger">{{ form.clave_fiscal_password.errors }}</div>
-                      {% endif %}
-                      <small class="form-text text-muted">Contraseña de Clave Fiscal AFIP (necesario para generar certificados en producción)</small>
-                    </div>
-                  </div>
-                </div>
-                <div class="row">
-                  <div class="col-md-4">
                     <div class="form-group">
                       <label for="{{ form.tipo_comprobante.id_for_label }}">{{ form.tipo_comprobante.label }}:</label>
                       {{ form.tipo_comprobante }}
@@ -118,65 +93,93 @@
                       <small class="form-text text-muted">6=Factura B, 1=Factura A, 11=Factura C</small>
                     </div>
                   </div>
-                  <div class="col-md-4">
-                    <div class="form-group">
-                      <label for="{{ form.concepto.id_for_label }}">{{ form.concepto.label }}:</label>
-                      {{ form.concepto }}
-                      {% if form.concepto.errors %}
-                      <div class="text-danger">{{ form.concepto.errors }}</div>
-                      {% endif %}
-                    </div>
-                  </div>
-                  <div class="col-md-4">
-                    <div class="form-group">
-                      <label for="{{ form.moneda.id_for_label }}">{{ form.moneda.label }}:</label>
-                      {{ form.moneda }}
-                      {% if form.moneda.errors %}
-                      <div class="text-danger">{{ form.moneda.errors }}</div>
-                      {% endif %}
-                    </div>
-                  </div>
                 </div>
-                <div class="row">
-                  <div class="col-md-6">
-                    <div class="form-group">
-                      <label for="{{ form.cotizacion.id_for_label }}">{{ form.cotizacion.label }}:</label>
-                      {{ form.cotizacion }}
-                      {% if form.cotizacion.errors %}
-                      <div class="text-danger">{{ form.cotizacion.errors }}</div>
-                      {% endif %}
-                      <small class="form-text text-muted">Cotización si la moneda no es PES</small>
+
+                <!-- Campos avanzados colapsables -->
+                <p class="mt-3">
+                  <a class="btn btn-sm btn-outline-secondary" data-toggle="collapse" href="#afip-advanced" role="button" aria-expanded="false" aria-controls="afip-advanced">
+                    <i class="fas fa-chevron-down"></i> Opciones avanzadas
+                  </a>
+                </p>
+                <div class="collapse" id="afip-advanced">
+                  <div class="row">
+                    <div class="col-md-6">
+                      <div class="form-group">
+                        <label for="{{ form.clave_fiscal_username.id_for_label }}">{{ form.clave_fiscal_username.label }}:</label>
+                        {{ form.clave_fiscal_username }}
+                        {% if form.clave_fiscal_username.errors %}
+                        <div class="text-danger">{{ form.clave_fiscal_username.errors }}</div>
+                        {% endif %}
+                        <small class="form-text text-muted">Solo para generar certificado PROD automáticamente.</small>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="form-group">
+                        <label for="{{ form.clave_fiscal_password.id_for_label }}">{{ form.clave_fiscal_password.label }}:</label>
+                        {{ form.clave_fiscal_password }}
+                        {% if form.clave_fiscal_password.errors %}
+                        <div class="text-danger">{{ form.clave_fiscal_password.errors }}</div>
+                        {% endif %}
+                        <small class="form-text text-muted">Solo para generar certificado PROD automáticamente.</small>
+                      </div>
                     </div>
                   </div>
-                  <div class="col-md-6">
-                    <div class="form-group">
-                      <label for="{{ form.usar_contingencia.id_for_label }}">{{ form.usar_contingencia.label }}:</label>
-                      <div class="form-check mt-2">
-                        {{ form.usar_contingencia }}
-                        <label for="{{ form.usar_contingencia.id_for_label }}" class="form-check-label">Operar sin conexión a AFIP</label>
+                  <div class="row">
+                    <div class="col-md-4">
+                      <div class="form-group">
+                        <label for="{{ form.concepto.id_for_label }}">{{ form.concepto.label }}:</label>
+                        {{ form.concepto }}
+                        {% if form.concepto.errors %}
+                        <div class="text-danger">{{ form.concepto.errors }}</div>
+                        {% endif %}
                       </div>
-                      {% if form.usar_contingencia.errors %}
-                      <div class="text-danger">{{ form.usar_contingencia.errors }}</div>
-                      {% endif %}
+                    </div>
+                    <div class="col-md-4">
+                      <div class="form-group">
+                        <label for="{{ form.moneda.id_for_label }}">{{ form.moneda.label }}:</label>
+                        {{ form.moneda }}
+                        {% if form.moneda.errors %}
+                        <div class="text-danger">{{ form.moneda.errors }}</div>
+                        {% endif %}
+                      </div>
+                    </div>
+                    <div class="col-md-4">
+                      <div class="form-group">
+                        <label for="{{ form.cotizacion.id_for_label }}">{{ form.cotizacion.label }}:</label>
+                        {{ form.cotizacion }}
+                        {% if form.cotizacion.errors %}
+                        <div class="text-danger">{{ form.cotizacion.errors }}</div>
+                        {% endif %}
+                        <small class="form-text text-muted">1 para moneda PES.</small>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="col-md-12">
+                      <div class="form-group">
+                        <div class="form-check">
+                          {{ form.usar_contingencia }}
+                          <label for="{{ form.usar_contingencia.id_for_label }}" class="form-check-label">Operar sin conexión a AFIP (contingencia)</label>
+                        </div>
+                        {% if form.usar_contingencia.errors %}
+                        <div class="text-danger">{{ form.usar_contingencia.errors }}</div>
+                        {% endif %}
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-            
-            <!-- Sección: Certificados (Solo Producción) -->
-            <div class="card mb-3" id="cert-section">
+
+            <!-- Certificados (Solo Producción) -->
+            <div class="card mb-3" id="cert-section" style="display: none;">
               <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-certificate"></i> Certificados AFIP (Solo Producción)</h5>
+                <h5 class="mb-0"><i class="fas fa-certificate"></i> Certificados AFIP (Producción)</h5>
               </div>
               <div class="card-body">
-                <div class="alert alert-info" id="dev-mode-alert" style="display: none;">
-                  <i class="fas fa-info-circle"></i>
-                  <strong>Modo Desarrollo:</strong> No se requieren certificados. AFIP SDK usa certificados de testing automáticos.
-                </div>
                 <div class="alert alert-warning" id="prod-mode-alert">
                   <i class="fas fa-exclamation-triangle"></i>
-                  <strong>Modo Producción:</strong> Los certificados son obligatorios. Debe generarlos con Clave Fiscal AFIP.
+                  <strong>Modo Producción:</strong> Los certificados son obligatorios. Se generan automáticamente con las credenciales de Clave Fiscal, o se pegan aquí manualmente.
                 </div>
                 <div id="cert-fields">
                   <div class="row">
@@ -187,7 +190,6 @@
                         {% if form.cert.errors %}
                         <div class="text-danger">{{ form.cert.errors }}</div>
                         {% endif %}
-                        <small class="form-text text-muted">Contenido del certificado .crt (generado con Clave Fiscal AFIP)</small>
                       </div>
                     </div>
                     <div class="col-md-12">
@@ -197,7 +199,6 @@
                         {% if form.key.errors %}
                         <div class="text-danger">{{ form.key.errors }}</div>
                         {% endif %}
-                        <small class="form-text text-muted">Contenido de la clave privada .key (generado con Clave Fiscal AFIP)</small>
                       </div>
                     </div>
                   </div>
@@ -275,23 +276,14 @@
     
     // Mostrar/ocultar sección de certificados según ambiente
     if (environmentSelect && certSection) {
-      const devModeAlert = document.getElementById('dev-mode-alert');
       const prodModeAlert = document.getElementById('prod-mode-alert');
-      const certFields = document.getElementById('cert-fields');
 
       function toggleCertSection() {
         if (environmentSelect.value === 'prod') {
-          // Modo Producción: mostrar campos de certificados
           certSection.style.display = 'block';
-          devModeAlert.style.display = 'none';
-          prodModeAlert.style.display = 'block';
-          certFields.style.display = 'block';
+          if (prodModeAlert) prodModeAlert.style.display = 'block';
         } else {
-          // Modo Desarrollo: ocultar campos de certificados, mostrar info
-          certSection.style.display = 'block';
-          devModeAlert.style.display = 'block';
-          prodModeAlert.style.display = 'none';
-          certFields.style.display = 'none';
+          certSection.style.display = 'none';
         }
       }
 

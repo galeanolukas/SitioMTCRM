@@ -143,6 +143,62 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                             'success': False,
                             'error': f'Error al procesar productos: {str(e)}'
                         }
+
+                elif report_format == 'fiscal':
+                    # Reporte detalle fiscal con IVA y comprobantes AFIP
+                    fiscal_sales = []
+                    for sale in sales.select_related('cli', 'company').prefetch_related('detsale_set__prod'):
+                        det_sales = sale.detsale_set.all()
+                        products_str = ', '.join([f"{det.prod.name}" for det in det_sales])
+                        date_joined = timezone.localtime(sale.date_joined)
+
+                        # Número de comprobante
+                        if sale.is_invoiced:
+                            if sale.afip_voucher_number:
+                                ticket_number = f"{sale.invoice_pos}-{sale.afip_voucher_number:08d}"
+                            else:
+                                ticket_number = sale.invoice_number or ''
+                        else:
+                            if sale.local_sale_id:
+                                ticket_number = f"TK-{sale.local_sale_id:06d}"
+                            else:
+                                ticket_number = f"TK-{sale.id:06d}"
+
+                        client = sale.cli
+                        client_name = client.names if client else 'Anónimo'
+                        client_cuit = client.cuit if client else ''
+
+                        fiscal_sales.append({
+                            'id': sale.id,
+                            'date': date_joined.strftime('%d/%m/%Y %H:%M'),
+                            'ticket_number': ticket_number,
+                            'invoice_type': f"Factura {sale.invoice_type}" if sale.is_invoiced else ('Ticket X' if sale.is_ticket_x else 'Ticket'),
+                            'is_invoiced': sale.is_invoiced,
+                            'is_credit_note': sale.is_credit_note,
+                            'afip_cae': sale.afip_cae or '',
+                            'afip_cae_vto': sale.afip_cae_vto.strftime('%d/%m/%Y') if sale.afip_cae_vto else '',
+                            'afip_voucher_number': sale.afip_voucher_number or '',
+                            'client': client_name,
+                            'client_cuit': client_cuit,
+                            'products': products_str,
+                            'subtotal': float(sale.subtotal),
+                            'iva': float(sale.iva),
+                            'total': float(sale.total),
+                            'payment_method_name': sale.get_payment_method_display(),
+                            'company': sale.company.name if sale.company else 'N/A'
+                        })
+
+                    data = {
+                        'success': True,
+                        'report_format': 'fiscal',
+                        'sales': fiscal_sales,
+                        'total_subtotal': sum(float(s.subtotal) for s in sales),
+                        'total_iva': sum(float(s.iva) for s in sales),
+                        'total_total': sum(float(s.total) for s in sales),
+                        'period_type': report_type,
+                        'start_date': start_date,
+                        'end_date': end_date
+                    }
                 else:
                     # Calculate totals (formato por método de pago agrupado por venta)
                     total_sales = sales.aggregate(

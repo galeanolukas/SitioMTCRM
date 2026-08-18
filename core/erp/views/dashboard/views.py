@@ -7,6 +7,7 @@ from django.http import JsonResponse, HttpResponse, HttpResponseRedirect
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import redirect
 from django.db.models import Sum, Count
+from django.db import transaction
 from django.contrib.auth import get_user_model
 from django.db import connections
 from django.conf import settings
@@ -726,20 +727,21 @@ class ExpenseCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Cre
         kwargs['request'] = self.request
         return kwargs
 
+    @transaction.atomic
     def form_valid(self, form):
         try:
             # Usar nuestro método save personalizado
             result = form.save()
-            
+
             # Verificar si hay error en el resultado
             if 'error' in result:
                 messages.error(self.request, f'Error al guardar gasto: {result["error"]}')
                 return self.form_invalid(form)
-            
+
             # Éxito
             messages.success(self.request, 'Gasto/Compra creado correctamente')
             return HttpResponseRedirect(reverse_lazy('erp:expense_list'))
-            
+
         except Exception as e:
             messages.error(self.request, f'Error inesperado: {str(e)}')
             return self.form_invalid(form)
@@ -767,20 +769,21 @@ class ExpenseUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Upd
         kwargs['request'] = self.request
         return kwargs
 
+    @transaction.atomic
     def form_valid(self, form):
         try:
             # Usar nuestro método save personalizado
             result = form.save()
-            
+
             # Verificar si hay error en el resultado
             if 'error' in result:
                 messages.error(self.request, f'Error al actualizar gasto: {result["error"]}')
                 return self.form_invalid(form)
-            
+
             # Éxito
             messages.success(self.request, 'Gasto/Compra actualizado correctamente')
             return HttpResponseRedirect(self.get_success_url())
-            
+
         except Exception as e:
             messages.error(self.request, f'Error inesperado: {str(e)}')
             return self.form_invalid(form)
@@ -826,25 +829,28 @@ class CompanyView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateV
                         'email': i.email or '',
                     })
             elif action == 'add':
-                form = CompanyForm(request.POST, request.FILES)
-                if form.is_valid():
-                    obj = form.save()
-                    data = {'id': obj.id}
-                else:
-                    data['error'] = form.errors
+                with transaction.atomic():
+                    form = CompanyForm(request.POST, request.FILES)
+                    if form.is_valid():
+                        obj = form.save()
+                        data = {'id': obj.id}
+                    else:
+                        data['error'] = form.errors
             elif action == 'edit':
-                obj = Company.objects.get(pk=request.POST['id'])
-                form = CompanyForm(request.POST, request.FILES, instance=obj)
-                if form.is_valid():
-                    obj = form.save()
-                    data = {'id': obj.id}
-                else:
-                    data['error'] = form.errors
+                with transaction.atomic():
+                    obj = Company.objects.get(pk=request.POST['id'])
+                    form = CompanyForm(request.POST, request.FILES, instance=obj)
+                    if form.is_valid():
+                        obj = form.save()
+                        data = {'id': obj.id}
+                    else:
+                        data['error'] = form.errors
             elif action == 'delete':
-                obj = Company.objects.get(pk=request.POST['id'])
-                obj.is_active = False
-                obj.synced_to_server = False
-                obj.save()
+                with transaction.atomic():
+                    obj = Company.objects.get(pk=request.POST['id'])
+                    obj.is_active = False
+                    obj.synced_to_server = False
+                    obj.save()
             else:
                 data['error'] = 'Ha ocurrido un error'
         except Exception as e:
@@ -903,31 +909,34 @@ class SupplierView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Template
                         'company': i.company_id or None,
                     })
             elif action == 'add':
-                form = SupplierForm(request.POST, request.FILES, request=request)
-                if form.is_valid():
-                    obj = form.save(commit=True)
-                    if isinstance(obj, dict) and 'error' in obj:
-                        data['error'] = obj['error']
+                with transaction.atomic():
+                    form = SupplierForm(request.POST, request.FILES, request=request)
+                    if form.is_valid():
+                        obj = form.save(commit=True)
+                        if isinstance(obj, dict) and 'error' in obj:
+                            data['error'] = obj['error']
+                        else:
+                            data = {'id': obj.get('id') if isinstance(obj, dict) else getattr(obj, 'id', None)}
                     else:
-                        data = {'id': obj.get('id') if isinstance(obj, dict) else getattr(obj, 'id', None)}
-                else:
-                    data['error'] = form.errors
+                        data['error'] = form.errors
             elif action == 'edit':
-                obj = Supplier.objects.get(pk=request.POST['id'])
-                form = SupplierForm(request.POST, request.FILES, instance=obj, request=request)
-                if form.is_valid():
-                    saved = form.save(commit=True)
-                    if isinstance(saved, dict) and 'error' in saved:
-                        data['error'] = saved['error']
+                with transaction.atomic():
+                    obj = Supplier.objects.get(pk=request.POST['id'])
+                    form = SupplierForm(request.POST, request.FILES, instance=obj, request=request)
+                    if form.is_valid():
+                        saved = form.save(commit=True)
+                        if isinstance(saved, dict) and 'error' in saved:
+                            data['error'] = saved['error']
+                        else:
+                            data = {'id': saved.get('id') if isinstance(saved, dict) else getattr(obj, 'id', None)}
                     else:
-                        data = {'id': saved.get('id') if isinstance(saved, dict) else getattr(obj, 'id', None)}
-                else:
-                    data['error'] = form.errors
+                        data['error'] = form.errors
             elif action == 'delete':
-                obj = Supplier.objects.get(pk=request.POST['id'])
-                obj.is_active = False
-                obj.synced_to_server = False
-                obj.save()
+                with transaction.atomic():
+                    obj = Supplier.objects.get(pk=request.POST['id'])
+                    obj.is_active = False
+                    obj.synced_to_server = False
+                    obj.save()
             elif action == 'delete_all':
                 qs = Supplier.objects.filter(is_active=True)
                 if not request.user.is_superuser:
