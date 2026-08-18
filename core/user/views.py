@@ -20,6 +20,16 @@ class ProfileUpdateView(LoginRequiredMixin, UpdateView):
     def get_object(self, queryset=None):
         return self.request.user
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Editar Perfil'
+        context['list_url'] = reverse_lazy('erp:dashboard')
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, 'Perfil actualizado correctamente.')
+        return super().form_valid(form)
+
 
 class UserAdminUpdateView(LoginRequiredMixin, UpdateView):
     model = get_user_model()
