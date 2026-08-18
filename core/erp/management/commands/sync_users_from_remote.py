@@ -2,6 +2,7 @@ from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
 from core.erp.models import Company
 from django.db import connections
+from django.conf import settings
 import logging
 
 logger = logging.getLogger(__name__)
@@ -44,6 +45,10 @@ class Command(BaseCommand):
                     local_user.is_superuser = remote_user.get('is_superuser', local_user.is_superuser)
                     local_user.is_staff = remote_user.get('is_staff', local_user.is_staff)
                     local_user.is_active = remote_user.get('is_active', local_user.is_active)
+
+                    # URL remota de la imagen (prioridad local si el archivo existe)
+                    image_path = remote_user.get('image')
+                    local_user.image_remote_url = f"{settings.REMOTE_SERVER_URL.rstrip('/')}/media/{image_path}" if image_path else ''
                     
                     # Asignar empresa si existe
                     company_id = remote_user.get('company_id')
@@ -72,6 +77,10 @@ class Command(BaseCommand):
                         is_staff=remote_user.get('is_staff', False),
                         is_active=remote_user.get('is_active', True)
                     )
+
+                    # URL remota de la imagen (prioridad local si el archivo existe)
+                    image_path = remote_user.get('image')
+                    new_user.image_remote_url = f"{settings.REMOTE_SERVER_URL.rstrip('/')}/media/{image_path}" if image_path else ''
                     
                     # Asignar empresa si existe
                     company_id = remote_user.get('company_id')
@@ -107,7 +116,7 @@ class Command(BaseCommand):
             with remote_conn.cursor() as cursor:
                 cursor.execute("""
                     SELECT u.id, u.username, u.email, u.first_name, u.last_name, 
-                           u.is_superuser, u.is_staff, u.is_active, u.company_id
+                           u.is_superuser, u.is_staff, u.is_active, u.company_id, u.image
                     FROM user_user u
                     ORDER BY u.username
                 """)

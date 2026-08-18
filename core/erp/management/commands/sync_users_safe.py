@@ -3,6 +3,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
 from core.erp.models import Company
 from django.db import connections, OperationalError
+from django.conf import settings
 import logging
 import time
 
@@ -181,6 +182,8 @@ class Command(BaseCommand):
             
             for remote_user in remote_users:
                 username = remote_user.get('username')
+                image_path = remote_user.get('image')
+                image_remote_url = f"{settings.REMOTE_SERVER_URL.rstrip('/')}/media/{image_path}" if image_path else ''
                 
                 try:
                     # Usuario existe, actualizar
@@ -231,6 +234,9 @@ class Command(BaseCommand):
                                 )
                                 local_user.company = company
                     
+                    # Asignar URL remota de la imagen
+                    local_user.image_remote_url = image_remote_url
+
                     # Asignar grupos del usuario
                     self.assign_user_groups(local_user, remote_user.get('groups', []), dry_run)
                     
@@ -277,6 +283,9 @@ class Command(BaseCommand):
                                 )
                                 new_user.company = company
                     
+                    # Asignar URL remota de la imagen
+                    new_user.image_remote_url = image_remote_url
+
                     # Guardar usuario primero
                     if not dry_run:
                         new_user.save()

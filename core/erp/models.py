@@ -108,14 +108,23 @@ class Company(models.Model):
 
     def get_logo_url(self):
         from django.conf import settings
-        # En modo local (no production), usar URL remota si está configurada
-        if settings.ENVIRONMENT != 'production' and self.logo_remote_url:
-            return self.logo_remote_url
-        # Si hay logo local, usarlo
+        # Prioridad 1: logo local si el archivo realmente existe
         if self.logo:
-            return f"{MEDIA_URL}{self.logo}"
+            try:
+                if self.logo.storage.exists(self.logo.name):
+                    return self.logo.url
+            except Exception:
+                pass
+            # Si hay URL remota registrada, usarla como fallback
+            if self.logo_remote_url:
+                return self.logo_remote_url
+            # Construir URL remota a partir del path
+            return f"{settings.REMOTE_SERVER_URL.rstrip('/')}/media/{self.logo.name}"
+        # Prioridad 2: URL remota ya registrada
+        if self.logo_remote_url:
+            return self.logo_remote_url
         # Logo por defecto
-        return f"{STATIC_URL}img/logo1.jpeg"
+        return f"{settings.STATIC_URL}img/logo1.jpeg"
 
     class Meta:
         verbose_name = 'Empresa'
