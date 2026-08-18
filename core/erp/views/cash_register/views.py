@@ -80,6 +80,7 @@ class CashRegisterListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
             live_total_expenses = live_cash_expenses + live_transfer_expenses + live_mp_expenses + live_card_expenses + live_cheque_expenses + live_other_expenses
 
             # Asignar valores como atributos dinámicos (sin guardar en BD)
+            cr.live_expenses = live_cash_expenses
             cr.live_cash_sales = live_cash
             cr.live_card_sales = live_card
             cr.live_transfer_sales = live_transfer
@@ -203,7 +204,21 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
         dynamic_total_expenses = dynamic_cash_expenses + dynamic_transfer_expenses + dynamic_mp_expenses + dynamic_card_expenses + dynamic_cheque_expenses + dynamic_other_expenses
 
         dynamic_total_sales = dynamic_cash + dynamic_card + dynamic_transfer + dynamic_mp
-        dynamic_calculated_balance = cash_register.opening_balance + dynamic_total_sales - dynamic_total_expenses
+
+        # Saldo esperado en caja solo para efectivo
+        cash_movements = cash_register.movements.filter(payment_type='cash').aggregate(
+            in_total=Sum('amount', filter=Q(movement_type='in')),
+            out_total=Sum('amount', filter=Q(movement_type='out'))
+        )
+        dynamic_cash_movements_in = cash_movements['in_total'] or 0
+        dynamic_cash_movements_out = cash_movements['out_total'] or 0
+        dynamic_calculated_balance = (
+            cash_register.opening_balance
+            + dynamic_cash
+            - dynamic_cash_expenses
+            + dynamic_cash_movements_in
+            - dynamic_cash_movements_out
+        )
 
         context['movements'] = cash_register.movements.all()
         context['dynamic_cash_sales'] = dynamic_cash
@@ -217,6 +232,7 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
         context['dynamic_cheque_expenses'] = dynamic_cheque_expenses
         context['dynamic_other_expenses'] = dynamic_other_expenses
         context['dynamic_total_expenses'] = dynamic_total_expenses
+        context['dynamic_expenses'] = dynamic_cash_expenses
         context['dynamic_total_sales'] = dynamic_total_sales
         context['dynamic_calculated_balance'] = dynamic_calculated_balance
         context['title'] = 'Cierre de Caja'
@@ -272,7 +288,8 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
         print(f"Ventas efectivo: {cash_total}, tarjeta: {card_total}, transfer: {transfer_total}, MP: {mp_total}")
         print(f"Gastos efectivo: {cash_expenses_total}, transfer: {transfer_expenses_total}, MP: {mp_expenses_total}, tarjeta: {card_expenses_total}, cheque: {cheque_expenses_total}, otro: {other_expenses_total}")
         print(f"Total gastos: {expenses_total}")
-        print(f"Saldo calculado esperado: {cash_register.opening_balance + cash_total + card_total + transfer_total + mp_total - expenses_total}")
+        cash_movements_total = cash_register.cash_movements_total
+        print(f"Saldo calculado esperado (efectivo): {cash_register.opening_balance + cash_total - cash_expenses_total + cash_movements_total}")
 
         messages.success(self.request, 'Caja cerrada correctamente')
         
@@ -356,7 +373,21 @@ class CashRegisterDetailView(LoginRequiredMixin, ValidatePermissionRequiredMixin
         dynamic_total_expenses = dynamic_cash_expenses + dynamic_transfer_expenses + dynamic_mp_expenses + dynamic_card_expenses + dynamic_cheque_expenses + dynamic_other_expenses
 
         dynamic_total_sales = dynamic_cash + dynamic_card + dynamic_transfer + dynamic_mp + dynamic_check
-        dynamic_calculated_balance = cash_register.opening_balance + dynamic_total_sales - dynamic_total_expenses
+
+        # Saldo esperado en caja solo para efectivo
+        cash_movements = cash_register.movements.filter(payment_type='cash').aggregate(
+            in_total=Sum('amount', filter=Q(movement_type='in')),
+            out_total=Sum('amount', filter=Q(movement_type='out'))
+        )
+        dynamic_cash_movements_in = cash_movements['in_total'] or 0
+        dynamic_cash_movements_out = cash_movements['out_total'] or 0
+        dynamic_calculated_balance = (
+            cash_register.opening_balance
+            + dynamic_cash
+            - dynamic_cash_expenses
+            + dynamic_cash_movements_in
+            - dynamic_cash_movements_out
+        )
 
         context['movements'] = cash_register.movements.all()
         context['dynamic_cash_sales'] = dynamic_cash
@@ -371,6 +402,7 @@ class CashRegisterDetailView(LoginRequiredMixin, ValidatePermissionRequiredMixin
         context['dynamic_cheque_expenses'] = dynamic_cheque_expenses
         context['dynamic_other_expenses'] = dynamic_other_expenses
         context['dynamic_total_expenses'] = dynamic_total_expenses
+        context['dynamic_expenses'] = dynamic_cash_expenses
         context['dynamic_total_sales'] = dynamic_total_sales
         context['dynamic_calculated_balance'] = dynamic_calculated_balance
         return context

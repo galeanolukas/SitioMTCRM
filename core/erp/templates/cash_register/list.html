@@ -8,8 +8,8 @@
         <th>Fecha</th>
         <th>Usuario</th>
         <th>Saldo Inicial</th>
-        <th>Ventas</th>
-        <th>Gastos</th>
+        <th>Ventas Efectivo</th>
+        <th>Gastos Efectivo</th>
         <th>Saldo Final</th>
         <th>Estado</th>
         <th>Acciones</th>
@@ -23,8 +23,8 @@
             <td>{{ register.date|date:"d/m/Y" }}</td>
             <td>{{ register.user.get_full_name }}</td>
             <td class="text-right">{{ register.opening_balance|currency }}</td>
-            <td class="text-right">{{ register.live_total_sales|default:0|currency }}</td>
-            <td class="text-right">{{ register.live_expenses|default:0|currency }}</td>
+            <td class="text-right">{{ register.live_cash_sales|default:0|currency }}</td>
+            <td class="text-right">{{ register.live_cash_expenses|default:0|currency }}</td>
             <td class="text-right">{{ register.closing_balance|currency }}</td>
             <td>
                 {% if register.is_closed %}

@@ -1573,12 +1573,23 @@ class CashRegister(models.Model):
         return self.cash_expenses + self.transfer_expenses + self.mp_expenses + self.card_expenses + self.cheque_expenses + self.other_expenses
 
     @property
+    def cash_movements_total(self):
+        """Suma neta de movimientos de caja en efectivo (ingresos menos egresos)."""
+        from django.db.models import Sum, Q
+        movements = self.movements.filter(payment_type='cash').aggregate(
+            in_total=Sum('amount', filter=Q(movement_type='in')),
+            out_total=Sum('amount', filter=Q(movement_type='out'))
+        )
+        return (movements['in_total'] or 0) - (movements['out_total'] or 0)
+
+    @property
     def calculated_balance(self):
-        return self.opening_balance + self.total_sales - self.total_expenses
+        """Saldo esperado en efectivo en caja: apertura + ventas efectivo - gastos efectivo + movimientos efectivo."""
+        return (self.opening_balance or 0) + (self.cash_sales or 0) - (self.cash_expenses or 0) + (self.cash_movements_total or 0)
 
     @property
     def difference(self):
-        """Diferencia entre el saldo final registrado y el saldo esperado."""
+        """Diferencia entre el saldo final registrado y el saldo esperado en efectivo."""
         return (self.closing_balance or 0) - (self.calculated_balance or 0)
 
 
