@@ -806,8 +806,17 @@ class Sale(models.Model):
                     'sale_id': self.id,
                     'error': result.get('error')
                 })
-                self.afip_error = result.get('error', 'Error desconocido')
-                self.save(update_fields=['afip_error'], skip_afip_call_on_save=True)
+                error_msg = result.get('error', 'Error desconocido')
+                self.afip_error = error_msg
+                # Si es congestion de ARCA, marcar como contingencia para reintentar
+                if error_msg and any(k in str(error_msg).lower() for k in ['congestionados', 'congestion', 'congested', '422']):
+                    self.afip_contingencia = True
+                    self.afip_contingencia_fecha = timezone.now()
+                    self.afip_pendiente_autorizacion = True
+                    self.save(update_fields=['afip_error', 'afip_contingencia', 'afip_contingencia_fecha', 'afip_pendiente_autorizacion'], skip_afip_call_on_save=True)
+                else:
+                    self.afip_pendiente_autorizacion = False
+                    self.save(update_fields=['afip_error', 'afip_pendiente_autorizacion'], skip_afip_call_on_save=True)
                 return False
 
             # Guardar resultado AFIP
@@ -825,6 +834,8 @@ class Sale(models.Model):
                 self.afip_cae_vto = cae_vto_raw
 
             self.afip_error = ''
+            self.afip_contingencia = False
+            self.afip_pendiente_autorizacion = False
 
             # Actualizar número de comprobante si está disponible
             if result.get('voucher_number'):
@@ -843,7 +854,7 @@ class Sale(models.Model):
                 logger.warning("afip_qr_generation_failed", extra={'sale_id': self.id, 'error': str(e)})
                 self.afip_qr = ''
 
-            self.save(update_fields=['afip_cae', 'afip_cae_vto', 'afip_qr', 'afip_error', 'afip_voucher_number'], skip_afip_call_on_save=True)
+            self.save(update_fields=['afip_cae', 'afip_cae_vto', 'afip_qr', 'afip_error', 'afip_voucher_number', 'afip_contingencia', 'afip_pendiente_autorizacion'], skip_afip_call_on_save=True)
 
             # Actualizar Libro IVA con datos reales de AFIP
             self._crear_registro_libro_iva(config_obj, punto_venta, self.afip_voucher_number)

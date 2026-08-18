@@ -1,5 +1,6 @@
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from core.erp.models import Sale, DetSale, Company, Product, Client
@@ -12,7 +13,9 @@ class Command(BaseCommand):
         self.stdout.write(self.style.NOTICE("Iniciando sincronizacion de ventas hacia servidor remoto..."))
 
         # Ventas locales que aún no se han sincronizado
-        pending_sales = Sale.objects.using('default').filter(synced_to_server=False).order_by('id')
+        pending_sales = Sale.objects.using('default').filter(
+            Q(synced_to_server=False) | Q(afip_pendiente_autorizacion=True)
+        ).order_by('id')
         total = pending_sales.count()
         if not total:
             self.stdout.write(self.style.WARNING("No hay ventas pendientes de sincronizar."))
@@ -23,6 +26,13 @@ class Command(BaseCommand):
 
         for sale in pending_sales:
             try:
+                # Reintentar autorización AFIP si la venta está en contingencia pendiente
+                if sale.afip_pendiente_autorizacion and not sale.afip_cae:
+                    self.stdout.write(
+                        self.style.WARNING(f"Venta {sale.id}: reintentando autorización AFIP...")
+                    )
+                    sale.emitir_factura_afip(skip_afip_call_on_save=True)
+
                 # Resolver empresa remota a partir de la empresa local de la venta.
                 remote_company = None
                 if sale.company_id:
@@ -215,6 +225,15 @@ class Command(BaseCommand):
                             'sent_to_local': getattr(sale, 'sent_to_local', False),
                             'local_server_response': getattr(sale, 'local_server_response', {}),
                             'budget_notes': getattr(sale, 'budget_notes', ''),
+                            # Campos AFIP
+                            'afip_cae': sale.afip_cae or '',
+                            'afip_cae_vto': sale.afip_cae_vto,
+                            'afip_voucher_number': sale.afip_voucher_number,
+                            'afip_qr': sale.afip_qr or '',
+                            'afip_error': sale.afip_error or '',
+                            'afip_contingencia': sale.afip_contingencia,
+                            'afip_contingencia_fecha': sale.afip_contingencia_fecha,
+                            'afip_pendiente_autorizacion': sale.afip_pendiente_autorizacion,
                         }
                     )
 
