@@ -190,6 +190,7 @@ class CatalogoConfigCreateView(LoginRequiredMixin, ValidatePermissionRequiredMix
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['action'] = 'add'
+        context['title'] = 'Nueva Configuración de Catálogo'
         context['list_url'] = reverse_lazy('erp:catalogo_list')
         return context
 
@@ -225,6 +226,7 @@ class CatalogoConfigUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMix
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['action'] = 'edit'
+        context['title'] = 'Editar Configuración de Catálogo'
         context['list_url'] = reverse_lazy('erp:catalogo_list')
         return context
 

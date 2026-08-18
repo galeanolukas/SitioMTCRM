@@ -1,6 +1,8 @@
 {% extends 'base/layout.html' %}
 {% load static %}
 
+{% block title %}{{ title }}{% endblock %}
+
 {% block head %}
   <script src="{% static 'catalogo/form.js' %}"></script>
 {% endblock %}
@@ -12,7 +14,7 @@
             <div class="card-header">
                 <h3 class="card-title">
                     <i class="fas fa-{% if action == 'add' %}plus{% else %}edit{% endif %}"></i>
-                    {% if action == 'add' %}Nueva Configuración de Catálogo{% else %}Editar Configuración de Catálogo{% endif %}
+                    {{ title }}
                 </h3>
             </div>
             <form method="post" action="." enctype="multipart/form-data" id="catalogo-form">
@@ -23,13 +25,19 @@
                     <div id="error-block" class="alert alert-danger" style="display:none;"></div>
                     <div id="success-block" class="alert alert-success" style="display:none;"></div>
 
+                    <!-- Cómo funciona -->
+                    <div class="alert alert-info">
+                        <h5 class="alert-heading mb-2"><i class="fas fa-info-circle"></i> ¿Cómo funciona?</h5>
+                        <p class="mb-0">Ingresá la URL y la API Key del catálogo externo y asignala a una empresa. Cada empresa debe tener su propia configuración para que la conexión sea única.</p>
+                    </div>
+
                     <!-- Sección: Conexión -->
                     <div class="form-group">
                         <label for="{{ form.company.id_for_label }}">
                             <i class="fas fa-building text-primary"></i> {{ form.company.label }}
                         </label>
                         {{ form.company }}
-                        <small class="form-text text-muted">Empresa a la que pertenece esta configuración</small>
+                        <small class="form-text text-muted">Empresa para la que se configura la conexión. Cada empresa debe tener su propia configuración.</small>
                     </div>
 
                     <div class="form-group">
@@ -37,7 +45,7 @@
                             <i class="fas fa-globe text-primary"></i> {{ form.catalogo_url.label }}
                         </label>
                         {{ form.catalogo_url }}
-                        <small class="form-text text-muted">URL del catálogo externo (ej: https://catalogo.example.com)</small>
+                        <small class="form-text text-muted">URL del catálogo externo (obtenela del panel del catálogo, ej: https://catalogo.example.com)</small>
                     </div>
 
                     <div class="form-group">
@@ -45,7 +53,7 @@
                             <i class="fas fa-key text-primary"></i> {{ form.api_key.label }}
                         </label>
                         {{ form.api_key }}
-                        <small class="form-text text-muted">Clave de API para autenticación con el catálogo</small>
+                        <small class="form-text text-muted">Clave de API para autenticar la conexión con el catálogo. Obtenela del panel del catálogo.</small>
                     </div>
 
                     <hr>
