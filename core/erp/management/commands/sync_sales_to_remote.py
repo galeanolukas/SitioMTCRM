@@ -184,8 +184,8 @@ class Command(BaseCommand):
                             pass
                     
                     # Crear cabecera de venta en remoto usando update_or_create para evitar duplicados
-                    # Si no es factura facturada, el IVA debe ser 0
-                    iva_amount = sale.iva if sale.is_invoiced else 0
+                    # Pasar el monto de IVA tal cual está registrado en la venta local
+                    iva_amount = sale.iva if sale.iva is not None else 0
                     
                     # Mantener el horario local original de la venta
                     # Preservamos el date_joined tal como está para mantener la hora local del POS
