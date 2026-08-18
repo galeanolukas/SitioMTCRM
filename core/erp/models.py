@@ -806,17 +806,13 @@ class Sale(models.Model):
                     'sale_id': self.id,
                     'error': result.get('error')
                 })
-                error_msg = result.get('error', 'Error desconocido')
-                self.afip_error = error_msg
-                # Si es congestion de ARCA, marcar como contingencia para reintentar
-                if error_msg and any(k in str(error_msg).lower() for k in ['congestionados', 'congestion', 'congested', '422']):
-                    self.afip_contingencia = True
-                    self.afip_contingencia_fecha = timezone.now()
-                    self.afip_pendiente_autorizacion = True
-                    self.save(update_fields=['afip_error', 'afip_contingencia', 'afip_contingencia_fecha', 'afip_pendiente_autorizacion'], skip_afip_call_on_save=True)
-                else:
-                    self.afip_pendiente_autorizacion = False
-                    self.save(update_fields=['afip_error', 'afip_pendiente_autorizacion'], skip_afip_call_on_save=True)
+                # Cualquier fallo de AFIP (congestion, sin conexion, error de datos)
+                # se marca como contingencia para reintentar mas tarde
+                self.afip_error = result.get('error', 'Error desconocido')
+                self.afip_contingencia = True
+                self.afip_contingencia_fecha = timezone.now()
+                self.afip_pendiente_autorizacion = True
+                self.save(update_fields=['afip_error', 'afip_contingencia', 'afip_contingencia_fecha', 'afip_pendiente_autorizacion'], skip_afip_call_on_save=True)
                 return False
 
             # Guardar resultado AFIP
@@ -877,8 +873,12 @@ class Sale(models.Model):
                 'sale_id': self.id,
                 'error': str(e)
             })
+            # Error imprevisto (sin conexion, certificado, etc): contingencia
             self.afip_error = str(e)
-            self.save(update_fields=['afip_error'], skip_afip_call_on_save=True)
+            self.afip_contingencia = True
+            self.afip_contingencia_fecha = timezone.now()
+            self.afip_pendiente_autorizacion = True
+            self.save(update_fields=['afip_error', 'afip_contingencia', 'afip_contingencia_fecha', 'afip_pendiente_autorizacion'], skip_afip_call_on_save=True)
             return False
 
     def _calcular_valores_libro_iva(self):
