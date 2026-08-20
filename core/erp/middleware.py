@@ -36,23 +36,15 @@ class ActivityLogMiddleware:
     
     def __call__(self, request):
         response = self.get_response(request)
-        
-        # Solo registrar en modo servidor
-        if getattr(settings, 'ENVIRONMENT', 'development') != 'production':
-            return response
-            
+
         # Ignorar paths que no queremos monitorear
         if any(request.path.startswith(path) for path in self.ignored_paths):
             return response
-            
+
         # Solo registrar usuarios autenticados
         if not request.user.is_authenticated:
             return response
-            
-        # Solo registrar superusuarios o si el usuario es superusuario
-        if not request.user.is_superuser:
-            return response
-            
+
         # Determinar acción basada en método y path
         action = self._get_action(request)
         if not action:
