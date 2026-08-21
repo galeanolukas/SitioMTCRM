@@ -980,5 +980,72 @@
 </div>
 
 
-<script src="{% static 'sale/js/pos.js' %}?v=20260821"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  function getCsrf() {
+    var csrf = document.querySelector('[name=csrfmiddlewaretoken]');
+    if (csrf) return csrf.value;
+    var match = document.cookie.match(/csrftoken=([^;]+)/);
+    return match ? match[1] : '';
+  }
+
+  function renderClients(tbody, data) {
+    tbody.innerHTML = '';
+    if (data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No se encontraron clientes</td></tr>';
+      return;
+    }
+    data.forEach(function(client) {
+      var fullName = (client.names || '') + ' ' + (client.surnames || '');
+      var dni = client.dni || '-';
+      var address = client.address || '-';
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + fullName + '</td><td>' + dni + '</td><td>' + address + '</td>' +
+        '<td><button class="btn btn-sm btn-primary btn-select-client" data-client-id="' + client.id + '" data-client-name="' + fullName + '"><i class="fas fa-check"></i></button></td>';
+      tbody.appendChild(tr);
+    });
+  }
+
+  function fetchClients(term) {
+    var tbody = document.getElementById('clientListBody');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">' + (term ? 'Buscando...' : 'Cargando clientes...') + '</td></tr>';
+    fetch(window.location.pathname, {
+      method: 'POST',
+      headers: {'X-CSRFToken': getCsrf(), 'Content-Type': 'application/x-www-form-urlencoded'},
+      body: new URLSearchParams({action: 'search_clients', term: term || ''})
+    }).then(function(r) { return r.json(); }).then(function(data) {
+      renderClients(tbody, data);
+    }).catch(function(err) {
+      console.error('Error loading clients:', err);
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger">Error al cargar clientes</td></tr>';
+    });
+  }
+
+  var btn = document.getElementById('btnSelectClient');
+  if (btn) {
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+      var modalEl = document.getElementById('clientSelectModal');
+      if (!modalEl) return;
+      if (typeof bootstrap !== 'undefined') {
+        var modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+        modal.show();
+      }
+      fetchClients('');
+    });
+  }
+
+  var searchInput = document.getElementById('clientSearchInput');
+  if (searchInput) {
+    var timer = null;
+    searchInput.addEventListener('input', function() {
+      clearTimeout(timer);
+      var term = this.value;
+      timer = setTimeout(function() { fetchClients(term); }, 300);
+    });
+  }
+});
+</script>
+<script src="{% static 'sale/js/pos.js' %}?v=20260821d"></script>
 {% endblock %}
