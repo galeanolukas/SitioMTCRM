@@ -1,0 +1,67 @@
+{% extends 'base/base.html' %}
+{% load i18n %}
+
+{% block title %}Limpieza de base de datos{% endblock %}
+{% block page_title %}Limpieza de base de datos{% endblock %}
+{% block breadcrumb %}
+  <li class="breadcrumb-item active">Limpieza de base de datos</li>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-10">
+    <div class="card card-danger">
+      <div class="card-header">
+        <h3 class="card-title"><i class="fas fa-trash-alt"></i> Limpiar datos de negocio</h3>
+      </div>
+      <div class="card-body">
+        <p class="text-muted">
+          Esta acción borra todos los registros listados a continuación. Se preservan <strong>Usuarios</strong>, <strong>Empresas</strong> y la configuración del sistema.
+        </p>
+        <p class="text-danger font-weight-bold">
+          <i class="fas fa-exclamation-triangle"></i> Esta operación no se puede deshacer. Ejecutar solo en modo servidor y con superusuario.
+        </p>
+
+        {% if counts %}
+        <h5>Registros a borrar ({{ total }} en total)</h5>
+        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+          <table class="table table-sm table-striped table-hover">
+            <thead class="thead-dark">
+              <tr>
+                <th>Modelo</th>
+                <th class="text-right">Cantidad</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in counts %}
+              <tr>
+                <td>{{ item.name }}</td>
+                <td class="text-right">{{ item.count }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p>No hay modelos para limpiar.</p>
+        {% endif %}
+
+        <hr>
+        <form method="post" action="{% url 'erp:database_cleanup' %}">
+          {% csrf_token %}
+          <div class="form-group">
+            <div class="icheck-danger d-inline">
+              <input type="checkbox" id="confirm-clean" name="confirm" value="1" required>
+              <label for="confirm-clean">Confirmo que quiero borrar todos estos datos.</label>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-danger btn-lg">
+            <i class="fas fa-broom"></i> Limpiar base de datos
+          </button>
+          <a href="{% url 'erp:launcher' %}" class="btn btn-secondary btn-lg">Cancelar</a>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

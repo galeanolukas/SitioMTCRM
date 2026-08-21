@@ -1,4 +1,6 @@
 {% load static %}
+{% load server_tags %}
+{% is_server_mode as is_server %}
 
 <style>
 /* Auto-hide navbar styles */
@@ -145,6 +147,12 @@ body {
           <i class="fas fa-book mr-1"></i> Manual
         </a>
         <div class="dropdown-divider"></div>
+        {% if is_server %}
+        <a class="dropdown-item" href="{% url 'erp:database_cleanup' %}">
+          <i class="fas fa-broom mr-1"></i> Limpiar base de datos
+        </a>
+        <div class="dropdown-divider"></div>
+        {% endif %}
         <a class="dropdown-item" href="#" data-toggle="modal" data-target="#modalIva">
           <i class="fas fa-percentage mr-1"></i> Configurar IVA
         </a>

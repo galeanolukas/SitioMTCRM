@@ -30,6 +30,7 @@ from core.erp.views.dashboard.views import (
     MercadoPagoConfigUpdateView,
     AutoSyncConfigUpdateView,
     sync_data_view,
+    DatabaseCleanupView,
 )
 from core.erp.views.remito.views import (
     RemitoListView,
@@ -138,7 +139,8 @@ urlpatterns = [
     path('invoice/pdf/<int:pk>/', invoice_pdf, name='invoice_pdf'),
     #home
     path('launcher/', LauncherView.as_view(), name='launcher'),
-    path('sync/', sync_data_view, name='sync_data'),
+    path('sync/data/', sync_data_view, name='sync_data'),
+    path('database/cleanup/', DatabaseCleanupView.as_view(), name='database_cleanup'),
     path('dashboard/', DashboardView.as_view(), name='dashboard'),
     path('updates/', UpdatesView.as_view(), name='updates'),
     path('backup-to-server/', UpdatesView.as_view(), name='backup_to_server'),

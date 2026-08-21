@@ -1,12 +1,13 @@
 from django.views.generic import TemplateView, UpdateView, ListView, CreateView, UpdateView, DeleteView
 from django.utils.decorators import method_decorator
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
+from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin, UserPassesTestMixin
 from django.urls import reverse_lazy
-from django.http import JsonResponse, HttpResponse, HttpResponseRedirect
+from django.http import JsonResponse, HttpResponse, HttpResponseRedirect, HttpResponseForbidden
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import redirect
 from django.db.models import Sum, Count
+from django.apps import apps
 from django.db import transaction
 from django.contrib.auth import get_user_model
 from django.db import connections
@@ -18,6 +19,7 @@ import urllib.error
 from decimal import Decimal
 from core.erp.mixins import ValidatePermissionRequiredMixin
 from core.erp.sync_utils import run_full_sync
+from core.erp.services.server_sync_service import ServerSyncService
 from core.erp.forms import CompanyForm, SupplierForm, ExpenseForm, MercadoPagoConfigForm, AutoSyncConfigForm
 from core.utils.version_utils import get_version_info, format_version_display
 from core.erp.models import Company, Product, Sale, DetSale, Supplier, Expense, MercadoPagoConfig, SyncLog, AutoSyncConfig
@@ -1631,3 +1633,107 @@ def expense_export(request):
             return response
     
     return HttpResponse('Formato no soportado', status=400)
+
+
+class DatabaseCleanupView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+    """Vista para limpiar datos de negocio (solo modo servidor y superusuario)."""
+    template_name = 'database_cleanup.html'
+
+    def test_func(self):
+        return self.request.user.is_superuser
+
+    def dispatch(self, request, *args, **kwargs):
+        if not ServerSyncService.is_server_mode():
+            return HttpResponseForbidden('Solo disponible en modo servidor.')
+        return super().dispatch(request, *args, **kwargs)
+
+    PROTECTED_MODELS = {
+        'Company',
+        'PosTerminal',
+        'AfipConfig',
+        'AfipPuntoVenta',
+        'MercadoPagoConfig',
+        'AutoSyncConfig',
+        'GlobalSyncStatus',
+        'GlobalPosConfig',
+        'CatalogoConfig',
+        'ActivityLog',
+        'SyncLog',
+        'CardInstallmentPlan',
+        'PriceList',
+    }
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        targets = self._get_targets()
+        counts = []
+        for model in targets:
+            counts.append({
+                'name': model._meta.verbose_name_plural or model.__name__,
+                'count': model.objects.count(),
+                'class': model.__name__,
+            })
+        context['counts'] = counts
+        context['total'] = sum(c['count'] for c in counts)
+        return context
+
+    def _get_targets(self):
+        models = apps.get_app_config('erp').get_models()
+        targets = [m for m in models if m.__name__ not in self.PROTECTED_MODELS]
+        targets.sort(key=lambda x: x.__name__)
+        return targets
+
+    def post(self, request, *args, **kwargs):
+        if not request.POST.get('confirm'):
+            messages.error(request, 'Debe confirmar la limpieza.')
+            return redirect('erp:database_cleanup')
+        targets = self._get_targets()
+        order = self._deletion_order(targets)
+        try:
+            with transaction.atomic():
+                for model in order:
+                    model.objects.all().delete()
+        except Exception as e:
+            messages.error(request, f'Error al limpiar la base de datos: {e}')
+            return redirect('erp:database_cleanup')
+        messages.success(request, 'Base de datos limpiada correctamente.')
+        return redirect('erp:database_cleanup')
+
+    def _deletion_order(self, models):
+        model_set = set(models)
+        graph = {m: set() for m in models}
+        for m in models:
+            for f in m._meta.get_fields():
+                if not f.is_relation:
+                    continue
+                if not (getattr(f, 'many_to_one', False) or getattr(f, 'one_to_one', False)):
+                    continue
+                if getattr(f, 'auto_created', False):
+                    continue
+                rel = getattr(f, 'related_model', None)
+                if rel in model_set:
+                    graph[m].add(rel)
+
+        in_degree = {m: 0 for m in models}
+        for m, deps in graph.items():
+            for d in deps:
+                in_degree[d] += 1
+
+        queue = [m for m in models if in_degree[m] == 0]
+        queue.sort(key=lambda x: x.__name__)
+        order = []
+        while queue:
+            n = queue.pop(0)
+            order.append(n)
+            for m, deps in graph.items():
+                if n in deps:
+                    in_degree[m] -= 1
+                    if in_degree[m] == 0:
+                        queue.append(m)
+                        queue.sort(key=lambda x: x.__name__)
+
+        if len(order) != len(models):
+            remaining = [m for m in models if m not in order]
+            remaining.sort(key=lambda x: x.__name__)
+            order.extend(remaining)
+        return order
