@@ -23,10 +23,12 @@ class CategoryListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, List
     def get_queryset(self):
         # Filtrar categorías por empresa del usuario
         qs = super().get_queryset()
-        if not self.request.user.is_superuser:
-            active_cid = self.request.session.get('company_id') or getattr(self.request.user, 'company_id', None)
-            if active_cid:
-                qs = qs.filter(company_id=active_cid)
+        if self.request.user.is_superuser:
+            active_cid = self.request.session.get('company_id')
+        else:
+            active_cid = getattr(self.request.user, 'company_id', None)
+        if active_cid:
+            qs = qs.filter(company_id=active_cid)
         return qs
 
     def post(self, request, *args, **kwargs):

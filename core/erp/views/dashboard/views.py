@@ -893,10 +893,12 @@ class SupplierView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Template
             if action == 'searchdata':
                 data = []
                 qs = Supplier.objects.filter(is_active=True)
-                if not request.user.is_superuser:
-                    active_cid = request.session.get('company_id') or getattr(request.user, 'company_id', None)
-                    if active_cid:
-                        qs = qs.filter(company_id=active_cid)
+                if request.user.is_superuser:
+                    active_cid = request.session.get('company_id')
+                else:
+                    active_cid = getattr(request.user, 'company_id', None)
+                if active_cid:
+                    qs = qs.filter(company_id=active_cid)
                 for i in qs:
                     data.append({
                         'id': i.id,
@@ -939,10 +941,12 @@ class SupplierView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Template
                     obj.save()
             elif action == 'delete_all':
                 qs = Supplier.objects.filter(is_active=True)
-                if not request.user.is_superuser:
-                    active_cid = request.session.get('company_id') or getattr(request.user, 'company_id', None)
-                    if active_cid:
-                        qs = qs.filter(company_id=active_cid)
+                if request.user.is_superuser:
+                    active_cid = request.session.get('company_id')
+                else:
+                    active_cid = getattr(request.user, 'company_id', None)
+                if active_cid:
+                    qs = qs.filter(company_id=active_cid)
                 count = qs.count()
                 qs.update(is_active=False, synced_to_server=False)
                 data = {'success': True, 'count': count}

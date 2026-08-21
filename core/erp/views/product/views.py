@@ -88,9 +88,10 @@ class ProductListView(ValidatePermissionRequiredMixin, LoginRequiredMixin, ListV
             print(f"DEBUG Product: Action received: {action}")
             if action == 'searchdata':
                 data = []
-                active_cid = request.session.get('company_id') if hasattr(request, 'session') else None
-                if not request.user.is_superuser:
-                    active_cid = active_cid or getattr(request.user, 'company_id', None)
+                if request.user.is_superuser:
+                    active_cid = request.session.get('company_id') if hasattr(request, 'session') else None
+                else:
+                    active_cid = getattr(request.user, 'company_id', None)
                 qs = Product.objects.all()
                 if active_cid:
                     qs = qs.filter(company_id=active_cid)
@@ -106,9 +107,10 @@ class ProductListView(ValidatePermissionRequiredMixin, LoginRequiredMixin, ListV
                 print(f"DEBUG Product: Returning {len(data)} products")
             elif action == 'delete_all':
                 # Eliminar todos los productos de la empresa activa
-                active_cid = request.session.get('company_id') if hasattr(request, 'session') else None
-                if not request.user.is_superuser:
-                    active_cid = active_cid or getattr(request.user, 'company_id', None)
+                if request.user.is_superuser:
+                    active_cid = request.session.get('company_id') if hasattr(request, 'session') else None
+                else:
+                    active_cid = getattr(request.user, 'company_id', None)
                 
                 qs = Product.objects.all()
                 if active_cid:
@@ -223,9 +225,10 @@ class ProductLabelsView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Tem
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        active_cid = self.request.session.get('company_id')
-        if not self.request.user.is_superuser:
-            active_cid = active_cid or getattr(self.request.user, 'company_id', None)
+        if self.request.user.is_superuser:
+            active_cid = self.request.session.get('company_id')
+        else:
+            active_cid = getattr(self.request.user, 'company_id', None)
         qs = Product.objects.all().select_related('cat')
         if active_cid:
             qs = qs.filter(company_id=active_cid)
@@ -1124,7 +1127,10 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                 default_tipo_cliente = request.POST.get('default_tipo_cliente') or None
                 default_precio_lista_id = request.POST.get('default_precio_lista') or None
 
-                active_cid = request.session.get('company_id') or getattr(request.user, 'company_id', None)
+                if request.user.is_superuser:
+                    active_cid = request.session.get('company_id')
+                else:
+                    active_cid = getattr(request.user, 'company_id', None)
 
                 created, updated = 0, 0
                 errors = []
@@ -1228,9 +1234,10 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                 map_phone = request.POST.get('map_supplier_phone')
                 map_email = request.POST.get('map_supplier_email')
 
-                active_cid = request.session.get('company_id')
-                if not request.user.is_superuser:
-                    active_cid = active_cid or getattr(request.user, 'company_id', None)
+                if request.user.is_superuser:
+                    active_cid = request.session.get('company_id')
+                else:
+                    active_cid = getattr(request.user, 'company_id', None)
 
                 created, updated = 0, 0
                 errors = []
@@ -1357,9 +1364,10 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                 import_logger.error(f"Campos obligatorios no mapeados: {', '.join(missing_fields)}")
                 messages.error(request, f'Debe mapear los campos obligatorios: {", ".join(missing_fields)}')
                 return self.get(request, *args, **kwargs)
-            active_cid = request.session.get('company_id')
-            if not request.user.is_superuser:
-                active_cid = active_cid or getattr(request.user, 'company_id', None)
+            if request.user.is_superuser:
+                active_cid = request.session.get('company_id')
+            else:
+                active_cid = getattr(request.user, 'company_id', None)
             created, updated = 0, 0
             errors = []
             unit_choices = dict(Product.UNIT_CHOICES)

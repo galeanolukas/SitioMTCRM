@@ -27,9 +27,10 @@ class ClientView(LoginRequiredMixin, TemplateView):
             action = request.POST['action']
             if action == 'searchdata':
                 data = []
-                active_cid = request.session.get('company_id')
-                if not request.user.is_superuser:
-                    active_cid = active_cid or getattr(request.user, 'company_id', None)
+                if request.user.is_superuser:
+                    active_cid = request.session.get('company_id')
+                else:
+                    active_cid = getattr(request.user, 'company_id', None)
                 qs = Client.objects.all()
                 if active_cid:
                     qs = qs.filter(company_id=active_cid)
@@ -77,9 +78,10 @@ class ClientListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListVi
             action = request.POST['action']
             if action == 'searchdata':
                 data = []
-                active_cid = request.session.get('company_id')
-                if not request.user.is_superuser:
-                    active_cid = active_cid or getattr(request.user, 'company_id', None)
+                if request.user.is_superuser:
+                    active_cid = request.session.get('company_id')
+                else:
+                    active_cid = getattr(request.user, 'company_id', None)
                 logger.info(f'ClientListView searchdata - user: {request.user}, company_id session: {request.session.get("company_id")}, active_cid: {active_cid}')
                 qs = Client.objects.filter(is_active=True)
                 if active_cid:
@@ -110,9 +112,10 @@ class ClientListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListVi
                 obj.synced_to_server = False
                 obj.save()
             elif action == 'delete_all':
-                active_cid = request.session.get('company_id')
-                if not request.user.is_superuser:
-                    active_cid = active_cid or getattr(request.user, 'company_id', None)
+                if request.user.is_superuser:
+                    active_cid = request.session.get('company_id')
+                else:
+                    active_cid = getattr(request.user, 'company_id', None)
                 qs = Client.objects.filter(is_active=True)
                 if active_cid:
                     qs = qs.filter(company_id=active_cid)
@@ -166,8 +169,9 @@ class ClientCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Comp
                     data = {'error': 'Debe ingresar un CUIT'}
                 else:
                     from core.erp.afip.client import AfipClient
-                    active_cid = request.session.get('company_id')
-                    if not active_cid:
+                    if request.user.is_superuser:
+                        active_cid = request.session.get('company_id')
+                    else:
                         active_cid = getattr(request.user, 'company_id', None)
                     try:
                         client = AfipClient(company_id=active_cid)
@@ -223,8 +227,9 @@ class ClientUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Upda
                     data = {'error': 'Debe ingresar un CUIT'}
                 else:
                     from core.erp.afip.client import AfipClient
-                    active_cid = request.session.get('company_id')
-                    if not active_cid:
+                    if request.user.is_superuser:
+                        active_cid = request.session.get('company_id')
+                    else:
                         active_cid = getattr(request.user, 'company_id', None)
                     try:
                         client = AfipClient(company_id=active_cid)
