@@ -66,7 +66,9 @@ $(function () {
             },
         ],
         initComplete: function (settings, json) {
-
+            var count = $('#data').DataTable().data().count();
+            var badge = document.getElementById('totalCountBadge');
+            if (badge) badge.textContent = count;
         }
     });
 });

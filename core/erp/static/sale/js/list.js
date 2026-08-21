@@ -166,7 +166,9 @@ $(function () {
             },
         ],
         initComplete: function (settings, json) {
-
+            var count = tblSale.data().count();
+            var badge = document.getElementById('totalCountBadge');
+            if (badge) badge.textContent = count;
         }
     })
         .on('click', 'tbody td.dt-control', function () {

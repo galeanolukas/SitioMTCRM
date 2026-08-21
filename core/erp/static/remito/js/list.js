@@ -104,6 +104,9 @@ function getData() {
             },
         ],
         initComplete: function (settings, json) {
+            var count = tblRemito.data().count();
+            var badge = document.getElementById('totalCountBadge');
+            if (badge) badge.textContent = count;
         }
     });
 }

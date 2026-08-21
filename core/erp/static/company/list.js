@@ -69,7 +69,12 @@ function getData() {
           return btns;
         }
       }
-    ]
+    ],
+    initComplete: function (settings, json) {
+      var count = tblCompany.data().count();
+      var badge = document.getElementById('totalCountBadge');
+      if (badge) badge.textContent = count;
+    }
   });
 }
 

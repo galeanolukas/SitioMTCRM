@@ -81,7 +81,9 @@ function getData() {
             },
         ],
         initComplete: function (settings, json) {
-
+            var count = tblClient.data().count();
+            var badge = document.getElementById('totalCountBadge');
+            if (badge) badge.textContent = count;
         }
     });
 }
