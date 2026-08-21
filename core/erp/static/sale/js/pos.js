@@ -300,7 +300,22 @@
       .done(list => {
         $suggest.empty();
         if (!Array.isArray(list) || !list.length) { $suggest.hide(); return; }
-        
+
+        // Si hay un único producto cuyo código coincide exactamente con el término, agregarlo directo
+        if (list.length === 1) {
+          const p = list[0];
+          if ((p.code || '').toLowerCase() === term.toLowerCase()) {
+            if (p.unit === 'kg') {
+              showWeightModal(p);
+            } else {
+              addOrInc(p);
+            }
+            $input.val('').focus();
+            $suggest.hide().empty();
+            return;
+          }
+        }
+
         list.forEach(p => {
           const item = $(`<button type="button" class="list-group-item list-group-item-action">${p.name} <span class='text-muted small'>${p.code || ''}</span> <span class='float-end'>$${parseFloat(p.pvp).toFixed(2)}</span></button>`);
           item.on('click', function(e) {
