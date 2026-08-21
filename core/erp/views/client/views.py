@@ -31,20 +31,22 @@ class ClientView(LoginRequiredMixin, TemplateView):
                     active_cid = request.session.get('company_id')
                 else:
                     active_cid = getattr(request.user, 'company_id', None)
-                qs = Client.objects.all()
+                qs = Client.objects.filter(is_active=True)
                 if active_cid:
                     qs = qs.filter(company_id=active_cid)
+                else:
+                    qs = qs.none()
                 for i in qs:
                     data.append(i.toJSON())
             elif action == 'add':
-                form = ClientForm(request.POST)
+                form = ClientForm(request.POST, request=request)
                 if form.is_valid():
                     form.save()
                 else:
                     data['error'] = form.errors
             elif action == 'edit':
                 cli = Client.objects.get(pk=request.POST['id'])
-                form = ClientForm(request.POST, instance=cli)
+                form = ClientForm(request.POST, instance=cli, request=request)
                 if form.is_valid():
                     form.save()
                 else:
@@ -82,15 +84,11 @@ class ClientListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListVi
                     active_cid = request.session.get('company_id')
                 else:
                     active_cid = getattr(request.user, 'company_id', None)
-                logger.info(f'ClientListView searchdata - user: {request.user}, company_id session: {request.session.get("company_id")}, active_cid: {active_cid}')
                 qs = Client.objects.filter(is_active=True)
                 if active_cid:
                     qs = qs.filter(company_id=active_cid)
-                logger.info(f'ClientListView searchdata - query count: {qs.count()}')
-                if qs.count() == 0 and active_cid:
-                    null_count = Client.objects.filter(is_active=True, company_id__isnull=True).count()
-                    other_count = Client.objects.filter(is_active=True, company_id__isnull=False).exclude(company_id=active_cid).count()
-                    logger.warning(f'ClientListView searchdata - sin resultados. Clientes sin empresa: {null_count}, en otras empresas: {other_count}')
+                else:
+                    qs = qs.none()
                 for i in qs:
                     try:
                         data.append(i.toJSON())
@@ -98,14 +96,14 @@ class ClientListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListVi
                         logger.exception(f'ClientListView toJSON error for client {i.id}: {e}')
                         raise
             elif action == 'add':
-                form = ClientForm(request.POST)
+                form = ClientForm(request.POST, request=request)
                 if form.is_valid():
                     form.save()
                 else:
                     data['error'] = form.errors
             elif action == 'edit':
                 cli = Client.objects.get(pk=request.POST['id'])
-                form = ClientForm(request.POST, instance=cli)
+                form = ClientForm(request.POST, instance=cli, request=request)
                 if form.is_valid():
                     form.save()
                 else:
@@ -123,6 +121,8 @@ class ClientListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListVi
                 qs = Client.objects.filter(is_active=True)
                 if active_cid:
                     qs = qs.filter(company_id=active_cid)
+                else:
+                    qs = qs.none()
                 count = qs.count()
                 qs.delete()
                 data['deleted'] = count

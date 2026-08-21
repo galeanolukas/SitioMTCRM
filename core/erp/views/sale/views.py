@@ -506,6 +506,8 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 clients = Client.objects.filter(is_active=True)
                 if active_cid:
                     clients = clients.filter(company_id=active_cid)
+                else:
+                    clients = clients.none()
 
                 clients = clients.order_by('names', 'surnames')
                 data = []
@@ -525,6 +527,8 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 clients = Client.objects.filter(is_active=True)
                 if active_cid:
                     clients = clients.filter(company_id=active_cid)
+                else:
+                    clients = clients.none()
 
                 search_term = (request.POST.get('term') or '').strip().lower()
                 if search_term:
