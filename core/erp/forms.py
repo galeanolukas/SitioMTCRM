@@ -299,10 +299,9 @@ class ClientForm(ModelForm):
 
     def save(self, commit=True):
         data = {}
-        form = super()
         try:
-            if form.is_valid():
-                obj = form.save(commit=False)
+            if self.is_valid():
+                obj = super().save(commit=False)
                 if self.request and hasattr(self.request, 'user') and not getattr(self.request.user, 'is_superuser', False):
                     if getattr(self.request.user, 'company_id', None) and not getattr(obj, 'company_id', None):
                         obj.company_id = self.request.user.company_id
@@ -310,7 +309,7 @@ class ClientForm(ModelForm):
                     obj.save()
                 data = obj.toJSON() if hasattr(obj, 'toJSON') else {}
             else:
-                data['error'] = form.errors
+                data['error'] = self.errors
         except Exception as e:
             data['error'] = str(e)
         return data

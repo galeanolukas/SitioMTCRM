@@ -87,6 +87,10 @@ class ClientListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListVi
                 if active_cid:
                     qs = qs.filter(company_id=active_cid)
                 logger.info(f'ClientListView searchdata - query count: {qs.count()}')
+                if qs.count() == 0 and active_cid:
+                    null_count = Client.objects.filter(is_active=True, company_id__isnull=True).count()
+                    other_count = Client.objects.filter(is_active=True, company_id__isnull=False).exclude(company_id=active_cid).count()
+                    logger.warning(f'ClientListView searchdata - sin resultados. Clientes sin empresa: {null_count}, en otras empresas: {other_count}')
                 for i in qs:
                     try:
                         data.append(i.toJSON())
