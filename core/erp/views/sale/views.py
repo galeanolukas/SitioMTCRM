@@ -530,16 +530,17 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 else:
                     clients = clients.none()
 
-                search_term = (request.POST.get('term') or '').strip().lower()
+                search_term = (request.POST.get('term') or '').strip()
                 if search_term:
                     clients = clients.filter(
                         Q(names__icontains=search_term) |
                         Q(surnames__icontains=search_term) |
-                        Q(dni__icontains=search_term)
+                        Q(dni__icontains=search_term) |
+                        Q(cuit_cuil__icontains=search_term)
                     )
 
                 data = []
-                for cli in clients.order_by('names', 'surnames'):
+                for cli in clients.order_by('names', 'surnames')[:50]:
                     data.append(cli.toJSON())
 
             elif action == 'create_category':

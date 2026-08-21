@@ -725,55 +725,54 @@
   }
 
   // Función para cargar clientes
+  let clientSearchTimer = null;
   function loadClients(searchTerm = '') {
-    $.ajax({
-      url: window.location.pathname,
-      type: 'POST',
-      data: {
-        action: 'search_clients',
-        term: searchTerm,
-        csrfmiddlewaretoken: csrftoken()
-      },
-      dataType: 'json',
-      success: function(data) {
-        const tbody = $('#clientListBody');
-        tbody.empty();
-        
-        if (data.length === 0) {
-          tbody.append('<tr><td colspan="4" class="text-center">No se encontraron clientes</td></tr>');
-          return;
-        }
-        
-        data.forEach(function(client) {
-          const fullName = client.names + ' ' + client.surnames;
-          const dni = client.dni || '-';
-          const address = client.address || '-';
+    clearTimeout(clientSearchTimer);
+    clientSearchTimer = setTimeout(function() {
+      $.ajax({
+        url: window.location.pathname,
+        type: 'POST',
+        data: {
+          action: 'search_clients',
+          term: searchTerm,
+          csrfmiddlewaretoken: csrftoken()
+        },
+        dataType: 'json',
+        success: function(data) {
+          const tbody = $('#clientListBody');
+          tbody.empty();
           
-          // Filtrar por término de búsqueda
-          if (searchTerm && !fullName.toLowerCase().includes(searchTerm.toLowerCase()) && 
-              !dni.includes(searchTerm)) {
+          if (data.length === 0) {
+            tbody.append('<tr><td colspan="4" class="text-center text-muted">No se encontraron clientes</td></tr>');
             return;
           }
           
-          const row = `
-            <tr>
-              <td>${fullName}</td>
-              <td>${dni}</td>
-              <td>${address}</td>
-              <td>
-                <button class="btn btn-sm btn-primary btn-select-client" data-client-id="${client.id}" data-client-name="${fullName}">
-                  <i class="fas fa-check"></i>
-                </button>
-              </td>
-            </tr>
-          `;
-          tbody.append(row);
-        });
-      },
-      error: function() {
-        showToast('error', 'Error al cargar clientes');
-      }
-    });
+          data.forEach(function(client) {
+            const fullName = (client.names || '') + ' ' + (client.surnames || '');
+            const dni = client.dni || '-';
+            const address = client.address || '-';
+            
+            const row = `
+              <tr>
+                <td>${fullName}</td>
+                <td>${dni}</td>
+                <td>${address}</td>
+                <td>
+                  <button class="btn btn-sm btn-primary btn-select-client" data-client-id="${client.id}" data-client-name="${fullName}">
+                    <i class="fas fa-check"></i>
+                  </button>
+                </td>
+              </tr>
+            `;
+            tbody.append(row);
+          });
+        },
+        error: function(xhr) {
+          console.error('Error loading clients:', xhr.responseText);
+          showToast('error', 'Error al cargar clientes');
+        }
+      });
+    }, 300);
   }
 
   // Función global para abrir modal de cliente (accesible desde onclick)
