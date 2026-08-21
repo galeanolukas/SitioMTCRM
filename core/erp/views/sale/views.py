@@ -185,11 +185,10 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 cuit = request.POST.get('cuit')
                 if not cuit:
                     return JsonResponse({'error': 'CUIT requerido'}, status=400)
-                active_cid = request.session.get('company_id')
-                if not active_cid:
-                    active_cid = getattr(request.user, 'company', None)
-                if active_cid:
-                    active_cid = active_cid.id
+                if request.user.is_superuser:
+                    active_cid = request.session.get('company_id')
+                else:
+                    active_cid = getattr(request.user, 'company_id', None)
                 try:
                     afip_client = AfipClient(company_id=active_cid)
                     # Usar RegisterScopeTen (no requiere autorización adicional)
@@ -236,11 +235,10 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         }
                     else:
                         # Crear nuevo cliente desde datos AFIP
-                        active_cid = request.session.get('company_id')
-                        if not request.user.is_superuser:
-                            active_cid = active_cid or getattr(request.user, 'company', None)
-                            if active_cid:
-                                active_cid = active_cid.id
+                        if request.user.is_superuser:
+                            active_cid = request.session.get('company_id')
+                        else:
+                            active_cid = getattr(request.user, 'company_id', None)
 
                         new_client = Client()
                         if active_cid:
@@ -500,11 +498,10 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 
             elif action == 'get_clients':
                 # Obtener lista de clientes para cuenta corriente
-                active_cid = request.session.get('company_id')
-                if not request.user.is_superuser:
-                    active_cid = active_cid or getattr(request.user, 'company', None)
-                    if active_cid:
-                        active_cid = active_cid.id
+                if request.user.is_superuser:
+                    active_cid = request.session.get('company_id')
+                else:
+                    active_cid = getattr(request.user, 'company_id', None)
 
                 clients = Client.objects.filter(is_active=True)
                 if active_cid:
