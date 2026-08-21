@@ -3,7 +3,7 @@ Vistas para sincronización con SitioCatalogoMarcos
 """
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods, require_POST
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponseRedirect
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView
@@ -267,6 +267,19 @@ class CatalogoConfigDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMix
     template_name = 'catalogo/delete.html'
     permission_required = 'erp.delete_catalogoconfig'
     success_url = reverse_lazy('erp:catalogo_list')
+    
+    def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        success_url = self.get_success_url()
+        try:
+            self.object.delete()
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+                return JsonResponse({'success': True, 'message': 'Configuración eliminada correctamente'})
+        except Exception as e:
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+                return JsonResponse({'error': f'Error al eliminar: {str(e)}'}, status=500)
+            raise
+        return HttpResponseRedirect(success_url)
     
     def get_queryset(self):
         qs = super().get_queryset()
