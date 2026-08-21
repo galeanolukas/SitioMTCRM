@@ -727,10 +727,11 @@
   // Función para cargar clientes
   function loadClients(searchTerm = '') {
     $.ajax({
-      url: '/erp/client/list/',
+      url: window.location.pathname,
       type: 'POST',
       data: {
-        action: 'searchdata',
+        action: 'search_clients',
+        term: searchTerm,
         csrfmiddlewaretoken: csrftoken()
       },
       dataType: 'json',

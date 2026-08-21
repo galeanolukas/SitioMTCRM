@@ -515,6 +515,29 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         'name': f"{cli.names} {cli.surnames or ''}".strip(),
                     })
 
+            elif action == 'search_clients':
+                # Buscar clientes para el modal del POS
+                if request.user.is_superuser:
+                    active_cid = request.session.get('company_id')
+                else:
+                    active_cid = getattr(request.user, 'company_id', None)
+
+                clients = Client.objects.filter(is_active=True)
+                if active_cid:
+                    clients = clients.filter(company_id=active_cid)
+
+                search_term = (request.POST.get('term') or '').strip().lower()
+                if search_term:
+                    clients = clients.filter(
+                        Q(names__icontains=search_term) |
+                        Q(surnames__icontains=search_term) |
+                        Q(dni__icontains=search_term)
+                    )
+
+                data = []
+                for cli in clients.order_by('names', 'surnames'):
+                    data.append(cli.toJSON())
+
             elif action == 'create_category':
                 name = (request.POST.get('name') or '').strip()
                 if not name:
