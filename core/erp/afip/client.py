@@ -89,8 +89,13 @@ class AfipClient:
             if not self.config.get('usar_contingencia', False):
                 logger.error(f"[AFIP] Configuración en producción sin certificados y modo contingencia deshabilitado. Las operaciones AFIP fallarán.")
         else:
-            # En modo desarrollo, no se requieren certificados
-            logger.debug(f"[AFIP] Configuración en modo desarrollo para CUIT {self.config['CUIT']}. No se requieren certificados.")
+            # En modo desarrollo sin certificados, activar contingencia automáticamente
+            # El SDK de afipsdk.com requiere cert/key incluso en dev para CUITs reales
+            if not self.config.get('usar_contingencia', False):
+                self.config['usar_contingencia'] = True
+                logger.warning(f"[AFIP] Modo desarrollo sin certificados para CUIT {self.config['CUIT']}. Activando modo contingencia automáticamente.")
+            else:
+                logger.debug(f"[AFIP] Configuración en modo desarrollo para CUIT {self.config['CUIT']}. Modo contingencia activo.")
 
         self.afip = Afip(params)
     
@@ -160,6 +165,15 @@ class AfipClient:
         Returns:
             Dict con success, CAE, CAEFchVto y otros datos del comprobante
         """
+        # Modo contingencia: no conectar con AFIP, devolver CAE simulado
+        if self.config.get('usar_contingencia', False):
+            logger.warning(f"[AFIP] Modo contingencia activo. No se emitirá CAE real.")
+            return {
+                'success': False,
+                'error': 'Modo contingencia activo. No se puede emitir CAE real sin certificados.',
+                'contingencia': True
+            }
+
         try:
             logger.debug(f"[AFIP] Creando voucher - PtoVta: {voucher_data.get('PtoVta')}, CbteTipo: {voucher_data.get('CbteTipo')}, Total: {voucher_data.get('ImpTotal')}")
             logger.debug(f"[AFIP] Ambiente: {self.config.get('environment', 'unknown')}")
@@ -247,6 +261,11 @@ class AfipClient:
         Returns:
             int: Último número autorizado, o 0 si no hay comprobantes previos
         """
+        # Modo contingencia: no conectar con AFIP, devolver 0
+        if self.config.get('usar_contingencia', False):
+            logger.warning(f"[AFIP] Modo contingencia activo. No se consultará AFIP por último comprobante.")
+            return 0
+
         try:
             logger.debug(f"[AFIP] Obteniendo último comprobante - PtoVta: {pto_vta}, CbteTipo: {cbte_tipo}")
             # Usar el método específico de AFIP SDK para obtener el último número
