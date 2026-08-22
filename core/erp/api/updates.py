@@ -91,14 +91,10 @@ def execute_update_script(request):
         if system_os == 'windows':
             # En Windows, usar el script .bat que llama al Python
             bat_script = os.path.join(base_dir, 'actualizar_pos_simple.bat')
-            command = ['start', 'cmd', '/c', bat_script]
-            if force:
-                command.append('--force')
+            command = ['start', 'cmd', '/c', bat_script, '--force']
         elif system_os == 'linux':
-            # En Linux, ejecutar directamente el script Python
-            command = ['python3', script_path]
-            if force:
-                command.append('--force')
+            # En Linux, ejecutar directamente el script Python con --force (sin prompt interactivo)
+            command = ['python3', script_path, '--force']
         else:
             return JsonResponse({
                 'success': False,

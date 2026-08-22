@@ -206,9 +206,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Confirmar Actualización</h5>
-                <button type="button" class="close" data-dismiss="modal">
-                    <span>&times;</span>
-                </button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <p>¿Está seguro que desea actualizar el sistema?</p>
@@ -220,7 +218,7 @@
                 <div id="update-details"></div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                 <button type="button" class="btn btn-warning" id="confirmUpdateBtn">
                     <i class="fas fa-download"></i> Actualizar Ahora
                 </button>
@@ -393,42 +391,31 @@ function showDiagnosticModal(diagnostics) {
     $('body').append(html);
     
     // Show modal
-    $('#diagnosticModal').modal('show');
+    var diagModal = new bootstrap.Modal(document.getElementById('diagnosticModal'));
+    diagModal.show();
 }
+
+var pendingUpdateType = null;
 
 function ejecutarActualizacion(so) {
     var scriptName = '';
     var instructions = '';
     var setupRequired = false;
+    pendingUpdateType = so;
     
     if (so === 'windows') {
-        scriptName = 'actualizar_pos.bat';
+        scriptName = 'actualizar_pos_simple.bat';
         instructions = 'El sistema ejecutará el script de actualización para Windows y se cerrará automáticamente.';
     } else if (so === 'windows-portable') {
         scriptName = 'actualizar_pos_portable.bat';
         instructions = 'El sistema ejecutará el script de actualización portable con Git Portable y se cerrará automáticamente.';
-        
-        // Verificar si Git Portable está configurado
-        $.ajax({
-            url: '{% url "api_check_git_portable" %}',
-            method: 'GET',
-            async: false,
-            success: function(response) {
-                if (!response.git_portable_ready) {
-                    setupRequired = true;
-                    instructions += '<br><br><strong>Git Portable no está configurado.</strong><br>Primero se ejecutará setup_git_portable.bat para descargar y configurar Git Portable.';
-                }
-            },
-            error: function() {
-                setupRequired = true;
-                instructions += '<br><br><strong>No se pudo verificar Git Portable.</strong><br>Se intentará configurar automáticamente.';
-            }
-        });
+        setupRequired = true;
+        instructions += '<br><br><strong>Nota:</strong> Asegúrese de que Git Portable esté instalado en tools/PortableGit/.';
     } else if (so === 'linux') {
-        scriptName = './actualizar_pos.sh';
-        instructions = 'El sistema ejecutará el script de actualización para Linux y se cerrará automáticamente.';
+        scriptName = 'python3 update_system.py';
+        instructions = 'El sistema ejecutará el script de actualización para Linux en segundo plano.';
     } else {
-        scriptName = 'actualizar_pos';
+        scriptName = 'python3 update_system.py';
         instructions = 'Debe ejecutar manualmente el script de actualización correspondiente a su sistema operativo.';
     }
     
@@ -439,11 +426,14 @@ function ejecutarActualizacion(so) {
         ${setupRequired ? '<div class="alert alert-info mt-2"><i class="fas fa-info"></i> Git Portable se configurará automáticamente.</div>' : ''}
     `);
     
-    $('#confirmUpdateModal').modal('show');
+    var modal = new bootstrap.Modal(document.getElementById('confirmUpdateModal'));
+    modal.show();
 }
 
 $('#confirmUpdateBtn').click(function() {
-    $('#confirmUpdateModal').modal('hide');
+    var modalEl = document.getElementById('confirmUpdateModal');
+    var modal = bootstrap.Modal.getInstance(modalEl);
+    if (modal) modal.hide();
     $('#progress-section').show();
     
     // Ejecutar el script de actualización real
@@ -451,7 +441,7 @@ $('#confirmUpdateBtn').click(function() {
         url: '{% url "api_execute_update" %}',
         method: 'POST',
         data: JSON.stringify({
-            type: so === 'windows-portable' ? 'portable' : 'auto'
+            type: pendingUpdateType === 'windows-portable' ? 'portable' : 'auto'
         }),
         contentType: 'application/json',
         beforeSend: function() {
