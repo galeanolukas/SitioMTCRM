@@ -33,9 +33,11 @@ class LoginFormView(LoginView):
         # Llamar al método form_valid del padre para hacer el login
         response = super().form_valid(form)
         
-        # Sesión persistente: no expira hasta logout manual (30 días según settings)
-        # No usar set_expiry(0) porque eso expira al cerrar el navegador
-        # La configuración global SESSION_COOKIE_AGE=2592000 maneja la duración
+        # Setear empresa activa en sesión para usuarios no-superuser
+        if not self.request.user.is_superuser:
+            company_id = getattr(self.request.user, 'company_id', None)
+            if company_id:
+                self.request.session['company_id'] = company_id
         
         # Asegurar que la sincronización esté activada para operadores
         if not self.request.user.is_superuser:
@@ -89,6 +91,10 @@ class SimpleLoginView(View):
             
             if user is not None:
                 login(request, user)
+                if not user.is_superuser:
+                    company_id = getattr(user, 'company_id', None)
+                    if company_id:
+                        request.session['company_id'] = company_id
                 return HttpResponseRedirect('/erp/launcher/')
             else:
                 return render(request, 'login.html', {'form': form, 'title': 'Iniciar Sesión'})
