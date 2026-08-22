@@ -2695,8 +2695,11 @@ class BudgetListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListVi
     context_object_name = 'budgets'
 
     def get_queryset(self):
-        # Solo presupuestos pendientes (status='budget')
+        # Solo presupuestos pendientes (status='budget') filtrados por empresa del usuario
         queryset = Sale.objects.filter(status='budget', is_budget=True).order_by('-date_joined')
+        user = self.request.user
+        if user.is_authenticated and getattr(user, 'company_id', None):
+            queryset = queryset.filter(company_id=user.company_id)
         return queryset
 
     def get_context_data(self, **kwargs):
