@@ -20,9 +20,15 @@ def asientos_contables_list(request):
     # Queryset base
     queryset = AsientoContable.objects.all()
     
-    # Filtrar por empresa si no es superusuario
-    if not request.user.is_superuser and company:
-        queryset = queryset.filter(company=company)
+    # Filtrar por empresa activa
+    if request.user.is_superuser:
+        active_cid = request.session.get('company_id')
+    else:
+        active_cid = getattr(request.user, 'company_id', None)
+    if active_cid:
+        queryset = queryset.filter(company_id=active_cid)
+    else:
+        queryset = queryset.none()
     
     # Aplicar filtros
     if tipo_asiento:
@@ -56,8 +62,14 @@ def asientos_contables_export(request):
     
     queryset = AsientoContable.objects.all()
     
-    if not request.user.is_superuser and company:
-        queryset = queryset.filter(company=company)
+    if request.user.is_superuser:
+        active_cid = request.session.get('company_id')
+    else:
+        active_cid = getattr(request.user, 'company_id', None)
+    if active_cid:
+        queryset = queryset.filter(company_id=active_cid)
+    else:
+        queryset = queryset.none()
     
     # Aplicar filtros
     tipo_asiento = request.GET.get('tipo_asiento', '')
@@ -104,9 +116,15 @@ def facturas_proveedores_list(request):
     # Queryset base
     queryset = FacturaProveedor.objects.select_related('supplier', 'company').all()
     
-    # Filtrar por empresa si no es superusuario
-    if not request.user.is_superuser and company:
-        queryset = queryset.filter(company=company)
+    # Filtrar por empresa activa
+    if request.user.is_superuser:
+        active_cid = request.session.get('company_id')
+    else:
+        active_cid = getattr(request.user, 'company_id', None)
+    if active_cid:
+        queryset = queryset.filter(company_id=active_cid)
+    else:
+        queryset = queryset.none()
     
     # Aplicar filtros
     if supplier_id:
@@ -126,8 +144,8 @@ def facturas_proveedores_list(request):
     # Obtener proveedores para el filtro
     from ..models import Supplier
     suppliers = Supplier.objects.all()
-    if not request.user.is_superuser and company:
-        suppliers = suppliers.filter(company=company)
+    if active_cid:
+        suppliers = suppliers.filter(company_id=active_cid)
     
     context = {
         'object_list': queryset,
@@ -152,8 +170,14 @@ def facturas_proveedores_export(request):
     
     queryset = FacturaProveedor.objects.select_related('supplier', 'company').all()
     
-    if not request.user.is_superuser and company:
-        queryset = queryset.filter(company=company)
+    if request.user.is_superuser:
+        active_cid = request.session.get('company_id')
+    else:
+        active_cid = getattr(request.user, 'company_id', None)
+    if active_cid:
+        queryset = queryset.filter(company_id=active_cid)
+    else:
+        queryset = queryset.none()
     
     # Aplicar filtros
     supplier_id = request.GET.get('supplier', '')
@@ -210,9 +234,15 @@ def cuenta_corriente_clientes_list(request):
     # Queryset base
     queryset = CuentaCorrienteCliente.objects.select_related('client', 'company').all()
     
-    # Filtrar por empresa si no es superusuario
-    if not request.user.is_superuser and company:
-        queryset = queryset.filter(company=company)
+    # Filtrar por empresa activa
+    if request.user.is_superuser:
+        active_cid = request.session.get('company_id')
+    else:
+        active_cid = getattr(request.user, 'company_id', None)
+    if active_cid:
+        queryset = queryset.filter(company_id=active_cid)
+    else:
+        queryset = queryset.none()
     
     # Aplicar filtros
     if client_id:
@@ -232,8 +262,8 @@ def cuenta_corriente_clientes_list(request):
     # Obtener clientes para el filtro
     from ..models import Client
     clients = Client.objects.all()
-    if not request.user.is_superuser and company:
-        clients = clients.filter(company=company)
+    if active_cid:
+        clients = clients.filter(company_id=active_cid)
     
     context = {
         'object_list': queryset,
@@ -258,8 +288,14 @@ def cuenta_corriente_clientes_export(request):
     
     queryset = CuentaCorrienteCliente.objects.select_related('client', 'company').all()
     
-    if not request.user.is_superuser and company:
-        queryset = queryset.filter(company=company)
+    if request.user.is_superuser:
+        active_cid = request.session.get('company_id')
+    else:
+        active_cid = getattr(request.user, 'company_id', None)
+    if active_cid:
+        queryset = queryset.filter(company_id=active_cid)
+    else:
+        queryset = queryset.none()
     
     # Aplicar filtros
     client_id = request.GET.get('client', '')

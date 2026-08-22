@@ -21,6 +21,15 @@ class RemitoListView(LoginRequiredMixin, PermissionRequiredMixin, ListView):
 
     def get_queryset(self):
         queryset = super().get_queryset()
+        # Filtrar por empresa activa
+        if self.request.user.is_superuser:
+            active_cid = self.request.session.get('company_id')
+        else:
+            active_cid = getattr(self.request.user, 'company_id', None)
+        if active_cid:
+            queryset = queryset.filter(company_id=active_cid)
+        else:
+            queryset = queryset.none()
         # Filtros
         tipo = self.request.GET.get('tipo')
         supplier_id = self.request.GET.get('supplier')
@@ -42,6 +51,8 @@ class RemitoListView(LoginRequiredMixin, PermissionRequiredMixin, ListView):
         context['create_url'] = reverse_lazy('erp:remito_create')
         context['list_url'] = reverse_lazy('erp:remito_list')
         context['suppliers'] = Supplier.objects.filter(is_active=True)
+        if active_cid:
+            context['suppliers'] = context['suppliers'].filter(company_id=active_cid)
         context['estados'] = Remito.ESTADO_CHOICES
         context['tipos'] = Remito.TIPO_CHOICES
         return context
@@ -75,6 +86,11 @@ class RemitoCreateView(LoginRequiredMixin, PermissionRequiredMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.created_by = self.request.user
+        if not form.instance.company_id:
+            if self.request.user.is_superuser:
+                form.instance.company_id = self.request.session.get('company_id')
+            else:
+                form.instance.company_id = getattr(self.request.user, 'company_id', None)
 
         with transaction.atomic():
             self.object = form.save()

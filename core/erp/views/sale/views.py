@@ -1577,6 +1577,8 @@ class SaleListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView
                     if active_cid:
                         qs = qs.filter(company_id=active_cid)
                         print(f"[DEBUG] Total ventas con company_id={active_cid}: {qs.count()}")
+                    else:
+                        qs = qs.none()
                     
                     for sale in qs:
                         try:
