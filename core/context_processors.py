@@ -22,7 +22,11 @@ def brand(request) -> Dict[str, dict]:
         'logo_url': company.get_logo_url() if company else '/static/img/logo1.jpeg',
         'logo_round': company.logo_round if company else False,
     }
-    return {'brand': data}
+    result = {'brand': data}
+    if user and getattr(user, 'is_superuser', False):
+        result['companies'] = Company.objects.all()
+        result['active_company_id'] = request.session.get('company_id')
+    return result
 
 def superuser_perms(request) -> Dict[str, dict]:
     """

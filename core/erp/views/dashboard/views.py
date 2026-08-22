@@ -220,7 +220,10 @@ class DashboardView(TemplateView):
             active_cid = active_cid or getattr(self.request.user, 'company_id', None)
         # KPIs básicos con filtro de tiempo
         UserModel = get_user_model()
-        context['users_count'] = UserModel.objects.count()
+        user_qs = UserModel.objects.all()
+        if active_cid:
+            user_qs = user_qs.filter(company_id=active_cid)
+        context['users_count'] = user_qs.count()
         context['companies_count'] = Company.objects.count()
         prod_qs = Product.objects.all()
         sale_qs = Sale.objects.filter(date_joined__date__gte=start_date, date_joined__date__lte=end_date)
