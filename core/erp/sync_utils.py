@@ -23,10 +23,15 @@ def _can_reach_remote_db() -> bool:
     except Exception:
         return False
     try:
+        conn.close_if_unusable_or_obsolete()
         conn.ensure_connection()
         return True
     except Exception:
-        return False
+        try:
+            conn.connect()
+            return True
+        except Exception:
+            return False
 
 
 def _get_sync_destination():

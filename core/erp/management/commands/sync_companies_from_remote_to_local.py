@@ -1,5 +1,5 @@
 from django.core.management.base import BaseCommand
-from django.db import transaction, OperationalError
+from django.db import transaction, OperationalError, connections
 from django.conf import settings
 import time
 
@@ -11,6 +11,15 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         self.stdout.write(self.style.NOTICE("Iniciando sincronizacion de empresas desde servidor remoto hacia POS local..."))
+
+        # Asegurar que la conexion remota este activa
+        try:
+            conn = connections['remote']
+            conn.close_if_unusable_or_obsolete()
+            conn.ensure_connection()
+        except Exception as e:
+            self.stderr.write(self.style.ERROR(f"No se pudo conectar a la BD remota: {e}"))
+            return
 
         remote_qs = Company.objects.using('remote').all().order_by('id')
         total = remote_qs.count()
