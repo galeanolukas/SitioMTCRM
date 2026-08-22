@@ -75,3 +75,8 @@ cache/
 
 ### Archivos ejecutables en docs ###
 docs/*.exe
+
+### Git Portable (binarios, no versionar) ###
+tools/PortableGit/*
+!tools/PortableGit/.gitkeep
+!tools/.gitkeep
