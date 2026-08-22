@@ -11,6 +11,9 @@ from django.http import JsonResponse
 from core.erp.mixins import ValidatePermissionRequiredMixin
 from core.erp.models import CashRegister, CashMovement, Sale, Expense
 from core.erp.sync_utils import sync_cash_register_immediately
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class CashRegisterListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView):
@@ -150,6 +153,11 @@ class CashRegisterCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin
                         cash_register.save()
                         messages.success(request, 'Caja abierta correctamente')
                         data['success'] = True
+                        # Sincronizar inmediatamente con el servidor remoto
+                        try:
+                            sync_cash_register_immediately(cash_register.id)
+                        except Exception as sync_e:
+                            logger.warning(f'Error al sincronizar caja recién creada: {sync_e}')
                 else:
                     data['error'] = form.errors
             else:
@@ -421,8 +429,14 @@ class CashMovementCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin
         )
         form.instance.cash_register = cash_register
         form.instance.created_by = self.request.user
+        response = super().form_valid(form)
         messages.success(self.request, 'Movimiento registrado correctamente')
-        return super().form_valid(form)
+        # Sincronizar el movimiento con el servidor remoto
+        try:
+            sync_cash_register_immediately(cash_register.id)
+        except Exception as sync_e:
+            logger.warning(f'Error al sincronizar movimiento de caja: {sync_e}')
+        return response
 
     def get_success_url(self):
         return reverse_lazy('erp:cash_register_detail', kwargs={'pk': self.kwargs['cash_register_id']})
@@ -446,7 +460,14 @@ class CashRegisterDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin
     def post(self, request, *args, **kwargs):
         data = {}
         try:
+            # Guardar info antes de eliminar para sincronizar
+            sync_id = getattr(self.object, 'sync_id', None)
             self.object.delete()
+            # Sincronizar eliminación con el servidor remoto
+            try:
+                sync_cash_register_immediately()
+            except Exception as sync_e:
+                logger.warning(f'Error al sincronizar eliminación de caja: {sync_e}')
         except Exception as e:
             data['error'] = str(e)
         return JsonResponse(data)
@@ -513,6 +534,11 @@ class CashMovementDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin
         movement.delete()
         
         messages.success(request, f'Movimiento de {movement.amount} eliminado correctamente')
+        # Sincronizar cambios con el servidor remoto
+        try:
+            sync_cash_register_immediately(cash_register.id)
+        except Exception as sync_e:
+            logger.warning(f'Error al sincronizar eliminación de movimiento: {sync_e}')
         return redirect('erp:cash_register_detail', pk=cash_register.pk)
     
     def get_context_data(self, **kwargs):
