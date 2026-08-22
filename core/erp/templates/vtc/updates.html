@@ -232,7 +232,7 @@
 <script>
 function verificarActualizaciones() {
     $.ajax({
-        url: '{% url "api_refresh_version" %}',
+        url: '{% url "erp:api_refresh_version" %}',
         method: 'POST',
         beforeSend: function() {
             $('#loading-overlay').show();
@@ -261,7 +261,7 @@ function runDiagnostics() {
     $('#loading-overlay').show();
     
     $.ajax({
-        url: '{% url "api_version_diagnostics" %}',
+        url: '{% url "erp:api_version_diagnostics" %}',
         method: 'GET',
         success: function(response) {
             if (response.success) {
@@ -438,7 +438,7 @@ $('#confirmUpdateBtn').click(function() {
     
     // Ejecutar el script de actualización real
     $.ajax({
-        url: '{% url "api_execute_update" %}',
+        url: '{% url "erp:api_execute_update" %}',
         method: 'POST',
         data: JSON.stringify({
             type: pendingUpdateType === 'windows-portable' ? 'portable' : 'auto'
