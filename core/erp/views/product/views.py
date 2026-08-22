@@ -95,6 +95,8 @@ class ProductListView(ValidatePermissionRequiredMixin, LoginRequiredMixin, ListV
                 qs = Product.objects.all()
                 if active_cid:
                     qs = qs.filter(company_id=active_cid)
+                else:
+                    qs = qs.none()
                 print(f"DEBUG Product: Found {qs.count()} products")
                 for i in qs:
                     product_data = i.toJSON()
@@ -115,6 +117,8 @@ class ProductListView(ValidatePermissionRequiredMixin, LoginRequiredMixin, ListV
                 qs = Product.objects.all()
                 if active_cid:
                     qs = qs.filter(company_id=active_cid)
+                else:
+                    qs = qs.none()
                 count = qs.count()
                 qs.delete()
                 data = {'success': True, 'count': count}
