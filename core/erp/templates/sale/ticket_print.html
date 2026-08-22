@@ -154,10 +154,6 @@
       </tr>
     </table>
 
-    <div class="center small muted">
-      DOCUMENTO NO FISCAL
-    </div>
-
     {% if sale.afip_cae %}
     <div class="line"></div>
     <div class="center small lh">
@@ -167,11 +163,17 @@
       <img src="{{ sale.afip_qr }}" alt="QR AFIP" style="width: 25mm; height: 25mm; margin: 2mm auto;" />
       {% endif %}
     </div>
-    {% endif %}
-
-    <div class="center small">
-      Muchas gracias por su compra
+    <div class="center small bold">
+      GRACIAS POR SU COMPRA
     </div>
+    {% else %}
+    <div class="center small muted">
+      DOCUMENTO NO FISCAL
+    </div>
+    <div class="center small">
+      Gracias por su compra
+    </div>
+    {% endif %}
   </div>
 
   <div class="no-print">
