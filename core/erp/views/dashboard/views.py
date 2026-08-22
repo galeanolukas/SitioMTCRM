@@ -411,7 +411,7 @@ class DashboardView(TemplateView):
         return data
 
 
-class UpdatesView(TemplateView):
+class UpdatesView(LoginRequiredMixin, TemplateView):
     template_name = 'vtc/updates.html'
 
     def dispatch(self, request, *args, **kwargs):
