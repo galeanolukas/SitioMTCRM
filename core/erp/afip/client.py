@@ -89,11 +89,16 @@ class AfipClient:
             if not self.config.get('usar_contingencia', False):
                 logger.error(f"[AFIP] Configuración en producción sin certificados y modo contingencia deshabilitado. Las operaciones AFIP fallarán.")
         else:
-            # En modo desarrollo sin certificados, activar contingencia automáticamente
-            # El SDK de afipsdk.com requiere cert/key incluso en dev para CUITs reales
-            if not self.config.get('usar_contingencia', False):
+            # En modo desarrollo sin certificados
+            is_test_cuit = self.config.get('CUIT') == '20111111112'
+            if is_test_cuit:
+                # El CUIT de prueba de AFIP SDK funciona sin cert/key en dev
+                logger.info(f"[AFIP] Modo desarrollo con CUIT de prueba {self.config['CUIT']}. No se requieren certificados.")
+            elif not self.config.get('usar_contingencia', False):
+                # CUIT real en dev sin cert/key: activar contingencia automáticamente
+                # El SDK de afipsdk.com requiere cert/key incluso en dev para CUITs reales
                 self.config['usar_contingencia'] = True
-                logger.warning(f"[AFIP] Modo desarrollo sin certificados para CUIT {self.config['CUIT']}. Activando modo contingencia automáticamente.")
+                logger.warning(f"[AFIP] Modo desarrollo sin certificados para CUIT real {self.config['CUIT']}. Activando modo contingencia automáticamente.")
             else:
                 logger.debug(f"[AFIP] Configuración en modo desarrollo para CUIT {self.config['CUIT']}. Modo contingencia activo.")
 
