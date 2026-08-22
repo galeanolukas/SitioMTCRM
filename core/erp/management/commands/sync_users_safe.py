@@ -197,21 +197,9 @@ class Command(BaseCommand):
                     local_user.is_staff = remote_user.get('is_staff', local_user.is_staff)
                     local_user.is_active = remote_user.get('is_active', local_user.is_active)
                     
-                    # COPIAR CONTRASEÑA EXACTA DEL SERVIDOR
-                    # SOLO SI EL USUARIO NO ESTÁ ACTUALMENTE LOGUEADO
-                    password_hash = remote_user.get('password')
-                    if password_hash:
-                        # Verificar si el usuario está actualmente activo (último login reciente)
-                        from django.utils import timezone
-                        from datetime import timedelta
-                        
-                        # Si el usuario hizo login en los últimos 5 minutos, no actualizar contraseña
-                        if local_user.last_login and (timezone.now() - local_user.last_login) < timedelta(minutes=5):
-                            # Usuario activo recientemente, no actualizar contraseña para evitar deslogueo
-                            pass
-                        else:
-                            # Usuario inactivo o sin login reciente, actualizar contraseña
-                            local_user.password = password_hash
+                    # NO sobrescribir contraseña de usuarios existentes.
+                    # La contraseña se gestiona localmente; solo se copia del servidor
+                    # cuando se crea un usuario nuevo (ver más abajo en User.DoesNotExist).
                     
                     # Asignar empresa si existe (manteniendo ID exacto del servidor)
                     company_id = remote_user.get('company_id')
