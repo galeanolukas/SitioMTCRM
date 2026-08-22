@@ -2,7 +2,7 @@ from django.urls import path, include
 from core.erp.views.category.views import *
 from core.erp.views.product.views import *
 from core.erp.views.client.views import ClientListView, ClientCreateView, ClientUpdateView, ClientDeleteView
-from core.erp.views.sale.views import SaleListView, SaleCreateView, SaleUpdateView, SaleDeleteView, ticket_print, ticket_x_print, POSView, InvoiceListView, InvoiceCreateView, invoice_pdf, sync_sales_api, EmployeeAccountListView, employee_account_pdf_export, BudgetListView, BudgetConvertView, BudgetDetailView, CardPlanListView, CardPlanCreateView, CardPlanUpdateView, CardPlanDeleteView
+from core.erp.views.sale.views import SaleListView, SaleCreateView, SaleUpdateView, SaleDeleteView, ticket_print, ticket_x_print, ticket_budget_print, POSView, InvoiceListView, InvoiceCreateView, invoice_pdf, sync_sales_api, EmployeeAccountListView, employee_account_pdf_export, BudgetListView, BudgetConvertView, BudgetDetailView, BudgetSendLocalView, CardPlanListView, CardPlanCreateView, CardPlanUpdateView, CardPlanDeleteView
 from core.erp.views.transfer.views import TransferListView, TransferCreateView, TransferDetailView, TransferReceiveView, TransferSearchView, TransferProductSearchView
 from core.erp.views.operator_reports.views import OperatorSalesReportView, operator_sales_export
 from core.erp.views.sync.views import SyncToggleView, SyncStatusView, ProductSyncView
@@ -244,4 +244,6 @@ urlpatterns = [
     path('budget/list/', BudgetListView.as_view(), name='budget_list'),
     path('budget/convert/<int:pk>/', BudgetConvertView.as_view(), name='budget_convert'),
     path('sale/api/detail/<int:pk>/', BudgetDetailView.as_view(), name='budget_detail'),
+    path('budget/ticket/<int:pk>/', ticket_budget_print, name='ticket_budget_print'),
+    path('budget/send-local/<int:pk>/', BudgetSendLocalView.as_view(), name='budget_send_local'),
 ]

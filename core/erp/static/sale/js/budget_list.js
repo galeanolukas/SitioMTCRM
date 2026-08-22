@@ -40,6 +40,8 @@ $(document).ready(function() {
         
         // Guardar ID del presupuesto para conversión
         $('#btnConvertBudget').attr('data-id', id);
+        // Configurar link de impresion
+        $('#btnPrintBudget').attr('href', '/erp/budget/ticket/' + id + '/');
         
         // Mostrar modal
         $('#myModalDet').modal('show');
@@ -73,6 +75,37 @@ $(document).ready(function() {
       },
       error: function() {
         alert('Error al convertir el presupuesto');
+      }
+    });
+  });
+  
+  // Función para enviar presupuesto al POS local
+  $('.btn-send-local').on('click', function() {
+    const id = $(this).attr('data-id');
+    const btn = $(this);
+    
+    if (!confirm('¿Enviar este presupuesto al POS local?')) {
+      return;
+    }
+    
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+    
+    $.ajax({
+      url: `/erp/budget/send-local/${id}/`,
+      type: 'POST',
+      dataType: 'json',
+      success: function(data) {
+        if (data.success) {
+          alert(data.message || 'Presupuesto enviado al POS local exitosamente');
+          btn.removeClass('btn-outline-success').addClass('btn-success').html('<i class="fas fa-check"></i>');
+        } else {
+          alert('Error: ' + (data.error || 'No se pudo enviar'));
+          btn.prop('disabled', false).html('<i class="fas fa-paper-plane"></i>');
+        }
+      },
+      error: function(jq) {
+        alert('Error: ' + (jq.responseJSON ? jq.responseJSON.error : 'No se pudo conectar'));
+        btn.prop('disabled', false).html('<i class="fas fa-paper-plane"></i>');
       }
     });
   });

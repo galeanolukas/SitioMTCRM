@@ -101,24 +101,39 @@ def receive_budget(request):
                 status='budget',
                 is_budget=True,
                 local_uuid=data['local_uuid'],
-                source='local_pos',
+                source='server',
                 budget_notes=data.get('budget_notes', ''),
+                pos_id=data.get('pos_id', ''),
                 synced_to_server=True  # Marcar como sincronizado
             )
             
             # Crear los items del presupuesto
+            # Buscar producto por ID, luego por code, luego por nombre
             for item_data in data['items']:
-                try:
-                    product = Product.objects.get(id=item_data['product_id'])
+                product = None
+                # 1) Buscar por ID si coincide
+                if item_data.get('product_id'):
+                    product = Product.objects.filter(id=item_data['product_id']).first()
+                # 2) Buscar por code
+                if not product and item_data.get('product_code'):
+                    product = Product.objects.filter(code=item_data['product_code']).first()
+                # 3) Buscar por nombre exacto
+                if not product and item_data.get('product_name'):
+                    product = Product.objects.filter(name=item_data['product_name']).first()
+                
+                if product:
                     DetSale.objects.create(
                         sale=sale,
                         prod=product,
                         price=item_data['price'],
                         cant=item_data['quantity'],
-                        subtotal=item_data['price'] * item_data['quantity']
+                        subtotal=item_data.get('subtotal', item_data['price'] * item_data['quantity'])
                     )
-                except Product.DoesNotExist:
-                    logger.warning(f"Producto ID {item_data['product_id']} no encontrado, omitiendo item")
+                else:
+                    logger.warning(
+                        f"Producto no encontrado (id={item_data.get('product_id')}, "
+                        f"code={item_data.get('product_code')}, name={item_data.get('product_name')}), omitiendo item"
+                    )
             
             logger.info(f"Presupuesto recibido: {sale.local_uuid} - Total: {sale.total}")
         
@@ -157,7 +172,17 @@ def confirm_budget(request, sale_id):
         # Convertir presupuesto en venta
         sale.status = 'confirmed'
         sale.is_budget = False
-        sale.save()
+        sale.save(skip_afip_call_on_save=True)
+        
+        # Descontar stock de los productos
+        from django.db.models import F
+        from django.utils import timezone
+        for det in sale.detsale_set.all():
+            Product.objects.filter(pk=det.prod_id).update(
+                stock=F('stock') - det.cant,
+                stock_modified_locally=timezone.now(),
+                synced_to_server=False
+            )
         
         logger.info(f"Presupuesto confirmado: {sale.local_uuid} - ID: {sale.id}")
         

@@ -1175,6 +1175,20 @@ def ticket_x_print(request, pk):
     return render(request, 'sale/ticket_x.html', ctx)
 
 
+def ticket_budget_print(request, pk):
+    """Imprimir ticket de presupuesto (sin valor fiscal)"""
+    sale = get_object_or_404(Sale.objects.select_related('cli', 'company'), pk=pk, is_budget=True, status='budget')
+    dets = sale.detsale_set.select_related('prod').all()
+    company = sale.company or Company.objects.first()
+
+    ctx = {
+        'sale': sale,
+        'dets': dets,
+        'company': company,
+    }
+    return render(request, 'sale/ticket_budget.html', ctx)
+
+
 class SaleCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, CreateView):
     model = Sale
     form_class = SaleForm
@@ -2762,6 +2776,20 @@ class BudgetDetailView(LoginRequiredMixin, View):
             return JsonResponse(data)
         except Sale.DoesNotExist:
             return JsonResponse({'error': 'Presupuesto no encontrado'}, status=404)
+
+
+class BudgetSendLocalView(LoginRequiredMixin, ValidatePermissionRequiredMixin, View):
+    permission_required = 'erp.change_sale'
+
+    def post(self, request, *args, **kwargs):
+        budget_id = kwargs.get('pk')
+        from core.erp.services.budget_service import send_budget_to_local_server
+
+        success, error = send_budget_to_local_server(budget_id)
+        if success:
+            return JsonResponse({'success': True, 'message': 'Presupuesto enviado al POS local'})
+        else:
+            return JsonResponse({'success': False, 'error': error}, status=400)
 
 
 class CardPlanListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView):
