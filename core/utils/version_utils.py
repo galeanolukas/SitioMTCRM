@@ -44,25 +44,10 @@ def is_newer_version(latest_version, current_version):
     return latest_parsed > current_parsed
 
 
-def get_latest_github_version_fallback(timeout=2):
-    """
-    Método alternativo optimizado para obtener versión desde GitHub.
-    Usa versión hardcoded para máxima velocidad.
-    """
-    try:
-        # Método 1: Versión hardcoded como método principal para evitar retardos
-        return {
-            'version': '1.2.0',
-            'description': 'Última versión estable',
-            'published_at': '',
-            'source': 'fallback'
-        }
-        
-    except Exception:
-        return None
+GITHUB_REPO = 'galeanolukas/SitioMTCRM'
 
 
-def get_latest_github_version(timeout=3):
+def get_latest_github_version(timeout=5):
     """
     Obtiene la última versión desde GitHub API.
     Intenta primero releases, si no hay usa tags como fallback.
@@ -71,14 +56,64 @@ def get_latest_github_version(timeout=3):
     """
     cache_key = 'github_latest_version'
     cached_data = cache.get(cache_key)
-    
     if cached_data:
         return cached_data
-    
-    # Reducir timeout para evitar lentitud en login
-    # Ir directamente al fallback para mejor rendimiento
-    print("Using optimized fallback method for version detection...")
-    return get_latest_github_version_fallback(timeout)
+
+    # Intentar releases primero
+    data = _fetch_github_releases(timeout)
+    if data:
+        cache.set(cache_key, data, 300)  # cachear 5 minutos
+        return data
+
+    # Fallback: tags
+    data = _fetch_github_tags(timeout)
+    if data:
+        cache.set(cache_key, data, 300)
+        return data
+
+    return None
+
+
+def _fetch_github_releases(timeout=5):
+    """Obtiene el release más reciente desde GitHub API."""
+    url = f'https://api.github.com/repos/{GITHUB_REPO}/releases/latest'
+    try:
+        req = urllib.request.Request(url, headers={
+            'User-Agent': 'SitioMTCRM-Update-Check',
+            'Accept': 'application/vnd.github.v3+json',
+        })
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            return {
+                'version': (data.get('tag_name') or '').lstrip('v'),
+                'description': data.get('body') or data.get('name') or '',
+                'published_at': data.get('published_at') or '',
+                'source': 'github_release',
+            }
+    except Exception:
+        return None
+
+
+def _fetch_github_tags(timeout=5):
+    """Obtiene el tag más reciente desde GitHub API como fallback."""
+    url = f'https://api.github.com/repos/{GITHUB_REPO}/tags'
+    try:
+        req = urllib.request.Request(url, headers={
+            'User-Agent': 'SitioMTCRM-Update-Check',
+            'Accept': 'application/vnd.github.v3+json',
+        })
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            tags = json.loads(resp.read().decode('utf-8'))
+            if tags and isinstance(tags, list) and len(tags) > 0:
+                return {
+                    'version': (tags[0].get('name') or '').lstrip('v'),
+                    'description': '',
+                    'published_at': '',
+                    'source': 'github_tag',
+                }
+    except Exception:
+        return None
+    return None
 
 
 def get_version_info():
