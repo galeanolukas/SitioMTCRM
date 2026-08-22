@@ -116,11 +116,30 @@ def _fetch_github_tags(timeout=5):
     return None
 
 
+def get_current_local_version():
+    """Lee la versión local dinámicamente desde git (no cacheada al arranque)."""
+    import subprocess
+    import os
+    base_dir = getattr(settings, 'BASE_DIR', os.getcwd())
+    try:
+        result = subprocess.run(
+            ['git', 'describe', '--tags', '--abbrev=0'],
+            capture_output=True, text=True, cwd=base_dir, timeout=3
+        )
+        if result.returncode == 0:
+            return result.stdout.strip().lstrip('v')
+    except Exception:
+        pass
+    # Fallback a la versión de settings
+    return getattr(settings, 'APP_VERSION', '1.0.0')
+
+
 def get_version_info():
     """
     Retorna información completa de versiones.
+    La versión local se lee dinámicamente desde git para reflejar updates recientes.
     """
-    current_version = getattr(settings, 'APP_VERSION', '1.0.0')
+    current_version = get_current_local_version()
     latest_data = get_latest_github_version()
     
     if latest_data:
