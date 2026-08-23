@@ -118,6 +118,15 @@ else:
     print('SUPERUSER_EXISTS')
 " 2>/dev/null | grep -q 'SUPERUSER_CREATED' && echo "✓ Superusuario creado: admin / admin123" || echo "✓ Superusuario ya existe"
 
+# 6) Configurar roles estándar (vendedor, admin_empresa, servidor_local)
+echo "Configurando roles estándar..."
+python manage.py setup_roles --migrate
+if [ $? -ne 0 ]; then
+    echo "[ADVERTENCIA] No se pudieron configurar los roles. Ejecute manualmente: python manage.py setup_roles --migrate"
+else
+    echo "✓ Roles configurados correctamente (vendedor, admin_empresa, servidor_local)"
+fi
+
 echo
 echo "============================================"
 echo "Instalación terminada."

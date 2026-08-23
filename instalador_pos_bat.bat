@@ -47,6 +47,15 @@ echo Ejecutando migraciones de la base de datos...
 python manage.py makemigrations || exit /b 1
 python manage.py migrate || exit /b 1
 
+REM 6.5 Configurar roles estandar (vendedor, admin_empresa, servidor_local)
+echo Configurando roles estandar...
+python manage.py setup_roles --migrate
+if errorlevel 1 (
+    echo [ADVERTENCIA] No se pudieron configurar los roles. Ejecute manualmente: python manage.py setup_roles --migrate
+) else (
+    echo Roles configurados correctamente ^(vendedor, admin_empresa, servidor_local^)
+)
+
 REM 7. Crear acceso directo en el escritorio
 echo Creando acceso directo en el escritorio...
 
