@@ -1,9 +1,14 @@
+import threading
+
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
 from core.erp.models import Sale, DetSale, Company, Product, Client
+
+# Lock global para prevenir ejecución concurrente del comando
+_sync_lock = threading.Lock()
 
 
 class Command(BaseCommand):
@@ -28,14 +33,30 @@ class Command(BaseCommand):
         if cleanup_mode:
             return self.cleanup_deleted_sales(dry_run)
 
-        # Ejecutar cleanup de eliminaciones antes de sync normal
-        self.cleanup_deleted_sales(dry_run)
+        # Prevenir ejecución concurrente
+        if not _sync_lock.acquire(blocking=False):
+            self.stdout.write(self.style.WARNING(
+                "Otra sincronización de ventas ya está en curso. Omitiendo esta ejecución."
+            ))
+            return
+
+        try:
+            # Ejecutar cleanup de eliminaciones antes de sync normal
+            self.cleanup_deleted_sales(dry_run)
+
+            self._run_sync(dry_run)
+        finally:
+            _sync_lock.release()
+
+    def _run_sync(self, dry_run=False):
 
         self.stdout.write(self.style.NOTICE("Iniciando sincronizacion de ventas hacia servidor remoto..."))
 
         # Ventas locales que aún no se han sincronizado
+        # Solo re-procesar afip_pendiente_autorizacion si no está ya sincronizada
         pending_sales = Sale.objects.using('default').filter(
-            Q(synced_to_server=False) | Q(afip_pendiente_autorizacion=True)
+            Q(synced_to_server=False) |
+            (Q(afip_pendiente_autorizacion=True) & Q(synced_to_server=True) & Q(afip_cae=''))
         ).order_by('id')
         total = pending_sales.count()
         if not total:
@@ -241,10 +262,17 @@ class Command(BaseCommand):
                         )
 
                 # Marcar venta local como sincronizada
-                Sale.objects.using('default').filter(pk=sale.pk).update(
-                    synced_to_server=True,
-                    synced_at=timezone.now(),
-                )
+                # Si el reintento AFIP tuvo éxito, limpiar flag de pendiente
+                update_fields = {
+                    'synced_to_server': True,
+                    'synced_at': timezone.now(),
+                }
+                # Si la venta ya tiene CAE, limpiar el flag de pendiente
+                fresh_sale = Sale.objects.using('default').filter(pk=sale.pk).only('afip_cae', 'afip_pendiente_autorizacion').first()
+                if fresh_sale and fresh_sale.afip_cae:
+                    update_fields['afip_pendiente_autorizacion'] = False
+
+                Sale.objects.using('default').filter(pk=sale.pk).update(**update_fields)
                 if created:
                     synced += 1
                 else:

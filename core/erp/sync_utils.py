@@ -12,6 +12,9 @@ from core.erp.models import SyncLog
 
 logger = logging.getLogger(__name__)
 
+# Lock global para prevenir ejecución concurrente de run_full_sync
+_full_sync_lock = threading.Lock()
+
 
 def _can_reach_remote_db() -> bool:
     """Devuelve True si la BD remota está accesible, False si no.
@@ -97,6 +100,19 @@ def run_full_sync(company_id=None):
 
     Devuelve (ok: bool, errors: list[str]).
     """
+    # Prevenir ejecución concurrente
+    if not _full_sync_lock.acquire(blocking=False):
+        logger.warning("run_full_sync ya está en ejecución. Omitiendo esta llamada.")
+        return True, ['Sync ya en curso - omitido']
+
+    try:
+        return _run_full_sync_impl(company_id)
+    finally:
+        _full_sync_lock.release()
+
+
+def _run_full_sync_impl(company_id=None):
+    """Implementación interna de run_full_sync."""
     # Si estamos en el servidor central (producción), no hacer nada.
     # La sincronización solo corresponde a los nodos POS locales.
     if getattr(settings, 'ENVIRONMENT', 'development') == 'production':
