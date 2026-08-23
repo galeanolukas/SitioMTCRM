@@ -133,7 +133,15 @@ class AfipConfigUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
     permission_required = 'erp.change_afipconfig'
     fields = ['company', 'cuit', 'access_token', 'clave_fiscal_username', 'clave_fiscal_password', 'cert', 'key', 'environment', 'tipo_comprobante', 'concepto', 'moneda', 'cotizacion', 'usar_contingencia', 'is_active']
     success_url = reverse_lazy('erp:afip:dashboard')
-    
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if not user.is_superuser:
+            company_id = getattr(user, 'company_id', None)
+            qs = qs.filter(company_id=company_id)
+        return qs
+
     def get_initial(self):
         initial = super().get_initial()
         # Si el campo access_token está vacío en el objeto, usar el valor del .env
@@ -230,6 +238,14 @@ class AfipConfigDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
     template_name = 'afip/delete.html'
     permission_required = 'erp.delete_afipconfig'
     success_url = reverse_lazy('erp:afip:dashboard')
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if not user.is_superuser:
+            company_id = getattr(user, 'company_id', None)
+            qs = qs.filter(company_id=company_id)
+        return qs
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -333,13 +349,18 @@ class AfipDashboardView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Tem
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['configs'] = AfipConfig.objects.filter(is_active=True).select_related('company')
-        context['companies'] = Company.objects.filter(is_active=True)
-        
-        # Obtener empresa del usuario actual
-        if hasattr(self.request.user, 'company_id') and self.request.user.company_id:
-            context['user_company'] = Company.objects.filter(id=self.request.user.company_id).first()
-        
+        user = self.request.user
+        if user.is_superuser:
+            context['configs'] = AfipConfig.objects.filter(is_active=True).select_related('company')
+            context['companies'] = Company.objects.filter(is_active=True)
+        else:
+            company_id = getattr(user, 'company_id', None)
+            context['configs'] = AfipConfig.objects.filter(is_active=True, company_id=company_id).select_related('company')
+            context['companies'] = Company.objects.filter(is_active=True, id=company_id)
+
+        if hasattr(user, 'company_id') and user.company_id:
+            context['user_company'] = Company.objects.filter(id=user.company_id).first()
+
         return context
     
     def post(self, request, *args, **kwargs):
@@ -348,6 +369,12 @@ class AfipDashboardView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Tem
         
         if action == 'create_config':
             company_id = request.POST.get('company_id')
+            
+            # Validar que usuario no-superuser solo cree configs para su empresa
+            if not request.user.is_superuser:
+                user_company_id = getattr(request.user, 'company_id', None)
+                if str(company_id) != str(user_company_id):
+                    return JsonResponse({'success': False, 'error': 'No tiene permiso para crear configuración de otra empresa'})
             
             try:
                 company = Company.objects.get(id=company_id)
