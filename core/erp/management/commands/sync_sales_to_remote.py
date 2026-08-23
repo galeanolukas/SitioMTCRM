@@ -23,6 +23,7 @@ class Command(BaseCommand):
 
         synced = 0
         errors = 0
+        updated = 0
 
         for sale in pending_sales:
             try:
@@ -95,165 +96,98 @@ class Command(BaseCommand):
                         remote_cli_id = remote_cli.id
 
                 with transaction.atomic(using='remote'):
-                    # Verificar si ya existe venta duplicada usando múltiples criterios mejorados
-                    # PRIORIDAD 1: Buscar por local_uuid (método más confiable)
+                    # === Buscar venta existente por local_uuid (método principal) ===
                     existing_sale = None
-                    
-                    if hasattr(sale, 'local_uuid') and sale.local_uuid:
+                    if sale.local_uuid:
                         existing_sale = Sale.objects.using('remote').filter(
                             local_uuid=sale.local_uuid
                         ).first()
-                        
-                        if existing_sale:
-                            self.stdout.write(
-                                self.style.WARNING(f"Venta {sale.id} ya existe por UUID (ID: {existing_sale.id}), omitiendo...")
-                            )
-                            # Marcar como sincronizada y continuar
-                            Sale.objects.using('default').filter(pk=sale.pk).update(synced_to_server=True)
-                            synced += 1
-                            continue
-                    
-                    # PRIORIDAD 2: Buscar por local_sale_id (método secundario)
-                    if hasattr(sale, 'local_sale_id') and sale.local_sale_id:
+
+                    # === Si no hay UUID, buscar por local_sale_id + empresa ===
+                    if not existing_sale and sale.local_sale_id:
                         existing_sale = Sale.objects.using('remote').filter(
                             local_sale_id=sale.local_sale_id,
                             company_id=remote_company.id if remote_company else None
                         ).first()
-                        
-                        if existing_sale:
-                            self.stdout.write(
-                                self.style.WARNING(f"Venta {sale.id} ya existe por local_sale_id (ID: {existing_sale.id}), omitiendo...")
-                            )
-                            # Marcar como sincronizada y continuar
-                            Sale.objects.using('default').filter(pk=sale.pk).update(synced_to_server=True)
-                            synced += 1
-                            continue
-                    
-                    # PRIORIDAD 3: Búsqueda estricta por tiempo y campos (último recurso)
-                    # Reducir ventana de tiempo a ±1 segundo para mayor precisión
-                    existing_sale = Sale.objects.using('remote').filter(
-                        date_joined__gte=sale.date_joined - timezone.timedelta(seconds=1),
-                        date_joined__lte=sale.date_joined + timezone.timedelta(seconds=1),
-                        total=sale.total,
-                        payment_method=sale.payment_method,
-                        company_id=remote_company.id if remote_company else None
-                    )
-                    
-                    # Si hay cliente, agregarlo a la búsqueda
-                    if sale.cli_id:
-                        existing_sale = existing_sale.filter(cli_id=sale.cli_id)
-                    
-                    existing_sale = existing_sale.first()
-                    
-                    if existing_sale:
-                        # Verificación final: comparar timestamp exacto
-                        time_diff = abs((existing_sale.date_joined - sale.date_joined).total_seconds())
-                        if time_diff < 2:  # Solo si la diferencia es menor a 2 segundos
-                            self.stdout.write(
-                                self.style.WARNING(f"Venta {sale.id} duplicada por tiempo (ID: {existing_sale.id}), omitiendo...")
-                            )
-                            # Marcar como sincronizada y continuar
-                            Sale.objects.using('default').filter(pk=sale.pk).update(synced_to_server=True)
-                            synced += 1
-                            continue
-                    
-                    # ANTES DE CREAR: Verificación final de UUID para evitar duplicados
-                    # Usar get_or_create para manejar el caso de concurrencia
-                    if hasattr(sale, 'local_uuid') and sale.local_uuid:
-                        # Intentar obtener la venta existente por UUID
-                        try:
-                            existing_sale = Sale.objects.using('remote').get(
-                                local_uuid=sale.local_uuid
-                            )
-                            self.stdout.write(
-                                self.style.WARNING(f"Venta {sale.id}: UUID {sale.local_uuid} ya existe en servidor (ID: {existing_sale.id}), omitiendo...")
-                            )
-                            # Marcar como sincronizada y continuar
-                            Sale.objects.using('default').filter(pk=sale.pk).update(synced_to_server=True)
-                            synced += 1
-                            continue
-                        except Sale.DoesNotExist:
-                            # No existe, podemos crear normalmente
-                            pass
-                    
-                    # Verificar si el invoice_number ya existe en el servidor
-                    if sale.invoice_number:
-                        try:
-                            existing_invoice = Sale.objects.using('remote').get(
-                                invoice_number=sale.invoice_number
-                            )
-                            self.stdout.write(
-                                self.style.WARNING(f"Venta {sale.id}: Número de factura {sale.invoice_number} ya existe en servidor (ID: {existing_invoice.id}), omitiendo...")
-                            )
-                            # Marcar como sincronizada y continuar
-                            Sale.objects.using('default').filter(pk=sale.pk).update(synced_to_server=True)
-                            synced += 1
-                            continue
-                        except Sale.DoesNotExist:
-                            # No existe, podemos crear normalmente
-                            pass
-                    
-                    # Crear cabecera de venta en remoto usando update_or_create para evitar duplicados
-                    # Pasar el monto de IVA tal cual está registrado en la venta local
+
+                    # === Si no hay UUID ni local_sale_id, buscar por invoice_number ===
+                    if not existing_sale and sale.invoice_number:
+                        existing_sale = Sale.objects.using('remote').filter(
+                            invoice_number=sale.invoice_number
+                        ).first()
+
+                    # Campos comunes para update o create
                     iva_amount = sale.iva if sale.iva is not None else 0
-                    
-                    # Mantener el horario local original de la venta
-                    # Preservamos el date_joined tal como está para mantener la hora local del POS
-                    remote_sale, created = Sale.objects.using('remote').update_or_create(
-                        local_uuid=sale.local_uuid,
-                        defaults={
-                            'company_id': remote_company.id if remote_company else None,
-                            'cli_id': remote_cli_id,
-                            'date_joined': sale.date_joined,
-                            'local_timezone': sale.local_timezone,
-                            'subtotal': sale.subtotal,
-                            'iva': iva_amount,
-                            'total': sale.total,
-                            'payment_method': sale.payment_method,
-                            'payment_details': getattr(sale, 'payment_details', None),
-                            'invoice_number': sale.invoice_number,
-                            'invoice_pos': sale.invoice_pos,
-                            'invoice_type': sale.invoice_type,
-                            'is_invoiced': sale.is_invoiced,
-                            'synced_to_server': True,  # Marcar como sincronizada en servidor
-                            'local_sale_id': sale.id,  # Importante: mantener ID local
-                            'source': getattr(sale, 'source', 'local_pos'),  # Mantener origen
-                            'pos_id': getattr(sale, 'pos_id', ''),  # ID del POS que creó el presupuesto
-                            # Campos para presupuestos
-                            'status': getattr(sale, 'status', 'confirmed'),
-                            'is_budget': getattr(sale, 'is_budget', False),
-                            'sent_to_local': getattr(sale, 'sent_to_local', False),
-                            'local_server_response': getattr(sale, 'local_server_response', {}),
-                            'budget_notes': getattr(sale, 'budget_notes', ''),
-                            # Campos AFIP
-                            'afip_cae': sale.afip_cae or '',
-                            'afip_cae_vto': sale.afip_cae_vto,
-                            'afip_voucher_number': sale.afip_voucher_number,
-                            'afip_qr': sale.afip_qr or '',
-                            'afip_error': sale.afip_error or '',
-                            'afip_contingencia': sale.afip_contingencia,
-                            'afip_contingencia_fecha': sale.afip_contingencia_fecha,
-                            'afip_pendiente_autorizacion': sale.afip_pendiente_autorizacion,
-                        }
-                    )
+                    sale_defaults = {
+                        'company_id': remote_company.id if remote_company else None,
+                        'cli_id': remote_cli_id,
+                        'date_joined': sale.date_joined,
+                        'local_timezone': sale.local_timezone,
+                        'subtotal': sale.subtotal,
+                        'iva': iva_amount,
+                        'total': sale.total,
+                        'payment_method': sale.payment_method,
+                        'payment_details': getattr(sale, 'payment_details', None),
+                        'invoice_number': sale.invoice_number,
+                        'invoice_pos': sale.invoice_pos,
+                        'invoice_type': sale.invoice_type,
+                        'is_invoiced': sale.is_invoiced,
+                        'synced_to_server': True,
+                        'local_sale_id': sale.id,
+                        'source': getattr(sale, 'source', 'local_pos'),
+                        'pos_id': getattr(sale, 'pos_id', ''),
+                        'status': getattr(sale, 'status', 'confirmed'),
+                        'is_budget': getattr(sale, 'is_budget', False),
+                        'sent_to_local': getattr(sale, 'sent_to_local', False),
+                        'local_server_response': getattr(sale, 'local_server_response', {}),
+                        'budget_notes': getattr(sale, 'budget_notes', ''),
+                        'afip_cae': sale.afip_cae or '',
+                        'afip_cae_vto': sale.afip_cae_vto,
+                        'afip_voucher_number': sale.afip_voucher_number,
+                        'afip_qr': sale.afip_qr or '',
+                        'afip_error': sale.afip_error or '',
+                        'afip_contingencia': sale.afip_contingencia,
+                        'afip_contingencia_fecha': sale.afip_contingencia_fecha,
+                        'afip_pendiente_autorizacion': sale.afip_pendiente_autorizacion,
+                    }
+
+                    if existing_sale:
+                        # === ACTUALIZAR venta existente (no crear duplicado) ===
+                        for field, value in sale_defaults.items():
+                            setattr(existing_sale, field, value)
+                        # Mantener local_uuid si el existente no lo tiene
+                        if not existing_sale.local_uuid and sale.local_uuid:
+                            existing_sale.local_uuid = sale.local_uuid
+                        existing_sale.save()
+                        remote_sale = existing_sale
+                        created = False
+                        self.stdout.write(
+                            self.style.WARNING(f"Venta {sale.id} actualizada en servidor (ID remoto: {remote_sale.id})")
+                        )
+                    else:
+                        # === CREAR nueva venta en remoto ===
+                        remote_sale = Sale.objects.using('remote').create(
+                            local_uuid=sale.local_uuid,
+                            **sale_defaults,
+                        )
+                        created = True
+                        self.stdout.write(
+                            self.style.SUCCESS(f"Venta {sale.id} creada en servidor (ID remoto: {remote_sale.id})")
+                        )
 
                     # Solo crear detalles si la venta fue creada (no actualizada)
                     if created:
-                        # Crear detalles en remoto
                         for det in sale.detsale_set.all():
-                            # Mapear producto local -> remoto. No podemos asumir que los IDs coinciden.
+                            # Mapear producto local -> remoto
                             remote_prod = None
                             local_prod = Product.objects.using('default').filter(pk=det.prod_id).first()
                             if local_prod:
-                                # 1) Buscar en remoto por code si existe
                                 if local_prod.code:
                                     remote_prod = Product.objects.using('remote').filter(code=local_prod.code).first()
-                                # 2) Si no hay code o no matchea, intentar por nombre exacto
                                 if not remote_prod:
                                     remote_prod = Product.objects.using('remote').filter(name=local_prod.name).first()
 
                             if not remote_prod:
-                                # Si no encontramos el producto remoto, registramos el error y abortamos
                                 raise Exception(
                                     f"Producto local {det.prod_id} ('{getattr(local_prod, 'name', '?')}') "
                                     f"no tiene equivalente en servidor remoto (por code/nombre)."
@@ -266,14 +200,14 @@ class Command(BaseCommand):
                                 cant=det.cant,
                                 subtotal=det.subtotal,
                             )
-                            
-                            # ACTUALIZAR STOCK DEL PRODUCTO EN SERVIDOR
+
+                            # Actualizar stock del producto en servidor
                             current_stock = remote_prod.stock or 0
                             new_stock = current_stock - det.cant
                             Product.objects.using('remote').filter(pk=remote_prod.id).update(
                                 stock=new_stock
                             )
-                            
+
                             self.stdout.write(
                                 self.style.SUCCESS(
                                     f"  Stock actualizado - Producto: {remote_prod.name}, "
@@ -282,18 +216,23 @@ class Command(BaseCommand):
                             )
                     else:
                         self.stdout.write(
-                            self.style.WARNING(f"Venta {sale.id} ya existía en servidor, omitiendo creación de detalles")
+                            self.style.WARNING(f"  Omitiendo creación de detalles (venta ya existía)")
                         )
 
                 # Marcar venta local como sincronizada
                 Sale.objects.using('default').filter(pk=sale.pk).update(
                     synced_to_server=True,
+                    synced_at=timezone.now(),
                 )
-                synced += 1
+                if created:
+                    synced += 1
+                else:
+                    updated += 1
             except Exception as e:
                 errors += 1
                 self.stderr.write(f"Error sincronizando venta {sale.id}: {e}")
 
         self.stdout.write(self.style.SUCCESS(
-            f"Sincronizacion finalizada. Ventas sincronizadas: {synced} / {total}. Errores: {errors}."
+            f"Sincronizacion finalizada. Ventas creadas: {synced}, actualizadas: {updated}, "
+            f"errores: {errors}. Total procesado: {total}."
         ))
