@@ -761,7 +761,8 @@ class Sale(models.Model):
         if self.status == 'confirmed' and not self.is_budget:
             try:
                 from django.db import transaction as db_transaction
-                with db_transaction.atomic(savepoint=True):
+                db = self._state.db
+                with db_transaction.atomic(using=db, savepoint=True):
                     self._crear_registro_libro_iva_simple()
             except Exception:
                 import logging
@@ -784,7 +785,8 @@ class Sale(models.Model):
                 })
                 try:
                     from django.db import transaction as db_transaction
-                    with db_transaction.atomic(savepoint=True):
+                    db = self._state.db
+                    with db_transaction.atomic(using=db, savepoint=True):
                         self.emitir_factura_afip(skip_afip_call_on_save=True)
                 except Exception as afip_err:
                     logger.warning(f"afip_auto_emit_failed_for_sale_{self.id}: {afip_err}", exc_info=True)
@@ -1043,7 +1045,8 @@ class Sale(models.Model):
                 'sale': self,
             }
 
-            LibroIvaRegistro.objects.update_or_create(
+            db = self._state.db
+            LibroIvaRegistro.objects.using(db).update_or_create(
                 sale=self,
                 defaults=defaults
             )
