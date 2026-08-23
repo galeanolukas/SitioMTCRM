@@ -813,6 +813,31 @@ class ExpenseDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Del
     permission_required = 'erp.delete_expense'
 
     def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+
+        # Eliminar gasto del servidor remoto si tiene local_uuid
+        exp_uuid = self.object.local_uuid
+        exp_local_id = self.object.local_expense_id or self.object.id
+        if exp_uuid or exp_local_id:
+            try:
+                from django.db import connections
+                with connections['remote'].cursor() as cursor:
+                    if exp_uuid:
+                        cursor.execute(
+                            "DELETE FROM erp_expense WHERE local_uuid = %s",
+                            [exp_uuid]
+                        )
+                    else:
+                        cursor.execute(
+                            "DELETE FROM erp_expense WHERE local_expense_id = %s AND source = 'local_pos'",
+                            [exp_local_id]
+                        )
+            except Exception as remote_err:
+                import logging
+                logging.getLogger(__name__).warning(
+                    f"No se pudo eliminar gasto {self.object.id} del servidor remoto: {remote_err}"
+                )
+
         response = super().delete(request, *args, **kwargs)
         messages.success(self.request, 'Gasto/Compra eliminado correctamente')
         return response

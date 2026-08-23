@@ -521,6 +521,27 @@ def sync_cash_register_immediately(cash_register_id=None):
     return thread
 
 
+def sync_expense_immediately(expense_id=None):
+    """Sincroniza inmediatamente el gasto especificado o todos los pendientes.
+    
+    Esta función se ejecuta en un hilo separado para no bloquear la UI.
+    """
+    def _sync_worker():
+        try:
+            call_command("sync_expenses_to_remote")
+            if expense_id:
+                logger.info(f"Gasto {expense_id} sincronizado inmediatamente")
+            else:
+                logger.info("Gastos pendientes sincronizados inmediatamente")
+        except Exception as e:
+            logger.error(f"Error en sincronización inmediata de gasto: {e}")
+    
+    thread = threading.Thread(target=_sync_worker, daemon=True)
+    thread.start()
+    
+    return thread
+
+
 def backup_to_server():
     """Crea un backup de la base de datos local y lo envía al servidor remoto."""
     errors = []
