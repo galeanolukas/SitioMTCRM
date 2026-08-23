@@ -1559,6 +1559,44 @@ class SaleDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Delete
                         stock_modified_locally=timezone.now(),  # Marcar modificación local
                         synced_to_server=False  # Marcar para sincronizar
                     )
+
+                # Eliminar venta del servidor remoto si tiene local_uuid
+                sale_uuid = self.object.local_uuid
+                sale_local_id = self.object.local_sale_id or self.object.id
+                if sale_uuid or sale_local_id:
+                    try:
+                        from django.db import connections
+                        with connections['remote'].cursor() as cursor:
+                            # Eliminar detalles primero (por FK)
+                            if sale_uuid:
+                                cursor.execute(
+                                    "DELETE FROM erp_detsale WHERE sale_id IN ("
+                                    "  SELECT id FROM erp_sale WHERE local_uuid = %s"
+                                    ")",
+                                    [sale_uuid]
+                                )
+                                cursor.execute(
+                                    "DELETE FROM erp_sale WHERE local_uuid = %s",
+                                    [sale_uuid]
+                                )
+                            else:
+                                cursor.execute(
+                                    "DELETE FROM erp_detsale WHERE sale_id IN ("
+                                    "  SELECT id FROM erp_sale WHERE local_sale_id = %s AND source = 'local_pos'"
+                                    ")",
+                                    [sale_local_id]
+                                )
+                                cursor.execute(
+                                    "DELETE FROM erp_sale WHERE local_sale_id = %s AND source = 'local_pos'",
+                                    [sale_local_id]
+                                )
+                    except Exception as remote_err:
+                        # Si falla la eliminación remota, no bloquear la local
+                        import logging
+                        logging.getLogger(__name__).warning(
+                            f"No se pudo eliminar venta {self.object.id} del servidor remoto: {remote_err}"
+                        )
+
                 self.object.delete()
         except Exception as e:
             data['error'] = str(e)
