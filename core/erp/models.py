@@ -759,7 +759,15 @@ class Sale(models.Model):
 
         # Crear registro en Libro IVA para ventas confirmadas (incluso sin factura AFIP)
         if self.status == 'confirmed' and not self.is_budget:
-            self._crear_registro_libro_iva_simple()
+            try:
+                from django.db import transaction as db_transaction
+                with db_transaction.atomic(savepoint=True):
+                    self._crear_registro_libro_iva_simple()
+            except Exception:
+                import logging
+                logging.getLogger(__name__).warning(
+                    f"libro_iva_simple_failed_for_sale_{self.id}", exc_info=True
+                )
 
             # Emitir factura AFIP automáticamente si está configurado y la venta está confirmada
             # Solo si skip_afip_call_on_save es False (evita recursión)
@@ -774,7 +782,12 @@ class Sale(models.Model):
                     'is_budget': self.is_budget,
                     'afip_cae': self.afip_cae
                 })
-                self.emitir_factura_afip(skip_afip_call_on_save=True)
+                try:
+                    from django.db import transaction as db_transaction
+                    with db_transaction.atomic(savepoint=True):
+                        self.emitir_factura_afip(skip_afip_call_on_save=True)
+                except Exception as afip_err:
+                    logger.warning(f"afip_auto_emit_failed_for_sale_{self.id}: {afip_err}", exc_info=True)
 
     def emitir_factura_afip(self, user=None, skip_afip_call_on_save=False):
         """
