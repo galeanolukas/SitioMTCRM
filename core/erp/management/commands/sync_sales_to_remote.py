@@ -9,7 +9,28 @@ from core.erp.models import Sale, DetSale, Company, Product, Client
 class Command(BaseCommand):
     help = "Sincroniza ventas y sus detalles desde la BD local (default) hacia la BD remota (remote)."
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--cleanup',
+            action='store_true',
+            help='Eliminar ventas en servidor que fueron eliminadas localmente',
+        )
+        parser.add_argument(
+            '--dry-run',
+            action='store_true',
+            help='Mostrar qué se haría sin ejecutar cambios',
+        )
+
     def handle(self, *args, **options):
+        cleanup_mode = options.get('cleanup', False)
+        dry_run = options.get('dry_run', False)
+
+        if cleanup_mode:
+            return self.cleanup_deleted_sales(dry_run)
+
+        # Ejecutar cleanup de eliminaciones antes de sync normal
+        self.cleanup_deleted_sales(dry_run)
+
         self.stdout.write(self.style.NOTICE("Iniciando sincronizacion de ventas hacia servidor remoto..."))
 
         # Ventas locales que aún no se han sincronizado
@@ -236,3 +257,100 @@ class Command(BaseCommand):
             f"Sincronizacion finalizada. Ventas creadas: {synced}, actualizadas: {updated}, "
             f"errores: {errors}. Total procesado: {total}."
         ))
+
+    def cleanup_deleted_sales(self, dry_run=False):
+        """Eliminar en servidor las ventas que fueron eliminadas localmente"""
+        self.stdout.write(self.style.NOTICE("Verificando ventas eliminadas localmente..."))
+
+        if dry_run:
+            self.stdout.write(self.style.WARNING("MODO DRY RUN - No se ejecutarán cambios reales"))
+
+        try:
+            from django.db import connections
+
+            # Obtener todos los local_uuid y local_sale_id de ventas locales
+            local_uuids = list(
+                Sale.objects.using('default')
+                .exclude(local_uuid__isnull=True)
+                .exclude(local_uuid='')
+                .values_list('local_uuid', flat=True)
+            )
+            local_sale_ids = list(
+                Sale.objects.using('default')
+                .exclude(local_sale_id__isnull=True)
+                .values_list('local_sale_id', flat=True)
+            )
+
+            # Buscar en servidor las ventas con source='local_pos' que ya no existen localmente
+            with connections['remote'].cursor() as cursor:
+                # Construir query para encontrar ventas huérfanas por local_uuid
+                orphaned = []
+
+                if local_uuids:
+                    placeholders = ','.join(['%s'] * len(local_uuids))
+                    cursor.execute(f'''
+                        SELECT id, local_uuid, local_sale_id, invoice_number, total, date_joined
+                        FROM erp_sale
+                        WHERE source = 'local_pos'
+                          AND local_uuid IS NOT NULL
+                          AND local_uuid != ''
+                          AND local_uuid NOT IN ({placeholders})
+                    ''', local_uuids)
+                    orphaned.extend(cursor.fetchall())
+
+                # También buscar por local_sale_id si no tienen local_uuid
+                if local_sale_ids:
+                    placeholders = ','.join(['%s'] * len(local_sale_ids))
+                    cursor.execute(f'''
+                        SELECT id, local_uuid, local_sale_id, invoice_number, total, date_joined
+                        FROM erp_sale
+                        WHERE source = 'local_pos'
+                          AND (local_uuid IS NULL OR local_uuid = '')
+                          AND local_sale_id IS NOT NULL
+                          AND local_sale_id NOT IN ({placeholders})
+                    ''', local_sale_ids)
+                    orphaned.extend(cursor.fetchall())
+
+                if not orphaned:
+                    self.stdout.write(self.style.SUCCESS("No se encontraron ventas eliminadas localmente pendientes de cleanup."))
+                    return
+
+                self.stdout.write(self.style.WARNING(
+                    f"Se encontraron {len(orphaned)} ventas en servidor que fueron eliminadas localmente:"
+                ))
+
+                for row in orphaned:
+                    self.stdout.write(
+                        f"  ID remoto: {row[0]}, UUID: {row[1]}, local_sale_id: {row[2]}, "
+                        f"Factura: {row[3]}, Total: {row[4]}, Fecha: {row[5]}"
+                    )
+
+                if not dry_run:
+                    # Eliminar detalles primero (por FK)
+                    orphaned_ids = [row[0] for row in orphaned]
+                    placeholders = ','.join(['%s'] * len(orphaned_ids))
+
+                    cursor.execute(f'''
+                        DELETE FROM erp_detsale
+                        WHERE sale_id IN ({placeholders})
+                    ''', orphaned_ids)
+                    deleted_details = cursor.rowcount
+
+                    cursor.execute(f'''
+                        DELETE FROM erp_sale
+                        WHERE id IN ({placeholders})
+                    ''', orphaned_ids)
+                    deleted_sales = cursor.rowcount
+
+                    self.stdout.write(self.style.SUCCESS(
+                        f"{deleted_sales} ventas eliminadas del servidor ({deleted_details} detalles)."
+                    ))
+                else:
+                    self.stdout.write(self.style.WARNING(
+                        f"DRY RUN: Se eliminarían {len(orphaned)} ventas del servidor."
+                    ))
+
+        except Exception as e:
+            self.stderr.write(self.style.ERROR(f"Error en cleanup de ventas eliminadas: {e}"))
+            import traceback
+            traceback.print_exc()
