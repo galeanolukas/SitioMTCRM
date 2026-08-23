@@ -51,6 +51,10 @@ class RemitoListView(LoginRequiredMixin, PermissionRequiredMixin, ListView):
         context['create_url'] = reverse_lazy('erp:remito_create')
         context['list_url'] = reverse_lazy('erp:remito_list')
         context['suppliers'] = Supplier.objects.filter(is_active=True)
+        if self.request.user.is_superuser:
+            active_cid = self.request.session.get('company_id')
+        else:
+            active_cid = getattr(self.request.user, 'company_id', None)
         if active_cid:
             context['suppliers'] = context['suppliers'].filter(company_id=active_cid)
         context['estados'] = Remito.ESTADO_CHOICES
