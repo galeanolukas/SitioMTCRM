@@ -1560,36 +1560,69 @@ class SaleDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Delete
                         synced_to_server=False  # Marcar para sincronizar
                     )
 
-                # Eliminar venta del servidor remoto si tiene local_uuid
+                # Eliminar registros contables/IVA relacionados localmente
+                # (los que tienen on_delete=SET_NULL y quedarían huérfanos)
+                from core.erp.models import LibroIvaRegistro, CuentaCorrienteCliente, AsientoContable
+                LibroIvaRegistro.objects.filter(sale=self.object).delete()
+                CuentaCorrienteCliente.objects.filter(sale=self.object).delete()
+                AsientoContable.objects.filter(sale=self.object).delete()
+
+                # Eliminar venta y registros relacionados del servidor remoto
                 sale_uuid = self.object.local_uuid
                 sale_local_id = self.object.local_sale_id or self.object.id
                 if sale_uuid or sale_local_id:
                     try:
                         from django.db import connections
                         with connections['remote'].cursor() as cursor:
-                            # Eliminar detalles primero (por FK)
+                            # Construir condición para encontrar la venta remota
                             if sale_uuid:
-                                cursor.execute(
-                                    "DELETE FROM erp_detsale WHERE sale_id IN ("
-                                    "  SELECT id FROM erp_sale WHERE local_uuid = %s"
-                                    ")",
-                                    [sale_uuid]
-                                )
-                                cursor.execute(
-                                    "DELETE FROM erp_sale WHERE local_uuid = %s",
-                                    [sale_uuid]
-                                )
+                                where_clause = "local_uuid = %s"
+                                where_params = [sale_uuid]
                             else:
-                                cursor.execute(
-                                    "DELETE FROM erp_detsale WHERE sale_id IN ("
-                                    "  SELECT id FROM erp_sale WHERE local_sale_id = %s AND source = 'local_pos'"
-                                    ")",
-                                    [sale_local_id]
-                                )
-                                cursor.execute(
-                                    "DELETE FROM erp_sale WHERE local_sale_id = %s AND source = 'local_pos'",
-                                    [sale_local_id]
-                                )
+                                where_clause = "local_sale_id = %s AND source = 'local_pos'"
+                                where_params = [sale_local_id]
+
+                            # Eliminar registros relacionados por FK en servidor
+                            # 1. SaleVatBreakdown
+                            cursor.execute(
+                                f"DELETE FROM erp_salevatbreakdown WHERE sale_id IN ("
+                                f"  SELECT id FROM erp_sale WHERE {where_clause}"
+                                f")",
+                                where_params
+                            )
+                            # 2. DetSale
+                            cursor.execute(
+                                f"DELETE FROM erp_detsale WHERE sale_id IN ("
+                                f"  SELECT id FROM erp_sale WHERE {where_clause}"
+                                f")",
+                                where_params
+                            )
+                            # 3. LibroIvaRegistro
+                            cursor.execute(
+                                f"DELETE FROM erp_libroivaregistro WHERE sale_id IN ("
+                                f"  SELECT id FROM erp_sale WHERE {where_clause}"
+                                f")",
+                                where_params
+                            )
+                            # 4. CuentaCorrienteCliente
+                            cursor.execute(
+                                f"DELETE FROM erp_cuentacorrientecliente WHERE sale_id IN ("
+                                f"  SELECT id FROM erp_sale WHERE {where_clause}"
+                                f")",
+                                where_params
+                            )
+                            # 5. AsientoContable
+                            cursor.execute(
+                                f"DELETE FROM erp_asientocontable WHERE sale_id IN ("
+                                f"  SELECT id FROM erp_sale WHERE {where_clause}"
+                                f")",
+                                where_params
+                            )
+                            # 6. Sale (finalmente)
+                            cursor.execute(
+                                f"DELETE FROM erp_sale WHERE {where_clause}",
+                                where_params
+                            )
                     except Exception as remote_err:
                         # Si falla la eliminación remota, no bloquear la local
                         import logging

@@ -326,16 +326,42 @@ class Command(BaseCommand):
                     )
 
                 if not dry_run:
-                    # Eliminar detalles primero (por FK)
+                    # Eliminar registros relacionados por FK primero, luego la venta
                     orphaned_ids = [row[0] for row in orphaned]
                     placeholders = ','.join(['%s'] * len(orphaned_ids))
 
+                    # 1. SaleVatBreakdown
+                    cursor.execute(f'''
+                        DELETE FROM erp_salevatbreakdown
+                        WHERE sale_id IN ({placeholders})
+                    ''', orphaned_ids)
+
+                    # 2. DetSale
                     cursor.execute(f'''
                         DELETE FROM erp_detsale
                         WHERE sale_id IN ({placeholders})
                     ''', orphaned_ids)
                     deleted_details = cursor.rowcount
 
+                    # 3. LibroIvaRegistro
+                    cursor.execute(f'''
+                        DELETE FROM erp_libroivaregistro
+                        WHERE sale_id IN ({placeholders})
+                    ''', orphaned_ids)
+
+                    # 4. CuentaCorrienteCliente
+                    cursor.execute(f'''
+                        DELETE FROM erp_cuentacorrientecliente
+                        WHERE sale_id IN ({placeholders})
+                    ''', orphaned_ids)
+
+                    # 5. AsientoContable
+                    cursor.execute(f'''
+                        DELETE FROM erp_asientocontable
+                        WHERE sale_id IN ({placeholders})
+                    ''', orphaned_ids)
+
+                    # 6. Sale (finalmente)
                     cursor.execute(f'''
                         DELETE FROM erp_sale
                         WHERE id IN ({placeholders})
@@ -343,7 +369,8 @@ class Command(BaseCommand):
                     deleted_sales = cursor.rowcount
 
                     self.stdout.write(self.style.SUCCESS(
-                        f"{deleted_sales} ventas eliminadas del servidor ({deleted_details} detalles)."
+                        f"{deleted_sales} ventas eliminadas del servidor ({deleted_details} detalles, "
+                        f"registros IVA/contables limpiados)."
                     ))
                 else:
                     self.stdout.write(self.style.WARNING(
