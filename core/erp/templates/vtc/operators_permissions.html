@@ -48,6 +48,13 @@
             <form method="post">
               {% csrf_token %}
 
+              {% if not can_edit %}
+              <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle mr-1"></i>
+                No tiene permisos para editar este grupo. Solo puede ver los permisos.
+              </div>
+              {% endif %}
+
               <div class="row">
                 {% regroup permissions by content_type.app_label as perms_by_app %}
                 {% for app in perms_by_app %}
@@ -64,7 +71,8 @@
                                    id="perm_{{ perm.id }}"
                                    name="permissions"
                                    value="{{ perm.id }}"
-                                   {% if perm.id in group_permission_ids %}checked{% endif %}>
+                                   {% if perm.id in group_permission_ids %}checked{% endif %}
+                                   {% if not can_edit %}disabled{% endif %}>
                             <label class="form-check-label" for="perm_{{ perm.id }}">
                               {{ perm.display_name }}
                             </label>
@@ -77,9 +85,11 @@
               </div>
 
               <div class="mt-3">
+                {% if can_edit %}
                 <button type="submit" class="btn btn-primary">
                   <i class="fas fa-save mr-1"></i> Guardar
                 </button>
+                {% endif %}
                 <a href="{% url 'erp:dashboard' %}" class="btn btn-secondary">
                   Cancelar
                 </a>

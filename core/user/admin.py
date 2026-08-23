@@ -9,10 +9,10 @@ from core.erp import models as erp_models
 
 
 def ensure_operator_group():
-    # Nombre de grupo estándar en todo el proyecto
-    group, _ = Group.objects.get_or_create(name='operadores')
+    # Asignar grupo 'vendedor' por defecto (rol estándar)
+    group, _ = Group.objects.get_or_create(name='vendedor')
+    # Permisos básicos se asignan via comando setup_roles, pero aseguramos mínimos
     perms_to_add = []
-    # Incluir permisos view/add/change/delete en entidades básicas
     for model in (erp_models.Category, erp_models.Product, erp_models.Client, erp_models.Sale):
         ct = ContentType.objects.get_for_model(model)
         for action in ('view', 'add', 'change', 'delete'):
@@ -47,7 +47,7 @@ class UserAdmin(BaseUserAdmin):
     def save_model(self, request, obj, form, change):
         created = obj.pk is None
         super().save_model(request, obj, form, change)
-        # Asignar grupo por defecto únicamente 'operadores' a nuevos usuarios no superusuario
+        # Asignar grupo por defecto 'vendedor' a nuevos usuarios no superusuario
         if created and not obj.is_superuser:
             group = ensure_operator_group()
             # Establecer solo este grupo (evita que queden otros grupos asignados por error)

@@ -207,8 +207,16 @@ def user_delete(request, pk):
 class OperatorsPermissionsView(LoginRequiredMixin, TemplateView):
     template_name = "vtc/operators_permissions.html"
 
+    # Roles que un admin_empresa puede gestionar (no puede modificar servidor_local ni crear roles nuevos)
+    MANAGEABLE_ROLES = ['vendedor', 'admin_empresa']
+
     def dispatch(self, request, *args, **kwargs):
-        if not request.user.is_superuser:
+        user = request.user
+        if not user.is_authenticated:
+            return redirect('login')
+        # Superuser o admin_empresa pueden acceder
+        is_admin_empresa = user.groups.filter(name='admin_empresa').exists() or user.groups.filter(name='servidor_local').exists()
+        if not (user.is_superuser or is_admin_empresa):
             return redirect('erp:dashboard')
         return super().dispatch(request, *args, **kwargs)
 
@@ -219,8 +227,8 @@ class OperatorsPermissionsView(LoginRequiredMixin, TemplateView):
                 return Group.objects.get(pk=group_id)
             except Group.DoesNotExist:
                 return None
-        # Si no se especifica grupo, usar 'operadores' por defecto
-        group, _ = Group.objects.get_or_create(name='operadores')
+        # Si no se especifica grupo, usar 'vendedor' por defecto
+        group, _ = Group.objects.get_or_create(name='vendedor')
         return group
 
     def get_context_data(self, **kwargs):
@@ -228,13 +236,14 @@ class OperatorsPermissionsView(LoginRequiredMixin, TemplateView):
         group = self.get_group()
         if not group:
             ctx['error'] = 'Grupo no encontrado'
-            ctx['groups'] = Group.objects.all()
+            ctx['groups'] = self.get_visible_groups()
             return ctx
         
         ctx['title'] = f'Permisos: {group.name}'
         ctx['entity'] = 'Permisos de Grupo'
         ctx['group'] = group
-        ctx['groups'] = Group.objects.all()
+        ctx['groups'] = self.get_visible_groups()
+        ctx['can_edit'] = self.can_edit_group(group)
         perms = list(Permission.objects.select_related('content_type').order_by('content_type__app_label', 'codename'))
         replacements = {
             'Can add ': 'Puede crear ',
@@ -275,8 +284,27 @@ class OperatorsPermissionsView(LoginRequiredMixin, TemplateView):
                     messages.error(request, 'Grupo no encontrado')
             return redirect('user:operators_permissions')
         
+        # Verificar permiso de edición
+        if not self.can_edit_group(group):
+            messages.error(request, f'No tiene permisos para editar el grupo {group.name}.')
+            return redirect('user:operators_permissions', group_id=group.id)
+
         ids = request.POST.getlist('permissions')
         perms = Permission.objects.filter(id__in=ids)
         group.permissions.set(perms)
         messages.success(request, f'Permisos actualizados para el grupo {group.name}.')
         return redirect('user:operators_permissions', group_id=group.id)
+
+    def get_visible_groups(self):
+        """Retorna los grupos que el usuario actual puede ver/gestionar."""
+        if self.request.user.is_superuser:
+            return Group.objects.all().order_by('name')
+        # admin_empresa solo puede ver vendedor y admin_empresa
+        return Group.objects.filter(name__in=self.MANAGEABLE_ROLES).order_by('name')
+
+    def can_edit_group(self, group):
+        """Determina si el usuario actual puede editar el grupo dado."""
+        if self.request.user.is_superuser:
+            return True
+        # admin_empresa y servidor_local pueden editar vendedor y admin_empresa
+        return group.name in self.MANAGEABLE_ROLES

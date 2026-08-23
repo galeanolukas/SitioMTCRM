@@ -163,6 +163,28 @@ body {
       </div>
     </li>
     {% endif %}
+    {% if not request.user.is_superuser and request.user|has_group:'admin_empresa,servidor_local' %}
+    <li class="nav-item dropdown">
+      <a class="nav-link" data-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false">
+        <i class="fas fa-cog"></i>
+      </a>
+      <div class="dropdown-menu dropdown-menu-right">
+        <span class="dropdown-header">Administración</span>
+        <div class="dropdown-divider"></div>
+        <a class="dropdown-item" href="{% url 'user:list' %}">
+          <i class="fas fa-users mr-1"></i> Usuarios
+        </a>
+        <div class="dropdown-divider"></div>
+        <a class="dropdown-item" href="{% url 'user:operators_permissions' %}">
+          <i class="fas fa-user-shield mr-1"></i> Permisos y Roles
+        </a>
+        <div class="dropdown-divider"></div>
+        <a class="dropdown-item" href="{% url 'about' %}">
+          <i class="fas fa-book mr-1"></i> Manual
+        </a>
+      </div>
+    </li>
+    {% endif %}
     <li class="nav-item">
       <a class="nav-link" href="{% url 'logout' %}"><i class="fas fa-power-off" aria-hidden="true"></i></a>
     </li>

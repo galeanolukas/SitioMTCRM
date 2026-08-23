@@ -91,7 +91,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
         context['cash_register'] = current_cr
         context['cash_register_is_open'] = bool(current_cr)
         # Determinar si el usuario es operador
-        is_operator = self.request.user.groups.filter(name='operadores').exists()
+        is_operator = self.request.user.groups.filter(name__in=['operadores', 'vendedor']).exists()
         context['is_operator'] = is_operator
         # Desactivar botones POS cuando no hay caja abierta (para todos los usuarios)
         context['pos_locked_by_cash'] = not current_cr
@@ -595,7 +595,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 
                 # Los presupuestos NO requieren caja abierta
                 if not is_budget:
-                    is_operator = request.user.groups.filter(name='operadores').exists()
+                    is_operator = request.user.groups.filter(name__in=['operadores', 'vendedor']).exists()
                     active_cid = request.session.get('company_id')
                     if not request.user.is_superuser:
                         if not active_cid:
@@ -760,7 +760,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     return JsonResponse({'error': 'Factura ya procesada', 'duplicate': True}, status=400)
                 
                 # Bloquear facturación para operadores sin caja abierta
-                is_operator = request.user.groups.filter(name='operadores').exists()
+                is_operator = request.user.groups.filter(name__in=['operadores', 'vendedor']).exists()
                 active_cid = request.session.get('company_id')
                 if not request.user.is_superuser:
                     if not active_cid:
@@ -989,7 +989,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     return JsonResponse({'error': 'Venta de cuenta corriente ya procesada', 'duplicate': True}, status=400)
                 
                 # Bloquear registro de ventas para operadores sin caja abierta
-                is_operator = request.user.groups.filter(name='operadores').exists()
+                is_operator = request.user.groups.filter(name__in=['operadores', 'vendedor']).exists()
                 active_cid = request.session.get('company_id')
                 if not request.user.is_superuser:
                     if not active_cid:
