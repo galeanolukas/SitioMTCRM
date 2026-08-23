@@ -347,7 +347,15 @@ def run_full_sync(company_id=None):
             logger.error(f"Error en sincronización de gastos: {e}")
             errors.append(f"sync_expenses_to_remote: {e}")
         
-        # 3.g) Cierres de caja
+        # 3.g) Datos fiscales (Libro IVA, VatBreakdown, CuentaCorriente, Asientos)
+        try:
+            call_command("sync_libro_iva_to_remote")
+            logger.info("✅ Datos fiscales sincronizados (Libro IVA, VatBreakdown, CuentaCorriente, Asientos)")
+        except Exception as e:
+            logger.error(f"Error en sincronización de datos fiscales: {e}")
+            errors.append(f"sync_libro_iva_to_remote: {e}")
+        
+        # 3.h) Cierres de caja
         try:
             # Contar cierres antes
             from core.erp.models import CashRegister
@@ -362,7 +370,7 @@ def run_full_sync(company_id=None):
             logger.error(f"Error en sincronización de cierres de caja: {e}")
             errors.append(f"sync_cash_registers_to_remote: {e}")
 
-        # 3.h) Listas de precios
+        # 3.i) Listas de precios
         try:
             call_command("sync_price_lists_to_remote")
             logger.info("✅ Listas de precios sincronizadas")
@@ -370,8 +378,8 @@ def run_full_sync(company_id=None):
             logger.error(f"Error en sincronización de listas de precios: {e}")
             errors.append(f"sync_price_lists_to_remote: {e}")
 
-        # 3.i) Pedidos entregados del catálogo (solo si hay configuración activa)
-        logger.info("🛒 PASO 3.i/10: Sincronizando pedidos entregados del catálogo...")
+        # 3.j) Pedidos entregados del catálogo (solo si hay configuración activa)
+        logger.info("🛒 PASO 3.j: Sincronizando pedidos entregados del catálogo...")
         try:
             from core.erp.models import CatalogoConfig
             if CatalogoConfig.objects.filter(is_active=True).exists():

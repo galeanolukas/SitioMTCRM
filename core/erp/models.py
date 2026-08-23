@@ -1282,6 +1282,9 @@ class SaleVatBreakdown(models.Model):
     vat_rate = models.DecimalField(max_digits=5, decimal_places=2, verbose_name='Tasa IVA (%)')
     taxable_base = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Base imponible')
     vat_amount = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Monto IVA')
+    synced_to_server = models.BooleanField(default=False, verbose_name='Sincronizado con servidor')
+    local_uuid = models.CharField(max_length=64, blank=True, null=True, db_index=True, verbose_name='UUID local')
+    synced_at = models.DateTimeField(blank=True, null=True, verbose_name='Fecha de sincronización')
 
     def __str__(self):
         return f"{self.sale.id} - {self.get_vat_code_display()}: ${self.taxable_base} + ${self.vat_amount}"
@@ -1930,6 +1933,9 @@ class LibroIvaRegistro(models.Model):
     sale = models.ForeignKey('Sale', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Venta Relacionada')
     supplier = models.ForeignKey('Supplier', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Proveedor Relacionado')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de creación')
+    synced_to_server = models.BooleanField(default=False, verbose_name='Sincronizado con servidor')
+    local_uuid = models.CharField(max_length=64, blank=True, null=True, db_index=True, verbose_name='UUID local')
+    synced_at = models.DateTimeField(blank=True, null=True, verbose_name='Fecha de sincronización')
 
     def __str__(self):
         return f"{self.get_tipo_registro_display()} - {self.fecha} - {self.get_tipo_comprobante_display()} {self.punto_venta:04d}-{self.numero_comprobante:08d}"
@@ -1965,6 +1971,9 @@ class CuentaCorrienteCliente(models.Model):
     saldo = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name='Saldo Acumulado')
     sale = models.ForeignKey('Sale', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Venta Relacionada')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de creación')
+    synced_to_server = models.BooleanField(default=False, verbose_name='Sincronizado con servidor')
+    local_uuid = models.CharField(max_length=64, blank=True, null=True, db_index=True, verbose_name='UUID local')
+    synced_at = models.DateTimeField(blank=True, null=True, verbose_name='Fecha de sincronización')
 
     def __str__(self):
         return f"{self.client.names} - {self.fecha} - {self.get_tipo_movimiento_display()} - ${self.debe - self.haber}"
@@ -1996,6 +2005,9 @@ class AsientoContable(models.Model):
     haber_total = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name='Total Haber')
     sale = models.ForeignKey('Sale', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Venta Relacionada')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de creación')
+    synced_to_server = models.BooleanField(default=False, verbose_name='Sincronizado con servidor')
+    local_uuid = models.CharField(max_length=64, blank=True, null=True, db_index=True, verbose_name='UUID local')
+    synced_at = models.DateTimeField(blank=True, null=True, verbose_name='Fecha de sincronización')
 
     def __str__(self):
         return f"{self.get_tipo_asiento_display()} - {self.fecha} - ${self.debe_total}"
