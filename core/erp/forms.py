@@ -491,11 +491,10 @@ class ExpenseForm(ModelForm):
         # Establecer fecha por defecto a hoy si no hay valor inicial
         if not self.initial.get('date') and not self.instance.pk:
             from django.utils import timezone
-            self.initial['date'] = timezone.now().date()
+            self.initial['date'] = timezone.localtime().date()
         
         # Configurar el widget de fecha para mostrar la fecha actual
         if 'date' in self.fields:
-            from django.utils import timezone
             self.fields['date'].widget.attrs.update({
                 'class': 'form-control',
                 'autocomplete': 'off'
@@ -504,7 +503,7 @@ class ExpenseForm(ModelForm):
         # Establecer hora por defecto a la actual si no hay valor inicial
         if not self.initial.get('time') and not self.instance.pk:
             from django.utils import timezone
-            self.initial['time'] = timezone.now().time()
+            self.initial['time'] = timezone.localtime().time()
         
         # Configurar el widget de hora
         if 'time' in self.fields:
