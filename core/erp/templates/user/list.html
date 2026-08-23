@@ -34,6 +34,9 @@
         <a href="{% url 'user:edit' u.id %}" class="btn btn-sm btn-primary btn-flat" title="Editar perfil y empresa">
           <i class="fas fa-user-edit"></i>
         </a>
+        <button class="btn btn-sm btn-warning btn-flat" title="Resetear contraseña" data-bs-toggle="modal" data-bs-target="#modalResetPassword" data-user-id="{{ u.id }}" data-username="{{ u.username }}">
+          <i class="fas fa-key"></i>
+        </button>
         <form method="post" action="{% url 'user:toggle_active' u.id %}" style="display:inline-block;">
           {% csrf_token %}
           <button class="btn btn-sm {% if u.is_active %}btn-warning{% else %}btn-success{% endif %} btn-flat" {% if u.id == request.user.id %}disabled title="No puedes desactivarte a ti mismo"{% else %}title="{% if u.is_active %}Desactivar{% else %}Activar{% endif %} usuario"{% endif %}>
@@ -55,6 +58,38 @@
 {% endblock %}
 
 {% block javascript %}
+<!-- Modal para resetear contraseña -->
+<div class="modal fade" id="modalResetPassword" tabindex="-1" aria-labelledby="modalResetPasswordLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-warning">
+        <h5 class="modal-title" id="modalResetPasswordLabel"><i class="fas fa-key"></i> Resetear Contraseña</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="post" action="" id="formResetPassword">
+        <div class="modal-body">
+          {% csrf_token %}
+          <p>Establecer nueva contraseña para: <strong id="resetUsername"></strong></p>
+          <div class="form-group mb-2">
+            <label class="form-label">Nueva Contraseña:</label>
+            <input type="password" name="new_password" class="form-control" required>
+          </div>
+          <div class="form-group mb-2">
+            <label class="form-label">Confirmar Contraseña:</label>
+            <input type="password" name="confirm_password" class="form-control" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-warning btn-flat">
+            <i class="fas fa-save"></i> Guardar Contraseña
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <!-- Modal para crear usuario -->
 <div class="modal fade" id="modalCreateUser" tabindex="-1" aria-labelledby="modalCreateUserLabel" aria-hidden="true">
   <div class="modal-dialog">
@@ -125,4 +160,16 @@
     </div>
   </div>
 </div>
+
+<script>
+// Configurar modal de reset password
+var modalReset = document.getElementById('modalResetPassword');
+modalReset.addEventListener('show.bs.modal', function (event) {
+  var button = event.relatedTarget;
+  var userId = button.getAttribute('data-user-id');
+  var username = button.getAttribute('data-username');
+  document.getElementById('resetUsername').textContent = username;
+  document.getElementById('formResetPassword').action = '/user/users/' + userId + '/reset-password/';
+});
+</script>
 {% endblock %}

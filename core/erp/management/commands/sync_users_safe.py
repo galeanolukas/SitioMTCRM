@@ -200,6 +200,14 @@ class Command(BaseCommand):
                     # NO sobrescribir contraseña de usuarios existentes.
                     # La contraseña se gestiona localmente; solo se copia del servidor
                     # cuando se crea un usuario nuevo (ver más abajo en User.DoesNotExist).
+                    # EXCEPCIÓN: si el hash del servidor es diferente, sincronizar
+                    # (ej: superusuario cambió la contraseña en el servidor)
+                    remote_password = remote_user.get('password')
+                    if remote_password and local_user.password != remote_password:
+                        local_user.password = remote_password
+                        if not dry_run:
+                            local_user.save(update_fields=['password'])
+                        self.stdout.write(f"  Contraseña actualizada para usuario '{username}' (hash cambiado en servidor)")
                     
                     # Asignar empresa si existe (manteniendo ID exacto del servidor)
                     company_id = remote_user.get('company_id')

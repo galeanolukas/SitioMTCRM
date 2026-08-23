@@ -7,6 +7,7 @@ from .views import (
     UsersListView,
     OperatorsPermissionsView,
     user_create,
+    user_reset_password,
     user_toggle_active,
     user_delete,
 )
@@ -20,6 +21,7 @@ urlpatterns = [
     path('users/', UsersListView.as_view(), name='list'),
     path('users/create/', user_create, name='create'),
     path('users/<int:pk>/edit/', UserAdminUpdateView.as_view(), name='edit'),
+    path('users/<int:pk>/reset-password/', user_reset_password, name='reset_password'),
     path('users/<int:pk>/toggle-active/', user_toggle_active, name='toggle_active'),
     path('users/<int:pk>/delete/', user_delete, name='delete'),
     path('operators/permissions/', OperatorsPermissionsView.as_view(), name='operators_permissions'),

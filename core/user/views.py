@@ -60,6 +60,12 @@ class UserPasswordChangeView(LoginRequiredMixin, PasswordChangeView):
     template_name = "user/password_change_form.html"
     success_url = reverse_lazy("user:password_change_done")
 
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_superuser:
+            messages.error(request, 'Solo un superusuario puede cambiar contraseñas.')
+            return redirect('erp:dashboard')
+        return super().dispatch(request, *args, **kwargs)
+
 
 class UserPasswordChangeDoneView(LoginRequiredMixin, PasswordChangeDoneView):
     template_name = "user/password_change_done.html"
@@ -145,6 +151,26 @@ def user_create(request):
             pass
     
     messages.success(request, f"Usuario '{username}' creado exitosamente.")
+    return redirect('user:list')
+
+
+@require_POST
+def user_reset_password(request, pk):
+    if not request.user.is_superuser:
+        return HttpResponseForbidden()
+    UserModel = get_user_model()
+    user = get_object_or_404(UserModel, pk=pk)
+    new_password = request.POST.get('new_password')
+    confirm_password = request.POST.get('confirm_password')
+    if not new_password:
+        messages.error(request, 'La contraseña no puede estar vacía.')
+        return redirect('user:list')
+    if new_password != confirm_password:
+        messages.error(request, 'Las contraseñas no coinciden.')
+        return redirect('user:list')
+    user.set_password(new_password)
+    user.save()
+    messages.success(request, f"Contraseña de '{user.username}' actualizada correctamente.")
     return redirect('user:list')
 
 
