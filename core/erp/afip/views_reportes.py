@@ -1,7 +1,8 @@
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
 from django.db.models import Sum
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
+from django.views.decorators.csrf import csrf_exempt
 import csv
 from datetime import datetime
 from ..models import AsientoContable, FacturaProveedor, CuentaCorrienteCliente
@@ -53,6 +54,23 @@ def asientos_contables_list(request):
     }
     
     return render(request, 'afip/asientos_contables_list.html', context)
+
+
+@login_required
+@csrf_exempt
+def asientos_contables_delete_all(request):
+    """Eliminar todos los asientos contables (solo superuser)"""
+    if not request.user.is_superuser:
+        return JsonResponse({'success': False, 'error': 'No tiene permisos para realizar esta acción'}, status=403)
+
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Método no permitido'}, status=405)
+
+    try:
+        count = AsientoContable.objects.all().delete()[0]
+        return JsonResponse({'success': True, 'deleted_count': count})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
 @login_required

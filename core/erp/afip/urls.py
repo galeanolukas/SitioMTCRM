@@ -26,6 +26,7 @@ urlpatterns = [
     # Reportes fiscales
     path('asientos-contables/', views_reportes.asientos_contables_list, name='asientos_contables'),
     path('asientos-contables/export/', views_reportes.asientos_contables_export, name='asientos_contables_export'),
+    path('asientos-contables/delete-all/', views_reportes.asientos_contables_delete_all, name='asientos_contables_delete_all'),
     path('facturas-proveedores/', views_reportes.facturas_proveedores_list, name='facturas_proveedores'),
     path('facturas-proveedores/export/', views_reportes.facturas_proveedores_export, name='facturas_proveedores_export'),
     path('cuenta-corriente-clientes/', views_reportes.cuenta_corriente_clientes_list, name='cuenta_corriente_clientes'),
