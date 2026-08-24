@@ -56,17 +56,8 @@ class PriceListCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, C
         if not active_cid:
             active_cid = getattr(self.request.user, 'company_id', None)
         form.instance.company_id = active_cid
-        self.object = form.save()
-        # Si es AJAX (boton gestionar precios), responder JSON con el ID
-        if self.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return JsonResponse({'id': self.object.id})
         messages.success(self.request, f"Lista de precios '{form.instance.name}' creada correctamente.")
         return super().form_valid(form)
-
-    def form_invalid(self, form):
-        if self.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return JsonResponse({'error': form.errors})
-        return super().form_invalid(form)
 
 
 class PriceListUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, UpdateView):

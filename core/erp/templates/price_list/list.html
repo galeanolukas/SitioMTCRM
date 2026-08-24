@@ -1,6 +1,14 @@
 {% extends 'base/list.html' %}
 {% load static %}
 
+{% block content %}
+<div class="alert alert-light border" style="color: #6c757d; font-size: 0.875rem;">
+    <i class="fas fa-info-circle"></i>
+    Al editar una lista de precios puede gestionar excepciones de productos y precios especiales (overrides) individuales.
+</div>
+{{ block.super }}
+{% endblock %}
+
 {% block columns %}
 <tr>
     <th>Nombre</th>
