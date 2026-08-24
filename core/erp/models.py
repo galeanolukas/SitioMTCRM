@@ -254,6 +254,7 @@ class Product(models.Model):
     server_product_id = models.PositiveIntegerField(blank=True, null=True, verbose_name='ID de producto en servidor', help_text='ID del producto en la base de datos del servidor')
     last_server_sync = models.DateTimeField(blank=True, null=True, verbose_name='Última sincronización desde servidor')
     last_stock_sync = models.DateTimeField(blank=True, null=True, verbose_name='Última sincronización de stock')
+    last_synced_stock = models.DecimalField(default=0.00, max_digits=12, decimal_places=2, null=True, blank=True, verbose_name='Stock al último sync')
     stock_modified_locally = models.DateTimeField(blank=True, null=True, verbose_name='Última modificación local de stock')
     track_stock = models.BooleanField(default=True, verbose_name='Controlar stock')
 

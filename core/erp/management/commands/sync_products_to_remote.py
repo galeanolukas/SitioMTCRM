@@ -87,7 +87,7 @@ class Command(BaseCommand):
                     remote_prod.iva_rate = prod.iva_rate
                     remote_prod.pvp_final = prod.pvp_final
                     remote_prod.unit = prod.unit
-                    remote_prod.stock = prod.stock
+                    # Stock no se sobreescribe aqui - se sincroniza via sync_stock_to_remote con delta
                     remote_prod.save(using='remote')
                 else:
                     # Crear nuevo producto (con fallback si duplicate key)
@@ -101,7 +101,7 @@ class Command(BaseCommand):
                         'iva_rate': prod.iva_rate,
                         'pvp_final': prod.pvp_final,
                         'unit': prod.unit,
-                        'stock': prod.stock,
+                        'stock': prod.stock,  # Stock inicial solo en creacion
                     }
                     if prod.code:
                         defaults['code'] = prod.code
@@ -131,7 +131,7 @@ class Command(BaseCommand):
                                 remote_prod.iva_rate = prod.iva_rate
                                 remote_prod.pvp_final = prod.pvp_final
                                 remote_prod.unit = prod.unit
-                                remote_prod.stock = prod.stock
+                                # Stock no se sobreescribe aqui - se sincroniza via sync_stock_to_remote
                                 remote_prod.save(using='remote')
                             else:
                                 raise

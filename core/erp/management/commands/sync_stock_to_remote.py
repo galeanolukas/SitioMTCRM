@@ -2,6 +2,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction, models
 from django.db.models import Q
 from django.utils import timezone
+from decimal import Decimal
 
 from core.erp.models import Product, Company, Category
 
@@ -127,30 +128,48 @@ class Command(BaseCommand):
                             )
                         continue
 
-                    # Comparar stocks
+                    # Comparar stocks usando delta
                     local_stock = local_product.stock or 0
                     remote_stock = remote_product.stock or 0
                     
-                    if local_stock != remote_stock:
-                        # Actualizar stock en servidor
+                    # Calcular delta desde el último sync
+                    last_synced = local_product.last_synced_stock
+                    if last_synced is None:
+                        # Primera sincronización: enviar stock absoluto
+                        delta = local_stock
+                        new_remote_stock = local_stock
+                    else:
+                        delta = local_stock - last_synced
+                        new_remote_stock = remote_stock + delta
+                    
+                    # Clamp: no permitir stock negativo en remoto
+                    if new_remote_stock < 0:
+                        new_remote_stock = Decimal('0.00')
+                    
+                    if new_remote_stock != remote_stock:
+                        # Actualizar stock en servidor con delta
                         with transaction.atomic(using='remote'):
                             Product.objects.using('remote').filter(pk=remote_product.pk).update(
-                                stock=local_stock,
+                                stock=new_remote_stock,
                                 last_stock_sync=timezone.now()
                             )
                             
                             self.stdout.write(
                                 self.style.SUCCESS(
-                                    f"  Stock actualizado - {local_product.name}: "
-                                    f"{remote_stock} → {local_stock}"
+                                    f"  Stock actualizado (delta) - {local_product.name}: "
+                                    f"remoto {remote_stock} → {new_remote_stock} (delta: {delta})"
                                 )
                             )
                             synced += 1
                     else:
-                        # Stock ya está sincronizado, actualizar last_stock_sync localmente
-                        Product.objects.using('default').filter(pk=local_product.pk).update(
-                            last_stock_sync=timezone.now()
-                        )
+                        # Stock ya está sincronizado
+                        pass
+                    
+                    # Actualizar last_synced_stock y last_stock_sync localmente
+                    Product.objects.using('default').filter(pk=local_product.pk).update(
+                        last_synced_stock=local_stock,
+                        last_stock_sync=timezone.now()
+                    )
 
                 except Exception as e:
                     errors += 1

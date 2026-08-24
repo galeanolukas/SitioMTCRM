@@ -226,7 +226,7 @@ class Command(BaseCommand):
                     remote_product.iva_rate = product.iva_rate
                     remote_product.pvp_final = product.pvp_final
                     remote_product.unit = product.unit
-                    remote_product.stock = product.stock
+                    # Stock no se sobreescribe aqui - se sincroniza via sync_stock_to_remote con delta
                     remote_product.synced_to_server = True
                     remote_product.save(using='remote')
                 else:
@@ -241,7 +241,7 @@ class Command(BaseCommand):
                             iva_rate=product.iva_rate,
                             pvp_final=product.pvp_final,
                             unit=product.unit,
-                            stock=product.stock,
+                            stock=product.stock,  # Stock inicial solo en creacion
                             synced_to_server=True,
                         )
                     except Exception as create_err:
@@ -256,7 +256,7 @@ class Command(BaseCommand):
                                 remote_product.iva_rate = product.iva_rate
                                 remote_product.pvp_final = product.pvp_final
                                 remote_product.unit = product.unit
-                                remote_product.stock = product.stock
+                                # Stock no se sobreescribe aqui - se sincroniza via sync_stock_to_remote
                                 remote_product.synced_to_server = True
                                 remote_product.save(using='remote')
                             else:

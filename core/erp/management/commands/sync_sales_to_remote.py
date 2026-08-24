@@ -243,19 +243,7 @@ class Command(BaseCommand):
                                 subtotal=det.subtotal,
                             )
 
-                            # Actualizar stock del producto en servidor
-                            current_stock = remote_prod.stock or 0
-                            new_stock = current_stock - det.cant
-                            Product.objects.using('remote').filter(pk=remote_prod.id).update(
-                                stock=new_stock
-                            )
-
-                            self.stdout.write(
-                                self.style.SUCCESS(
-                                    f"  Stock actualizado - Producto: {remote_prod.name}, "
-                                    f"Anterior: {current_stock}, Vendido: {det.cant}, Nuevo: {new_stock}"
-                                )
-                            )
+                            # Stock NO se descuenta aqui - se sincroniza via sync_stock_to_remote con delta
                     else:
                         self.stdout.write(
                             self.style.WARNING(f"  Omitiendo creación de detalles (venta ya existía)")

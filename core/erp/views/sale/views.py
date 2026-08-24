@@ -15,7 +15,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 import json
 from django.db import transaction
-from django.db.models import F, Q
+from django.db.models import F, Q, Greatest
 from django.utils import timezone
 import pytz
 from decimal import Decimal
@@ -725,7 +725,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         if not is_budget:
                             if prod and getattr(prod, 'track_stock', True):
                                 Product.objects.filter(pk=det.prod_id).update(
-                                    stock=F('stock') - cant,
+                                    stock=Greatest(F('stock') - cant, 0),
                                     stock_modified_locally=timezone.now(),
                                     synced_to_server=False
                                 )
@@ -899,7 +899,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         det.save()
                         if prod and getattr(prod, 'track_stock', True):
                             Product.objects.filter(pk=det.prod_id).update(
-                                stock=F('stock') - cant,
+                                stock=Greatest(F('stock') - cant, 0),
                                 stock_modified_locally=timezone.now(),  # Marcar modificación de stock
                                 synced_to_server=False  # Marcar para sincronizar
                             )
@@ -975,7 +975,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         )
                         if getattr(prod, 'track_stock', True):
                             Product.objects.filter(pk=prod.id).update(
-                                stock=F('stock') - cant,
+                                stock=Greatest(F('stock') - cant, 0),
                                 stock_modified_locally=timezone.now(),  # Marcar modificación de stock
                                 synced_to_server=False  # Marcar para sincronizar
                             )
@@ -1083,7 +1083,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         prod = Product.objects.get(pk=int(it['id']))
                         if getattr(prod, 'track_stock', True):
                             Product.objects.filter(pk=det.prod_id).update(
-                                stock=F('stock') - cant,
+                                stock=Greatest(F('stock') - cant, 0),
                                 stock_modified_locally=timezone.now(),  # Marcar modificación de stock
                                 synced_to_server=False  # Marcar para sincronizar
                             )
@@ -1349,7 +1349,7 @@ class SaleCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Create
                         if not is_budget:
                             from django.utils import timezone
                             Product.objects.filter(pk=det.prod_id).update(
-                                stock=F('stock') - det.cant,
+                                stock=Greatest(F('stock') - det.cant, 0),
                                 stock_modified_locally=timezone.now(),  # Marcar modificación local
                                 synced_to_server=False  # Marcar para sincronizar
                             )
@@ -1472,7 +1472,7 @@ class SaleUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Update
                         det.subtotal = float(i['subtotal'])
                         det.save()
                         Product.objects.filter(pk=det.prod_id).update(
-                            stock=F('stock') - cant,
+                            stock=Greatest(F('stock') - cant, 0),
                             stock_modified_locally=timezone.now(),  # Marcar modificación de stock
                             synced_to_server=False  # Marcar para sincronizar
                         )
@@ -1993,7 +1993,7 @@ class InvoiceCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Cre
                         det.subtotal = det_info['subtotal_final']      # subtotal con IVA
                         det.save()
                         Product.objects.filter(pk=det.prod_id).update(
-                            stock=F('stock') - det.cant,
+                            stock=Greatest(F('stock') - det.cant, 0),
                             stock_modified_locally=timezone.now(),  # Marcar modificación de stock
                             synced_to_server=False  # Marcar para sincronizar
                         )
@@ -2152,7 +2152,7 @@ def sync_sales_api(request):
                     prod = Product.objects.filter(pk=prod_id).first()
                     if prod and getattr(prod, 'track_stock', True):
                         Product.objects.filter(pk=prod_id).update(
-                            stock=F('stock') - cant,
+                            stock=Greatest(F('stock') - cant, 0),
                             stock_modified_locally=timezone.now(),  # Marcar modificación de stock
                             synced_to_server=False  # Marcar para sincronizar
                         )
@@ -2807,7 +2807,7 @@ class BudgetConvertView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Vie
                     from django.db.models import F
                     from django.utils import timezone
                     Product.objects.filter(pk=det.prod_id).update(
-                        stock=F('stock') - det.cant,
+                        stock=Greatest(F('stock') - det.cant, 0),
                         stock_modified_locally=timezone.now(),
                         synced_to_server=False
                     )
