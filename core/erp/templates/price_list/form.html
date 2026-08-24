@@ -168,7 +168,7 @@
 <script>
 const csrfToken = "{{ csrf_token }}";
 const isEdit = {% if action == 'edit' %}true{% else %}false{% endif %};
-const manageUrl = isEdit ? "{% url 'erp:pricelist_manage' object.pk %}" : null;
+const manageUrl = isEdit ? "{% if action == 'edit' %}{% url 'erp:pricelist_manage' object.pk %}{% endif %}" : null;
 const editUrl = isEdit ? null : "{% url 'erp:pricelist_list' %}";
 
 // Auto-abrir modal si viene de crear (flag en URL)
