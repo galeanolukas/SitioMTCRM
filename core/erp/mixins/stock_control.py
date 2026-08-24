@@ -28,7 +28,8 @@ class StockControlMixin:
     def update_product_stock(product, quantity_change):
         """Actualiza stock de producto si corresponde"""
         if StockControlMixin.should_update_stock(product, quantity_change):
-            from django.db.models import F, Greatest
+            from django.db.models import F
+            from django.db.models.functions import Greatest
             from django.utils import timezone
             Product.objects.filter(pk=product.pk).update(
                 stock=Greatest(F('stock') + quantity_change, 0),

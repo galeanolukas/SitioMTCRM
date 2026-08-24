@@ -15,7 +15,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 import json
 from django.db import transaction
-from django.db.models import F, Q, Greatest
+from django.db.models import F, Q
+from django.db.models.functions import Greatest
 from django.utils import timezone
 import pytz
 from decimal import Decimal
