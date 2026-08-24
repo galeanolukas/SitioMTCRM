@@ -95,6 +95,19 @@ class PriceListDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin, D
         ctx['list_url'] = reverse_lazy('erp:pricelist_list')
         return ctx
 
+    def form_valid(self, form):
+        obj = self.get_object()
+        # Intentar eliminar tambien en el servidor remoto
+        try:
+            from django.db import connections
+            connections['remote'].ensure_connection()
+            from core.erp.models import PriceList as RemotePriceList
+            RemotePriceList.objects.using('remote').filter(name=obj.name).delete()
+        except Exception:
+            pass
+        messages.success(self.request, f"Lista de precios '{obj.name}' eliminada correctamente.")
+        return super().form_valid(form)
+
 
 class PriceListProductManageView(LoginRequiredMixin, View):
     """Vista AJAX para agregar/quitar productos de una lista (overrides y excepciones)"""

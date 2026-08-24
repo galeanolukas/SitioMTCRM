@@ -460,6 +460,7 @@ class Command(BaseCommand):
                         remote_pl.company_id = remote_company.id
                     remote_pl.name = pl.name
                     remote_pl.discount_percentage = pl.discount_percentage
+                    remote_pl.interest_percentage = pl.interest_percentage
                     remote_pl.is_active = pl.is_active
                     remote_pl.save(using='remote')
                 else:
@@ -467,6 +468,7 @@ class Command(BaseCommand):
                         company_id=remote_company.id if remote_company else None,
                         name=pl.name,
                         discount_percentage=pl.discount_percentage,
+                        interest_percentage=pl.interest_percentage,
                         is_active=pl.is_active,
                     )
 

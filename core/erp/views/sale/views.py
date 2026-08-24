@@ -437,9 +437,15 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     else:
                         data = {'has_price_list': False}
             elif action == 'get_price_lists':
-                # Obtener listas de precios disponibles
+                # Obtener listas de precios disponibles (filtradas por empresa activa)
                 from core.erp.models import PriceList
-                price_lists = PriceList.objects.filter(is_active=True).order_by('name')
+                active_cid = request.session.get('company_id')
+                if not active_cid:
+                    active_cid = getattr(request.user, 'company_id', None)
+                qs = PriceList.objects.filter(is_active=True)
+                if active_cid:
+                    qs = qs.filter(company_id=active_cid)
+                price_lists = qs.order_by('name')
                 data = [
                     {
                         'id': pl.id,
