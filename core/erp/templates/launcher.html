@@ -138,9 +138,11 @@
                 <a href="{% url 'erp:pos' %}" class="btn btn-success btn-lg">
                   <i class="fas fa-cash-register me-2"></i> API de Ventas (POS)
                 </a>
+                {% if user.is_superuser %}
                 <a href="{% url 'erp:afip:dashboard' %}" class="btn btn-warning btn-lg">
                   <i class="fas fa-file-invoice-dollar me-2"></i> Módulo Fiscal AFIP
                 </a>
+                {% endif %}
               </div>
             </div>
           </div>
