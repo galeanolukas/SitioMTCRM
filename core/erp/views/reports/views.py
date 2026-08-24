@@ -52,7 +52,7 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         page = self.request.GET.get('page', 1)
         
         # Empresas para el dropdown
-        companies = Company.objects.all()
+        companies = Company.objects.filter(is_active=True)
         context['companies'] = companies
         
         # Establecer empresa por defecto si no se especifica

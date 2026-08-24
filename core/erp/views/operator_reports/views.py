@@ -38,7 +38,7 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = 'Reporte de Ventas'
-        context['companies'] = Company.objects.all()
+        context['companies'] = Company.objects.filter(is_active=True)
         
         # Get company from session or user
         active_cid = self.request.session.get('company_id')

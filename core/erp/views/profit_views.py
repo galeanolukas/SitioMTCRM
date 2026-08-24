@@ -32,7 +32,7 @@ class ProfitReportView(LoginRequiredMixin, TemplateView):
         
         # Obtener empresas disponibles
         if self.request.user.is_superuser:
-            context['companies'] = Company.objects.all()
+            context['companies'] = Company.objects.filter(is_active=True)
         else:
             context['companies'] = Company.objects.filter(
                 id=self.request.user.company_id
@@ -340,7 +340,7 @@ class ProfitReportListView(LoginRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         
         # Empresas para filtro (solo superusuarios)
-        context['companies'] = Company.objects.all()
+        context['companies'] = Company.objects.filter(is_active=True)
         
         # Mantener filtros en el contexto
         context['filters'] = {

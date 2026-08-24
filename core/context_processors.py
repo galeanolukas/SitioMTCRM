@@ -24,7 +24,7 @@ def brand(request) -> Dict[str, dict]:
     }
     result = {'brand': data}
     if user and getattr(user, 'is_superuser', False):
-        result['companies'] = Company.objects.all()
+        result['companies'] = Company.objects.filter(is_active=True)
         result['active_company_id'] = request.session.get('company_id')
     return result
 

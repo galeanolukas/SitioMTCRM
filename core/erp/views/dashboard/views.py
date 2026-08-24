@@ -325,7 +325,7 @@ class DashboardView(TemplateView):
 
         # Empresas disponibles para superusuario
         if self.request.user.is_superuser:
-            context['companies'] = Company.objects.all()
+            context['companies'] = Company.objects.filter(is_active=True)
             # Calcular ganancias para superusuario
             context.update(self.calculate_profits_data(active_cid))
         context['active_company_id'] = self.request.session.get('company_id')
@@ -361,7 +361,7 @@ class DashboardView(TemplateView):
             
             # Ganancias por empresa
             company_profits = []
-            for company in Company.objects.all():
+            for company in Company.objects.filter(is_active=True):
                 company_sales = Sale.objects.filter(company=company)
                 company_expenses = Expense.objects.filter(company=company, is_active=True)
                 
@@ -890,9 +890,22 @@ class CompanyView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateV
             elif action == 'delete':
                 with transaction.atomic():
                     obj = Company.objects.get(pk=request.POST['id'])
-                    obj.is_active = False
-                    obj.synced_to_server = False
-                    obj.save()
+                    # Intentar hard delete primero
+                    try:
+                        obj.delete()
+                    except Exception:
+                        # Si hay FK constraints, hacer soft delete
+                        obj.is_active = False
+                        obj.synced_to_server = False
+                        obj.save()
+                    # Intentar eliminar tambien en el servidor remoto
+                    try:
+                        from django.db import connections
+                        connections['remote'].ensure_connection()
+                        from core.erp.models import Company as RemoteCompany
+                        RemoteCompany.objects.using('remote').filter(pk=obj.pk).delete()
+                    except Exception:
+                        pass
             else:
                 data['error'] = 'Ha ocurrido un error'
         except Exception as e:
