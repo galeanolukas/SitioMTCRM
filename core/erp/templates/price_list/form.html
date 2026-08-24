@@ -43,11 +43,10 @@
       </div>
       <div class="d-flex justify-content-between">
         <div>
-          {% if action == 'edit' %}
-          <button type="button" class="btn btn-info btn-flat" data-bs-toggle="modal" data-bs-target="#overridesModal">
+          <button type="button" class="btn btn-info btn-flat" id="btnManageOverrides"
+            {% if action == 'edit' %}data-bs-toggle="modal" data-bs-target="#overridesModal"{% endif %}>
             <i class="fas fa-list"></i> Gestionar Precios Especiales
           </button>
-          {% endif %}
         </div>
         <div class="d-flex gap-2">
           <a href="{% url 'erp:pricelist_list' %}" class="btn btn-secondary btn-flat">
@@ -62,8 +61,7 @@
   </div>
 </div>
 
-<!-- Modal para gestión de overrides (solo en edición) -->
-{% if action == 'edit' %}
+<!-- Modal para gestión de overrides -->
 <div class="modal fade" id="overridesModal" tabindex="-1">
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
@@ -164,98 +162,143 @@
     </div>
   </div>
 </div>
-{% endif %}
 {% endblock %}
 
 {% block javascript %}
-{% if action == 'edit' %}
 <script>
-const manageUrl = "{% url 'erp:pricelist_manage' object.pk %}";
 const csrfToken = "{{ csrf_token }}";
+const isEdit = {% if action == 'edit' %}true{% else %}false{% endif %};
+const manageUrl = isEdit ? "{% url 'erp:pricelist_manage' object.pk %}" : null;
+const editUrl = isEdit ? null : "{% url 'erp:pricelist_list' %}";
 
-document.getElementById('btnSearchProduct')?.addEventListener('click', function() {
-  const q = document.getElementById('productSearch').value.trim();
-  if (!q) return;
-  fetch(manageUrl, {
-    method: 'POST',
-    headers: {'X-CSRFToken': csrfToken, 'Content-Type': 'application/x-www-form-urlencoded'},
-    body: new URLSearchParams({action: 'search_products', q: q})
-  })
-  .then(r => r.json())
-  .then(data => {
-    const container = document.getElementById('searchResults');
-    container.innerHTML = '';
-    if (data.results && data.results.length) {
-      data.results.forEach(p => {
-        const btn = document.createElement('button');
-        btn.className = 'btn btn-outline-info btn-sm me-2 mb-1';
-        btn.innerHTML = `${p.name} ($${p.pvp})`;
-        btn.onclick = () => openOverrideModal(p);
-        container.appendChild(btn);
-      });
-    } else {
-      container.innerHTML = '<span class="text-muted">No se encontraron productos.</span>';
-    }
+// Auto-abrir modal si viene de crear (flag en URL)
+if (isEdit && new URLSearchParams(window.location.search).get('open_overrides') === '1') {
+  document.addEventListener('DOMContentLoaded', function() {
+    new bootstrap.Modal(document.getElementById('overridesModal')).show();
   });
-});
-
-function openOverrideModal(product) {
-  document.getElementById('overrideProductName').textContent = product.name;
-  document.getElementById('overrideProductId').value = product.id;
-  document.getElementById('overrideFixedPrice').value = '';
-  document.getElementById('overrideDiscount').value = '';
-  document.getElementById('overrideInterest').value = '';
-  document.getElementById('overrideException').checked = false;
-  new bootstrap.Modal(document.getElementById('overrideModal')).show();
 }
 
-document.getElementById('btnSaveOverride')?.addEventListener('click', function() {
-  const productId = document.getElementById('overrideProductId').value;
-  const fixedPrice = document.getElementById('overrideFixedPrice').value;
-  const discountOverride = document.getElementById('overrideDiscount').value;
-  const interestOverride = document.getElementById('overrideInterest').value;
-  const isException = document.getElementById('overrideException').checked;
-
-  fetch(manageUrl, {
-    method: 'POST',
-    headers: {'X-CSRFToken': csrfToken, 'Content-Type': 'application/x-www-form-urlencoded'},
-    body: new URLSearchParams({
-      action: 'add_product',
-      product_id: productId,
-      fixed_price: fixedPrice,
-      discount_override: discountOverride,
-      interest_override: interestOverride,
-      is_exception: isException ? 'on' : '',
+// En modo add: guardar primero, luego redirigir a edit con flag
+if (!isEdit) {
+  document.getElementById('btnManageOverrides').addEventListener('click', function() {
+    const form = document.querySelector('form');
+    const formData = new FormData(form);
+    fetch(form.action || window.location.pathname, {
+      method: 'POST',
+      body: formData,
+      headers: {'X-Requested-With': 'XMLHttpRequest'}
     })
-  })
-  .then(r => r.json())
-  .then(data => {
-    if (data.success) {
-      bootstrap.Modal.getInstance(document.getElementById('overrideModal')).hide();
-      location.reload();
-    } else {
-      alert(data.error || 'Error al agregar producto');
-    }
+    .then(r => r.json())
+    .then(data => {
+      if (data.id) {
+        // Redirigir a edit con flag para abrir modal
+        window.location.href = '{% url "erp:pricelist_edit" 0 %}'.replace('0', data.id) + '?open_overrides=1';
+      } else {
+        // Si hay errores de validacion, mostrarlos
+        if (data.error) {
+          let msg = '';
+          for (let field in data.error) {
+            msg += field + ': ' + data.error[field] + '\n';
+          }
+          alert(msg || 'Error al guardar la lista');
+        } else {
+          alert('Error al guardar la lista');
+        }
+      }
+    })
+    .catch(() => alert('Error de conexión al guardar'));
   });
-});
+}
 
-document.querySelectorAll('.btn-remove-override').forEach(btn => {
-  btn.addEventListener('click', function() {
-    const plpId = this.dataset.plpId;
-    if (!confirm('¿Quitar este producto de la lista?')) return;
+// En modo edit: abrir modal directamente
+if (isEdit) {
+  document.getElementById('btnManageOverrides').addEventListener('click', function() {
+    // El data-bs-toggle ya abre el modal, no necesitamos hacer nada extra
+  });
+
+  document.getElementById('btnSearchProduct')?.addEventListener('click', function() {
+    const q = document.getElementById('productSearch').value.trim();
+    if (!q) return;
     fetch(manageUrl, {
       method: 'POST',
       headers: {'X-CSRFToken': csrfToken, 'Content-Type': 'application/x-www-form-urlencoded'},
-      body: new URLSearchParams({action: 'remove_product', plp_id: plpId})
+      body: new URLSearchParams({action: 'search_products', q: q})
+    })
+    .then(r => r.json())
+    .then(data => {
+      const container = document.getElementById('searchResults');
+      container.innerHTML = '';
+      if (data.results && data.results.length) {
+        data.results.forEach(p => {
+          const btn = document.createElement('button');
+          btn.className = 'btn btn-outline-info btn-sm me-2 mb-1';
+          btn.innerHTML = `${p.name} ($${p.pvp})`;
+          btn.onclick = () => openOverrideModal(p);
+          container.appendChild(btn);
+        });
+      } else {
+        container.innerHTML = '<span class="text-muted">No se encontraron productos.</span>';
+      }
+    });
+  });
+
+  function openOverrideModal(product) {
+    document.getElementById('overrideProductName').textContent = product.name;
+    document.getElementById('overrideProductId').value = product.id;
+    document.getElementById('overrideFixedPrice').value = '';
+    document.getElementById('overrideDiscount').value = '';
+    document.getElementById('overrideInterest').value = '';
+    document.getElementById('overrideException').checked = false;
+    new bootstrap.Modal(document.getElementById('overrideModal')).show();
+  }
+
+  document.getElementById('btnSaveOverride')?.addEventListener('click', function() {
+    const productId = document.getElementById('overrideProductId').value;
+    const fixedPrice = document.getElementById('overrideFixedPrice').value;
+    const discountOverride = document.getElementById('overrideDiscount').value;
+    const interestOverride = document.getElementById('overrideInterest').value;
+    const isException = document.getElementById('overrideException').checked;
+
+    fetch(manageUrl, {
+      method: 'POST',
+      headers: {'X-CSRFToken': csrfToken, 'Content-Type': 'application/x-www-form-urlencoded'},
+      body: new URLSearchParams({
+        action: 'add_product',
+        product_id: productId,
+        fixed_price: fixedPrice,
+        discount_override: discountOverride,
+        interest_override: interestOverride,
+        is_exception: isException ? 'on' : '',
+      })
     })
     .then(r => r.json())
     .then(data => {
       if (data.success) {
-        document.getElementById('ov-row-' + plpId)?.remove();
+        bootstrap.Modal.getInstance(document.getElementById('overrideModal')).hide();
+        location.reload();
+      } else {
+        alert(data.error || 'Error al agregar producto');
       }
     });
   });
-});
+
+  document.querySelectorAll('.btn-remove-override').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const plpId = this.dataset.plpId;
+      if (!confirm('¿Quitar este producto de la lista?')) return;
+      fetch(manageUrl, {
+        method: 'POST',
+        headers: {'X-CSRFToken': csrfToken, 'Content-Type': 'application/x-www-form-urlencoded'},
+        body: new URLSearchParams({action: 'remove_product', plp_id: plpId})
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          document.getElementById('ov-row-' + plpId)?.remove();
+        }
+      });
+    });
+  });
+}
 </script>
-{% endif %}
 {% endblock %}
