@@ -11,6 +11,13 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR('No hay conexión a base de datos remota configurada'))
             return
 
+        # Verificar conectividad real antes de procesar
+        try:
+            connections['remote'].ensure_connection()
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f'No se puede conectar al servidor remoto: {e}'))
+            return
+
         self.stdout.write(self.style.NOTICE("Iniciando sincronización de listas de precios hacia servidor remoto..."))
 
         synced = 0
