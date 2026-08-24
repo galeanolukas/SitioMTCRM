@@ -32,6 +32,7 @@ class ActivityLogMiddleware:
             '/media/',
             '/admin/',
             '/favicon.ico',
+            '/erp/activity/',
         ]
     
     def __call__(self, request):
@@ -43,6 +44,10 @@ class ActivityLogMiddleware:
 
         # Solo registrar usuarios autenticados
         if not request.user.is_authenticated:
+            return response
+
+        # Solo registrar paths monitoreados
+        if not any(request.path.startswith(path) for path in self.monitored_paths):
             return response
 
         # Determinar acción basada en método y path
@@ -93,8 +98,7 @@ class ActivityLogMiddleware:
                 return 'LOGIN'
             elif 'logout' in path:
                 return 'LOGOUT'
-            else:
-                return 'VIEW'
+            # No registrar VIEW para no inundar el log con navegacion
                 
         return None
     

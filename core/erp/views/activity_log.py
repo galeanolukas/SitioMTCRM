@@ -70,7 +70,13 @@ class ActivityLogView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         
         # Opciones de filtro
         context['action_choices'] = ActivityLog.objects.values_list('action', flat=True).distinct()
-        context['users'] = ActivityLog.objects.values_list('user__id', 'user__username').distinct()
+        context['users'] = (
+            ActivityLog.objects
+            .filter(user__isnull=False)
+            .values_list('user__id', 'user__username')
+            .distinct()
+            .order_by('user__username')
+        )
         
         return context
 
