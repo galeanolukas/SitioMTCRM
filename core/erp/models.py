@@ -607,6 +607,7 @@ class Supplier(models.Model):
 
 class CardInstallmentPlan(models.Model):
     """Planes de cuotas para pagos con tarjeta de crédito"""
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa', null=True, blank=True)
     name = models.CharField(max_length=50, verbose_name='Nombre del plan')
     installments = models.IntegerField(verbose_name='Cantidad de cuotas')
     multiplier = models.DecimalField(max_digits=5, decimal_places=4, verbose_name='Multiplicador (ej: 1.14 para 14% recargo)')

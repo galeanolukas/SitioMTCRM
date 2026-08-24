@@ -1,8 +1,9 @@
-from core.erp.mixins import ValidatePermissionRequiredMixin
+from core.erp.mixins import ValidatePermissionRequiredMixin, CompanyInitialMixin
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.urls import reverse_lazy
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, get_object_or_404
+from django import forms
 from core.erp.models import Sale, Product, DetSale, Company, Client, QuickOrder, Category, CashRegister, EmployeeAccountSale, DetEmployeeAccount, SaleVatBreakdown, CardInstallmentPlan
 from django.contrib.auth import get_user_model
 from django.template.loader import get_template
@@ -58,10 +59,9 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
         # Obtener planes de cuotas de tarjeta
         from core.erp.models import CardInstallmentPlan
         card_plans = CardInstallmentPlan.objects.filter(is_active=True).order_by('name', 'installments')
+        if active_cid:
+            card_plans = card_plans.filter(company_id=active_cid)
         context['card_plans'] = card_plans
-        print(f"[DEBUG] Planes de cuotas cargados: {card_plans.count()}")
-        for plan in card_plans:
-            print(f"[DEBUG] Plan: {plan.name}, Cuotas: {plan.installments}, Multiplicador: {plan.multiplier}")
         qs = Sale.objects.all().select_related('cli')
         if active_cid:
             qs = qs.filter(company_id=active_cid)
@@ -2880,7 +2880,14 @@ class CardPlanListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, List
     permission_required = 'erp.view_cardinstallmentplan'
 
     def get_queryset(self):
-        return CardInstallmentPlan.objects.all().order_by('name', 'installments')
+        qs = CardInstallmentPlan.objects.all().order_by('name', 'installments')
+        if self.request.user.is_superuser:
+            active_cid = self.request.session.get('company_id')
+        else:
+            active_cid = getattr(self.request.user, 'company_id', None)
+        if active_cid:
+            qs = qs.filter(company_id=active_cid)
+        return qs
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -2889,12 +2896,19 @@ class CardPlanListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, List
         return context
 
 
-class CardPlanCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, CreateView):
+class CardPlanCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, CompanyInitialMixin, CreateView):
     model = CardInstallmentPlan
     template_name = 'sale/card_plan_form.html'
-    fields = ['name', 'installments', 'multiplier', 'afip_code', 'is_active']
+    fields = ['company', 'name', 'installments', 'multiplier', 'afip_code', 'is_active']
     success_url = reverse_lazy('erp:card_plan_list')
     permission_required = 'erp.add_cardinstallmentplan'
+
+    def form_valid(self, form):
+        active_cid = self.request.session.get('company_id')
+        if not active_cid:
+            active_cid = getattr(self.request.user, 'company_id', None)
+        form.instance.company_id = active_cid
+        return super().form_valid(form)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -2903,11 +2917,18 @@ class CardPlanCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Cr
         context['list_url'] = self.success_url
         return context
 
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        if not self.request.user.is_superuser and 'company' in form.fields:
+            form.fields['company'].widget = forms.HiddenInput()
+            form.fields['company'].required = False
+        return form
+
 
 class CardPlanUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, UpdateView):
     model = CardInstallmentPlan
     template_name = 'sale/card_plan_form.html'
-    fields = ['name', 'installments', 'multiplier', 'afip_code', 'is_active']
+    fields = ['company', 'name', 'installments', 'multiplier', 'afip_code', 'is_active']
     success_url = reverse_lazy('erp:card_plan_list')
     permission_required = 'erp.change_cardinstallmentplan'
 
