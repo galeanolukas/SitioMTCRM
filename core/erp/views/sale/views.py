@@ -2914,7 +2914,11 @@ class CardPlanCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Co
         if not active_cid:
             active_cid = getattr(self.request.user, 'company_id', None)
         form.instance.company_id = active_cid
-        return super().form_valid(form)
+        self.object = form.save()
+        return JsonResponse({'success': True, 'redirect': str(self.success_url)})
+
+    def form_invalid(self, form):
+        return JsonResponse({'success': False, 'errors': form.errors})
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -2938,6 +2942,13 @@ class CardPlanUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Up
     success_url = reverse_lazy('erp:card_plan_list')
     permission_required = 'erp.change_cardinstallmentplan'
 
+    def form_valid(self, form):
+        self.object = form.save()
+        return JsonResponse({'success': True, 'redirect': str(self.success_url)})
+
+    def form_invalid(self, form):
+        return JsonResponse({'success': False, 'errors': form.errors})
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = 'Editar Plan de Cuotas'
@@ -2951,6 +2962,11 @@ class CardPlanDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin, De
     template_name = 'sale/card_plan_delete.html'
     success_url = reverse_lazy('erp:card_plan_list')
     permission_required = 'erp.delete_cardinstallmentplan'
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        self.object.delete()
+        return JsonResponse({'success': True, 'redirect': str(self.success_url)})
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
