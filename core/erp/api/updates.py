@@ -90,7 +90,11 @@ def execute_update_script(request):
         # Construir comando según el sistema operativo
         if system_os == 'windows':
             # En Windows, usar el script .bat que llama al Python
-            bat_script = os.path.join(base_dir, 'actualizar_pos_simple.bat')
+            update_type = data.get('type', 'auto')
+            if update_type == 'portable':
+                bat_script = os.path.join(base_dir, 'actualizar_pos_portable.bat')
+            else:
+                bat_script = os.path.join(base_dir, 'actualizar_pos_simple.bat')
             command = ['start', 'cmd', '/c', bat_script, '--force']
         elif system_os == 'linux':
             # En Linux, ejecutar directamente el script Python con --force (sin prompt interactivo)

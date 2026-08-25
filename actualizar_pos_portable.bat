@@ -135,22 +135,22 @@ if errorlevel 1 (
 echo [OK] Sistema actualizado exitosamente.
 echo.
 
-REM 1) Activar entorno virtual (o crearlo si no existe)
-IF NOT EXIST venv (
-    echo Entorno virtual no encontrado. Creando uno nuevo...
-    python -m venv venv
+REM 1) Activar entorno virtual DJENV (o crearlo si no existe)
+IF NOT EXIST DJENV (
+    echo Entorno virtual DJENV no encontrado. Creando uno nuevo...
+    python -m venv DJENV
     if errorlevel 1 (
         echo Error al crear el entorno virtual. Verifica que Python este instalado.
         pause
         exit /b 1
     )
 ) ELSE (
-    echo Activando entorno virtual existente...
+    echo Activando entorno virtual DJENV existente...
 )
 
-call venv\Scripts\activate
+call DJENV\Scripts\activate
 if errorlevel 1 (
-    echo No se pudo activar el entorno virtual.
+    echo No se pudo activar el entorno virtual DJENV.
     pause
     exit /b 1
 )
@@ -171,13 +171,18 @@ if errorlevel 1 (
     exit /b 1
 )
 
-REM 4) Ejecutar migraciones
-echo Ejecutando migraciones...
+REM 4) Ejecutar migraciones (local y remota)
+echo Ejecutando migraciones locales...
 python manage.py migrate
 if errorlevel 1 (
-    echo Error ejecutando migraciones.
+    echo Error ejecutando migraciones locales.
     pause
     exit /b 1
+)
+echo Ejecutando migraciones en servidor remoto...
+python manage.py migrate --database=remote
+if errorlevel 1 (
+    echo [ADVERTENCIA] Error ejecutando migraciones remotas. Continuando...
 )
 
 REM 5) Limpiar backup antiguo si la actualizacion fue exitosa
@@ -199,8 +204,8 @@ echo.
 echo Sistema actualizado con Git Portable.
 echo.
 echo Para iniciar el POS local:
-echo   call venv\Scripts\activate
-echo   python manage.py runserver 0.0.0.0:8000
+  call DJENV\Scripts\activate
+  python manage.py runserver 0.0.0.0:8000
 echo.
 echo Presione cualquier tecla para salir...
 pause >nul

@@ -228,9 +228,15 @@ def do_update(force=False):
     if os.path.exists(manage_py):
         ok, out, err = run_command([sys.executable, 'manage.py', 'migrate', '--noinput'])
         if ok:
-            print("  OK")
+            print("  OK (local)")
         else:
-            print(f"  [ADVERTENCIA] Error en migraciones: {err}")
+            print(f"  [ADVERTENCIA] Error en migraciones locales: {err}")
+        # Migraciones en servidor remoto
+        ok, out, err = run_command([sys.executable, 'manage.py', 'migrate', '--database=remote', '--noinput'])
+        if ok:
+            print("  OK (remoto)")
+        else:
+            print(f"  [ADVERTENCIA] Error en migraciones remotas: {err}")
     else:
         print("  No se encontró manage.py, saltando...")
     
