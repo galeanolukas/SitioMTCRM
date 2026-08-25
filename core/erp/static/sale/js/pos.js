@@ -2225,6 +2225,39 @@
     }
   });
 
+  // Anular venta desde el POS sin salir de la pagina
+  $(document).on('click', '.btn-anular-venta', function(e) {
+    e.preventDefault();
+    const saleId = $(this).data('sale-id');
+    const saleInfo = $(this).data('sale-info');
+    const $btn = $(this);
+
+    if (!confirm('¿Anular la venta?\n\n' + saleInfo + '\n\nEsta acción restaurará el stock y eliminará la venta.')) {
+      return;
+    }
+
+    $btn.prop('disabled', true).find('i').removeClass('fa-ban').addClass('fa-spinner fa-spin');
+
+    $.ajax({
+      url: '/erp/sale/delete/' + saleId + '/',
+      type: 'POST',
+      data: { csrfmiddlewaretoken: csrftoken() },
+      success: function(resp) {
+        if (resp.error) {
+          showToast('error', 'Error al anular: ' + resp.error);
+          $btn.prop('disabled', false).find('i').removeClass('fa-spinner fa-spin').addClass('fa-ban');
+        } else {
+          showToast('success', 'Venta anulada correctamente');
+          $btn.closest('tr').fadeOut(400, function() { $(this).remove(); });
+        }
+      },
+      error: function(jq) {
+        showToast('error', 'Error al anular venta: ' + (jq.responseJSON ? jq.responseJSON.error : jq.statusText));
+        $btn.prop('disabled', false).find('i').removeClass('fa-spinner fa-spin').addClass('fa-ban');
+      }
+    });
+  });
+
   // Inicializar
   recalc();
   $input.focus();

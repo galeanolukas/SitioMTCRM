@@ -196,7 +196,7 @@
                       <i class="fas fa-print"></i>
                     </a>
                     {% endif %}
-                    <a href="{% url 'erp:sale_delete' s.id %}" class="btn btn-xs btn-outline-danger" title="Anular">
+                    <a href="{% url 'erp:sale_delete' s.id %}" class="btn btn-xs btn-outline-danger btn-anular-venta" data-sale-id="{{ s.id }}" data-sale-info="{{ s.date_joined|date:'d/m/Y H:i' }} - {{ s.cli|default:'Anónimo' }} - ${{ s.total }}" title="Anular">
                       <i class="fas fa-ban"></i>
                     </a>
                   </div>
