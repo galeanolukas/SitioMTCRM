@@ -665,7 +665,7 @@ class Sale(models.Model):
     afip_pendiente_autorizacion = models.BooleanField(default=False, verbose_name='Pendiente de Autorización AFIP')
     synced_to_server = models.BooleanField(default=False, verbose_name='Sincronizado con servidor')
     local_sale_id = models.PositiveIntegerField(blank=True, null=True, verbose_name='ID de venta local', help_text='ID de la venta en la base de datos local para evitar duplicados')
-    local_uuid = models.CharField(max_length=64, blank=True, null=True, db_index=True, verbose_name='UUID local', help_text='UUID para sincronización (índice para búsquedas rápidas)')
+    local_uuid = models.CharField(max_length=64, blank=True, null=True, unique=True, verbose_name='UUID local', help_text='UUID para sincronización (unique para prevenir duplicados)')
     source = models.CharField(max_length=20, blank=True, null=True, verbose_name='Origen', help_text='Origen de la venta (local_pos, web, etc.)')
     synced_at = models.DateTimeField(blank=True, null=True, verbose_name='Fecha de sincronización')
     pos_id = models.CharField(max_length=50, blank=True, null=True, verbose_name='ID del POS', help_text='Identificador del POS que creó la venta/presupuesto')

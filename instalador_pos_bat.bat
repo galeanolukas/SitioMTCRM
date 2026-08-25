@@ -27,12 +27,45 @@ REM 4. Instalar dependencias
 echo Instalando dependencias desde requirements.txt...
 pip install -r requirements.txt || exit /b 1
 
-REM 5. Verificar base de datos existente
+REM 5. Crear archivo .env si no existe
+IF NOT EXIST .env (
+    echo Creando archivo .env con configuracion por defecto...
+    (
+        echo ENVIRONMENT=development
+        echo APP_VERSION=1.0.0
+        echo POS_SYNC_INTERVAL_SECONDS=300
+        echo.
+        echo DB_NAME=
+        echo DB_USER=
+        echo DB_PASSWORD=
+        echo DB_HOST=localhost
+        echo DB_PORT=5432
+        echo.
+        echo REMOTE_DB_NAME=
+        echo REMOTE_DB_USER=
+        echo REMOTE_DB_PASSWORD=
+        echo REMOTE_DB_HOST=
+        echo REMOTE_DB_PORT=5432
+        echo REMOTE_DB_SSLMODE=require
+        echo.
+        echo POS_SYNC_PRODUCTS_MODE=safe
+        echo AFIP_ACCESS_TOKEN=
+        echo AFIP_CUIT=
+        echo AFIP_ENVIRONMENT=dev
+        echo CATALOGO_URL=
+        echo CATALOGO_API_KEY=
+    ) > .env
+    echo Archivo .env creado. Edite este archivo para configurar la conexion al servidor.
+) else (
+    echo Archivo .env ya existe.
+)
+
+REM 6. Verificar base de datos existente
 echo Verificando base de datos existente...
 IF EXIST db.sqlite3 (
-    echo ADVERTENCIA: Se encontró una base de datos existente ^(db.sqlite3^)
-    echo Esta acción podría eliminar todos los datos existentes ^(ventas, productos, clientes, etc.^)
-    set /p clean_db="¿Desea eliminarla y crear una base de datos nueva? ^(S/N^): "
+    echo ADVERTENCIA: Se encontro una base de datos existente ^(db.sqlite3^)
+    echo Esta accion podria eliminar todos los datos existentes ^(ventas, productos, clientes, etc.^)
+    set /p clean_db="Desea eliminarla y crear una base de datos nueva? ^(S/N^): "
     if /i "%clean_db%"=="S" (
         echo Eliminando base de datos existente...
         del db.sqlite3
@@ -42,12 +75,23 @@ IF EXIST db.sqlite3 (
     )
 )
 
-REM 6. Ejecutar migraciones
+REM 7. Ejecutar migraciones
 echo Ejecutando migraciones de la base de datos...
-python manage.py makemigrations || exit /b 1
-python manage.py migrate || exit /b 1
+python manage.py makemigrations
+if errorlevel 1 (
+    echo [ERROR] Fallo al crear migraciones.
+    pause
+    exit /b 1
+)
+python manage.py migrate
+if errorlevel 1 (
+    echo [ERROR] Fallo al aplicar migraciones.
+    pause
+    exit /b 1
+)
+echo Migraciones aplicadas correctamente.
 
-REM 6.5 Configurar roles estandar (vendedor, admin_empresa, servidor_local)
+REM 7.5 Configurar roles estandar (vendedor, admin_empresa, servidor_local)
 echo Configurando roles estandar...
 python manage.py setup_roles --migrate
 if errorlevel 1 (
@@ -56,7 +100,7 @@ if errorlevel 1 (
     echo Roles configurados correctamente ^(vendedor, admin_empresa, servidor_local^)
 )
 
-REM 7. Crear acceso directo en el escritorio
+REM 8. Crear acceso directo en el escritorio
 echo Creando acceso directo en el escritorio...
 
 set "SHORTCUT=%USERPROFILE%\Desktop\POS SitioMTCRM.lnk"
@@ -92,7 +136,7 @@ cscript //nologo "%VBS_SCRIPT%"
 REM Limpiar script VBScript temporal
 if exist "%VBS_SCRIPT%" del "%VBS_SCRIPT%"
 
-REM 8. Mensaje final
+REM 9. Mensaje final
 echo.
 echo ============================================
 echo INSTALACIÓN COMPLETADA EXITOSAMENTE

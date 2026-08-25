@@ -1,7 +1,7 @@
 import threading
 
 from django.core.management.base import BaseCommand
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from django.db.models import Q
 from django.utils import timezone
 
@@ -208,14 +208,31 @@ class Command(BaseCommand):
                         )
                     else:
                         # === CREAR nueva venta en remoto ===
-                        remote_sale = Sale.objects.using('remote').create(
-                            local_uuid=sale.local_uuid,
-                            **sale_defaults,
-                        )
-                        created = True
-                        self.stdout.write(
-                            self.style.SUCCESS(f"Venta {sale.id} creada en servidor (ID remoto: {remote_sale.id})")
-                        )
+                        try:
+                            remote_sale = Sale.objects.using('remote').create(
+                                local_uuid=sale.local_uuid,
+                                **sale_defaults,
+                            )
+                            created = True
+                            self.stdout.write(
+                                self.style.SUCCESS(f"Venta {sale.id} creada en servidor (ID remoto: {remote_sale.id})")
+                            )
+                        except IntegrityError:
+                            # unique constraint violation: ya fue creada por otra ruta (ej: sync_sales_api)
+                            existing_sale = Sale.objects.using('remote').filter(local_uuid=sale.local_uuid).first()
+                            if existing_sale:
+                                for field, value in sale_defaults.items():
+                                    setattr(existing_sale, field, value)
+                                if not existing_sale.local_uuid and sale.local_uuid:
+                                    existing_sale.local_uuid = sale.local_uuid
+                                existing_sale.save()
+                                remote_sale = existing_sale
+                                created = False
+                                self.stdout.write(
+                                    self.style.WARNING(f"Venta {sale.id} ya existía en servidor (IntegrityError, ID remoto: {remote_sale.id})")
+                                )
+                            else:
+                                raise
 
                     # Solo crear detalles si la venta fue creada (no actualizada)
                     if created:
@@ -265,6 +282,16 @@ class Command(BaseCommand):
                     synced += 1
                 else:
                     updated += 1
+            except IntegrityError:
+                # Duplicado detectado por unique constraint - marcar como sincronizada
+                Sale.objects.using('default').filter(pk=sale.pk).update(
+                    synced_to_server=True,
+                    synced_at=timezone.now()
+                )
+                updated += 1
+                self.stdout.write(
+                    self.style.WARNING(f"Venta {sale.id} ya existía en servidor (IntegrityError manejado)")
+                )
             except Exception as e:
                 errors += 1
                 self.stderr.write(f"Error sincronizando venta {sale.id}: {e}")

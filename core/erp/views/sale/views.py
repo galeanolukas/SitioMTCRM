@@ -8,14 +8,17 @@ from core.erp.models import Sale, Product, DetSale, Company, Client, QuickOrder,
 from django.contrib.auth import get_user_model
 from django.template.loader import get_template
 from django.conf import settings
-from weasyprint import HTML, CSS
+try:
+    from weasyprint import HTML, CSS
+except Exception:
+    HTML = CSS = None
 import os
 from core.erp.forms import SaleForm
 from django.views.generic import CreateView, ListView, DeleteView, UpdateView, TemplateView, View
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 import json
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from django.db.models import F, Q
 from django.db.models.functions import Greatest
 from django.utils import timezone
@@ -2159,6 +2162,9 @@ def sync_sales_api(request):
                         )
 
                 synced.append(local_uuid)
+        except IntegrityError:
+            # unique constraint violation: ya fue creada por otra ruta (ej: sync_sales_to_remote)
+            synced.append(local_uuid)
         except Exception as e:
             errors.append({'local_uuid': local_uuid, 'error': str(e)})
 
