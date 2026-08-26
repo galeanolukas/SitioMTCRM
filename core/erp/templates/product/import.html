@@ -104,9 +104,10 @@
     <div class="alert alert-info" id="infoProduct">
       <h6><i class="fas fa-info-circle"></i> Información importante:</h6>
       <ul class="mb-0">
-        <li><strong>Campos obligatorios (*)</strong>: Código, Nombre, Precio y Stock deben estar mapeados</li>
+        <li><strong>Campos obligatorios (*)</strong>: Nombre y Precio deben estar mapeados</li>
+        <li><strong>Stock opcional</strong>: Si no se mapea o está vacío, se asigna 0</li>
         <li><strong>Comportamiento con duplicados</strong>: Si un producto con el mismo <strong>código</strong> ya existe, se <strong>actualizará</strong></li>
-        <li><strong>Campos opcionales</strong>: Categoría, IVA, Precio Final, Unidad y Empresa</li>
+        <li><strong>Campos opcionales</strong>: Categoría, IVA, Precio Final, Unidad, Empresa, Proveedor y Precio de costo</li>
         <li><strong>Precio Final</strong>: Si se deja vacío, se calculará automáticamente como: Precio × (1 + IVA)</li>
       </ul>
     </div>
@@ -192,11 +193,12 @@
           <small class="text-muted">Valores válidos: {{ unit_choices|join:', ' }}</small>
         </div>
         <div class="col-md-4 mt-2">
-          <label>Stock <span class="text-danger">*</span></label>
-          <select name="map_stock" class="form-control" required>
+          <label>Stock - opcional</label>
+          <select name="map_stock" class="form-control">
             <option value="">-- Ninguna --</option>
             {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
           </select>
+          <small class="text-muted">Si se deja vacío, se asigna 0</small>
         </div>
         <div class="col-md-4 mt-2">
           <label>Empresa (company) - opcional</label>
@@ -215,15 +217,7 @@
           <small class="text-muted">Nombre del proveedor. Si no existe, se ignora.</small>
         </div>
         <div class="col-md-4 mt-2">
-          <label>Código Proveedor (supplier_code) - opcional</label>
-          <select name="map_supplier_code" class="form-control">
-            <option value="">-- Ninguna --</option>
-            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
-          </select>
-          <small class="text-muted">Código del proveedor. Si el proveedor no existe, se crea con este código.</small>
-        </div>
-        <div class="col-md-4 mt-2">
-          <label>Código Proveedor Producto (codigo_proveedor) - opcional</label>
+          <label>Código Proveedor (codigo_proveedor) - opcional</label>
           <select name="map_codigo_proveedor" class="form-control">
             <option value="">-- Ninguna --</option>
             {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}

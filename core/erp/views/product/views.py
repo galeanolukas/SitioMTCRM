@@ -1323,7 +1323,6 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
             map_stock = request.POST.get('map_stock')
             map_company = request.POST.get('map_company')
             map_supplier = request.POST.get('map_supplier')
-            map_supplier_code = request.POST.get('map_supplier_code')
             map_codigo_proveedor = request.POST.get('map_codigo_proveedor')
             map_margin = request.POST.get('map_margin')
             map_cost_price = request.POST.get('map_cost_price')
@@ -1362,8 +1361,6 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                 missing_fields.append("Nombre")
             if not map_pvp:
                 missing_fields.append("Precio")
-            if not map_stock:
-                missing_fields.append("Stock")
                 
             if missing_fields:
                 import_logger.error(f"Campos obligatorios no mapeados: {', '.join(missing_fields)}")
@@ -1521,15 +1518,12 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                         errors.append(f'Fila {idx+1}: Precio no numérico ({raw_pvp}).')
                         continue
 
-                    # Stock obligatorio
-                    raw_stock = row.get(map_stock)
-                    if pd.isna(raw_stock):
-                        errors.append(f'Fila {idx+1}: Stock vacío.')
-                        continue
-                    stock = parse_number(raw_stock)
-                    if stock is None:
-                        errors.append(f'Fila {idx+1}: Stock no numérico ({raw_stock}).')
-                        continue
+                    # Stock opcional (default 0)
+                    stock = 0
+                    if map_stock and not pd.isna(row.get(map_stock)):
+                        parsed_stock = parse_number(row.get(map_stock))
+                        if parsed_stock is not None:
+                            stock = parsed_stock
 
                     # Campos opcionales
                     iva_rate = 0  # Default: 0 (exento / no gravado)
@@ -1610,41 +1604,20 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
 
                     # Proveedor (opcional): buscar por nombre, si no existe se ignora
                     supplier_obj = None
-                    supplier_code = None
                     if map_supplier and not pd.isna(row.get(map_supplier)):
-                        sup_name = str(row.get(map_supplier)).strip()
+                        sup_name = str(row[map_supplier]).strip()
                         if sup_name:
+                            # Buscar por nombre primero
                             supplier_obj = suppliers_by_name.get(sup_name)
                             if not supplier_obj:
                                 supplier_obj = Supplier.objects.filter(name__iexact=sup_name).first()
                                 if supplier_obj:
                                     suppliers_by_name[sup_name] = supplier_obj
 
-                    # Código del proveedor (opcional)
-                    if map_supplier_code and not pd.isna(row.get(map_supplier_code)):
-                        supplier_code = str(row.get(map_supplier_code)).strip()
-                        if supplier_code:
-                            # Si hay código de proveedor, buscar por código primero
-                            if not supplier_obj:
-                                supplier_obj = Supplier.objects.filter(code=supplier_code).first()
-                            # Si el proveedor existe pero no tiene código, actualizarlo
-                            if supplier_obj and not supplier_obj.code:
-                                supplier_obj.code = supplier_code
-                                supplier_obj.save()
-                            # Si no existe proveedor, crearlo con el código
-                            if not supplier_obj and supplier_code:
-                                supplier_obj = Supplier.objects.create(
-                                    code=supplier_code,
-                                    name=f"Proveedor {supplier_code}",
-                                    company_id=company_id,
-                                    is_active=True
-                                )
-                                suppliers_by_name[supplier_obj.name] = supplier_obj
-
                     # Código de proveedor (opcional)
                     codigo_prov = None
                     if map_codigo_proveedor and not pd.isna(row.get(map_codigo_proveedor)):
-                        raw_cod = str(row.get(map_codigo_proveedor)).strip()
+                        raw_cod = str(row[map_codigo_proveedor]).strip()
                         if raw_cod:
                             # Limpiar .0 si es numérico (ej: "123.0" -> "123")
                             if raw_cod.endswith('.0'):
