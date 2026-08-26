@@ -66,7 +66,7 @@
         <div class="mb-3" id="hintProduct">
           <small class="text-muted">
             <strong>Columnas básicas:</strong> code, name, categoria, pvp, unit, stock<br>
-            <strong>Columnas completas:</strong> code, name, categoria, pvp, iva_rate, pvp_final, unit, stock, company
+            <strong>Columnas completas:</strong> code, name, categoria, pvp, iva_rate, pvp_final, cost_price, unit, stock, company
           </small>
         </div>
         <div class="mb-3" id="hintClient" style="display:none;">
@@ -237,6 +237,14 @@
             {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
           </select>
           <small class="text-muted">Ej: 30 para 30%. Default: 0</small>
+        </div>
+        <div class="col-md-4 mt-2">
+          <label>Precio de costo (cost_price) - opcional</label>
+          <select name="map_cost_price" class="form-control">
+            <option value="">-- Ninguna --</option>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+          <small class="text-muted">Precio de compra/costo del producto</small>
         </div>
       </div>
 
