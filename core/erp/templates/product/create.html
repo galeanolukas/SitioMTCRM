@@ -127,16 +127,19 @@
         }
       }
       
-      // Calcular automáticamente pvp cuando cambia cost_price o margin_percentage
+      // Calcular automáticamente pvp cuando cambia cost_price, freight_percentage o margin_percentage
       function calcularPVPDesdeCosto() {
         const costPrice = parseFloat($('#id_cost_price').val()) || 0;
+        const freightPct = parseFloat($('#id_freight_percentage').val()) || 0;
         const marginPercentage = parseFloat($('#id_margin_percentage').val()) || 0;
 
         // Solo calcular si hay valores válidos
         if (costPrice > 0 && marginPercentage >= 0) {
-          // Calcular PVP basado en costo y margen: PVP = Costo * (1 + Margen)
+          // Costo + Flete: Costo * (1 + Flete%)
+          const costWithFreight = costPrice * (1 + freightPct / 100);
+          // PVP = Costo total * (1 + Margen)
           const marginRate = marginPercentage / 100;
-          let calculatedPVP = costPrice * (1 + marginRate);
+          let calculatedPVP = costWithFreight * (1 + marginRate);
 
           // Redondear hacia arriba al siguiente entero
           calculatedPVP = Math.ceil(calculatedPVP);
@@ -161,6 +164,11 @@
       
       // Event listener secundario: costo también dispara el cálculo
       $('#id_cost_price').on('input change', function() {
+        calcularPVPDesdeCosto();
+      });
+      
+      // Event listener: flete también dispara el cálculo
+      $('#id_freight_percentage').on('input change', function() {
         calcularPVPDesdeCosto();
       });
       

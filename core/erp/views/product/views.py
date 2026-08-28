@@ -1326,6 +1326,7 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
             map_codigo_proveedor = request.POST.get('map_codigo_proveedor')
             map_margin = request.POST.get('map_margin')
             map_cost_price = request.POST.get('map_cost_price')
+            map_freight_percentage = request.POST.get('map_freight_percentage')
 
             def parse_number(val):
                 """Parsea valores numéricos en formato argentino o internacional.
@@ -1642,6 +1643,13 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                         if cost_price is None:
                             errors.append(f'Fila {idx+1}: Precio de costo no numérico ({row.get(map_cost_price)}), se ignora.')
 
+                    # Flete (opcional, default 0)
+                    freight_pct = 0
+                    if map_freight_percentage and not pd.isna(row.get(map_freight_percentage)):
+                        parsed_freight = parse_number(row.get(map_freight_percentage))
+                        if parsed_freight is not None:
+                            freight_pct = parsed_freight
+
                     # Upsert: primero por código, luego por nombre (unique constraint)
                     prod = products_by_code.get(code)
                     if prod is None and name:
@@ -1668,6 +1676,8 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                         prod.margin_percentage = margin_pct
                         if cost_price is not None:
                             prod.cost_price = cost_price
+                        if freight_pct:
+                            prod.freight_percentage = freight_pct
                         if iva_rate is not None:
                             prod.iva_rate = iva_rate
                         # Solo asignar pvp_final si se proporcionó un valor
@@ -1704,6 +1714,8 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                         prod.margin_percentage = margin_pct
                         if cost_price is not None:
                             prod.cost_price = cost_price
+                        if freight_pct:
+                            prod.freight_percentage = freight_pct
                         prod.stock_modified_locally = timezone.now()  # Marcar modificación de stock
                         if company_id:
                             prod.company_id = company_id

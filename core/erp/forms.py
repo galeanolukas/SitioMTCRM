@@ -119,6 +119,7 @@ class ProductForm(ModelForm):
             'supplier',
             'image',
             'cost_price',
+            'freight_percentage',
             'pvp',
             'iva_rate',
             'margin_percentage',

@@ -241,6 +241,7 @@ class Product(models.Model):
     supplier = models.ForeignKey('Supplier', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Proveedor')
     image = models.ImageField(upload_to='product/%Y/%m/%d', null=True, blank=True, verbose_name='Imagen')
     cost_price = models.DecimalField(default=0.00, max_digits=12, decimal_places=2, null=True, blank=True, verbose_name='Precio de costo (sin IVA)')
+    freight_percentage = models.DecimalField(default=0.00, max_digits=5, decimal_places=2, verbose_name='Flete (%)')
     pvp = models.DecimalField(default=0.00, max_digits=9, decimal_places=2, verbose_name='Precio neto (sin IVA)')
     iva_rate = models.DecimalField(default=0.21, max_digits=5, decimal_places=2, verbose_name='IVA (%)')
     vat_code = models.CharField(max_length=1, choices=VAT_CODE_CHOICES, default='5', verbose_name='Código AFIP')
@@ -391,6 +392,7 @@ class Product(models.Model):
         item['image'] = self.get_image()
         item['pvp'] = format(self.pvp, '.2f') if self.pvp is not None else '0.00'
         item['cost_price'] = format(self.cost_price, '.2f') if self.cost_price is not None else '0.00'
+        item['freight_percentage'] = float(self.freight_percentage) if self.freight_percentage is not None else 0.0
         item['iva_rate'] = float(self.iva_rate) if self.iva_rate is not None else 0.0
         item['margin_percentage'] = float(self.margin_percentage) if self.margin_percentage is not None else 0.0
         item['pvp_final'] = format(self.pvp_final, '.2f') if self.pvp_final is not None else '0.00'

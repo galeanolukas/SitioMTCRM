@@ -26,7 +26,14 @@
       {% if field.name == 'cost_price' %}
         <small class="form-text text-muted">
           <i class="fas fa-info-circle"></i> 
-          Precio de costo sin IVA. Al modificar este campo, se recalculará el PVP según el margen establecido.
+          Precio de costo sin IVA. Al modificar este campo, se recalculará el PVP según el flete y margen establecidos.
+        </small>
+      {% endif %}
+      
+      {% if field.name == 'freight_percentage' %}
+        <small class="form-text text-muted">
+          <i class="fas fa-info-circle"></i> 
+          Porcentaje de flete sobre el costo. Ej: 5 para 5%. Se suma al costo antes de calcular el PVP.
         </small>
       {% endif %}
       
