@@ -15,8 +15,14 @@ _scan_queue = defaultdict(list)
 
 @method_decorator([csrf_exempt, login_required], name='dispatch')
 class ScannerMobileView(TemplateView):
-    """Vista móvil para escanear códigos de barras/QR desde un celular."""
+    """Vista móvil para escanear códigos de barras/QR desde un celular.
+    Acceso: superusuarios o usuarios del grupo 'scanner'."""
     template_name = 'scanner/mobile.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        if not (request.user.is_superuser or request.user.groups.filter(name='scanner').exists()):
+            return HttpResponseForbidden('No tiene permiso para usar el escáner móvil.')
+        return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)

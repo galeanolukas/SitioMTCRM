@@ -332,6 +332,20 @@
         </li>
         {% endif %}
 
+        <!-- Escáner Móvil (para usuarios con grupo scanner, no superusers que ya lo tienen arriba) -->
+        {% if not request.user.is_superuser and request.user.groups|length > 0 %}
+          {% for group in request.user.groups.all %}
+            {% if group.name == 'scanner' %}
+            <li class="nav-item">
+              <a href="{% url 'erp:scanner_mobile' %}" class="nav-link" target="_blank">
+                <i class="fas fa-mobile-alt nav-icon"></i>
+                <p>Escáner Móvil</p>
+              </a>
+            </li>
+            {% endif %}
+          {% endfor %}
+        {% endif %}
+
         <!-- Clientes -->
         {% if request.user.is_superuser or perms.erp.view_client %}
         <li class="nav-item">

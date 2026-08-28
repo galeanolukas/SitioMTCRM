@@ -97,6 +97,8 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
         # Determinar si el usuario es operador
         is_operator = self.request.user.groups.filter(name__in=['operadores', 'vendedor']).exists()
         context['is_operator'] = is_operator
+        # Determinar si el usuario puede usar el scanner móvil
+        context['can_use_scanner'] = self.request.user.is_superuser or self.request.user.groups.filter(name='scanner').exists()
         # Desactivar botones POS cuando no hay caja abierta (para todos los usuarios)
         context['pos_locked_by_cash'] = not current_cr
         return context

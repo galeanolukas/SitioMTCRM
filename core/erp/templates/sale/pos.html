@@ -82,6 +82,11 @@
             <div class="input-group">
               <span class="input-group-text"><i class="fas fa-barcode"></i></span>
               <input id="barcodeInput" type="text" class="form-control pos-input" placeholder="Escanee el código o escriba y presione Enter" autocomplete="off" autofocus>
+              {% if can_use_scanner %}
+              <a href="{% url 'erp:scanner_mobile' %}" target="_blank" class="btn btn-outline-success pos-input" title="Abrir escáner móvil" style="font-size:1.25rem; display:flex; align-items:center;">
+                <i class="fas fa-mobile-alt"></i>
+              </a>
+              {% endif %}
             </div>
             <div id="suggestions" class="list-group" style="position:absolute; z-index: 1000; width:100%; max-height: 240px; overflow:auto; display:none;"></div>
           </div>
