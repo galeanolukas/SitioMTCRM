@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', function() {
   initBarcodeInput();
   initButtons();
   initKeyboardShortcuts();
+  initScanPoll();
 });
 
 /**
@@ -309,4 +310,25 @@ function processBudget() {
   
   // Implementar lógica de presupuesto
   showToast('Info', 'Funcionalidad de presupuesto en desarrollo', 'info');
+}
+
+/**
+ * Poll de códigos escaneados desde el celular
+ * Consulta al servidor cada 2 segundos si hay nuevos scans
+ */
+function initScanPoll() {
+  setInterval(function() {
+    fetch('/erp/api/scan/poll/')
+      .then(response => response.json())
+      .then(data => {
+        if (data.codes && data.codes.length > 0) {
+          data.codes.forEach(function(code) {
+            addProductByBarcode(code);
+          });
+        }
+      })
+      .catch(function(err) {
+        // Silencioso: el servidor puede no estar disponible
+      });
+  }, 2000);
 }

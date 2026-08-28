@@ -8,6 +8,7 @@ from core.erp.views.operator_reports.views import OperatorSalesReportView, opera
 from core.erp.views.sync.views import SyncToggleView, SyncStatusView, ProductSyncView
 from core.erp.views.tests.views import *
 from core.erp.views.activity_log import ActivityLogView, ActivityLogDashboardView
+from core.erp.views.scanner.views import ScannerMobileView, ScanSubmitView, ScanPollView
 from core.erp.api.updates import check_updates_api, refresh_version_info, execute_update_script, version_diagnostics, check_update_status
 from core.erp.api.release import execute_release
 from core.erp.views.dashboard.views import (
@@ -246,4 +247,8 @@ urlpatterns = [
     path('sale/api/detail/<int:pk>/', BudgetDetailView.as_view(), name='budget_detail'),
     path('budget/ticket/<int:pk>/', ticket_budget_print, name='ticket_budget_print'),
     path('budget/send-local/<int:pk>/', BudgetSendLocalView.as_view(), name='budget_send_local'),
+    # Scanner móvil
+    path('scanner/', ScannerMobileView.as_view(), name='scanner_mobile'),
+    path('api/scan/submit/', ScanSubmitView.as_view(), name='scan_submit'),
+    path('api/scan/poll/', ScanPollView.as_view(), name='scan_poll'),
 ]

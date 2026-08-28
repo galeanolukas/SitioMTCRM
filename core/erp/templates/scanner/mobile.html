@@ -1,0 +1,179 @@
+{% extends 'base/home.html' %}
+{% load static %}
+
+{% block head %}
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<link rel="stylesheet" href="{% static 'lib/adminlte-3.2.0/plugins/fontawesome-free/css/all.min.css' %}" />
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #1a1a2e; color: #fff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  .scanner-container { min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 1rem; }
+  .scanner-header { width: 100%; text-align: center; margin-bottom: 1rem; }
+  .scanner-header h2 { font-size: 1.3rem; margin: 0; }
+  .scanner-header small { color: #adb5bd; }
+  #reader { width: 100%; max-width: 400px; border-radius: 12px; overflow: hidden; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+  #reader video { border-radius: 12px; }
+  .scanner-status { margin-top: 1rem; text-align: center; }
+  .last-scan { background: rgba(255,255,255,0.1); border-radius: 8px; padding: 0.75rem 1rem; margin-top: 0.5rem; width: 100%; max-width: 400px; text-align: center; }
+  .last-scan .code { font-size: 1.5rem; font-weight: bold; color: #10b981; }
+  .scan-history { width: 100%; max-width: 400px; margin-top: 1rem; }
+  .scan-history .item { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.1); }
+  .scan-history .item .code { font-weight: 600; }
+  .scan-history .item .time { color: #6c757d; font-size: 0.85rem; }
+  .btn-scan { background: #10b981; color: #fff; border: none; border-radius: 8px; padding: 0.75rem 2rem; font-size: 1.1rem; margin-top: 1rem; cursor: pointer; }
+  .btn-scan:active { transform: scale(0.97); }
+  .btn-stop { background: #ef4444; }
+  .badge-connected { background: #10b981; color: #fff; border-radius: 12px; padding: 0.25rem 0.75rem; font-size: 0.8rem; margin-left: 0.5rem; }
+  .badge-disconnected { background: #ef4444; }
+</style>
+<!-- Html5QrcodeScanner library -->
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+{% endblock %}
+
+{% block body %}
+<body class="hold-transition" style="background:#1a1a2e;">
+<div class="scanner-container">
+  <div class="scanner-header">
+    <h2><i class="fas fa-barcode"></i> Escáner POS</h2>
+    <small>Apunte la cámara al código de barras</small>
+    <span id="connStatus" class="badge-connected">Conectado</span>
+  </div>
+
+  <div id="reader"></div>
+
+  <div class="scanner-status">
+    <button id="btnToggle" class="btn-scan" onclick="toggleScanner()">
+      <i class="fas fa-camera"></i> Iniciar Cámara
+    </button>
+  </div>
+
+  <div id="lastScanBox" class="last-scan" style="display:none;">
+    <small>Último código escaneado:</small>
+    <div class="code" id="lastScanCode"></div>
+  </div>
+
+  <div class="scan-history">
+    <small style="color:#6c757d;">Historial de escaneos (sesión actual):</small>
+    <div id="scanHistory"></div>
+  </div>
+</div>
+
+<script>
+let html5QrCode = null;
+let scanning = false;
+let scanHistory = [];
+const csrfToken = '{{ csrf_token }}';
+
+function toggleScanner() {
+  if (scanning) {
+    stopScanner();
+  } else {
+    startScanner();
+  }
+}
+
+function startScanner() {
+  const btn = document.getElementById('btnToggle');
+  btn.innerHTML = '<i class="fas fa-stop"></i> Detener';
+  btn.classList.add('btn-stop');
+
+  html5QrCode = new Html5Qrcode("reader");
+  const config = { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 };
+
+  html5QrCode.start(
+    { facingMode: "environment" },
+    config,
+    onScanSuccess,
+    onScanFailure
+  ).then(() => {
+    scanning = true;
+  }).catch(err => {
+    alert("Error al acceder a la cámara: " + err);
+    btn.innerHTML = '<i class="fas fa-camera"></i> Iniciar Cámara';
+    btn.classList.remove('btn-stop');
+  });
+}
+
+function stopScanner() {
+  if (html5QrCode && scanning) {
+    html5QrCode.stop().then(() => {
+      html5QrCode.clear();
+      scanning = false;
+      const btn = document.getElementById('btnToggle');
+      btn.innerHTML = '<i class="fas fa-camera"></i> Iniciar Cámara';
+      btn.classList.remove('btn-stop');
+    }).catch(err => {
+      console.error("Error al detener:", err);
+    });
+  }
+}
+
+function onScanSuccess(decodedText, decodedResult) {
+  // Evitar duplicados rápidos (debounce 1s)
+  if (scanHistory.length > 0 && scanHistory[0] === decodedText) {
+    const elapsed = (Date.now() - lastScanTime) / 1000;
+    if (elapsed < 1.5) return;
+  }
+  lastScanTime = Date.now();
+
+  // Mostrar último código
+  document.getElementById('lastScanBox').style.display = 'block';
+  document.getElementById('lastScanCode').textContent = decodedText;
+
+  // Agregar al historial
+  scanHistory.unshift(decodedText);
+  updateHistory();
+
+  // Vibración del teléfono
+  if (navigator.vibrate) navigator.vibrate(200);
+
+  // Enviar al servidor
+  submitScan(decodedText);
+}
+
+let lastScanTime = 0;
+
+function onScanFailure(error) {
+  // Silencioso: se llama continuamente mientras no hay código
+}
+
+function submitScan(code) {
+  fetch('{% url "erp:scan_submit" %}', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrfToken,
+    },
+    body: JSON.stringify({ code: code })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.error) {
+      document.getElementById('connStatus').textContent = 'Error';
+      document.getElementById('connStatus').className = 'badge-connected badge-disconnected';
+    } else {
+      document.getElementById('connStatus').textContent = 'Enviado';
+      document.getElementById('connStatus').className = 'badge-connected';
+    }
+  })
+  .catch(err => {
+    document.getElementById('connStatus').textContent = 'Sin conexión';
+    document.getElementById('connStatus').className = 'badge-connected badge-disconnected';
+  });
+}
+
+function updateHistory() {
+  const container = document.getElementById('scanHistory');
+  container.innerHTML = scanHistory.slice(0, 10).map((code, i) => {
+    const time = new Date().toLocaleTimeString();
+    return `<div class="item"><span class="code">${code}</span><span class="time">${time}</span></div>`;
+  }).join('');
+}
+
+// Auto-iniciar al cargar
+window.addEventListener('load', function() {
+  setTimeout(startScanner, 500);
+});
+</script>
+</body>
+{% endblock %}
