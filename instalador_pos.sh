@@ -88,54 +88,43 @@ setup_postgres() {
     local DB_NAME="$3"
     local DB_USER="$4"
     local DB_PASS="$5"
-    local PGSQL_SUPER_OK=false
+    local CONN_MODE=""  # "peer" o "password"
+    local WORKING_PASS="$PG_PASS"
+    local PG_ERR_PEER
+    local PG_ERR_PWD
+    PG_ERR_PEER=$(mktemp)
+    PG_ERR_PWD=$(mktemp)
 
-    # Función auxiliar para ejecutar SQL como superusuario
-    run_as_super() {
-        local SQL="$1"
-        if sudo -n -u postgres psql -c "$SQL" &> /dev/null; then
-            return 0
-        fi
-        export PGPASSWORD="$PG_PASS"
-        if psql -U "$PG_USER" -h "$DEFAULT_DB_HOST" -p "$DEFAULT_DB_PORT" -c "$SQL" &> /dev/null; then
-            unset PGPASSWORD
-            return 0
-        fi
-        unset PGPASSWORD
-        return 1
-    }
-
-    # 3.1) Probar peer auth (sudo -u postgres)
-    if sudo -n -u postgres psql -c "SELECT 1;" &> /dev/null; then
-        PGSQL_SUPER_OK=true
+    # 3.1) Probar peer auth (sudo sin contraseña)
+    if sudo -n -u postgres psql -c "SELECT 1;" >"$PG_ERR_PEER" 2>&1; then
+        CONN_MODE="peer"
         echo -e "${GREEN}✓ Conectado a PostgreSQL como superusuario (peer auth).${NC}"
-    fi
-
-    # 3.2) Probar conexión por red con contraseña por defecto
-    if [ "$PGSQL_SUPER_OK" = false ]; then
+    else
+        # 3.2) Probar conexión por red con contraseña por defecto
         export PGPASSWORD="$PG_PASS"
-        if psql -U "$PG_USER" -h "$DEFAULT_DB_HOST" -p "$DEFAULT_DB_PORT" -c "SELECT 1;" &> /dev/null; then
-            PGSQL_SUPER_OK=true
+        if psql -U "$PG_USER" -h "$DEFAULT_DB_HOST" -p "$DEFAULT_DB_PORT" -c "SELECT 1;" >"$PG_ERR_PWD" 2>&1; then
+            CONN_MODE="password"
             echo -e "${GREEN}✓ Conectado a PostgreSQL como superusuario (password auth).${NC}"
-        fi
-        unset PGPASSWORD
-    fi
-
-    # 3.3) Si nada funcionó, pedir contraseña del superusuario
-    if [ "$PGSQL_SUPER_OK" = false ]; then
-        echo -e "${YELLOW}No se pudo conectar al superusuario '$PG_USER' con la contraseña por defecto.${NC}"
-        read -sp "Ingrese la contraseña del superusuario PostgreSQL [$PG_USER]: " PG_PASS_INPUT
-        echo
-        PG_PASS_INPUT="${PG_PASS_INPUT:-$PG_PASS}"
-        export PGPASSWORD="$PG_PASS_INPUT"
-        if psql -U "$PG_USER" -h "$DEFAULT_DB_HOST" -p "$DEFAULT_DB_PORT" -c "SELECT 1;" &> /dev/null; then
-            PGSQL_SUPER_OK=true
-            DEFAULT_POSTGRES_PASS="$PG_PASS_INPUT"
-            echo -e "${GREEN}✓ Conectado con la contraseña ingresada.${NC}"
         else
+            # 3.3) Pedir contraseña del superusuario
             unset PGPASSWORD
-            echo -e "${RED}[ERROR] No se pudo conectar a PostgreSQL. Verifique las credenciales.${NC}"
-            return 1
+            echo -e "${YELLOW}No se pudo conectar al superusuario '$PG_USER' con la contraseña por defecto.${NC}"
+            read -sp "Ingrese la contraseña del superusuario PostgreSQL [$PG_USER]: " PG_PASS_INPUT
+            echo
+            PG_PASS_INPUT="${PG_PASS_INPUT:-$PG_PASS}"
+            WORKING_PASS="$PG_PASS_INPUT"
+            export PGPASSWORD="$PG_PASS_INPUT"
+            if psql -U "$PG_USER" -h "$DEFAULT_DB_HOST" -p "$DEFAULT_DB_PORT" -c "SELECT 1;" >"$PG_ERR_PWD" 2>&1; then
+                CONN_MODE="password"
+                echo -e "${GREEN}✓ Conectado con la contraseña ingresada.${NC}"
+            else
+                unset PGPASSWORD
+                echo -e "${RED}[ERROR] No se pudo conectar a PostgreSQL. Verifique las credenciales.${NC}"
+                echo
+                cat "$PG_ERR_PWD"
+                rm -f "$PG_ERR_PEER" "$PG_ERR_PWD"
+                return 1
+            fi
         fi
     fi
 
@@ -161,30 +150,33 @@ GRANT ALL PRIVILEGES ON DATABASE $DB_NAME TO $DB_USER;
 SQL
 )
 
-    local PG_ERR
-    PG_ERR=$(mktemp)
-
-    if sudo -n -u postgres psql -c "$SUPER_SQL" >"$PG_ERR" 2>&1; then
-        rm -f "$PG_ERR"
-        echo -e "${GREEN}✓ Base de datos '$DB_NAME' y usuario '$DB_USER' creados.${NC}"
-        return 0
+    if [ "$CONN_MODE" = "peer" ]; then
+        if sudo -n -u postgres psql -c "$SUPER_SQL" >"$PG_ERR_PEER" 2>&1; then
+            rm -f "$PG_ERR_PEER" "$PG_ERR_PWD"
+            echo -e "${GREEN}✓ Base de datos '$DB_NAME' y usuario '$DB_USER' creados (peer auth).${NC}"
+            return 0
+        fi
+        echo -e "${RED}[ERROR] No se pudo crear la base de datos con peer auth.${NC}"
+        echo
+        echo "Detalle del error:"
+        cat "$PG_ERR_PEER"
+        rm -f "$PG_ERR_PEER" "$PG_ERR_PWD"
+        return 1
     fi
 
-    export PGPASSWORD="$DEFAULT_POSTGRES_PASS"
-    psql -U "$PG_USER" -h "$DEFAULT_DB_HOST" -p "$DEFAULT_DB_PORT" -c "$SUPER_SQL" >"$PG_ERR" 2>&1
-    if [ $? -eq 0 ]; then
+    export PGPASSWORD="$WORKING_PASS"
+    if psql -U "$PG_USER" -h "$DEFAULT_DB_HOST" -p "$DEFAULT_DB_PORT" -c "$SUPER_SQL" >"$PG_ERR_PWD" 2>&1; then
         unset PGPASSWORD
-        rm -f "$PG_ERR"
-        echo -e "${GREEN}✓ Base de datos '$DB_NAME' y usuario '$DB_USER' creados.${NC}"
+        rm -f "$PG_ERR_PEER" "$PG_ERR_PWD"
+        echo -e "${GREEN}✓ Base de datos '$DB_NAME' y usuario '$DB_USER' creados (password auth).${NC}"
         return 0
     fi
     unset PGPASSWORD
-
-    echo -e "${RED}[ERROR] No se pudo crear la base de datos o el usuario de la aplicación.${NC}"
+    echo -e "${RED}[ERROR] No se pudo crear la base de datos con password auth.${NC}"
     echo
     echo "Detalle del error:"
-    cat "$PG_ERR"
-    rm -f "$PG_ERR"
+    cat "$PG_ERR_PWD"
+    rm -f "$PG_ERR_PEER" "$PG_ERR_PWD"
     return 1
 }
 
