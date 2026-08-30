@@ -324,7 +324,7 @@ class DashboardView(TemplateView):
             context.update(self.calculate_profits_data(active_cid))
         context['active_company_id'] = self.request.session.get('company_id')
         context['panel'] = 'Panel de administrador'
-        context['title'] = 'TechVentas'
+        context['title'] = 'Panel'
         context['app_version'] = getattr(settings, 'APP_VERSION', '1.0.0')
         return context
 
