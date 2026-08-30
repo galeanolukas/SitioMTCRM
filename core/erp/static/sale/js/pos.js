@@ -1238,13 +1238,14 @@
         const multiplier = parseFloat(cardPlanOption.data('multiplier'));
         console.log('[DEBUG] Multiplicador para cálculo (doCreateSale):', multiplier);
         
-        if (multiplier && !isNaN(multiplier) && multiplier > 0) {
-          payload.subtotal = (subtotal * multiplier).toFixed(2);
-          payload.iva = (iva * multiplier).toFixed(2);
-          payload.total = (total * multiplier).toFixed(2);
+        let effMultiplier = (!isNaN(multiplier) && multiplier > 0) ? multiplier : 1;
+        if (effMultiplier !== 1) {
+          payload.subtotal = (subtotal * effMultiplier).toFixed(2);
+          payload.iva = (iva * effMultiplier).toFixed(2);
+          payload.total = (total * effMultiplier).toFixed(2);
           console.log('[DEBUG] Totales con recargo - Subtotal:', payload.subtotal, 'IVA:', payload.iva, 'Total:', payload.total);
         } else {
-          console.log('[DEBUG] Multiplicador inválido, usando valores originales');
+          console.log('[DEBUG] Multiplicador 1 o 0, sin recargo');
         }
       }
       
@@ -1318,13 +1319,14 @@
         const multiplier = parseFloat(cardPlanOption.data('multiplier'));
         console.log('[DEBUG] Multiplicador para cálculo (doInvoiceSale):', multiplier);
         
-        if (multiplier && !isNaN(multiplier) && multiplier > 0) {
-          payload.subtotal = (subtotal * multiplier).toFixed(2);
-          payload.iva = (iva * multiplier).toFixed(2);
-          payload.total = (total * multiplier).toFixed(2);
+        let effMultiplier = (!isNaN(multiplier) && multiplier > 0) ? multiplier : 1;
+        if (effMultiplier !== 1) {
+          payload.subtotal = (subtotal * effMultiplier).toFixed(2);
+          payload.iva = (iva * effMultiplier).toFixed(2);
+          payload.total = (total * effMultiplier).toFixed(2);
           console.log('[DEBUG] Totales con recargo - Subtotal:', payload.subtotal, 'IVA:', payload.iva, 'Total:', payload.total);
         } else {
-          console.log('[DEBUG] Multiplicador inválido, usando valores originales');
+          console.log('[DEBUG] Multiplicador 1 o 0, sin recargo');
         }
       }
       
@@ -1556,9 +1558,13 @@
   $(document).on('change', '#cardPlan', function() {
     const selectedOption = $(this).find(':selected');
     const installments = parseFloat(selectedOption.data('installments'));
-    const multiplier = parseFloat(selectedOption.data('multiplier'));
+    let multiplier = parseFloat(selectedOption.data('multiplier'));
     
-    if (installments && multiplier && !isNaN(installments) && !isNaN(multiplier)) {
+    if (isNaN(multiplier) || multiplier <= 0) {
+      multiplier = 1; // Sin recargo
+    }
+    
+    if (installments && !isNaN(installments) && installments > 0) {
       // Obtener el total real del carrito desde el DOM
       const originalTotal = parseFormattedAmount($('#tTotal').text());
       
@@ -1568,12 +1574,20 @@
       const surchargePercent = ((multiplier - 1) * 100).toFixed(1);
       
       $('#cardOriginalTotal').text(fmt(originalTotal));
-      $('#cardSurcharge').text(fmt(surchargeAmount) + ' (' + surchargePercent + '%)');
+      if (surchargeAmount > 0.01) {
+        $('#cardSurcharge').text(fmt(surchargeAmount) + ' (' + surchargePercent + '%)');
+      } else {
+        $('#cardSurcharge').text('Sin recargo');
+      }
       $('#cardNewTotal').text(fmt(newTotal));
       $('#installmentCount').text(installments);
       $('#installmentAmount').text(fmt(installmentAmount));
       $('#installmentInfo').show();
-      $('#cardInfoText').text('Plan seleccionado: ' + installments + ' cuotas con recargo del ' + surchargePercent + '%');
+      if (surchargeAmount > 0.01) {
+        $('#cardInfoText').text('Plan seleccionado: ' + installments + ' cuotas con recargo del ' + surchargePercent + '%');
+      } else {
+        $('#cardInfoText').text('Plan seleccionado: ' + installments + ' cuotas sin recargo');
+      }
     } else {
       $('#installmentInfo').hide();
       $('#cardInfoText').text('Seleccione un plan de cuotas');

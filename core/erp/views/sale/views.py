@@ -2902,7 +2902,7 @@ class CardPlanImportView(LoginRequiredMixin, View):
                 installments = int(row.get('installments') or 0)
                 multiplier = float(row.get('multiplier') or 0)
 
-                if not name or installments <= 0 or multiplier <= 0:
+                if not name or installments <= 0 or multiplier < 0:
                     errors.append(f'Fila {i}: datos incompletos o inválidos')
                     continue
 
