@@ -13,6 +13,8 @@ try:
 except Exception:
     HTML = CSS = None
 import os
+import csv
+import io
 from core.erp.forms import SaleForm
 from django.views.generic import CreateView, ListView, DeleteView, UpdateView, TemplateView, View
 from django.views.decorators.csrf import csrf_exempt
@@ -2835,3 +2837,106 @@ class CardPlanDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin, De
         context['entity'] = 'Plan de Cuotas'
         context['list_url'] = self.success_url
         return context
+
+
+class CardPlanExportView(LoginRequiredMixin, View):
+    def get(self, request):
+        active_cid = get_active_company_id(request)
+        qs = CardInstallmentPlan.objects.all().order_by('name', 'installments')
+        if active_cid:
+            qs = qs.filter(company_id=active_cid)
+
+        response = HttpResponse(content_type='text/csv; charset=utf-8')
+        response['Content-Disposition'] = 'attachment; filename="planes_cuotas.csv"'
+
+        writer = csv.writer(response)
+        writer.writerow(['card_brand', 'name', 'installments', 'multiplier', 'afip_code', 'is_active'])
+
+        for plan in qs:
+            writer.writerow([
+                plan.card_brand,
+                plan.name,
+                plan.installments,
+                str(plan.multiplier),
+                plan.afip_code or '',
+                '1' if plan.is_active else '0',
+            ])
+
+        return response
+
+
+class CardPlanImportView(LoginRequiredMixin, View):
+    def post(self, request):
+        csv_file = request.FILES.get('csv_file')
+        if not csv_file:
+            return JsonResponse({'success': False, 'error': 'No se envió ningún archivo'})
+
+        if not csv_file.name.endswith('.csv'):
+            return JsonResponse({'success': False, 'error': 'El archivo debe ser CSV'})
+
+        try:
+            decoded = csv_file.read().decode('utf-8-sig')
+        except UnicodeDecodeError:
+            try:
+                decoded = csv_file.read().decode('latin-1')
+            except Exception:
+                return JsonResponse({'success': False, 'error': 'No se pudo decodificar el archivo'})
+
+        reader = csv.DictReader(io.StringIO(decoded))
+        active_cid = get_active_company_id(request)
+
+        created = 0
+        updated = 0
+        errors = []
+
+        valid_brands = [c[0] for c in CardInstallmentPlan.CARD_BRAND_CHOICES]
+
+        for i, row in enumerate(reader, start=2):
+            try:
+                card_brand = (row.get('card_brand') or 'visa').strip().lower()
+                if card_brand not in valid_brands:
+                    errors.append(f'Fila {i}: marca "{card_brand}" no válida. Válidas: {", ".join(valid_brands)}')
+                    continue
+
+                name = (row.get('name') or '').strip()
+                installments = int(row.get('installments') or 0)
+                multiplier = float(row.get('multiplier') or 0)
+
+                if not name or installments <= 0 or multiplier <= 0:
+                    errors.append(f'Fila {i}: datos incompletos o inválidos')
+                    continue
+
+                afip_code = row.get('afip_code', '').strip()
+                afip_code = int(afip_code) if afip_code else None
+
+                is_active = (row.get('is_active') or '1').strip() in ('1', 'true', 'True', 'si', 'yes')
+
+                obj, created_flag = CardInstallmentPlan.objects.update_or_create(
+                    name=name,
+                    installments=installments,
+                    card_brand=card_brand,
+                    defaults={
+                        'multiplier': multiplier,
+                        'afip_code': afip_code,
+                        'is_active': is_active,
+                        'company_id': active_cid,
+                    }
+                )
+                if created_flag:
+                    created += 1
+                else:
+                    updated += 1
+            except Exception as e:
+                errors.append(f'Fila {i}: {str(e)}')
+
+        msg = f'{created} creados, {updated} actualizados'
+        if errors:
+            msg += f', {len(errors)} errores'
+
+        return JsonResponse({
+            'success': True,
+            'message': msg,
+            'created': created,
+            'updated': updated,
+            'errors': errors,
+        })

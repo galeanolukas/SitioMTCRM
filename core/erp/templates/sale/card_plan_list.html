@@ -8,6 +8,8 @@
 {% block buttons_list %}
   <a href="{% url 'erp:card_plan_create' %}" class="btn btn-primary btn-flat"><i class="fas fa-plus"></i> Nuevo plan</a>
   <a href="{% url 'erp:card_plan_list' %}" class="btn btn-success btn-flat"><i class="fas fa-sync"></i> Actualizar</a>
+  <a href="{% url 'erp:card_plan_export' %}" class="btn btn-info btn-flat"><i class="fas fa-file-export"></i> Exportar CSV</a>
+  <button type="button" class="btn btn-warning btn-flat" data-bs-toggle="modal" data-bs-target="#importModal"><i class="fas fa-file-import"></i> Importar CSV</button>
 {% endblock %}
 
 {% block columns %}
@@ -57,6 +59,86 @@
 
 {% block javascript %}
   <script>
-    // Scripts adicionales si son necesarios
+    document.addEventListener('DOMContentLoaded', function() {
+      const importForm = document.getElementById('importForm');
+      if (importForm) {
+        importForm.addEventListener('submit', function(e) {
+          e.preventDefault();
+          const formData = new FormData(importForm);
+          const btn = document.getElementById('btnImportCsv');
+          const btnText = btn.innerHTML;
+          btn.disabled = true;
+          btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importando...';
+          const resultDiv = document.getElementById('importResult');
+          resultDiv.innerHTML = '';
+          resultDiv.style.display = 'none';
+
+          fetch('{% url "erp:card_plan_import" %}', {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value }
+          })
+          .then(r => r.json())
+          .then(data => {
+            if (data.success) {
+              resultDiv.className = 'alert alert-success small';
+              resultDiv.innerHTML = '<i class="fas fa-check-circle"></i> ' + data.message;
+              if (data.errors && data.errors.length > 0) {
+                resultDiv.innerHTML += '<hr><ul class="mb-0">';
+                data.errors.forEach(err => { resultDiv.innerHTML += '<li>' + err + '</li>'; });
+                resultDiv.innerHTML += '</ul>';
+              }
+              resultDiv.style.display = 'block';
+              setTimeout(() => { window.location.reload(); }, 2000);
+            } else {
+              resultDiv.className = 'alert alert-danger small';
+              resultDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> ' + (data.error || 'Error al importar');
+              resultDiv.style.display = 'block';
+            }
+          })
+          .catch(err => {
+            resultDiv.className = 'alert alert-danger small';
+            resultDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> Error de conexión';
+            resultDiv.style.display = 'block';
+          })
+          .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = btnText;
+          });
+        });
+      }
+    });
   </script>
 {% endblock %}
+
+<!-- Modal Importar CSV -->
+<div class="modal fade" id="importModal" tabindex="-1" aria-labelledby="importModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="importModalLabel"><i class="fas fa-file-import"></i> Importar Planes de Cuotas</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-info small">
+          <i class="fas fa-info-circle"></i> El archivo CSV debe tener las siguientes columnas:
+          <br><strong>card_brand, name, installments, multiplier, afip_code, is_active</strong>
+          <br>Marcas válidas: <strong>visa, mastercard, amex, maestro</strong>
+          <br>Si un plan con el mismo nombre+cuotas+marca ya existe, se actualizará.
+        </div>
+        <form id="importForm" enctype="multipart/form-data">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label for="csvFile" class="form-label">Archivo CSV</label>
+            <input type="file" class="form-control" id="csvFile" name="csv_file" accept=".csv" required>
+          </div>
+          <div id="importResult" style="display: none;"></div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" form="importForm" class="btn btn-primary" id="btnImportCsv"><i class="fas fa-upload"></i> Importar</button>
+      </div>
+    </div>
+  </div>
+</div>
