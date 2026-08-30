@@ -1,13 +1,15 @@
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView, DetailView
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
+from django.contrib.auth.decorators import login_required
 from django.urls import reverse_lazy
 from django.db import transaction
 from django.contrib import messages
-from django.http import JsonResponse
-from django.shortcuts import get_object_or_404
-from core.erp.models import Remito, DetalleRemito, Product, Supplier
+from django.http import JsonResponse, HttpResponse
+from django.shortcuts import get_object_or_404, render
+from core.erp.models import Remito, DetalleRemito, Product, Supplier, FacturaProveedor, CONDICION_IVA_CHOICES
 from core.erp.forms import RemitoForm
 from core.erp.mixins import get_active_company_id
+from decimal import Decimal
 import json
 import logging
 
@@ -170,9 +172,9 @@ class RemitoDeleteView(LoginRequiredMixin, PermissionRequiredMixin, DeleteView):
 
     def delete(self, request, *args, **kwargs):
         remito = self.get_object()
-        if remito.estado == 'processed':
-            messages.error(request, 'No se puede eliminar un remito procesado.')
-            return JsonResponse({'error': 'No se puede eliminar un remito procesado'}, status=400)
+        if remito.estado in ('processed', 'facturado'):
+            messages.error(request, 'No se puede eliminar un remito procesado o facturado.')
+            return JsonResponse({'error': 'No se puede eliminar un remito procesado o facturado'}, status=400)
         messages.success(request, 'Remito eliminado exitosamente.')
         return super().delete(request, *args, **kwargs)
 
@@ -188,12 +190,12 @@ def procesar_remito(request, pk):
 
     remito = get_object_or_404(Remito, pk=pk)
 
-    if remito.estado != 'pending':
+    if remito.estado not in ('pending',):
         logger.warning("remito_process_invalid_state", extra={
             'remito_id': pk,
             'current_state': remito.estado
         })
-        return JsonResponse({'error': 'El remito ya fue procesado'}, status=400)
+        return JsonResponse({'error': f'El remito está {remito.get_estado_display()}, no se puede procesar'}, status=400)
 
     try:
         with transaction.atomic():
@@ -255,8 +257,8 @@ def anular_remito(request, pk):
 
     try:
         with transaction.atomic():
-            # Solo revertir stock si estaba procesado
-            if remito.estado == 'processed':
+            # Solo revertir stock si estaba procesado o facturado
+            if remito.estado in ('processed', 'facturado'):
                 for detalle in remito.detalleremito_set.all():
                     # Usar select_for_update para evitar race conditions
                     producto = Product.objects.select_for_update().get(pk=detalle.prod_id)
@@ -347,3 +349,127 @@ def eliminar_detalle_remito(request, detalle_id):
         return JsonResponse({'error': 'Detalle no encontrado'}, status=404)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+def facturar_remito(request, pk):
+    """Facturar un remito procesado: crear FacturaProveedor, ajustar cost_price, marcar remito como facturado"""
+    if not request.user.has_perm('erp.manage_remitos'):
+        return JsonResponse({'error': 'No tiene permisos'}, status=403)
+
+    remito = get_object_or_404(Remito, pk=pk)
+
+    if remito.estado != 'processed':
+        return JsonResponse({'error': f'El remito debe estar procesado para facturarlo (estado actual: {remito.get_estado_display()})'}, status=400)
+
+    if remito.tipo != 'entrada':
+        return JsonResponse({'error': 'Solo se pueden facturar remitos de entrada'}, status=400)
+
+    detalles = remito.detalleremito_set.select_related('prod').all()
+    neto_remito = sum(d.subtotal for d in detalles)
+
+    if request.method == 'POST':
+        try:
+            with transaction.atomic():
+                tipo_comprobante = int(request.POST.get('tipo_comprobante', 6))
+                punto_venta = int(request.POST.get('punto_venta', 0))
+                numero_comprobante = int(request.POST.get('numero_comprobante', 0))
+                fecha = request.POST.get('fecha')
+                cuit_proveedor = request.POST.get('cuit_proveedor', '').strip()
+                condicion_iva = request.POST.get('condicion_iva', 'RI').strip()
+                neto_gravado = Decimal(request.POST.get('neto_gravado', '0') or '0')
+                neto_no_gravado = Decimal(request.POST.get('neto_no_gravado', '0') or '0')
+                neto_exento = Decimal(request.POST.get('neto_exento', '0') or '0')
+                iva_21 = Decimal(request.POST.get('iva_21', '0') or '0')
+                iva_10_5 = Decimal(request.POST.get('iva_10_5', '0') or '0')
+                iva_27 = Decimal(request.POST.get('iva_27', '0') or '0')
+                iva_2_5 = Decimal(request.POST.get('iva_2_5', '0') or '0')
+                iva_0 = Decimal(request.POST.get('iva_0', '0') or '0')
+                impuesto_interno = Decimal(request.POST.get('impuesto_interno', '0') or '0')
+                total = Decimal(request.POST.get('total', '0') or '0')
+                cae = request.POST.get('cae', '').strip() or None
+                cae_vto = request.POST.get('cae_vto') or None
+
+                if not punto_venta or not numero_comprobante or not fecha:
+                    return JsonResponse({'error': 'Faltan datos obligatorios (punto de venta, número, fecha)'}, status=400)
+
+                # Crear la factura
+                factura = FacturaProveedor.objects.create(
+                    company_id=remito.company_id,
+                    supplier=remito.supplier,
+                    fecha=fecha,
+                    tipo_comprobante=tipo_comprobante,
+                    punto_venta=punto_venta,
+                    numero_comprobante=numero_comprobante,
+                    cuit_proveedor=cuit_proveedor,
+                    condicion_iva=condicion_iva,
+                    neto_gravado=neto_gravado,
+                    neto_no_gravado=neto_no_gravado,
+                    neto_exento=neto_exento,
+                    iva_21=iva_21,
+                    iva_10_5=iva_10_5,
+                    iva_27=iva_27,
+                    iva_2_5=iva_2_5,
+                    iva_0=iva_0,
+                    impuesto_interno=impuesto_interno,
+                    total=total,
+                    cae=cae,
+                    cae_vto=cae_vto,
+                    remito=remito,
+                )
+
+                # Ajustar cost_price de los productos si el neto de la factura difiere del remito
+                # Distribuir el neto_gravado proporcionalmente entre los productos del remito
+                ajustes = []
+                if neto_gravado > 0 and neto_remito > 0 and neto_gravado != neto_remito:
+                    factor = neto_gravado / neto_remito
+                    for detalle in detalles:
+                        if detalle.prod:
+                            nuevo_costo = (detalle.precio_unitario * factor).quantize(Decimal('0.01'))
+                            costo_anterior = detalle.prod.cost_price or Decimal('0')
+                            if nuevo_costo != costo_anterior:
+                                detalle.prod.cost_price = nuevo_costo
+                                detalle.prod.save()
+                                ajustes.append({
+                                    'producto': detalle.prod.name,
+                                    'costo_anterior': str(costo_anterior),
+                                    'costo_nuevo': str(nuevo_costo),
+                                })
+
+                # Marcar remito como facturado
+                remito.estado = 'facturado'
+                remito.save()
+
+                logger.info("remito_facturado", extra={
+                    'remito_id': pk,
+                    'factura_id': factura.id,
+                    'user': request.user.username,
+                    'ajustes_costo': len(ajustes),
+                })
+
+                return JsonResponse({
+                    'success': True,
+                    'factura_id': factura.id,
+                    'ajustes': ajustes,
+                    'message': f'Remito facturado correctamente. {len(ajustes)} producto(s) con costo ajustado.' if ajustes else 'Remito facturado correctamente.',
+                })
+        except Exception as e:
+            logger.error("remito_facturar_error", extra={
+                'remito_id': pk,
+                'user': request.user.username,
+                'error': str(e)
+            })
+            return JsonResponse({'error': str(e)}, status=500)
+
+    # GET: mostrar formulario con datos pre-cargados
+    context = {
+        'title': f'Facturar Remito {remito.numero}',
+        'entity': 'Remito',
+        'remito': remito,
+        'detalles': detalles,
+        'neto_remito': neto_remito,
+        'list_url': reverse_lazy('erp:remito_list'),
+        'tipo_choices': FacturaProveedor.TIPO_COMPROBANTE_CHOICES,
+        'condicion_iva_choices': CONDICION_IVA_CHOICES,
+    }
+    return render(request, 'remito/facturar.html', context)

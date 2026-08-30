@@ -2087,6 +2087,7 @@ class FacturaProveedor(models.Model):
     cae = models.CharField(max_length=14, blank=True, null=True, verbose_name='CAE')
     cae_vto = models.DateField(blank=True, null=True, verbose_name='Vencimiento CAE')
     remito_entrada = models.ForeignKey('RemitoEntrada', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Remito de Entrada Relacionado')
+    remito = models.ForeignKey('Remito', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Remito Relacionado')
     observaciones = models.TextField(blank=True, null=True, verbose_name='Observaciones')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de creación')
 
@@ -2497,6 +2498,7 @@ class Remito(models.Model):
     ESTADO_CHOICES = [
         ('pending', 'Pendiente'),
         ('processed', 'Procesado'),
+        ('facturado', 'Facturado'),
         ('cancelled', 'Anulado'),
     ]
     

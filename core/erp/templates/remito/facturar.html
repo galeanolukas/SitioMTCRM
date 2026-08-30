@@ -1,0 +1,294 @@
+{% extends 'base/form.html' %}
+{% load static %}
+
+{% block content %}
+<div class="card card-info">
+  <div class="card-header">
+    <h3 class="card-title">
+      <i class="fas fa-file-invoice-dollar"></i>
+      {{ title }}
+    </h3>
+    <div class="card-tools">
+      <a href="{% url 'erp:remito_detail' remito.id %}" class="btn btn-sm btn-secondary btn-flat">
+        <i class="fas fa-arrow-left"></i> Volver
+      </a>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="alert alert-info">
+      <i class="fas fa-info-circle"></i>
+      <strong>Circuito Remito → Factura:</strong> El stock ya fue ingresado al procesar el remito.
+      Al facturar se registran los datos financieros (IVA, totales) y se ajusta el costo de los productos
+      si el neto de la factura difiere del remito.
+    </div>
+
+    <div class="row mb-3">
+      <div class="col-md-6">
+        <table class="table table-sm">
+          <tr><th style="width:40%;">Remito:</th><td>{{ remito.numero }}</td></tr>
+          <tr><th>Proveedor:</th><td>{{ remito.supplier.name|default:"-" }}</td></tr>
+          <tr><th>Fecha remito:</th><td>{{ remito.fecha|date:"d/m/Y" }}</td></tr>
+        </table>
+      </div>
+      <div class="col-md-6">
+        <table class="table table-sm">
+          <tr><th style="width:40%;">Neto del remito:</th><td>${{ neto_remito|floatformat:2 }}</td></tr>
+          <tr><th>Cantidad de items:</th><td>{{ detalles|length }}</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <hr>
+    <h5>Productos del remito</h5>
+    <div class="table-responsive mb-3">
+      <table class="table table-bordered table-sm">
+        <thead>
+          <tr>
+            <th>Producto</th>
+            <th>Cantidad</th>
+            <th>Precio Unitario</th>
+            <th>Subtotal</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for d in detalles %}
+          <tr>
+            <td>{{ d.prod.name }}</td>
+            <td>{{ d.cantidad|floatformat:3 }}</td>
+            <td>${{ d.precio_unitario|floatformat:2 }}</td>
+            <td>${{ d.subtotal|floatformat:2 }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <th colspan="3" class="text-end">Neto remito:</th>
+            <th>${{ neto_remito|floatformat:2 }}</th>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <hr>
+    <h5>Datos de la Factura</h5>
+    <form id="formFactura" onsubmit="return false;">
+      <div class="row">
+        <div class="col-md-3">
+          <div class="form-group mb-2">
+            <label>Tipo Comprobante</label>
+            <select id="tipoComprobante" class="form-select">
+              {% for val, label in tipo_choices %}
+              <option value="{{ val }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="col-md-2">
+          <div class="form-group mb-2">
+            <label>Punto de Venta</label>
+            <input type="number" id="puntoVenta" class="form-control" placeholder="0001" min="0" value="{{ remito.supplier.pos|default:'1' }}">
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="form-group mb-2">
+            <label>Número de Comprobante</label>
+            <input type="number" id="numeroComprobante" class="form-control" placeholder="00000001" min="1" required>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="form-group mb-2">
+            <label>Fecha Factura</label>
+            <input type="date" id="fechaFactura" class="form-control" value="{{ remito.fecha|date:'Y-m-d' }}" required>
+          </div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-md-4">
+          <div class="form-group mb-2">
+            <label>CUIT Proveedor</label>
+            <input type="text" id="cuitProveedor" class="form-control" value="{{ remito.supplier.cuit|default:'' }}">
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="form-group mb-2">
+            <label>Condición IVA</label>
+            <select id="condicionIva" class="form-select">
+              {% for val, label in condicion_iva_choices %}
+              <option value="{{ val }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-md-3">
+          <div class="form-group mb-2">
+            <label>Neto Gravado</label>
+            <input type="number" id="netoGravado" class="form-control" step="0.01" min="0" value="{{ neto_remito|floatformat:2|cut:',' }}" oninput="calcularTotal()">
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="form-group mb-2">
+            <label>Neto No Gravado</label>
+            <input type="number" id="netoNoGravado" class="form-control" step="0.01" min="0" value="0" oninput="calcularTotal()">
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="form-group mb-2">
+            <label>Neto Exento</label>
+            <input type="number" id="netoExento" class="form-control" step="0.01" min="0" value="0" oninput="calcularTotal()">
+          </div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-md-3">
+          <div class="form-group mb-2">
+            <label>IVA 21%</label>
+            <input type="number" id="iva21" class="form-control" step="0.01" min="0" value="0" oninput="calcularTotal()">
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="form-group mb-2">
+            <label>IVA 10.5%</label>
+            <input type="number" id="iva105" class="form-control" step="0.01" min="0" value="0" oninput="calcularTotal()">
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="form-group mb-2">
+            <label>IVA 27%</label>
+            <input type="number" id="iva27" class="form-control" step="0.01" min="0" value="0" oninput="calcularTotal()">
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="form-group mb-2">
+            <label>IVA 2.5%</label>
+            <input type="number" id="iva25" class="form-control" step="0.01" min="0" value="0" oninput="calcularTotal()">
+          </div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-md-3">
+          <div class="form-group mb-2">
+            <label>Impuesto Interno</label>
+            <input type="number" id="impuestoInterno" class="form-control" step="0.01" min="0" value="0" oninput="calcularTotal()">
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="form-group mb-2">
+            <label>CAE</label>
+            <input type="text" id="cae" class="form-control" maxlength="14">
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="form-group mb-2">
+            <label>Vencimiento CAE</label>
+            <input type="date" id="caeVto" class="form-control">
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="form-group mb-2">
+            <label><strong>Total Factura</strong></label>
+            <input type="number" id="totalFactura" class="form-control fw-bold" step="0.01" min="0" value="0" readonly>
+          </div>
+        </div>
+      </div>
+    </form>
+
+    <div id="resultadoBlock" class="mt-3" style="display:none;"></div>
+  </div>
+  <div class="card-footer">
+    <button type="button" onclick="guardarFactura()" class="btn btn-info btn-flat">
+      <i class="fas fa-file-invoice-dollar"></i> Facturar Remito
+    </button>
+    <a href="{% url 'erp:remito_detail' remito.id %}" class="btn btn-danger btn-flat">
+      <i class="fas fa-times"></i> Cancelar
+    </a>
+  </div>
+</div>
+
+<script>
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+
+function num(id) {
+  const el = document.getElementById(id);
+  return parseFloat(el.value) || 0;
+}
+
+function calcularTotal() {
+  const total = num('netoGravado') + num('netoNoGravado') + num('netoExento')
+    + num('iva21') + num('iva105') + num('iva27') + num('iva25')
+    + num('impuestoInterno');
+  document.getElementById('totalFactura').value = total.toFixed(2);
+}
+
+function guardarFactura() {
+  const numero = document.getElementById('numeroComprobante').value;
+  if (!numero) {
+    alert('Ingrese el número de comprobante');
+    return;
+  }
+
+  const data = new FormData();
+  data.append('tipo_comprobante', document.getElementById('tipoComprobante').value);
+  data.append('punto_venta', document.getElementById('puntoVenta').value);
+  data.append('numero_comprobante', numero);
+  data.append('fecha', document.getElementById('fechaFactura').value);
+  data.append('cuit_proveedor', document.getElementById('cuitProveedor').value);
+  data.append('condicion_iva', document.getElementById('condicionIva').value);
+  data.append('neto_gravado', document.getElementById('netoGravado').value || '0');
+  data.append('neto_no_gravado', document.getElementById('netoNoGravado').value || '0');
+  data.append('neto_exento', document.getElementById('netoExento').value || '0');
+  data.append('iva_21', document.getElementById('iva21').value || '0');
+  data.append('iva_10_5', document.getElementById('iva105').value || '0');
+  data.append('iva_27', document.getElementById('iva27').value || '0');
+  data.append('iva_2_5', document.getElementById('iva25').value || '0');
+  data.append('iva_0', '0');
+  data.append('impuesto_interno', document.getElementById('impuestoInterno').value || '0');
+  data.append('total', document.getElementById('totalFactura').value || '0');
+  data.append('cae', document.getElementById('cae').value);
+  data.append('cae_vto', document.getElementById('caeVto').value);
+
+  fetch('{% url "erp:remito_facturar" remito.id %}', {
+    method: 'POST',
+    headers: { 'X-CSRFToken': getCookie('csrftoken') },
+    body: data
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      let html = '<div class="alert alert-success"><i class="fas fa-check-circle"></i> ' + data.message + '</div>';
+      if (data.ajustes && data.ajustes.length > 0) {
+        html += '<div class="alert alert-warning"><strong>Ajustes de costo:</strong><ul class="mb-0">';
+        data.ajustes.forEach(a => {
+          html += '<li>' + a.producto + ': $' + a.costo_anterior + ' → $' + a.costo_nuevo + '</li>';
+        });
+        html += '</ul></div>';
+      }
+      html += '<a href="{% url "erp:remito_detail" remito.id %}" class="btn btn-primary btn-flat mt-2"><i class="fas fa-eye"></i> Ver remito</a>';
+      document.getElementById('resultadoBlock').innerHTML = html;
+      document.getElementById('resultadoBlock').style.display = 'block';
+      document.getElementById('formFactura').style.display = 'none';
+      document.querySelector('.card-footer').style.display = 'none';
+    } else {
+      alert('Error: ' + (data.error || 'Error desconocido'));
+    }
+  })
+  .catch(error => alert('Error: ' + error));
+}
+
+calcularTotal();
+</script>
+{% endblock %}

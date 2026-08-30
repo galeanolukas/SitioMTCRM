@@ -44,6 +44,7 @@ from core.erp.views.remito.views import (
     anular_remito,
     agregar_detalle_remito,
     eliminar_detalle_remito,
+    facturar_remito,
 )
 
 # Importar vistas de reportes
@@ -179,6 +180,7 @@ urlpatterns = [
     path('remito/anular/<int:pk>/', anular_remito, name='remito_anular'),
     path('remito/agregar-detalle/', agregar_detalle_remito, name='remito_agregar_detalle'),
     path('remito/eliminar-detalle/<int:detalle_id>/', eliminar_detalle_remito, name='remito_eliminar_detalle'),
+    path('remito/facturar/<int:pk>/', facturar_remito, name='remito_facturar'),
     # company
     path('company/', CompanyUpdateView.as_view(), name='company'),
     path('company/list/', CompanyView.as_view(), name='company_list'),

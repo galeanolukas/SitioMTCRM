@@ -20,6 +20,15 @@
           <i class="fas fa-trash"></i> Eliminar
         </a>
         {% elif object.estado == 'processed' %}
+        {% if object.tipo == 'entrada' %}
+        <a href="{% url 'erp:remito_facturar' object.id %}" class="btn btn-sm btn-info btn-flat">
+          <i class="fas fa-file-invoice-dollar"></i> Facturar
+        </a>
+        {% endif %}
+        <button onclick="anularRemito({{ object.id }})" class="btn btn-sm btn-danger btn-flat">
+          <i class="fas fa-undo"></i> Anular
+        </button>
+        {% elif object.estado == 'facturado' %}
         <button onclick="anularRemito({{ object.id }})" class="btn btn-sm btn-danger btn-flat">
           <i class="fas fa-undo"></i> Anular
         </button>
@@ -63,6 +72,8 @@
                     <span class="badge bg-warning">Pendiente</span>
                   {% elif object.estado == 'processed' %}
                     <span class="badge bg-success">Procesado</span>
+                  {% elif object.estado == 'facturado' %}
+                    <span class="badge bg-info">Facturado</span>
                   {% elif object.estado == 'cancelled' %}
                     <span class="badge bg-danger">Anulado</span>
                   {% endif %}
