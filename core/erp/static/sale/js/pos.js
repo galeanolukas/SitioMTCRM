@@ -2315,4 +2315,73 @@
   // Inicializar
   recalc();
   $input.focus();
+
+  // === Atajos de teclado: Doble Enter = Confirmar, Esc = Cerrar ===
+
+  // Mapa de modales a su botón primario de confirmación
+  const modalConfirmButtons = {
+    'genericProductModal': 'btnGenericProductSave',
+    'saleModeModal': 'btnModeInvoice',
+    'printTicketModal': 'btnPrintTicket',
+    'combinedPaymentModal': 'btnCombinedPaymentStep2',
+    'combinedPaymentStep2Modal': 'btnCombinedPaymentConfirm',
+    'employeeAccountModal': 'btnConfirmEmployeeAccount',
+    'addEmployeeModal': 'btnSaveEmployee',
+    'cardPaymentModal': 'btnConfirmCardPayment',
+  };
+
+  let lastEnterTime = 0;
+  const DOUBLE_ENTER_DELAY = 400; // ms entre enters
+
+  $(document).on('keydown', function(e) {
+    // === Esc: cerrar modal visible ===
+    if (e.key === 'Escape') {
+      for (const [modalId, _] of Object.entries(modalConfirmButtons)) {
+        const modalEl = document.getElementById(modalId);
+        if (modalEl && modalEl.classList.contains('show')) {
+          e.preventDefault();
+          const modal = bootstrap.Modal.getInstance(modalEl);
+          if (modal) modal.hide();
+          return;
+        }
+      }
+      return;
+    }
+
+    // === Doble Enter: confirmar ===
+    if (e.key === 'Enter') {
+      const now = Date.now();
+      const isDouble = (now - lastEnterTime) < DOUBLE_ENTER_DELAY;
+      lastEnterTime = now;
+
+      if (!isDouble) return;
+
+      // Reset para que no se dispare nuevamente
+      lastEnterTime = 0;
+
+      // Si hay un modal visible, clickear su botón de confirmación
+      for (const [modalId, btnId] of Object.entries(modalConfirmButtons)) {
+        const modalEl = document.getElementById(modalId);
+        if (modalEl && modalEl.classList.contains('show')) {
+          e.preventDefault();
+          const btn = document.getElementById(btnId);
+          if (btn && !btn.disabled) {
+            btn.click();
+          }
+          return;
+        }
+      }
+
+      // Si no hay modal visible, clickear el botón principal de venta
+      const btnCheckout = document.getElementById('btnCheckout');
+      const btnBudget = document.getElementById('btnCreateBudget');
+      if (btnCheckout && !btnCheckout.disabled) {
+        e.preventDefault();
+        btnCheckout.click();
+      } else if (btnBudget && !btnBudget.disabled) {
+        e.preventDefault();
+        btnBudget.click();
+      }
+    }
+  });
 })();
