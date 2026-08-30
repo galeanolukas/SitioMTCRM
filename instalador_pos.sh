@@ -180,7 +180,62 @@ if [ $? -ne 0 ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# 4) Crear / actualizar .env con credenciales de la APP (no del superusuario)
+# 4) Configuración de base de datos remota (opcional)
+# ---------------------------------------------------------------------------
+REMOTE_DB_NAME=""
+REMOTE_DB_USER=""
+REMOTE_DB_PASSWORD=""
+REMOTE_DB_HOST="erp.multiliderestech.online"
+REMOTE_DB_PORT="5432"
+REMOTE_DB_SSLMODE="require"
+
+# Leer .env.server si existe para usar valores por defecto
+if [ -f ".env.server" ]; then
+    echo "Leyendo configuración remota de .env.server..."
+    while IFS='=' read -r key value; do
+        key=$(echo "$key" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        value=$(echo "$value" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        case "$key" in
+            REMOTE_DB_NAME) REMOTE_DB_NAME="$value" ;;
+            REMOTE_DB_USER) REMOTE_DB_USER="$value" ;;
+            REMOTE_DB_PASSWORD) REMOTE_DB_PASSWORD="$value" ;;
+            REMOTE_DB_HOST) REMOTE_DB_HOST="$value" ;;
+            REMOTE_DB_PORT) REMOTE_DB_PORT="$value" ;;
+            REMOTE_DB_SSLMODE) REMOTE_DB_SSLMODE="$value" ;;
+        esac
+    done < .env.server
+fi
+
+echo
+echo "------------------------------------------------------------"
+echo "  Configuración de base de datos remota (servidor central)"
+echo "------------------------------------------------------------"
+echo "  Host por defecto: $REMOTE_DB_HOST"
+read -rp "  ¿Desea configurar la conexión remota? (s/n): " config_remote
+if [[ $config_remote =~ ^[Ss]$ ]]; then
+    read -rp "  Host remoto [$REMOTE_DB_HOST]: " input
+    REMOTE_DB_HOST="${input:-$REMOTE_DB_HOST}"
+    read -rp "  Puerto remoto [$REMOTE_DB_PORT]: " input
+    REMOTE_DB_PORT="${input:-$REMOTE_DB_PORT}"
+    read -rp "  Nombre de la BD remota [$REMOTE_DB_NAME]: " input
+    REMOTE_DB_NAME="${input:-$REMOTE_DB_NAME}"
+    read -rp "  Usuario remoto [$REMOTE_DB_USER]: " input
+    REMOTE_DB_USER="${input:-$REMOTE_DB_USER}"
+    read -rsp "  Contraseña remota: " input
+    echo
+    REMOTE_DB_PASSWORD="$input"
+    read -rp "  SSL mode [$REMOTE_DB_SSLMODE]: " input
+    REMOTE_DB_SSLMODE="${input:-$REMOTE_DB_SSLMODE}"
+    echo -e "${GREEN}✓ Configuración remota guardada.${NC}"
+else
+    echo -e "${YELLOW}  Conexión remota no configurada. Se puede agregar luego editando .env${NC}"
+fi
+
+# Exportar para que el heredoc de Python las vea
+export REMOTE_DB_NAME REMOTE_DB_USER REMOTE_DB_PASSWORD REMOTE_DB_HOST REMOTE_DB_PORT REMOTE_DB_SSLMODE
+
+# ---------------------------------------------------------------------------
+# 5) Crear / actualizar .env
 # ---------------------------------------------------------------------------
 echo "Configurando archivo .env..."
 if [ ! -f ".env" ]; then
@@ -197,13 +252,13 @@ DB_PASSWORD=$DEFAULT_DB_PASS
 DB_HOST=$DEFAULT_DB_HOST
 DB_PORT=$DEFAULT_DB_PORT
 
-# Base de datos remota (servidor central) - completar si aplica
-REMOTE_DB_NAME=
-REMOTE_DB_USER=
-REMOTE_DB_PASSWORD=
-REMOTE_DB_HOST=
-REMOTE_DB_PORT=5432
-REMOTE_DB_SSLMODE=require
+# Base de datos remota (servidor central)
+REMOTE_DB_NAME=$REMOTE_DB_NAME
+REMOTE_DB_USER=$REMOTE_DB_USER
+REMOTE_DB_PASSWORD=$REMOTE_DB_PASSWORD
+REMOTE_DB_HOST=$REMOTE_DB_HOST
+REMOTE_DB_PORT=$REMOTE_DB_PORT
+REMOTE_DB_SSLMODE=$REMOTE_DB_SSLMODE
 
 # Configuración sincronización
 POS_SYNC_PRODUCTS_MODE=safe
@@ -233,17 +288,25 @@ def set_var(name, value, content):
         return re.sub(pattern, line, content, flags=re.MULTILINE)
     return content + '\n' + line
 
+# Local
 content = set_var('DB_NAME', 'mtcrm_pos', content)
 content = set_var('DB_USER', 'mtcrm_pos', content)
 content = set_var('DB_PASSWORD', 'mtcrm_pos', content)
 content = set_var('DB_HOST', 'localhost', content)
 content = set_var('DB_PORT', '5432', content)
+
+# Remota (solo si el usuario ingresó valores)
+for k in ['REMOTE_DB_NAME', 'REMOTE_DB_USER', 'REMOTE_DB_PASSWORD', 'REMOTE_DB_HOST', 'REMOTE_DB_PORT', 'REMOTE_DB_SSLMODE']:
+    v = os.environ.get(k)
+    if v is not None and v != '':
+        content = set_var(k, v, content)
+
 with open(env_file, 'w') as f:
     f.write(content)
 PY
 fi
 
-echo -e "${GREEN}✓ Archivo .env configurado para PostgreSQL local.${NC}"
+echo -e "${GREEN}✓ Archivo .env configurado.${NC}"
 
 # ---------------------------------------------------------------------------
 # 5) Crear / verificar entorno virtual

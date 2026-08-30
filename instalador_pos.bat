@@ -78,17 +78,10 @@ if errorlevel 1 (
 REM Crear usuario dedicado y base de datos
 set "SQL_TEMP=%TEMP%\create_mtcrm_db.sql"
 (
-    echo DO $$
-    echo BEGIN
-    echo     IF NOT EXISTS ^(SELECT FROM pg_catalog.pg_roles WHERE rolname = '%DEFAULT_DB_USER%'^) THEN
-    echo         CREATE ROLE %DEFAULT_DB_USER% WITH LOGIN PASSWORD '%DEFAULT_DB_PASS%';
-    echo     ELSE
-    echo         ALTER ROLE %DEFAULT_DB_USER% WITH PASSWORD '%DEFAULT_DB_PASS%';
-    echo     END IF;
-    echo END
-    echo $$;
     echo SELECT pg_terminate_backend^(pid^) FROM pg_stat_activity WHERE datname = '%DEFAULT_DB_NAME%';
     echo DROP DATABASE IF EXISTS %DEFAULT_DB_NAME%;
+    echo DROP ROLE IF EXISTS %DEFAULT_DB_USER%;
+    echo CREATE ROLE %DEFAULT_DB_USER% WITH LOGIN PASSWORD '%DEFAULT_DB_PASS%';
     echo CREATE DATABASE %DEFAULT_DB_NAME% OWNER %DEFAULT_DB_USER%;
     echo GRANT ALL PRIVILEGES ON DATABASE %DEFAULT_DB_NAME% TO %DEFAULT_DB_USER%;
 ) > "%SQL_TEMP%"
@@ -104,7 +97,53 @@ del "%SQL_TEMP%" 2>nul
 echo [OK] Base de datos '%DEFAULT_DB_NAME%' y usuario '%DEFAULT_DB_USER%' creados.
 
 REM ---------------------------------------------------------------------------
-REM 4) Crear / actualizar .env
+REM 4) Configuracion de base de datos remota (opcional)
+REM ---------------------------------------------------------------------------
+set "REMOTE_DB_NAME="
+set "REMOTE_DB_USER="
+set "REMOTE_DB_PASSWORD="
+set "REMOTE_DB_HOST=erp.multiliderestech.online"
+set "REMOTE_DB_PORT=5432"
+set "REMOTE_DB_SSLMODE=require"
+
+REM Leer .env.server si existe
+if exist .env.server (
+    for /f "tokens=1,* delims==" %%a in (.env.server) do (
+        if /I "%%a"=="REMOTE_DB_NAME" set "REMOTE_DB_NAME=%%b"
+        if /I "%%a"=="REMOTE_DB_USER" set "REMOTE_DB_USER=%%b"
+        if /I "%%a"=="REMOTE_DB_PASSWORD" set "REMOTE_DB_PASSWORD=%%b"
+        if /I "%%a"=="REMOTE_DB_HOST" set "REMOTE_DB_HOST=%%b"
+        if /I "%%a"=="REMOTE_DB_PORT" set "REMOTE_DB_PORT=%%b"
+        if /I "%%a"=="REMOTE_DB_SSLMODE" set "REMOTE_DB_SSLMODE=%%b"
+    )
+)
+
+echo.
+echo ------------------------------------------------------------
+echo   Configuracion de base de datos remota (servidor central)
+echo ------------------------------------------------------------
+echo   Host por defecto: %REMOTE_DB_HOST%
+set /p "CONFIG_REMOTE=  Desea configurar la conexion remota? (s/n): "
+if /I "%CONFIG_REMOTE%"=="s" (
+    set /p "INPUT=  Host remoto [%REMOTE_DB_HOST%]: "
+    if not "!INPUT!"=="" set "REMOTE_DB_HOST=!INPUT!"
+    set /p "INPUT=  Puerto remoto [%REMOTE_DB_PORT%]: "
+    if not "!INPUT!"=="" set "REMOTE_DB_PORT=!INPUT!"
+    set /p "INPUT=  Nombre de la BD remota [%REMOTE_DB_NAME%]: "
+    if not "!INPUT!"=="" set "REMOTE_DB_NAME=!INPUT!"
+    set /p "INPUT=  Usuario remoto [%REMOTE_DB_USER%]: "
+    if not "!INPUT!"=="" set "REMOTE_DB_USER=!INPUT!"
+    set /p "INPUT=  Contrasena remota: "
+    if not "!INPUT!"=="" set "REMOTE_DB_PASSWORD=!INPUT!"
+    set /p "INPUT=  SSL mode [%REMOTE_DB_SSLMODE%]: "
+    if not "!INPUT!"=="" set "REMOTE_DB_SSLMODE=!INPUT!"
+    echo [OK] Configuracion remota guardada.
+) else (
+    echo   Conexion remota no configurada. Se puede agregar luego editando .env
+)
+
+REM ---------------------------------------------------------------------------
+REM 5) Crear / actualizar .env
 REM ---------------------------------------------------------------------------
 if not exist .env (
     echo Creando archivo .env con configuracion por defecto...
@@ -121,13 +160,13 @@ if not exist .env (
         echo DB_HOST=%DEFAULT_DB_HOST%
         echo DB_PORT=%DEFAULT_DB_PORT%
         echo.
-        echo # Base de datos remota ^(servidor central^) - completar si aplica
-        echo REMOTE_DB_NAME=
-        echo REMOTE_DB_USER=
-        echo REMOTE_DB_PASSWORD=
-        echo REMOTE_DB_HOST=
-        echo REMOTE_DB_PORT=5432
-        echo REMOTE_DB_SSLMODE=require
+        echo # Base de datos remota ^(servidor central^)
+        echo REMOTE_DB_NAME=%REMOTE_DB_NAME%
+        echo REMOTE_DB_USER=%REMOTE_DB_USER%
+        echo REMOTE_DB_PASSWORD=%REMOTE_DB_PASSWORD%
+        echo REMOTE_DB_HOST=%REMOTE_DB_HOST%
+        echo REMOTE_DB_PORT=%REMOTE_DB_PORT%
+        echo REMOTE_DB_SSLMODE=%REMOTE_DB_SSLMODE%
         echo.
         echo # Configuracion sincronizacion
         echo POS_SYNC_PRODUCTS_MODE=safe
@@ -148,6 +187,14 @@ if not exist .env (
     call :UpdateEnvVar DB_PASSWORD %DEFAULT_DB_PASS%
     call :UpdateEnvVar DB_HOST %DEFAULT_DB_HOST%
     call :UpdateEnvVar DB_PORT %DEFAULT_DB_PORT%
+    if /I "!CONFIG_REMOTE!"=="s" (
+        call :UpdateEnvVar REMOTE_DB_NAME %REMOTE_DB_NAME%
+        call :UpdateEnvVar REMOTE_DB_USER %REMOTE_DB_USER%
+        call :UpdateEnvVar REMOTE_DB_PASSWORD %REMOTE_DB_PASSWORD%
+        call :UpdateEnvVar REMOTE_DB_HOST %REMOTE_DB_HOST%
+        call :UpdateEnvVar REMOTE_DB_PORT %REMOTE_DB_PORT%
+        call :UpdateEnvVar REMOTE_DB_SSLMODE %REMOTE_DB_SSLMODE%
+    )
 )
 echo [OK] Archivo .env configurado.
 
