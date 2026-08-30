@@ -142,6 +142,8 @@ CREATE DATABASE $DB_NAME OWNER $DB_USER;
 GRANT ALL PRIVILEGES ON DATABASE $DB_NAME TO $DB_USER;
 SQL
 
+    chmod 666 "$SQL_FILE"
+
     if [ "$CONN_MODE" = "peer" ]; then
         if sudo -n -u postgres psql -f "$SQL_FILE" >"$PG_ERR_PEER" 2>&1; then
             rm -f "$SQL_FILE" "$PG_ERR_PEER" "$PG_ERR_PWD"
