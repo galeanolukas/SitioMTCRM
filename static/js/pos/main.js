@@ -181,8 +181,10 @@ function clearPos() {
   selectedClient = null;
   updatePosTable();
   updateTotals();
-  document.getElementById('selectedClientName').textContent = 'Anónimo';
-  document.getElementById('selectedClientId').value = '';
+  const elClientName = document.getElementById('selectedClientName');
+  const elClientId = document.getElementById('selectedClientId');
+  if (elClientName) elClientName.textContent = 'Anónimo';
+  if (elClientId) elClientId.value = '';
 }
 
 /**
@@ -193,10 +195,15 @@ function updateTotals() {
   const iva = subtotal * 0.21; // 21% IVA
   const total = subtotal + iva;
   
-  document.getElementById('tItems').textContent = posItems.reduce((sum, item) => sum + item.quantity, 0);
-  document.getElementById('tSubtotal').textContent = formatCurrency(subtotal);
-  document.getElementById('tIva').textContent = formatCurrency(iva);
-  document.getElementById('tTotal').textContent = formatCurrency(total);
+  const elItems = document.getElementById('tItems');
+  const elSubtotal = document.getElementById('tSubtotal');
+  const elIva = document.getElementById('tIva');
+  const elTotal = document.getElementById('tTotal');
+  
+  if (elItems) elItems.textContent = posItems.reduce((sum, item) => sum + item.quantity, 0);
+  if (elSubtotal) elSubtotal.textContent = formatCurrency(subtotal);
+  if (elIva) elIva.textContent = formatCurrency(iva);
+  if (elTotal) elTotal.textContent = formatCurrency(total);
 }
 
 /**
