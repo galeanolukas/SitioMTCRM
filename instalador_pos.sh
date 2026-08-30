@@ -140,11 +140,11 @@ setup_postgres() {
     fi
 
     # 3.4) Ejecutar SQL: crear usuario app y base de datos
-    # Eliminar DB si existe para evitar conflictos, luego crear nueva.
+    # Nota: usamos \$\$ para evitar que bash expanda '$$' al PID.
     local SUPER_SQL
     SUPER_SQL=$(cat << SQL
 DO
-\$do\$
+\$\$do\$\$
 BEGIN
     IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '$DB_USER') THEN
         CREATE ROLE $DB_USER WITH LOGIN PASSWORD '$DB_PASS';
@@ -152,7 +152,7 @@ BEGIN
         ALTER ROLE $DB_USER WITH PASSWORD '$DB_PASS';
     END IF;
 END
-\$do\$;
+\$\$do\$\$;
 
 SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$DB_NAME';
 DROP DATABASE IF EXISTS $DB_NAME;
@@ -161,20 +161,30 @@ GRANT ALL PRIVILEGES ON DATABASE $DB_NAME TO $DB_USER;
 SQL
 )
 
-    if sudo -n -u postgres psql -c "$SUPER_SQL" &> /dev/null; then
+    local PG_ERR
+    PG_ERR=$(mktemp)
+
+    if sudo -n -u postgres psql -c "$SUPER_SQL" >"$PG_ERR" 2>&1; then
+        rm -f "$PG_ERR"
         echo -e "${GREEN}✓ Base de datos '$DB_NAME' y usuario '$DB_USER' creados.${NC}"
         return 0
     fi
 
     export PGPASSWORD="$DEFAULT_POSTGRES_PASS"
-    if psql -U "$PG_USER" -h "$DEFAULT_DB_HOST" -p "$DEFAULT_DB_PORT" -c "$SUPER_SQL" &> /dev/null; then
+    psql -U "$PG_USER" -h "$DEFAULT_DB_HOST" -p "$DEFAULT_DB_PORT" -c "$SUPER_SQL" >"$PG_ERR" 2>&1
+    if [ $? -eq 0 ]; then
         unset PGPASSWORD
+        rm -f "$PG_ERR"
         echo -e "${GREEN}✓ Base de datos '$DB_NAME' y usuario '$DB_USER' creados.${NC}"
         return 0
     fi
     unset PGPASSWORD
 
     echo -e "${RED}[ERROR] No se pudo crear la base de datos o el usuario de la aplicación.${NC}"
+    echo
+    echo "Detalle del error:"
+    cat "$PG_ERR"
+    rm -f "$PG_ERR"
     return 1
 }
 
