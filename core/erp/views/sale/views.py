@@ -2768,7 +2768,7 @@ class CardPlanListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, List
 class CardPlanCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, CompanyInitialMixin, CreateView):
     model = CardInstallmentPlan
     template_name = 'sale/card_plan_form.html'
-    fields = ['company', 'name', 'installments', 'multiplier', 'afip_code', 'is_active']
+    fields = ['company', 'card_brand', 'name', 'installments', 'multiplier', 'afip_code', 'is_active']
     success_url = reverse_lazy('erp:card_plan_list')
     permission_required = 'erp.add_cardinstallmentplan'
 
@@ -2799,7 +2799,7 @@ class CardPlanCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Co
 class CardPlanUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, UpdateView):
     model = CardInstallmentPlan
     template_name = 'sale/card_plan_form.html'
-    fields = ['company', 'name', 'installments', 'multiplier', 'afip_code', 'is_active']
+    fields = ['company', 'card_brand', 'name', 'installments', 'multiplier', 'afip_code', 'is_active']
     success_url = reverse_lazy('erp:card_plan_list')
     permission_required = 'erp.change_cardinstallmentplan'
 

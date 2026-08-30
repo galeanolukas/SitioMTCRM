@@ -609,7 +609,14 @@ class Supplier(models.Model):
 
 class CardInstallmentPlan(models.Model):
     """Planes de cuotas para pagos con tarjeta de crédito"""
+    CARD_BRAND_CHOICES = (
+        ('visa', 'Visa'),
+        ('mastercard', 'Mastercard'),
+        ('amex', 'American Express'),
+        ('maestro', 'Maestro'),
+    )
     company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa', null=True, blank=True)
+    card_brand = models.CharField(max_length=20, choices=CARD_BRAND_CHOICES, default='visa', verbose_name='Marca de tarjeta')
     name = models.CharField(max_length=50, verbose_name='Nombre del plan')
     installments = models.IntegerField(verbose_name='Cantidad de cuotas')
     multiplier = models.DecimalField(max_digits=5, decimal_places=4, verbose_name='Multiplicador (ej: 1.14 para 14% recargo)')
@@ -643,7 +650,7 @@ class Sale(models.Model):
     payment_details = models.JSONField(default=dict, blank=True, verbose_name='Detalles de pago combinado')
     # Campos para pagos con tarjeta
     card_type = models.CharField(max_length=10, choices=[('debit', 'Débito'), ('credit', 'Crédito')], blank=True, null=True, verbose_name='Tipo de tarjeta')
-    card_brand = models.CharField(max_length=20, choices=[('visa', 'Visa'), ('mastercard', 'Mastercard'), ('amex', 'American Express'), ('other', 'Otra')], blank=True, null=True, verbose_name='Marca de tarjeta')
+    card_brand = models.CharField(max_length=20, choices=[('visa', 'Visa'), ('mastercard', 'Mastercard'), ('amex', 'American Express'), ('maestro', 'Maestro'), ('other', 'Otra')], blank=True, null=True, verbose_name='Marca de tarjeta')
     card_installments = models.IntegerField(blank=True, null=True, verbose_name='Cantidad de cuotas')
     card_plan = models.ForeignKey('erp.CardInstallmentPlan', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Plan de cuotas', related_name='sales')
     card_auth_code = models.CharField(max_length=20, blank=True, null=True, verbose_name='Código de autorización (módulo fiscal)')
