@@ -1560,8 +1560,7 @@
     
     if (installments && multiplier && !isNaN(installments) && !isNaN(multiplier)) {
       // Obtener el total real del carrito desde el DOM
-      const totalText = $('#tTotal').text().replace('$', '').replace(/\./g, '').replace(',', '.');
-      const originalTotal = parseFloat(totalText) || 0;
+      const originalTotal = parseFormattedAmount($('#tTotal').text());
       
       const newTotal = originalTotal * multiplier;
       const installmentAmount = newTotal / installments;
