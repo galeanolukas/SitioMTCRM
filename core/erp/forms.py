@@ -82,6 +82,15 @@ class ProductForm(ModelForm):
         if 'supplier' in self.fields:
             self.fields['supplier'].required = False
             self.fields['supplier'].empty_label = '--- Sin proveedor ---'
+            # Filtrar proveedores por empresa (igual que categorías)
+            if self.request and hasattr(self.request, 'user') and not getattr(self.request.user, 'is_superuser', False):
+                active_cid = self.request.session.get('company_id') or getattr(self.request.user, 'company_id', None)
+                if active_cid:
+                    self.fields['supplier'].queryset = Supplier.objects.filter(company_id=active_cid)
+                else:
+                    self.fields['supplier'].queryset = Supplier.objects.none()
+            else:
+                self.fields['supplier'].queryset = Supplier.objects.all()
         
         # Filtrar categorías por empresa
         if 'cat' in self.fields:
@@ -325,13 +334,7 @@ class SupplierForm(ModelForm):
             form.field.widget.attrs["autocomplete"] = "off"
         self.fields['name'].widget.attrs['autofocus'] = True
         
-        # Ocultar campos de sistema
-        if 'is_active' in self.fields:
-            self.fields['is_active'].widget = HiddenInput()
-            self.fields['is_active'].required = False
-        if 'synced_to_server' in self.fields:
-            self.fields['synced_to_server'].widget = HiddenInput()
-            self.fields['synced_to_server'].required = False
+        # is_active y synced_to_server se excluyen del form (usar default del modelo)
             
         if 'company' in self.fields and self.request and hasattr(self.request, 'user') and not getattr(self.request.user, 'is_superuser', False):
             if getattr(self.request.user, 'company_id', None):
@@ -345,7 +348,7 @@ class SupplierForm(ModelForm):
 
     class Meta:
         model = Supplier
-        fields = '__all__'
+        fields = ['company', 'code', 'name', 'cuit', 'address', 'phone', 'email']
         widgets = {
             'name': TextInput(attrs={'placeholder': 'Nombre proveedor'}),
             'cuit': TextInput(attrs={'placeholder': 'CUIT'}),
@@ -356,18 +359,14 @@ class SupplierForm(ModelForm):
 
     def save(self, commit=True):
         data = {}
-        form = super()
         try:
-            if form.is_valid():
-                obj = form.save(commit=False)
-                if self.request and hasattr(self.request, 'user') and not getattr(self.request.user, 'is_superuser', False):
-                    if getattr(self.request.user, 'company_id', None) and not getattr(obj, 'company_id', None):
-                        obj.company_id = self.request.user.company_id
-                if commit:
-                    obj.save()
-                data = obj.toJSON() if hasattr(obj, 'toJSON') else {}
-            else:
-                data['error'] = form.errors
+            obj = super().save(commit=False)
+            if self.request and hasattr(self.request, 'user') and not getattr(self.request.user, 'is_superuser', False):
+                if getattr(self.request.user, 'company_id', None) and not getattr(obj, 'company_id', None):
+                    obj.company_id = self.request.user.company_id
+            if commit:
+                obj.save()
+            data = obj.toJSON() if hasattr(obj, 'toJSON') else {'id': getattr(obj, 'id', None)}
         except Exception as e:
             data['error'] = str(e)
         return data

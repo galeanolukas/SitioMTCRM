@@ -1,0 +1,183 @@
+{% extends 'vtc/body.html' %}
+{% load static %}
+
+{% block head %}
+{{ block.super }}
+<style>
+  .clear-db-container { max-width: 800px; margin: 0 auto; }
+  .warning-box {
+    background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+    border: 2px solid #ef4444;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  .warning-box h5 { color: #991b1b; font-weight: 700; }
+  .warning-box ul { margin-bottom: 0; }
+  .warning-box li { color: #7f1d1d; margin-top: 0.25rem; }
+  .counts-table { font-size: 0.9rem; }
+  .counts-table td { padding: 0.35rem 0.75rem; }
+  .counts-table .count { text-align: right; font-weight: 600; }
+  .confirm-section {
+    background: #f8f9fa;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-top: 1rem;
+  }
+  .btn-clear {
+    background: #dc2626;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 0.75rem 2rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+  }
+  .btn-clear:hover { background: #b91c1c; color: #fff; }
+  .btn-clear:disabled { background: #9ca3af; }
+  .keep-box {
+    background: #d1fae5;
+    border: 1px solid #10b981;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+  }
+  .keep-box h6 { color: #065f46; margin-bottom: 0.5rem; }
+  .keep-box li { color: #047857; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="clear-db-container">
+  <div class="card card-outline card-danger">
+    <div class="card-header bg-danger">
+      <h3 class="card-title text-white">
+        <i class="fas fa-database me-2"></i>Limpiar Base de Datos Local
+      </h3>
+    </div>
+    <div class="card-body">
+
+      <div class="warning-box">
+        <h5><i class="fas fa-exclamation-triangle"></i> ADVERTENCIA: Esta acción es IRREVERSIBLE</h5>
+        <p class="mt-2 mb-1">Se eliminarán <strong>TODOS</strong> los datos locales:</p>
+        <ul>
+          <li>Productos, Categorías, Clientes, Proveedores</li>
+          <li>Ventas, Detalles de Venta, Cajas, Movimientos de Caja</li>
+          <li>Gastos, Transferencias, Remitos</li>
+          <li>Listas de Precios, Planes de Cuotas</li>
+          <li>Registros Fiscales (Libro IVA, Asientos, Cuenta Corriente)</li>
+          <li>Configs AFIP, Catálogo, Mercado Pago, Terminales POS</li>
+          <li>Logs de Sincronización</li>
+        </ul>
+      </div>
+
+      <div class="keep-box">
+        <h6><i class="fas fa-shield-alt"></i> Se CONSERVARÁN:</h6>
+        <ul class="mb-0">
+          <li><strong>Usuarios</strong> (se sincronizan desde el servidor)</li>
+          <li><strong>Empresas</strong> (se sincronizan desde el servidor)</li>
+          <li><strong>Grupos y Permisos</strong></li>
+          <li><strong>Configuración de Sync automática</strong></li>
+        </ul>
+      </div>
+
+      <h6>Registros actuales en DB local:</h6>
+      <table class="table table-sm counts-table">
+        <thead>
+          <tr><th>Tipo de Dato</th><th class="text-end">Cantidad</th></tr>
+        </thead>
+        <tbody>
+          {% for item in counts %}
+          <tr>
+            <td>{{ item.label }}</td>
+            <td class="count">{{ item.count }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr class="table-danger">
+            <td><strong>Total a eliminar</strong></td>
+            <td class="count"><strong>{{ total_records }}</strong></td>
+          </tr>
+        </tfoot>
+      </table>
+
+      <div class="confirm-section">
+        <h6><i class="fas fa-lock"></i> Confirmación de seguridad</h6>
+        <p>Para confirmar, escriba <code><strong>LIMPIAR</strong></code> en el campo siguiente:</p>
+        <div class="input-group mb-3">
+          <span class="input-group-text"><i class="fas fa-key"></i></span>
+          <input type="text" id="confirmKey" class="form-control" placeholder="Escriba LIMPIAR" autocomplete="off">
+        </div>
+        <button id="btnClearDB" class="btn-clear" disabled>
+          <i class="fas fa-trash-alt"></i> Limpiar Base de Datos
+        </button>
+        <a href="{% url 'erp:launcher' %}" class="btn btn-secondary btn-flat ms-2">
+          <i class="fas fa-times"></i> Cancelar
+        </a>
+      </div>
+
+      <div id="resultBox" style="display:none;" class="mt-3"></div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+$(function() {
+  var $input = $('#confirmKey');
+  var $btn = $('#btnClearDB');
+
+  $input.on('input', function() {
+    $btn.prop('disabled', $(this).val() !== 'LIMPIAR');
+  });
+
+  $btn.on('click', function() {
+    if (!confirm('¿Está ABSOLUTAMENTE seguro? Esta acción NO se puede deshacer.')) return;
+    if (!confirm('ÚLTIMA confirmación: Se borrarán TODOS los datos locales. ¿Continuar?')) return;
+
+    var $b = $(this);
+    $b.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Limpiando...');
+
+    $.ajax({
+      url: window.location.pathname,
+      type: 'POST',
+      contentType: 'application/json',
+      data: JSON.stringify({ confirm_key: $input.val() }),
+      headers: { 'X-CSRFToken': getCookie('csrftoken') }
+    }).done(function(resp) {
+      var $box = $('#resultBox');
+      if (resp.success) {
+        $box.html(
+          '<div class="alert alert-success"><i class="fas fa-check-circle"></i> ' + resp.message +
+          '<br><small>Registros eliminados: ' + Object.keys(resp.deleted || {}).length + ' tablas limpiadas.</small></div>'
+        ).show();
+        setTimeout(function() { location.reload(); }, 2000);
+      } else {
+        $box.html('<div class="alert alert-danger"><i class="fas fa-times-circle"></i> ' + (resp.error || 'Error') + '</div>').show();
+      }
+    }).fail(function(xhr) {
+      var err = xhr.responseJSON ? (xhr.responseJSON.error || 'Error') : 'Error de conexión';
+      $('#resultBox').html('<div class="alert alert-danger"><i class="fas fa-times-circle"></i> ' + err + '</div>').show();
+    }).always(function() {
+      $b.prop('disabled', false).html('<i class="fas fa-trash-alt"></i> Limpiar Base de Datos');
+    });
+  });
+
+  function getCookie(name) {
+    var cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      var cookies = document.cookie.split(';');
+      for (var i = 0; i < cookies.length; i++) {
+        var cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+});
+</script>
+{% endblock %}

@@ -9,6 +9,7 @@ from core.erp.views.sync.views import SyncToggleView, SyncStatusView, ProductSyn
 from core.erp.views.tests.views import *
 from core.erp.views.activity_log import ActivityLogView, ActivityLogDashboardView
 from core.erp.views.scanner.views import ScannerMobileView, ScanSubmitView, ScanPollView
+from core.erp.views.clear_db.views import ClearLocalDBView
 from core.erp.api.updates import check_updates_api, refresh_version_info, execute_update_script, version_diagnostics, check_update_status
 from core.erp.api.release import execute_release
 from core.erp.views.dashboard.views import (
@@ -251,4 +252,6 @@ urlpatterns = [
     path('scanner/', ScannerMobileView.as_view(), name='scanner_mobile'),
     path('api/scan/submit/', ScanSubmitView.as_view(), name='scan_submit'),
     path('api/scan/poll/', ScanPollView.as_view(), name='scan_poll'),
+    # Limpiar DB local
+    path('clear-db/', ClearLocalDBView.as_view(), name='clear_local_db'),
 ]
