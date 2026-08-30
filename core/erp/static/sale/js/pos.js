@@ -1558,22 +1558,23 @@
     const installments = parseFloat(selectedOption.data('installments'));
     const multiplier = parseFloat(selectedOption.data('multiplier'));
     
-    console.log('[DEBUG] Plan seleccionado - Installments:', installments, 'Multiplier:', multiplier);
-    
     if (installments && multiplier && !isNaN(installments) && !isNaN(multiplier)) {
-      const subtotal = items.reduce((sum, it) => sum + (it.subtotal || 0), 0);
-      console.log('[DEBUG] Subtotal:', subtotal);
+      // Obtener el total real del carrito desde el DOM
+      const totalText = $('#tTotal').text().replace('$', '').replace(/\./g, '').replace(',', '.');
+      const originalTotal = parseFloat(totalText) || 0;
       
-      const totalWithMultiplier = subtotal * multiplier;
-      const installmentAmount = totalWithMultiplier / installments;
+      const newTotal = originalTotal * multiplier;
+      const installmentAmount = newTotal / installments;
+      const surchargeAmount = newTotal - originalTotal;
       const surchargePercent = ((multiplier - 1) * 100).toFixed(1);
       
-      console.log('[DEBUG] Total con recargo:', totalWithMultiplier, 'Recargo:', surchargePercent + '%');
-      
+      $('#cardOriginalTotal').text(fmt(originalTotal));
+      $('#cardSurcharge').text(fmt(surchargeAmount) + ' (' + surchargePercent + '%)');
+      $('#cardNewTotal').text(fmt(newTotal));
       $('#installmentCount').text(installments);
       $('#installmentAmount').text(fmt(installmentAmount));
       $('#installmentInfo').show();
-      $('#cardInfoText').text(`Recargo: ${surchargePercent}% - Total: ${fmt(totalWithMultiplier)}`);
+      $('#cardInfoText').text('Plan seleccionado: ' + installments + ' cuotas con recargo del ' + surchargePercent + '%');
     } else {
       $('#installmentInfo').hide();
       $('#cardInfoText').text('Seleccione un plan de cuotas');

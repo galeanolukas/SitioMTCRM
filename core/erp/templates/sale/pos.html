@@ -753,8 +753,26 @@
             </option>
             {% endfor %}
           </select>
-          <div id="installmentInfo" class="mt-2 small text-muted" style="display: none;">
-            <span id="installmentCount"></span> cuotas de <span id="installmentAmount"></span> cada una
+          <div id="installmentInfo" class="mt-2" style="display: none;">
+            <div class="card card-body bg-light p-2">
+              <div class="d-flex justify-content-between mb-1">
+                <span class="small text-muted">Total anterior:</span>
+                <span id="cardOriginalTotal" class="small fw-bold"></span>
+              </div>
+              <div class="d-flex justify-content-between mb-1">
+                <span class="small text-muted">Recargo:</span>
+                <span id="cardSurcharge" class="small fw-bold text-warning"></span>
+              </div>
+              <div class="d-flex justify-content-between mb-1">
+                <span class="small text-muted">Nuevo total:</span>
+                <span id="cardNewTotal" class="small fw-bold text-success"></span>
+              </div>
+              <hr class="my-1">
+              <div class="d-flex justify-content-between">
+                <span class="small text-muted"><span id="installmentCount"></span> cuotas de:</span>
+                <span id="installmentAmount" class="small fw-bold text-primary"></span>
+              </div>
+            </div>
           </div>
         </div>
         
@@ -1053,5 +1071,5 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 </script>
-<script src="{% static 'sale/js/pos.js' %}?v=20260830c"></script>
+<script src="{% static 'sale/js/pos.js' %}?v=20260830d"></script>
 {% endblock %}
