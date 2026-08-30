@@ -748,7 +748,7 @@
           <select id="cardPlan" class="form-select">
             <option value="">Seleccione un plan...</option>
             {% for plan in card_plans %}
-            <option value="{{ plan.id }}" data-installments="{{ plan.installments|floatformat:4 }}" data-multiplier="{{ plan.multiplier|floatformat:4 }}">
+            <option value="{{ plan.id }}" data-card-brand="{{ plan.card_brand }}" data-installments="{{ plan.installments|floatformat:4 }}" data-multiplier="{{ plan.multiplier|floatformat:4 }}">
               {{ plan.name }} - {{ plan.installments }} cuotas ({{ plan.multiplier|floatformat:4 }}x)
             </option>
             {% endfor %}
@@ -1053,5 +1053,5 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 </script>
-<script src="{% static 'sale/js/pos.js' %}?v=20260830b"></script>
+<script src="{% static 'sale/js/pos.js' %}?v=20260830c"></script>
 {% endblock %}

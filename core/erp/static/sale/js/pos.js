@@ -1505,6 +1505,9 @@
     $('#creditOptions').show();
     $('#cardInfoText').text('Seleccione las opciones de tarjeta para continuar');
     
+    // Filtrar planes por marca inicial
+    $('#cardBrand').trigger('change');
+    
     const modal = new bootstrap.Modal(document.getElementById('cardPaymentModal'));
     modal.show();
   }
@@ -1518,6 +1521,34 @@
     } else {
       $('#creditOptions').show();
       $('#cardInfoText').text('Seleccione el plan de cuotas para ver el recargo');
+    }
+  });
+  
+  // Manejar cambio de marca de tarjeta - filtrar planes por marca
+  $(document).on('change', '#cardBrand', function() {
+    const brand = $(this).val();
+    const $planSelect = $('#cardPlan');
+    const $options = $planSelect.find('option');
+    
+    // Mostrar solo las opciones que coinciden con la marca (o la opción vacía)
+    $options.each(function() {
+      const optBrand = $(this).data('card-brand');
+      if (!optBrand || optBrand === brand) {
+        $(this).show().prop('disabled', false);
+      } else {
+        $(this).hide().prop('disabled', true);
+      }
+    });
+    
+    // Resetear selección
+    $planSelect.val('');
+    $('#installmentInfo').hide();
+    
+    // Actualizar info
+    if ($planSelect.find('option:not(:disabled)').length > 1) {
+      $('#cardInfoText').text('Seleccione el plan de cuotas para ver el recargo');
+    } else {
+      $('#cardInfoText').text('No hay planes disponibles para esta marca');
     }
   });
   
