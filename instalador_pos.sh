@@ -1,114 +1,263 @@
 #!/bin/bash
 
-# Ir siempre a la carpeta donde está este script
+# Instalador POS Local - SitioMTCRM (Linux)
+# Crea entorno, dependencias, DB PostgreSQL por defecto y migraciones.
+
 cd "$(dirname "$0")"
 
+# ---------------------------------------------------------------------------
+# Configuración por defecto de PostgreSQL
+# ---------------------------------------------------------------------------
+DEFAULT_POSTGRES_USER="postgres"
+DEFAULT_POSTGRES_PASS="postgres"
+DEFAULT_DB_NAME="mtcrm_pos"
+DEFAULT_DB_USER="postgres"
+DEFAULT_DB_PASS="postgres"
+DEFAULT_DB_HOST="localhost"
+DEFAULT_DB_PORT="5432"
+
+# Colores
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+clear_or_msg() {
+    echo -e "$1"
+}
+
 echo "============================================"
-echo "Instalador POS Local - SitioMTCRM (Linux)"
+echo "  Instalador POS Local - SitioMTCRM"
+echo "  (Linux / macOS)"
 echo "============================================"
 echo
 
-# Verificar si Python3 está instalado
+# ---------------------------------------------------------------------------
+# 1) Verificar Python
+# ---------------------------------------------------------------------------
 if ! command -v python3 &> /dev/null; then
-    echo "[ERROR] Python3 no está instalado."
+    echo -e "${RED}[ERROR] Python3 no está instalado.${NC}"
     echo "Instale Python3 con:"
-    echo "  sudo apt update && sudo apt install python3 python3-pip python3-venv"
-    echo "o para sistemas basados en Fedora/RHEL:"
-    echo "  sudo dnf install python3 python3-pip"
+    echo "  sudo apt update && sudo apt install python3 python3-venv python3-pip"
     exit 1
 fi
 
-# Verificar si Git esta instalado (recomendado para futuras actualizaciones)
-if ! command -v git &> /dev/null; then
-    echo "[ADVERTENCIA] Git no está instalado."
-    echo "Para usar el actualizador automático llamado actualizar_pos.sh debe tener Git instalado."
-    echo "Puede instalar Git con:"
-    echo "  sudo apt install git  # Debian/Ubuntu"
-    echo "  sudo dnf install git  # Fedora/RHEL"
-    echo
-    echo "Este instalador continuará, pero las actualizaciones futuras deberán hacerse manualmente si no instala Git."
-    echo
+# ---------------------------------------------------------------------------
+# 2) Verificar / instalar PostgreSQL
+# ---------------------------------------------------------------------------
+PG_READY=false
+if command -v psql &> /dev/null; then
+    echo -e "${GREEN}✓ PostgreSQL detectado.${NC}"
+    PG_READY=true
+else
+    echo -e "${YELLOW}[ADVERTENCIA] PostgreSQL (psql) no detectado.${NC}"
+    echo "Intentando instalar PostgreSQL..."
+    if command -v apt-get &> /dev/null; then
+        sudo apt-get update && sudo apt-get install -y postgresql postgresql-contrib || true
+    elif command -v dnf &> /dev/null; then
+        sudo dnf install -y postgresql-server postgresql-contrib || true
+    elif command -v pacman &> /dev/null; then
+        sudo pacman -S --noconfirm postgresql || true
+    else
+        echo -e "${RED}[ERROR] No se encontró un gestor de paquetes soportado para instalar PostgreSQL.${NC}"
+    fi
+    if command -v psql &> /dev/null; then
+        PG_READY=true
+    else
+        echo -e "${RED}[ERROR] No se pudo instalar PostgreSQL automáticamente.${NC}"
+        echo "Instálelo manualmente y vuelva a ejecutar el instalador."
+        exit 1
+    fi
 fi
 
-# 1) Crear o recrear entorno virtual DJENV
-# Verificar si DJENV existe y está funcional
+# Asegurar que el servicio esté corriendo
+if command -v systemctl &> /dev/null; then
+    sudo systemctl start postgresql || true
+    sudo systemctl enable postgresql || true
+fi
+
+# ---------------------------------------------------------------------------
+# 3) Crear DB y verificar conexión
+# ---------------------------------------------------------------------------
+setup_postgres() {
+    local PG_USER="$1"
+    local PG_PASS="$2"
+    local DB_NAME="$3"
+    local DB_USER="$4"
+    local DB_PASS="$5"
+
+    # 3.1) Intentar conexión con sudo (peer auth)
+    if sudo -u postgres psql -c "SELECT 1;" &> /dev/null; then
+        sudo -u postgres psql -c "SELECT 1 FROM pg_database WHERE datname='$DB_NAME';" | grep -q 1 || \
+            sudo -u postgres psql -c "CREATE DATABASE $DB_NAME OWNER $PG_USER;" || true
+        return 0
+    fi
+
+    # 3.2) Intentar conexión por red con PGPASSWORD
+    export PGPASSWORD="$PG_PASS"
+    psql -U "$PG_USER" -h "$DEFAULT_DB_HOST" -p "$DEFAULT_DB_PORT" -c "SELECT 1;" &> /dev/null
+    local CONN_OK=$?
+    unset PGPASSWORD
+
+    if [ $CONN_OK -ne 0 ]; then
+        echo -e "${YELLOW}No se pudo conectar con el usuario '$PG_USER' y la contraseña por defecto.${NC}"
+        read -sp "Ingrese la contraseña del superusuario PostgreSQL [$PG_USER]: " PG_PASS_INPUT
+        echo
+        PG_PASS_INPUT="${PG_PASS_INPUT:-$PG_PASS}"
+        DEFAULT_POSTGRES_PASS="$PG_PASS_INPUT"
+        export PGPASSWORD="$PG_PASS_INPUT"
+        psql -U "$PG_USER" -h "$DEFAULT_DB_HOST" -p "$DEFAULT_DB_PORT" -c "SELECT 1;" &> /dev/null
+        if [ $? -ne 0 ]; then
+            echo -e "${RED}[ERROR] No se pudo conectar a PostgreSQL. Verifique las credenciales.${NC}"
+            return 1
+        fi
+    fi
+
+    export PGPASSWORD="$DEFAULT_POSTGRES_PASS"
+    psql -U "$PG_USER" -h "$DEFAULT_DB_HOST" -p "$DEFAULT_DB_PORT" -tc "SELECT 1 FROM pg_database WHERE datname='$DB_NAME';" | grep -q 1 || \
+        psql -U "$PG_USER" -h "$DEFAULT_DB_HOST" -p "$DEFAULT_DB_PORT" -c "CREATE DATABASE $DB_NAME OWNER $PG_USER;" || true
+    unset PGPASSWORD
+    return 0
+}
+
+setup_postgres "$DEFAULT_POSTGRES_USER" "$DEFAULT_POSTGRES_PASS" "$DEFAULT_DB_NAME" "$DEFAULT_DB_USER" "$DEFAULT_DB_PASS"
+if [ $? -ne 0 ]; then
+    exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# 4) Crear / actualizar .env
+# ---------------------------------------------------------------------------
+if [ ! -f ".env" ]; then
+    echo "Creando archivo .env con configuración por defecto..."
+    cat > .env <<EOENV
+# Entorno
+ENVIRONMENT=development
+APP_VERSION=1.0.0
+POS_SYNC_INTERVAL_SECONDS=300
+
+# Base de datos local (PostgreSQL)
+DB_NAME=$DEFAULT_DB_NAME
+DB_USER=$DEFAULT_DB_USER
+DB_PASSWORD=$DEFAULT_DB_PASS
+DB_HOST=$DEFAULT_DB_HOST
+DB_PORT=$DEFAULT_DB_PORT
+
+# Base de datos remota (servidor central) - completar si aplica
+REMOTE_DB_NAME=
+REMOTE_DB_USER=
+REMOTE_DB_PASSWORD=
+REMOTE_DB_HOST=
+REMOTE_DB_PORT=5432
+REMOTE_DB_SSLMODE=require
+
+# Configuración sincronización
+POS_SYNC_PRODUCTS_MODE=safe
+
+# AFIP
+AFIP_ACCESS_TOKEN=
+AFIP_CUIT=
+AFIP_ENVIRONMENT=dev
+
+# Catálogo
+CATALOGO_URL=
+CATALOGO_API_KEY=
+EOENV
+else
+    echo "Actualizando variables de base de datos en .env..."
+    python3 - <<'PY'
+import re, os
+env_file = '.env'
+if not os.path.exists(env_file):
+    open(env_file, 'w').close()
+with open(env_file, 'r') as f:
+    content = f.read()
+
+def set_var(name, value, content):
+    pattern = r'^{}=.*$'.format(re.escape(name))
+    line = '{}={}'.format(name, value)
+    if re.search(pattern, content, flags=re.MULTILINE):
+        return re.sub(pattern, line, content, flags=re.MULTILINE)
+    return content + '\n' + line
+
+content = set_var('DB_NAME', 'mtcrm_pos', content)
+content = set_var('DB_USER', 'postgres', content)
+content = set_var('DB_PASSWORD', 'postgres', content)
+content = set_var('DB_HOST', 'localhost', content)
+content = set_var('DB_PORT', '5432', content)
+with open(env_file, 'w') as f:
+    f.write(content)
+PY
+fi
+
+echo -e "${GREEN}✓ Archivo .env configurado para PostgreSQL local.${NC}"
+
+# ---------------------------------------------------------------------------
+# 5) Crear / verificar entorno virtual
+# ---------------------------------------------------------------------------
 RECREATE_VENV=false
 if [ ! -d "DJENV" ]; then
     echo "Creando entorno virtual DJENV..."
     RECREATE_VENV=true
 else
-    # Verificar que DJENV tenga Django completo (incluido módulo de migraciones)
     if ! DJENV/bin/python -c "from django.db.migrations.migration import Migration" &>/dev/null; then
-        echo "Entorno virtual DJENV está dañado o incompleto. Recreando..."
+        echo "Entorno virtual DJENV dañado. Recreando..."
         rm -rf DJENV
         RECREATE_VENV=true
     else
-        echo "Entorno virtual DJENV ya existe y funciona correctamente."
+        echo -e "${GREEN}✓ Entorno virtual DJENV existente.${NC}"
     fi
 fi
 
 if [ "$RECREATE_VENV" = true ]; then
-    python3 -m venv DJENV
-    if [ $? -ne 0 ]; then
-        echo "Error al crear el entorno virtual DJENV. Verifica que Python3 esté instalado."
-        exit 1
-    fi
+    python3 -m venv DJENV || { echo -e "${RED}[ERROR] No se pudo crear el entorno virtual.${NC}"; exit 1; }
 fi
 
-# 2) Activar entorno virtual DJENV
-source DJENV/bin/activate
-if [ $? -ne 0 ]; then
-    echo "No se pudo activar el entorno virtual."
-    exit 1
-fi
+source DJENV/bin/activate || { echo -e "${RED}[ERROR] No se pudo activar el entorno virtual.${NC}"; exit 1; }
 
-# 2.1) Actualizar pip en el entorno virtual
+# ---------------------------------------------------------------------------
+# 6) Instalar dependencias
+# ---------------------------------------------------------------------------
 echo "Actualizando pip..."
-python -m pip install --upgrade pip
-if [ $? -ne 0 ]; then
-    echo "No se pudo actualizar pip. Continuando con la instalación de dependencias..."
-else
-    echo "pip actualizado correctamente."
-fi
+python -m pip install --upgrade pip &> /dev/null
 
-# 3) Instalar dependencias (incluye pandas y openpyxl desde requirements.txt)
 echo "Instalando dependencias desde requirements.txt..."
+pip uninstall -y pandas-openpyxl &> /dev/null || true
+pip install -r requirements.txt || { echo -e "${RED}[ERROR] Fallo instalando requerimientos.${NC}"; exit 1; }
 
-# Asegurar que no quede instalada la librería vieja pandas-openpyxl
-pip uninstall -y pandas-openpyxl &> /dev/null
+echo -e "${GREEN}✓ Dependencias instaladas.${NC}"
 
-pip install -r requirements.txt
-if [ $? -ne 0 ]; then
-    echo "Error instalando dependencias."
-    exit 1
+# ---------------------------------------------------------------------------
+# 7) Generar icono PNG si no existe (para acceso directo Linux)
+# ---------------------------------------------------------------------------
+if [ -f "icon.ico" ] && [ ! -f "icon.png" ]; then
+    echo "Generando icon.png desde icon.ico..."
+    python - <<'PY'
+try:
+    from PIL import Image
+    img = Image.open('icon.ico')
+    img.save('icon.png', sizes=[(128,128)])
+    print('icon.png generado.')
+except Exception as e:
+    print('No se pudo generar icon.png:', e)
+PY
 fi
 
-# Verificación rápida de pandas y openpyxl en este entorno virtual
-python -c "import pandas, openpyxl; print('pandas:', pandas.__version__)" &> /dev/null
-if [ $? -ne 0 ]; then
-    echo "[ADVERTENCIA] No se pudo importar pandas u openpyxl en el entorno virtual DJENV."
-    echo "Verifique la instalación manualmente con:"
-    echo "  source DJENV/bin/activate"
-    echo "  pip install pandas openpyxl"
-fi
+# ---------------------------------------------------------------------------
+# 8) Migraciones y datos iniciales
+# ---------------------------------------------------------------------------
+echo "Creando migraciones..."
+python manage.py makemigrations user erp || { echo -e "${RED}[ERROR] makemigrations falló.${NC}"; exit 1; }
 
-# 4) Migraciones - Método mejorado con verificación de company_id
-echo "Creando migraciones si hacen falta (apps user y erp)..."
-python manage.py makemigrations user erp
-if [ $? -ne 0 ]; then
-    echo "Error ejecutando makemigrations."
-    exit 1
-fi
+echo "Aplicando migraciones..."
+python manage.py migrate || { echo -e "${RED}[ERROR] migrate falló.${NC}"; exit 1; }
 
-echo "Ejecutando migraciones..."
-python manage.py migrate
-if [ $? -ne 0 ]; then
-    echo "Error ejecutando migraciones."
-    exit 1
-fi
+echo -e "${GREEN}✓ Migraciones aplicadas.${NC}"
 
-# 5) Crear superusuario automáticamente si no existe ninguno
-echo "Verificando si existe un superusuario..."
+# ---------------------------------------------------------------------------
+# 9) Superusuario y roles
+# ---------------------------------------------------------------------------
+echo "Verificando superusuario..."
 python manage.py shell -c "
 from django.contrib.auth.models import User
 if not User.objects.filter(is_superuser=True).exists():
@@ -116,107 +265,66 @@ if not User.objects.filter(is_superuser=True).exists():
     print('SUPERUSER_CREATED')
 else:
     print('SUPERUSER_EXISTS')
-" 2>/dev/null | grep -q 'SUPERUSER_CREATED' && echo "✓ Superusuario creado: admin / admin123" || echo "✓ Superusuario ya existe"
+" 2>/dev/null | grep -q 'SUPERUSER_CREATED' && \
+    echo -e "${GREEN}✓ Superusuario creado: admin / admin123${NC}" || \
+    echo -e "${GREEN}✓ Superusuario ya existe.${NC}"
 
-# 6) Configurar roles estándar (vendedor, admin_empresa, servidor_local)
 echo "Configurando roles estándar..."
-python manage.py setup_roles --migrate
-if [ $? -ne 0 ]; then
-    echo "[ADVERTENCIA] No se pudieron configurar los roles. Ejecute manualmente: python manage.py setup_roles --migrate"
-else
-    echo "✓ Roles configurados correctamente (vendedor, admin_empresa, servidor_local)"
-fi
+python manage.py setup_roles --migrate || \
+    echo -e "${YELLOW}[ADVERTENCIA] setup_roles falló; ejecute manualmente: python manage.py setup_roles --migrate${NC}"
 
-echo
-echo "============================================"
-echo "Instalación terminada."
-echo "============================================"
-echo "Para iniciar el POS local:"
-echo "  source DJENV/bin/activate"
-echo "  python manage.py runserver 0.0.0.0:8000"
-echo "y luego abre: http://localhost:8000/erp/sale/pos/"
-echo
-echo "Para futuras actualizaciones del POS (nueva versión desde GitHub):"
-echo "  1) Cierre el POS."
-echo "  2) Ejecute: ./actualizar_pos.sh"
-echo "  3) Vuelva a iniciar con ./lanzar_pos.sh"
-echo "============================================"
-
-# Crear acceso directo (launcher) en el escritorio para el POS local
+# ---------------------------------------------------------------------------
+# 10) Acceso directo en escritorio
+# ---------------------------------------------------------------------------
 LAUNCHER_TARGET="$(pwd)/lanzar_pos.sh"
 DESKTOP_DIR="$HOME/Desktop"
 SHORTCUT_PATH="$DESKTOP_DIR/POS_Local.desktop"
-ICON_FILE="$(pwd)/icon.png"  # Buscar icono PNG para Linux
+ICON_FILE="$(pwd)/icon.png"
+[ ! -f "$ICON_FILE" ] && ICON_FILE="$(pwd)/icon.ico"
 
-echo "Creando acceso directo en el escritorio..."
-
-if [ ! -f "$LAUNCHER_TARGET" ]; then
-    echo "No se encontró el archivo lanzar_pos.sh en la carpeta del proyecto."
-    echo "Crea el archivo lanzar_pos.sh y vuelve a ejecutar este instalador."
-    exit 1
-fi
-
-# Crear directorio Desktop si no existe
-if [ ! -d "$DESKTOP_DIR" ]; then
+if [ -f "$LAUNCHER_TARGET" ]; then
     mkdir -p "$DESKTOP_DIR"
-fi
-
-# Crear archivo .desktop
-cat > "$SHORTCUT_PATH" << EOF
+    cat > "$SHORTCUT_PATH" << EOD
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=POS Local SitioMTCRM
-Comment=Iniciar el POS local de SitioMTCRM
+Name=TechVentas POS Local
+Comment=Iniciar el POS local de TechVentas
 Exec=$LAUNCHER_TARGET
 Icon=$ICON_FILE
 Path=$(pwd)
 Terminal=true
 Categories=Office;Business;
-EOF
-
-# Hacer ejecutable el acceso directo
-chmod +x "$SHORTCUT_PATH"
-
-if [ $? -ne 0 ]; then
-    echo "No se pudo crear el acceso directo."
-    echo "Puedes crear manualmente un acceso directo a lanzar_pos.sh en el escritorio."
+EOD
+    chmod +x "$SHORTCUT_PATH"
+    echo -e "${GREEN}✓ Acceso directo creado: $SHORTCUT_PATH${NC}"
 else
-    echo "Acceso directo creado en el escritorio: POS_Local.desktop"
+    echo -e "${YELLOW}[ADVERTENCIA] No se encontró lanzar_pos.sh. No se creó acceso directo.${NC}"
 fi
 
+# ---------------------------------------------------------------------------
+# 11) Final
+# ---------------------------------------------------------------------------
 echo
 echo "============================================"
-echo "Instalación completada exitosamente."
+echo -e "  ${GREEN}INSTALACIÓN COMPLETADA${NC}"
 echo "============================================"
 echo
-echo "El sistema ha sido instalado y configurado."
+echo "Base de datos: $DEFAULT_DB_NAME ($DEFAULT_DB_HOST:$DEFAULT_DB_PORT)"
+echo "Usuario DB:    $DEFAULT_DB_USER"
+echo "Contraseña DB: $DEFAULT_DB_PASS"
 echo
-echo "Componentes instalados:"
-echo "  - Entorno virtual DJENV"
-echo "  - Dependencias Python"
-echo "  - Base de datos SQLite"
-echo "  - Acceso directo en escritorio"
+echo "Para iniciar el POS:"
+echo "  ./lanzar_pos.sh"
+echo "  o use el acceso directo del escritorio."
+echo
+echo "URL del sistema: http://localhost:8000/erp/launcher/"
+echo "URL del POS:     http://localhost:8000/erp/sale/pos/"
 echo
 
-# Preguntar si desea iniciar el programa automáticamente
-read -p "¿Desea iniciar el programa automáticamente? (s/n): " start_program
-
-if [[ $start_program =~ ^[Ss]$ ]]; then
-    echo
-    echo "Iniciando el programa..."
-    echo "El servidor se iniciará en: http://127.0.0.1:8000/"
-    echo "Presione Ctrl+C para detener el servidor."
-    echo
-    source DJENV/bin/activate
-    python manage.py runserver 0.0.0.0:8000
+read -p "¿Desea iniciar el POS ahora? (s/n): " start_now
+if [[ $start_now =~ ^[Ss]$ ]]; then
+    exec ./lanzar_pos.sh
 else
-    echo
-    echo "Para iniciar manualmente:"
-    echo "  source DJENV/bin/activate"
-    echo "  python manage.py runserver 0.0.0.0:8000"
-    echo "y luego abra: http://localhost:8000/erp/sale/pos/"
-    echo
-    echo "Presione Enter para continuar..."
-    read
+    read -p "Presione Enter para cerrar..."
 fi
