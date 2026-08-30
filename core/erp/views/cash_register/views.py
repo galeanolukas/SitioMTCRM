@@ -8,7 +8,7 @@ from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect
 from django.http import JsonResponse
 
-from core.erp.mixins import ValidatePermissionRequiredMixin
+from core.erp.mixins import ValidatePermissionRequiredMixin, get_active_company_id
 from core.erp.models import CashRegister, CashMovement, Sale, Expense
 from core.erp.sync_utils import sync_cash_register_immediately
 import logging
@@ -24,9 +24,7 @@ class CashRegisterListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
     
     def get_queryset(self):
         # Determinar empresa activa igual que en la creación de caja
-        active_cid = self.request.session.get('company_id')
-        if not active_cid:
-            active_cid = getattr(self.request.user, 'company_id', None)
+        active_cid = get_active_company_id(self.request)
 
         qs = CashRegister.objects.select_related('user', 'company').all()
         if active_cid:
@@ -113,9 +111,7 @@ class CashRegisterCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin
 
     def _assign_company_and_user(self, obj):
         """Asigna company_id y user al objeto de caja usando la lógica de empresa activa."""
-        active_cid = self.request.session.get('company_id')
-        if not active_cid:
-            active_cid = getattr(self.request.user, 'company_id', None)
+        active_cid = get_active_company_id(self.request)
 
         if not active_cid:
             raise ValueError('No hay una empresa activa asignada')

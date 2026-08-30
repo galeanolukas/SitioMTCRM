@@ -4,7 +4,7 @@ Vistas para integración con AFIP SDK
 from django.shortcuts import render
 from django.views.generic import TemplateView, ListView, CreateView, UpdateView, DeleteView
 from django.contrib.auth.mixins import LoginRequiredMixin
-from core.erp.mixins import ValidatePermissionRequiredMixin, CompanyInitialMixin
+from core.erp.mixins import ValidatePermissionRequiredMixin, CompanyInitialMixin, get_active_company_id
 from django.http import JsonResponse
 from django.urls import reverse_lazy
 from core.erp.models import AfipConfig, Company, Sale, DetSale, AfipPuntoVenta
@@ -538,9 +538,7 @@ class AfipVouchersListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
     paginate_by = 25
 
     def get_queryset(self):
-        active_cid = self.request.session.get('company_id')
-        if not active_cid:
-            active_cid = getattr(self.request.user, 'company_id', None)
+        active_cid = get_active_company_id(self.request)
 
         qs = Sale.objects.select_related('cli', 'company').filter(
             afip_cae__isnull=False

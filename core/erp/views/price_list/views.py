@@ -8,7 +8,7 @@ from django.db import transaction
 from decimal import Decimal
 import json
 
-from core.erp.mixins import ValidatePermissionRequiredMixin
+from core.erp.mixins import ValidatePermissionRequiredMixin, get_active_company_id
 from core.erp.models import PriceList, PriceListProduct, Product
 
 
@@ -18,9 +18,7 @@ class PriceListListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Lis
     permission_required = 'erp.view_pricelist'
 
     def get_queryset(self):
-        active_cid = self.request.session.get('company_id')
-        if not active_cid:
-            active_cid = getattr(self.request.user, 'company_id', None)
+        active_cid = get_active_company_id(self.request)
         qs = PriceList.objects.select_related('company').all()
         if active_cid:
             qs = qs.filter(company_id=active_cid)
@@ -52,9 +50,7 @@ class PriceListCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, C
 
     def form_valid(self, form):
         # Asignar empresa: sesion activa, o empresa del usuario, o None
-        active_cid = self.request.session.get('company_id')
-        if not active_cid:
-            active_cid = getattr(self.request.user, 'company_id', None)
+        active_cid = get_active_company_id(self.request)
         form.instance.company_id = active_cid
         messages.success(self.request, f"Lista de precios '{form.instance.name}' creada correctamente.")
         return super().form_valid(form)

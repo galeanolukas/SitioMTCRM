@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from django.views.generic import TemplateView
 from django.contrib.auth.mixins import LoginRequiredMixin
-from core.erp.mixins import ValidatePermissionRequiredMixin
+from core.erp.mixins import ValidatePermissionRequiredMixin, get_active_company_id
 from django.db.models import Sum, Count, F
 from django.utils import timezone
 from datetime import datetime, timedelta
@@ -41,9 +41,7 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
         context['companies'] = Company.objects.filter(is_active=True)
         
         # Get company from session or user
-        active_cid = self.request.session.get('company_id')
-        if not self.request.user.is_superuser:
-            active_cid = active_cid or getattr(self.request.user, 'company_id', None)
+        active_cid = get_active_company_id(self.request)
         context['active_company_id'] = active_cid
         
         return context
@@ -61,9 +59,7 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                 end_date = request.POST.get('end_date', '')
                 
                 # Get company filter
-                active_cid = self.request.session.get('company_id')
-                if not self.request.user.is_superuser:
-                    active_cid = active_cid or getattr(self.request.user, 'company_id', None)
+                active_cid = get_active_company_id(request)
                 
                 if company_id and (self.request.user.is_superuser or not active_cid):
                     active_cid = company_id if company_id else active_cid
@@ -340,9 +336,7 @@ def operator_sales_export(request):
         export_format = request.GET.get('format', 'csv')
         
         # Get company filter
-        active_cid = request.session.get('company_id')
-        if not request.user.is_superuser:
-            active_cid = active_cid or getattr(request.user, 'company_id', None)
+        active_cid = get_active_company_id(request)
         
         if company_id and (request.user.is_superuser or not active_cid):
             active_cid = company_id if company_id else active_cid

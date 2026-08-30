@@ -3,6 +3,7 @@ from django.forms.widgets import CheckboxInput
 from datetime import datetime
 from django.core.exceptions import ValidationError
 from core.erp.models import Category, Product, Client, Sale, Company, Supplier, Expense, MercadoPagoConfig, AutoSyncConfig, InternalTransfer, InternalTransferDetail, RemitoEntrada, Remito
+from core.erp.mixins import get_active_company_id
 
 from django.contrib.auth.forms import AuthenticationForm
 
@@ -50,9 +51,9 @@ class CategoryForm(ModelForm):
             if form.is_valid():
                 obj = form.save(commit=False)
                 # Asignar empresa automáticamente si no tiene
-                if self.request and hasattr(self.request, 'user') and not getattr(self.request.user, 'is_superuser', False):
-                    if getattr(self.request.user, 'company_id', None) and not getattr(obj, 'company_id', None):
-                        obj.company_id = self.request.user.company_id
+                active_cid = get_active_company_id(self.request) if self.request else None
+                if active_cid and not getattr(obj, 'company_id', None):
+                    obj.company_id = active_cid
                 if commit:
                     obj.save()
                 data = obj.toJSON() if hasattr(obj, 'toJSON') else {}
@@ -83,19 +84,16 @@ class ProductForm(ModelForm):
             self.fields['supplier'].required = False
             self.fields['supplier'].empty_label = '--- Sin proveedor ---'
             # Filtrar proveedores por empresa (igual que categorías)
-            if self.request and hasattr(self.request, 'user') and not getattr(self.request.user, 'is_superuser', False):
-                active_cid = self.request.session.get('company_id') or getattr(self.request.user, 'company_id', None)
-                if active_cid:
-                    self.fields['supplier'].queryset = Supplier.objects.filter(company_id=active_cid)
-                else:
-                    self.fields['supplier'].queryset = Supplier.objects.none()
+            active_cid = get_active_company_id(self.request)
+            if active_cid:
+                self.fields['supplier'].queryset = Supplier.objects.filter(company_id=active_cid)
             else:
-                self.fields['supplier'].queryset = Supplier.objects.all()
+                self.fields['supplier'].queryset = Supplier.objects.none()
         
         # Filtrar categorías por empresa
         if 'cat' in self.fields:
+            active_cid = get_active_company_id(self.request) if self.request else None
             if self.request and hasattr(self.request, 'user') and not getattr(self.request.user, 'is_superuser', False):
-                active_cid = self.request.session.get('company_id') or getattr(self.request.user, 'company_id', None)
                 if active_cid:
                     self.fields['cat'].queryset = Category.objects.filter(company_id=active_cid)
                 else:
@@ -234,9 +232,9 @@ class ProductForm(ModelForm):
          try:
              if form.is_valid():
                  obj = form.save(commit=False)
-                 if self.request and hasattr(self.request, 'user') and not getattr(self.request.user, 'is_superuser', False):
-                     if getattr(self.request.user, 'company_id', None) and not getattr(obj, 'company_id', None):
-                         obj.company_id = self.request.user.company_id
+                 active_cid = get_active_company_id(self.request) if self.request else None
+                 if active_cid and not getattr(obj, 'company_id', None):
+                     obj.company_id = active_cid
                  if commit:
                      obj.save()
                  try:
@@ -312,9 +310,9 @@ class ClientForm(ModelForm):
         try:
             if self.is_valid():
                 obj = super().save(commit=False)
-                if self.request and hasattr(self.request, 'user') and not getattr(self.request.user, 'is_superuser', False):
-                    if getattr(self.request.user, 'company_id', None) and not getattr(obj, 'company_id', None):
-                        obj.company_id = self.request.user.company_id
+                active_cid = get_active_company_id(self.request) if self.request else None
+                if active_cid and not getattr(obj, 'company_id', None):
+                    obj.company_id = active_cid
                 if commit:
                     obj.save()
                 data = obj.toJSON() if hasattr(obj, 'toJSON') else {}
@@ -361,9 +359,9 @@ class SupplierForm(ModelForm):
         data = {}
         try:
             obj = super().save(commit=False)
-            if self.request and hasattr(self.request, 'user') and not getattr(self.request.user, 'is_superuser', False):
-                if getattr(self.request.user, 'company_id', None) and not getattr(obj, 'company_id', None):
-                    obj.company_id = self.request.user.company_id
+            active_cid = get_active_company_id(self.request) if self.request else None
+            if active_cid and not getattr(obj, 'company_id', None):
+                obj.company_id = active_cid
             if commit:
                 obj.save()
             data = obj.toJSON() if hasattr(obj, 'toJSON') else {'id': getattr(obj, 'id', None)}
@@ -589,9 +587,9 @@ class ExpenseForm(ModelForm):
                     from django.utils import timezone
                     obj.time = timezone.now().time()
                 
-                if self.request and hasattr(self.request, 'user') and not getattr(self.request.user, 'is_superuser', False):
-                    if getattr(self.request.user, 'company_id', None) and not getattr(obj, 'company_id', None):
-                        obj.company_id = self.request.user.company_id
+                active_cid = get_active_company_id(self.request) if self.request else None
+                if active_cid and not getattr(obj, 'company_id', None):
+                    obj.company_id = active_cid
                 
                 if commit:
                     obj.save()
@@ -728,10 +726,11 @@ class RemitoForm(ModelForm):
             form.field.widget.attrs["autocomplete"] = "off"
         
         # Manejar campo company según usuario
+        active_cid = get_active_company_id(self.request) if self.request else None
         if 'company' in self.fields and self.request and hasattr(self.request, 'user') and not getattr(self.request.user, 'is_superuser', False):
-            if getattr(self.request.user, 'company_id', None):
-                self.fields['company'].queryset = Company.objects.filter(pk=self.request.user.company_id, is_active=True)
-                self.fields['company'].initial = self.request.user.company
+            if active_cid:
+                self.fields['company'].queryset = Company.objects.filter(pk=active_cid, is_active=True)
+                self.fields['company'].initial = active_cid
                 self.fields['company'].widget = HiddenInput()
                 self.fields['company'].required = False
         elif 'company' in self.fields:
@@ -739,7 +738,6 @@ class RemitoForm(ModelForm):
 
         # Filtrar proveedores por empresa del usuario
         if 'supplier' in self.fields and self.request and hasattr(self.request, 'user') and not getattr(self.request.user, 'is_superuser', False):
-            active_cid = self.request.session.get('company_id') or getattr(self.request.user, 'company_id', None)
             if active_cid:
                 self.fields['supplier'].queryset = Supplier.objects.filter(company_id=active_cid, is_active=True)
             else:

@@ -4,6 +4,21 @@ from django.urls import reverse_lazy
 from django.http import HttpResponseRedirect
 from django.shortcuts import render
 
+
+def get_active_company_id(request):
+    """
+    Fuente unica de verdad para la empresa activa.
+    - Superuser: usa session['company_id'] (seteada por el selector)
+    - Usuario comun: usa session['company_id'] (seteada al login = user.company_id)
+    - Fallback: user.company_id si no hay session
+    Retorna None si no hay empresa activa.
+    """
+    cid = request.session.get('company_id')
+    if not cid:
+        cid = getattr(request.user, 'company_id', None)
+    return cid
+
+
 class ValidatePermissionRequiredMixin(object):
     permission_required = ''
     url_redirect = None
@@ -46,17 +61,13 @@ class ValidatePermissionRequiredMixin(object):
 
 class CompanyInitialMixin(object):
     """
-    Mixin para preseleccionar la empresa del usuario en formularios.
-    Si el usuario tiene una empresa asignada, se usa como valor inicial.
-    Si no, el campo queda vacío para selección manual.
+    Mixin para preseleccionar la empresa activa en formularios.
+    Usa get_active_company_id() como fuente unica.
     """
 
     def get_initial(self):
         initial = super().get_initial()
-        # Obtener empresa del usuario o de la sesión
-        company_id = self.request.session.get('company_id')
-        if not company_id:
-            company_id = getattr(self.request.user, 'company_id', None)
+        company_id = get_active_company_id(self.request)
         if company_id:
             initial['company'] = company_id
         return initial

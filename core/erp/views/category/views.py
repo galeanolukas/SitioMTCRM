@@ -10,7 +10,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
 from django.db import transaction
 from django.http import JsonResponse, HttpResponseRedirect
-from core.erp.mixins import ValidatePermissionRequiredMixin, CompanyInitialMixin
+from core.erp.mixins import ValidatePermissionRequiredMixin, CompanyInitialMixin, get_active_company_id
 
 
 
@@ -21,12 +21,9 @@ class CategoryListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, List
     template_name = "category/list.html"
 
     def get_queryset(self):
-        # Filtrar categorías por empresa del usuario
+        # Filtrar categorías por empresa activa
         qs = super().get_queryset()
-        if self.request.user.is_superuser:
-            active_cid = self.request.session.get('company_id')
-        else:
-            active_cid = getattr(self.request.user, 'company_id', None)
+        active_cid = get_active_company_id(self.request)
         if active_cid:
             qs = qs.filter(company_id=active_cid)
         return qs

@@ -17,7 +17,7 @@ import json
 import urllib.request
 import urllib.error
 from decimal import Decimal
-from core.erp.mixins import ValidatePermissionRequiredMixin
+from core.erp.mixins import ValidatePermissionRequiredMixin, get_active_company_id
 from core.erp.sync_utils import run_full_sync
 from core.erp.services.server_sync_service import ServerSyncService
 from core.erp.forms import CompanyForm, SupplierForm, ExpenseForm, MercadoPagoConfigForm, AutoSyncConfigForm
@@ -107,11 +107,7 @@ def sync_data_view(request):
         return JsonResponse({'error': 'Método no permitido'}, status=405)
 
     # Obtener company_id del usuario logueado para filtrar sincronización
-    company_id = None
-    if hasattr(request.user, 'company_id') and request.user.company_id:
-        company_id = request.user.company_id
-    elif request.session.get('company_id'):
-        company_id = request.session.get('company_id')
+    company_id = get_active_company_id(request)
 
     ok, errors = run_full_sync(company_id=company_id)
     status = 200 if ok else 207
@@ -213,11 +209,8 @@ class DashboardView(TemplateView):
                 # Limpiar selección de empresa
                 self.request.session.pop('company_id', None)
                 active_cid = None
-            else:
-                # Si no hay parámetro GET, usar el valor de la sesión
-                active_cid = self.request.session.get('company_id')
         else:
-            active_cid = active_cid or getattr(self.request.user, 'company_id', None)
+            active_cid = get_active_company_id(self.request)
         # KPIs básicos con filtro de tiempo
         UserModel = get_user_model()
         user_qs = UserModel.objects.all()
@@ -557,10 +550,7 @@ class ExpenseListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListV
 
     def get_queryset(self):
         qs = super().get_queryset()
-        if self.request.user.is_superuser:
-            active_cid = self.request.session.get('company_id')
-        else:
-            active_cid = getattr(self.request.user, 'company_id', None)
+        active_cid = get_active_company_id(self.request)
         if active_cid:
             qs = qs.filter(company_id=active_cid)
         else:
@@ -707,7 +697,7 @@ class ExpenseListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListV
             qs = qs.filter(date__lte=end_date)
         
         if not self.request.user.is_superuser:
-            active_cid = self.request.session.get('company_id') or getattr(self.request.user, 'company_id', None)
+            active_cid = get_active_company_id(self.request)
             if active_cid:
                 qs = qs.filter(company_id=active_cid)
         
@@ -948,10 +938,7 @@ class SupplierView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Template
             if action == 'searchdata':
                 data = []
                 qs = Supplier.objects.filter(is_active=True)
-                if request.user.is_superuser:
-                    active_cid = request.session.get('company_id')
-                else:
-                    active_cid = getattr(request.user, 'company_id', None)
+                active_cid = get_active_company_id(request)
                 if active_cid:
                     qs = qs.filter(company_id=active_cid)
                 for i in qs:
@@ -996,10 +983,7 @@ class SupplierView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Template
                     obj.save()
             elif action == 'delete_all':
                 qs = Supplier.objects.filter(is_active=True)
-                if request.user.is_superuser:
-                    active_cid = request.session.get('company_id')
-                else:
-                    active_cid = getattr(request.user, 'company_id', None)
+                active_cid = get_active_company_id(request)
                 if active_cid:
                     qs = qs.filter(company_id=active_cid)
                 count = qs.count()
@@ -1058,9 +1042,7 @@ class MercadoPagoConfigUpdateView(LoginRequiredMixin, ValidatePermissionRequired
 
     def get_object(self, queryset=None):
         # Resolver empresa activa (o la primera si no hay selección)
-        active_cid = self.request.session.get('company_id')
-        if not active_cid and hasattr(self.request.user, 'company_id'):
-            active_cid = getattr(self.request.user, 'company_id', None)
+        active_cid = get_active_company_id(self.request)
         company = None
         if active_cid:
             company = Company.objects.filter(pk=active_cid).first()
@@ -1135,13 +1117,12 @@ class ReportsHomeView(LoginRequiredMixin, TemplateView):
 
 
 def _filter_company_qs(request, qs):
-    active_cid = request.GET.get('company_id') or request.session.get('company_id')
+    active_cid = request.GET.get('company_id') or get_active_company_id(request)
     scope = request.GET.get('scope')
     if request.user.is_superuser:
         if scope != 'all' and active_cid:
             qs = qs.filter(company_id=active_cid)
     else:
-        active_cid = active_cid or getattr(request.user, 'company_id', None)
         if active_cid:
             qs = qs.filter(company_id=active_cid)
     return qs

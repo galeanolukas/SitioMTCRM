@@ -13,6 +13,7 @@ from django.db import models
 
 from core.erp.models import InternalTransfer, InternalTransferDetail, Product, Company
 from core.erp.forms import InternalTransferForm, InternalTransferDetailForm
+from core.erp.mixins import get_active_company_id
 
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -26,9 +27,7 @@ class TransferProductSearchView(LoginRequiredMixin, View):
             return JsonResponse({'error': 'Empresa no especificada'}, status=400)
         
         # Verificar que el usuario tiene permisos para esta empresa
-        active_cid = request.session.get('company_id')
-        if not request.user.is_superuser:
-            active_cid = active_cid or getattr(request.user, 'company_id', None)
+        active_cid = get_active_company_id(request)
         
         if active_cid and active_cid != int(company_id):
             return JsonResponse({'error': 'Sin permisos para esta empresa'}, status=403)
@@ -71,9 +70,7 @@ class TransferListView(LoginRequiredMixin, ListView):
     
     def get_queryset(self):
         qs = super().get_queryset()
-        active_cid = self.request.session.get('company_id')
-        if not self.request.user.is_superuser:
-            active_cid = active_cid or getattr(self.request.user, 'company_id', None)
+        active_cid = get_active_company_id(self.request)
         if active_cid:
             qs = qs.filter(company_id=active_cid)
         return qs.select_related('created_by', 'company').prefetch_related('details')
@@ -86,9 +83,7 @@ class TransferListView(LoginRequiredMixin, ListView):
         action = request.POST.get('action')
         if action == 'searchdata':
             data = []
-            active_cid = request.session.get('company_id')
-            if not request.user.is_superuser:
-                active_cid = active_cid or getattr(request.user, 'company_id', None)
+            active_cid = get_active_company_id(request)
             
             qs = InternalTransfer.objects.all()
             if active_cid:
@@ -116,9 +111,7 @@ class TransferDetailView(LoginRequiredMixin, DetailView):
     
     def get_queryset(self):
         qs = super().get_queryset()
-        active_cid = self.request.session.get('company_id')
-        if not self.request.user.is_superuser:
-            active_cid = active_cid or getattr(self.request.user, 'company_id', None)
+        active_cid = get_active_company_id(self.request)
         if active_cid:
             qs = qs.filter(company_id=active_cid)
         return qs.select_related('created_by', 'company').prefetch_related('details__product')
@@ -132,9 +125,7 @@ class TransferDetailView(LoginRequiredMixin, DetailView):
 class TransferCreateView(LoginRequiredMixin, View):
     def get(self, request, *args, **kwargs):
         # Obtener empresas disponibles para transferencia
-        active_cid = request.session.get('company_id')
-        if not request.user.is_superuser:
-            active_cid = active_cid or getattr(request.user, 'company_id', None)
+        active_cid = get_active_company_id(request)
         
         # Todas las empresas activas (incluida la actual como opción de origen)
         companies = Company.objects.filter(is_active=True)
@@ -225,9 +216,7 @@ class TransferCreateView(LoginRequiredMixin, View):
                         return JsonResponse(data)
                     
                     # Verificar que el usuario tiene permisos en la empresa origen
-                    active_cid = request.session.get('company_id')
-                    if not request.user.is_superuser:
-                        active_cid = active_cid or getattr(request.user, 'company_id', None)
+                    active_cid = get_active_company_id(request)
                     
                     if active_cid and active_cid != origin_company_id:
                         data['error'] = 'Solo puede transferir productos desde su empresa activa'
@@ -338,9 +327,7 @@ class TransferReceiveView(LoginRequiredMixin, View):
             transfer = InternalTransfer.objects.get(pk=transfer_id)
             
             # Verificar permisos
-            active_cid = request.session.get('company_id')
-            if not request.user.is_superuser:
-                active_cid = active_cid or getattr(request.user, 'company_id', None)
+            active_cid = get_active_company_id(request)
             
             if active_cid and transfer.company_id != active_cid:
                 data['error'] = 'No tiene permisos para esta transferencia'
@@ -410,9 +397,7 @@ class TransferSearchView(LoginRequiredMixin, View):
             
             if action == 'search_products':
                 term = (request.POST.get('term') or '').strip()
-                active_cid = request.session.get('company_id')
-                if not request.user.is_superuser:
-                    active_cid = active_cid or getattr(request.user, 'company_id', None)
+                active_cid = get_active_company_id(request)
                 
                 qs = Product.objects.filter(is_active=True)
                 if active_cid:
@@ -438,9 +423,7 @@ class TransferSearchView(LoginRequiredMixin, View):
             elif action == 'searchdata':
                 # Para DataTables
                 data = []
-                active_cid = request.session.get('company_id')
-                if not request.user.is_superuser:
-                    active_cid = active_cid or getattr(request.user, 'company_id', None)
+                active_cid = get_active_company_id(request)
                 
                 qs = InternalTransfer.objects.all()
                 if active_cid:

@@ -9,7 +9,7 @@ from django.views.generic import TemplateView, ListView, CreateView, UpdateView,
 
 from core.erp.forms import ClientForm
 from core.erp.models import Client
-from core.erp.mixins import ValidatePermissionRequiredMixin, CompanyInitialMixin
+from core.erp.mixins import ValidatePermissionRequiredMixin, CompanyInitialMixin, get_active_company_id
 
 logger = logging.getLogger(__name__)
 
@@ -27,10 +27,7 @@ class ClientView(LoginRequiredMixin, TemplateView):
             action = request.POST['action']
             if action == 'searchdata':
                 data = []
-                if request.user.is_superuser:
-                    active_cid = request.session.get('company_id')
-                else:
-                    active_cid = getattr(request.user, 'company_id', None)
+                active_cid = get_active_company_id(request)
                 qs = Client.objects.filter(is_active=True)
                 if active_cid:
                     qs = qs.filter(company_id=active_cid)
@@ -80,10 +77,7 @@ class ClientListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListVi
             action = request.POST['action']
             if action == 'searchdata':
                 data = []
-                if request.user.is_superuser:
-                    active_cid = request.session.get('company_id')
-                else:
-                    active_cid = getattr(request.user, 'company_id', None)
+                active_cid = get_active_company_id(request)
                 qs = Client.objects.filter(is_active=True)
                 if active_cid:
                     qs = qs.filter(company_id=active_cid)
@@ -114,10 +108,7 @@ class ClientListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListVi
                 obj.synced_to_server = False
                 obj.save()
             elif action == 'delete_all':
-                if request.user.is_superuser:
-                    active_cid = request.session.get('company_id')
-                else:
-                    active_cid = getattr(request.user, 'company_id', None)
+                active_cid = get_active_company_id(request)
                 qs = Client.objects.filter(is_active=True)
                 if active_cid:
                     qs = qs.filter(company_id=active_cid)
@@ -173,10 +164,7 @@ class ClientCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Comp
                     data = {'error': 'Debe ingresar un CUIT'}
                 else:
                     from core.erp.afip.client import AfipClient
-                    if request.user.is_superuser:
-                        active_cid = request.session.get('company_id')
-                    else:
-                        active_cid = getattr(request.user, 'company_id', None)
+                    active_cid = get_active_company_id(request)
                     try:
                         client = AfipClient(company_id=active_cid)
                         result = client.get_taxpayer_data(cuit)
@@ -231,10 +219,7 @@ class ClientUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Upda
                     data = {'error': 'Debe ingresar un CUIT'}
                 else:
                     from core.erp.afip.client import AfipClient
-                    if request.user.is_superuser:
-                        active_cid = request.session.get('company_id')
-                    else:
-                        active_cid = getattr(request.user, 'company_id', None)
+                    active_cid = get_active_company_id(request)
                     try:
                         client = AfipClient(company_id=active_cid)
                         result = client.get_taxpayer_data(cuit)

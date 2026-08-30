@@ -25,7 +25,7 @@ OPENPYXL_AVAILABLE = True
 
 from core.erp.forms import ProductForm
 from core.erp.models import Product, Category, Company, Supplier, Client, PriceList
-from core.erp.mixins import ValidatePermissionRequiredMixin, CompanyInitialMixin
+from core.erp.mixins import ValidatePermissionRequiredMixin, CompanyInitialMixin, get_active_company_id
 from core.erp.services.server_sync_service import ServerSyncService
 
 # Configurar logging para importación de productos
@@ -88,10 +88,7 @@ class ProductListView(ValidatePermissionRequiredMixin, LoginRequiredMixin, ListV
             print(f"DEBUG Product: Action received: {action}")
             if action == 'searchdata':
                 data = []
-                if request.user.is_superuser:
-                    active_cid = request.session.get('company_id') if hasattr(request, 'session') else None
-                else:
-                    active_cid = getattr(request.user, 'company_id', None)
+                active_cid = get_active_company_id(request)
                 qs = Product.objects.all()
                 if active_cid:
                     qs = qs.filter(company_id=active_cid)
@@ -109,10 +106,7 @@ class ProductListView(ValidatePermissionRequiredMixin, LoginRequiredMixin, ListV
                 print(f"DEBUG Product: Returning {len(data)} products")
             elif action == 'delete_all':
                 # Eliminar todos los productos de la empresa activa
-                if request.user.is_superuser:
-                    active_cid = request.session.get('company_id') if hasattr(request, 'session') else None
-                else:
-                    active_cid = getattr(request.user, 'company_id', None)
+                active_cid = get_active_company_id(request)
                 
                 qs = Product.objects.all()
                 if active_cid:
@@ -229,10 +223,7 @@ class ProductLabelsView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Tem
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        if self.request.user.is_superuser:
-            active_cid = self.request.session.get('company_id')
-        else:
-            active_cid = getattr(self.request.user, 'company_id', None)
+        active_cid = get_active_company_id(self.request)
         qs = Product.objects.all().select_related('cat')
         if active_cid:
             qs = qs.filter(company_id=active_cid)
@@ -1131,10 +1122,7 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                 default_tipo_cliente = request.POST.get('default_tipo_cliente') or None
                 default_precio_lista_id = request.POST.get('default_precio_lista') or None
 
-                if request.user.is_superuser:
-                    active_cid = request.session.get('company_id')
-                else:
-                    active_cid = getattr(request.user, 'company_id', None)
+                active_cid = get_active_company_id(request)
 
                 created, updated = 0, 0
                 errors = []
@@ -1238,10 +1226,7 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                 map_phone = request.POST.get('map_supplier_phone')
                 map_email = request.POST.get('map_supplier_email')
 
-                if request.user.is_superuser:
-                    active_cid = request.session.get('company_id')
-                else:
-                    active_cid = getattr(request.user, 'company_id', None)
+                active_cid = get_active_company_id(request)
 
                 created, updated = 0, 0
                 errors = []
@@ -1367,10 +1352,7 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                 import_logger.error(f"Campos obligatorios no mapeados: {', '.join(missing_fields)}")
                 messages.error(request, f'Debe mapear los campos obligatorios: {", ".join(missing_fields)}')
                 return self.get(request, *args, **kwargs)
-            if request.user.is_superuser:
-                active_cid = request.session.get('company_id')
-            else:
-                active_cid = getattr(request.user, 'company_id', None)
+            active_cid = get_active_company_id(request)
             created, updated = 0, 0
             errors = []
             unit_choices = dict(Product.UNIT_CHOICES)

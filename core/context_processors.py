@@ -1,14 +1,13 @@
 from typing import Dict
 from core.erp.models import Company
 from django.conf import settings
+from core.erp.mixins import get_active_company_id
 
 def brand(request) -> Dict[str, dict]:
     company = None
     user = getattr(request, 'user', None)
 
-    active_cid = request.session.get('company_id')
-    if user and not getattr(user, 'is_superuser', False):
-        active_cid = active_cid or getattr(user, 'company_id', None)
+    active_cid = get_active_company_id(request) if user and user.is_authenticated else None
 
     if active_cid:
         company = Company.objects.filter(pk=active_cid).first()

@@ -6,6 +6,7 @@ from django.views.decorators.csrf import csrf_exempt
 import csv
 from datetime import datetime
 from ..models import AsientoContable, FacturaProveedor, CuentaCorrienteCliente
+from core.erp.mixins import get_active_company_id
 
 
 @login_required
@@ -22,10 +23,7 @@ def asientos_contables_list(request):
     queryset = AsientoContable.objects.all()
     
     # Filtrar por empresa activa
-    if request.user.is_superuser:
-        active_cid = request.session.get('company_id')
-    else:
-        active_cid = getattr(request.user, 'company_id', None)
+    active_cid = get_active_company_id(request)
     if active_cid:
         queryset = queryset.filter(company_id=active_cid)
     else:
@@ -80,10 +78,7 @@ def asientos_contables_export(request):
     
     queryset = AsientoContable.objects.all()
     
-    if request.user.is_superuser:
-        active_cid = request.session.get('company_id')
-    else:
-        active_cid = getattr(request.user, 'company_id', None)
+    active_cid = get_active_company_id(request)
     if active_cid:
         queryset = queryset.filter(company_id=active_cid)
     else:
@@ -135,10 +130,7 @@ def facturas_proveedores_list(request):
     queryset = FacturaProveedor.objects.select_related('supplier', 'company').all()
     
     # Filtrar por empresa activa
-    if request.user.is_superuser:
-        active_cid = request.session.get('company_id')
-    else:
-        active_cid = getattr(request.user, 'company_id', None)
+    active_cid = get_active_company_id(request)
     if active_cid:
         queryset = queryset.filter(company_id=active_cid)
     else:
@@ -188,10 +180,7 @@ def facturas_proveedores_export(request):
     
     queryset = FacturaProveedor.objects.select_related('supplier', 'company').all()
     
-    if request.user.is_superuser:
-        active_cid = request.session.get('company_id')
-    else:
-        active_cid = getattr(request.user, 'company_id', None)
+    active_cid = get_active_company_id(request)
     if active_cid:
         queryset = queryset.filter(company_id=active_cid)
     else:
@@ -253,10 +242,7 @@ def cuenta_corriente_clientes_list(request):
     queryset = CuentaCorrienteCliente.objects.select_related('client', 'company').all()
     
     # Filtrar por empresa activa
-    if request.user.is_superuser:
-        active_cid = request.session.get('company_id')
-    else:
-        active_cid = getattr(request.user, 'company_id', None)
+    active_cid = get_active_company_id(request)
     if active_cid:
         queryset = queryset.filter(company_id=active_cid)
     else:
@@ -306,10 +292,7 @@ def cuenta_corriente_clientes_export(request):
     
     queryset = CuentaCorrienteCliente.objects.select_related('client', 'company').all()
     
-    if request.user.is_superuser:
-        active_cid = request.session.get('company_id')
-    else:
-        active_cid = getattr(request.user, 'company_id', None)
+    active_cid = get_active_company_id(request)
     if active_cid:
         queryset = queryset.filter(company_id=active_cid)
     else:
