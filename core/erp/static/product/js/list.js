@@ -35,27 +35,32 @@ $(function () {
                 'X-Requested-With': 'XMLHttpRequest'
             },
             error: function(xhr, textStatus, errorThrown) {
+                if (textStatus === 'abort' || xhr.status === 0) {
+                    // Solicitud cancelada normalmente (reload, cambio de página, etc)
+                    return;
+                }
                 console.log('DataTables Error Details:');
                 console.log('Status:', xhr.status);
                 console.log('Status Text:', xhr.statusText);
                 console.log('Response Text:', xhr.responseText);
                 console.log('Text Status:', textStatus);
                 console.log('Error Thrown:', errorThrown);
-                
+
                 // Check if it's an authentication issue
-                if (xhr.status === 302 || xhr.status === 403 || xhr.status === 0) {
-                    // Check if response contains login redirect
+                if (xhr.status === 302 || xhr.status === 403) {
                     if (xhr.responseText && xhr.responseText.includes('login')) {
-                        console.log('Authentication redirect detected');
                         window.location.href = '/login/?next=' + encodeURIComponent(window.location.pathname);
                         return;
                     }
                 }
-                
-                // For other errors, show the DataTables error
-                console.error('DataTables Ajax Error:', textStatus, errorThrown);
-                $('#data').DataTable().clear().draw();
-                $('#data').before('<div class="alert alert-danger">Error loading data. Please refresh the page or contact support. Check console for details.</div>');
+
+                var table = $('#data').DataTable();
+                if (table) {
+                    table.clear().draw();
+                }
+                if ($('#dt-error-alert').length === 0) {
+                    $('#data').before('<div id="dt-error-alert" class="alert alert-danger">Error loading data. Please refresh the page or contact support. Check console for details.</div>');
+                }
             }
         },
         columns: [
