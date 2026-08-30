@@ -129,30 +129,22 @@ setup_postgres() {
     fi
 
     # 3.4) Ejecutar SQL: crear usuario app y base de datos
-    # Nota: usamos \$\$ para evitar que bash expanda '$$' al PID.
-    local SUPER_SQL
-    SUPER_SQL=$(cat << SQL
-DO
-\$\$do\$\$
-BEGIN
-    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '$DB_USER') THEN
-        CREATE ROLE $DB_USER WITH LOGIN PASSWORD '$DB_PASS';
-    ELSE
-        ALTER ROLE $DB_USER WITH PASSWORD '$DB_PASS';
-    END IF;
-END
-\$\$do\$\$;
+    # Se escribe el SQL a un archivo temporal y se ejecuta con psql -f.
+    local SQL_FILE
+    SQL_FILE=$(mktemp)
 
+    cat > "$SQL_FILE" << SQL
 SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$DB_NAME';
 DROP DATABASE IF EXISTS $DB_NAME;
+DROP ROLE IF EXISTS $DB_USER;
+CREATE ROLE $DB_USER WITH LOGIN PASSWORD '$DB_PASS';
 CREATE DATABASE $DB_NAME OWNER $DB_USER;
 GRANT ALL PRIVILEGES ON DATABASE $DB_NAME TO $DB_USER;
 SQL
-)
 
     if [ "$CONN_MODE" = "peer" ]; then
-        if sudo -n -u postgres psql -c "$SUPER_SQL" >"$PG_ERR_PEER" 2>&1; then
-            rm -f "$PG_ERR_PEER" "$PG_ERR_PWD"
+        if sudo -n -u postgres psql -f "$SQL_FILE" >"$PG_ERR_PEER" 2>&1; then
+            rm -f "$SQL_FILE" "$PG_ERR_PEER" "$PG_ERR_PWD"
             echo -e "${GREEN}✓ Base de datos '$DB_NAME' y usuario '$DB_USER' creados (peer auth).${NC}"
             return 0
         fi
@@ -160,14 +152,14 @@ SQL
         echo
         echo "Detalle del error:"
         cat "$PG_ERR_PEER"
-        rm -f "$PG_ERR_PEER" "$PG_ERR_PWD"
+        rm -f "$SQL_FILE" "$PG_ERR_PEER" "$PG_ERR_PWD"
         return 1
     fi
 
     export PGPASSWORD="$WORKING_PASS"
-    if psql -U "$PG_USER" -h "$DEFAULT_DB_HOST" -p "$DEFAULT_DB_PORT" -c "$SUPER_SQL" >"$PG_ERR_PWD" 2>&1; then
+    if psql -U "$PG_USER" -h "$DEFAULT_DB_HOST" -p "$DEFAULT_DB_PORT" -f "$SQL_FILE" >"$PG_ERR_PWD" 2>&1; then
         unset PGPASSWORD
-        rm -f "$PG_ERR_PEER" "$PG_ERR_PWD"
+        rm -f "$SQL_FILE" "$PG_ERR_PEER" "$PG_ERR_PWD"
         echo -e "${GREEN}✓ Base de datos '$DB_NAME' y usuario '$DB_USER' creados (password auth).${NC}"
         return 0
     fi
@@ -176,7 +168,7 @@ SQL
     echo
     echo "Detalle del error:"
     cat "$PG_ERR_PWD"
-    rm -f "$PG_ERR_PEER" "$PG_ERR_PWD"
+    rm -f "$SQL_FILE" "$PG_ERR_PEER" "$PG_ERR_PWD"
     return 1
 }
 
