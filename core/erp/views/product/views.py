@@ -12,6 +12,7 @@ import logging
 import os
 from datetime import datetime
 from django.db import transaction
+from decimal import Decimal
 
 # Importar librerías para manejo de Excel/CSV
 import numpy
@@ -126,7 +127,6 @@ class ProductListView(ValidatePermissionRequiredMixin, LoginRequiredMixin, ListV
                 data = {'success': True, 'count': count}
             elif action == 'adjust_margin':
                 from core.erp.models import MarginAdjustmentHistory
-                from decimal import Decimal
                 import math
 
                 percentage = Decimal(request.POST.get('percentage', '0'))
