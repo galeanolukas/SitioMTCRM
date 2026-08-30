@@ -90,7 +90,8 @@ class LauncherView(LoginRequiredMixin, TemplateView):
             'app_version': format_version_display(version_info['current_version']),
             'latest_version': format_version_display(version_info['latest_version']),
             'update_available': version_info['update_available'],
-            'is_dev_version': version_info['is_dev_version']
+            'is_dev_version': version_info['is_dev_version'],
+            'title': 'Launcher',
         })
         
         return ctx
