@@ -8,11 +8,14 @@ cd "$(dirname "$0")"
 # ---------------------------------------------------------------------------
 # Configuración por defecto de PostgreSQL
 # ---------------------------------------------------------------------------
+# Usuario y contraseña del SUPERUSUARIO postgresql (para crear el usuario app)
 DEFAULT_POSTGRES_USER="postgres"
 DEFAULT_POSTGRES_PASS="postgres"
+
+# Usuario y contraseña DEDICADO para la aplicación (se creará en PostgreSQL)
 DEFAULT_DB_NAME="mtcrm_pos"
-DEFAULT_DB_USER="postgres"
-DEFAULT_DB_PASS="postgres"
+DEFAULT_DB_USER="mtcrm_pos"
+DEFAULT_DB_PASS="mtcrm_pos"
 DEFAULT_DB_HOST="localhost"
 DEFAULT_DB_PORT="5432"
 
@@ -20,17 +23,14 @@ DEFAULT_DB_PORT="5432"
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-clear_or_msg() {
-    echo -e "$1"
-}
-
-echo "============================================"
-echo "  Instalador POS Local - SitioMTCRM"
+echo -e "${CYAN}============================================"
+echo "  Instalador POS Local - TechVentas"
 echo "  (Linux / macOS)"
 echo "============================================"
-echo
+echo -e "${NC}"
 
 # ---------------------------------------------------------------------------
 # 1) Verificar Python
@@ -77,47 +77,105 @@ if command -v systemctl &> /dev/null; then
 fi
 
 # ---------------------------------------------------------------------------
-# 3) Crear DB y verificar conexión
+# 3) Crear usuario / DB con superusuario PostgreSQL
 # ---------------------------------------------------------------------------
+# Esta función crea un usuario y DB dedicados para la app.
+# Pide la contraseña del superusuario postgres si no puede conectarse.
+
 setup_postgres() {
     local PG_USER="$1"
     local PG_PASS="$2"
     local DB_NAME="$3"
     local DB_USER="$4"
     local DB_PASS="$5"
+    local PGSQL_SUPER_OK=false
 
-    # 3.1) Intentar conexión con sudo (peer auth)
-    if sudo -u postgres psql -c "SELECT 1;" &> /dev/null; then
-        sudo -u postgres psql -c "SELECT 1 FROM pg_database WHERE datname='$DB_NAME';" | grep -q 1 || \
-            sudo -u postgres psql -c "CREATE DATABASE $DB_NAME OWNER $PG_USER;" || true
-        return 0
+    # Función auxiliar para ejecutar SQL como superusuario
+    run_as_super() {
+        local SQL="$1"
+        if sudo -n -u postgres psql -c "$SQL" &> /dev/null; then
+            return 0
+        fi
+        export PGPASSWORD="$PG_PASS"
+        if psql -U "$PG_USER" -h "$DEFAULT_DB_HOST" -p "$DEFAULT_DB_PORT" -c "$SQL" &> /dev/null; then
+            unset PGPASSWORD
+            return 0
+        fi
+        unset PGPASSWORD
+        return 1
+    }
+
+    # 3.1) Probar peer auth (sudo -u postgres)
+    if sudo -n -u postgres psql -c "SELECT 1;" &> /dev/null; then
+        PGSQL_SUPER_OK=true
+        echo -e "${GREEN}✓ Conectado a PostgreSQL como superusuario (peer auth).${NC}"
     fi
 
-    # 3.2) Intentar conexión por red con PGPASSWORD
-    export PGPASSWORD="$PG_PASS"
-    psql -U "$PG_USER" -h "$DEFAULT_DB_HOST" -p "$DEFAULT_DB_PORT" -c "SELECT 1;" &> /dev/null
-    local CONN_OK=$?
-    unset PGPASSWORD
+    # 3.2) Probar conexión por red con contraseña por defecto
+    if [ "$PGSQL_SUPER_OK" = false ]; then
+        export PGPASSWORD="$PG_PASS"
+        if psql -U "$PG_USER" -h "$DEFAULT_DB_HOST" -p "$DEFAULT_DB_PORT" -c "SELECT 1;" &> /dev/null; then
+            PGSQL_SUPER_OK=true
+            echo -e "${GREEN}✓ Conectado a PostgreSQL como superusuario (password auth).${NC}"
+        fi
+        unset PGPASSWORD
+    fi
 
-    if [ $CONN_OK -ne 0 ]; then
-        echo -e "${YELLOW}No se pudo conectar con el usuario '$PG_USER' y la contraseña por defecto.${NC}"
+    # 3.3) Si nada funcionó, pedir contraseña del superusuario
+    if [ "$PGSQL_SUPER_OK" = false ]; then
+        echo -e "${YELLOW}No se pudo conectar al superusuario '$PG_USER' con la contraseña por defecto.${NC}"
         read -sp "Ingrese la contraseña del superusuario PostgreSQL [$PG_USER]: " PG_PASS_INPUT
         echo
         PG_PASS_INPUT="${PG_PASS_INPUT:-$PG_PASS}"
-        DEFAULT_POSTGRES_PASS="$PG_PASS_INPUT"
         export PGPASSWORD="$PG_PASS_INPUT"
-        psql -U "$PG_USER" -h "$DEFAULT_DB_HOST" -p "$DEFAULT_DB_PORT" -c "SELECT 1;" &> /dev/null
-        if [ $? -ne 0 ]; then
+        if psql -U "$PG_USER" -h "$DEFAULT_DB_HOST" -p "$DEFAULT_DB_PORT" -c "SELECT 1;" &> /dev/null; then
+            PGSQL_SUPER_OK=true
+            DEFAULT_POSTGRES_PASS="$PG_PASS_INPUT"
+            echo -e "${GREEN}✓ Conectado con la contraseña ingresada.${NC}"
+        else
+            unset PGPASSWORD
             echo -e "${RED}[ERROR] No se pudo conectar a PostgreSQL. Verifique las credenciales.${NC}"
             return 1
         fi
     fi
 
+    # 3.4) Ejecutar SQL: crear usuario app y base de datos
+    # Eliminar DB si existe para evitar conflictos, luego crear nueva.
+    local SUPER_SQL
+    SUPER_SQL=$(cat << SQL
+DO
+\$do\$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '$DB_USER') THEN
+        CREATE ROLE $DB_USER WITH LOGIN PASSWORD '$DB_PASS';
+    ELSE
+        ALTER ROLE $DB_USER WITH PASSWORD '$DB_PASS';
+    END IF;
+END
+\$do\$;
+
+SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$DB_NAME';
+DROP DATABASE IF EXISTS $DB_NAME;
+CREATE DATABASE $DB_NAME OWNER $DB_USER;
+GRANT ALL PRIVILEGES ON DATABASE $DB_NAME TO $DB_USER;
+SQL
+)
+
+    if sudo -n -u postgres psql -c "$SUPER_SQL" &> /dev/null; then
+        echo -e "${GREEN}✓ Base de datos '$DB_NAME' y usuario '$DB_USER' creados.${NC}"
+        return 0
+    fi
+
     export PGPASSWORD="$DEFAULT_POSTGRES_PASS"
-    psql -U "$PG_USER" -h "$DEFAULT_DB_HOST" -p "$DEFAULT_DB_PORT" -tc "SELECT 1 FROM pg_database WHERE datname='$DB_NAME';" | grep -q 1 || \
-        psql -U "$PG_USER" -h "$DEFAULT_DB_HOST" -p "$DEFAULT_DB_PORT" -c "CREATE DATABASE $DB_NAME OWNER $PG_USER;" || true
+    if psql -U "$PG_USER" -h "$DEFAULT_DB_HOST" -p "$DEFAULT_DB_PORT" -c "$SUPER_SQL" &> /dev/null; then
+        unset PGPASSWORD
+        echo -e "${GREEN}✓ Base de datos '$DB_NAME' y usuario '$DB_USER' creados.${NC}"
+        return 0
+    fi
     unset PGPASSWORD
-    return 0
+
+    echo -e "${RED}[ERROR] No se pudo crear la base de datos o el usuario de la aplicación.${NC}"
+    return 1
 }
 
 setup_postgres "$DEFAULT_POSTGRES_USER" "$DEFAULT_POSTGRES_PASS" "$DEFAULT_DB_NAME" "$DEFAULT_DB_USER" "$DEFAULT_DB_PASS"
@@ -126,17 +184,17 @@ if [ $? -ne 0 ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# 4) Crear / actualizar .env
+# 4) Crear / actualizar .env con credenciales de la APP (no del superusuario)
 # ---------------------------------------------------------------------------
+echo "Configurando archivo .env..."
 if [ ! -f ".env" ]; then
-    echo "Creando archivo .env con configuración por defecto..."
     cat > .env <<EOENV
 # Entorno
 ENVIRONMENT=development
 APP_VERSION=1.0.0
 POS_SYNC_INTERVAL_SECONDS=300
 
-# Base de datos local (PostgreSQL)
+# Base de datos local (PostgreSQL) - usuario DEDICADO de la app
 DB_NAME=$DEFAULT_DB_NAME
 DB_USER=$DEFAULT_DB_USER
 DB_PASSWORD=$DEFAULT_DB_PASS
@@ -164,7 +222,6 @@ CATALOGO_URL=
 CATALOGO_API_KEY=
 EOENV
 else
-    echo "Actualizando variables de base de datos en .env..."
     python3 - <<'PY'
 import re, os
 env_file = '.env'
@@ -181,8 +238,8 @@ def set_var(name, value, content):
     return content + '\n' + line
 
 content = set_var('DB_NAME', 'mtcrm_pos', content)
-content = set_var('DB_USER', 'postgres', content)
-content = set_var('DB_PASSWORD', 'postgres', content)
+content = set_var('DB_USER', 'mtcrm_pos', content)
+content = set_var('DB_PASSWORD', 'mtcrm_pos', content)
 content = set_var('DB_HOST', 'localhost', content)
 content = set_var('DB_PORT', '5432', content)
 with open(env_file, 'w') as f:
@@ -228,7 +285,7 @@ pip install -r requirements.txt || { echo -e "${RED}[ERROR] Fallo instalando req
 echo -e "${GREEN}✓ Dependencias instaladas.${NC}"
 
 # ---------------------------------------------------------------------------
-# 7) Generar icono PNG si no existe (para acceso directo Linux)
+# 7) Generar icono PNG si no existe
 # ---------------------------------------------------------------------------
 if [ -f "icon.ico" ] && [ ! -f "icon.png" ]; then
     echo "Generando icon.png desde icon.ico..."
@@ -236,7 +293,10 @@ if [ -f "icon.ico" ] && [ ! -f "icon.png" ]; then
 try:
     from PIL import Image
     img = Image.open('icon.ico')
-    img.save('icon.png', sizes=[(128,128)])
+    # Guardar en un tamaño común
+    for size in [(128, 128)]:
+        ico = img.resize(size, Image.Resampling.LANCZOS)
+        ico.save('icon.png')
     print('icon.png generado.')
 except Exception as e:
     print('No se pudo generar icon.png:', e)
@@ -306,10 +366,10 @@ fi
 # 11) Final
 # ---------------------------------------------------------------------------
 echo
+echo -e "${CYAN}============================================"
+echo "  INSTALACIÓN COMPLETADA"
 echo "============================================"
-echo -e "  ${GREEN}INSTALACIÓN COMPLETADA${NC}"
-echo "============================================"
-echo
+echo -e "${NC}"
 echo "Base de datos: $DEFAULT_DB_NAME ($DEFAULT_DB_HOST:$DEFAULT_DB_PORT)"
 echo "Usuario DB:    $DEFAULT_DB_USER"
 echo "Contraseña DB: $DEFAULT_DB_PASS"
@@ -326,5 +386,5 @@ read -p "¿Desea iniciar el POS ahora? (s/n): " start_now
 if [[ $start_now =~ ^[Ss]$ ]]; then
     exec ./lanzar_pos.sh
 else
-    read -p "Presione Enter para cerrar..."
+    read -p "Presione Enter para continuar..."
 fi

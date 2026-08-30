@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-REM Instalador POS Local - SitioMTCRM (Windows)
+REM Instalador POS Local - TechVentas (Windows)
 REM Crea entorno, dependencias, DB PostgreSQL por defecto y migraciones.
 
 cd /d "%~dp0"
@@ -12,13 +12,13 @@ REM ---------------------------------------------------------------------------
 set "DEFAULT_POSTGRES_USER=postgres"
 set "DEFAULT_POSTGRES_PASS=postgres"
 set "DEFAULT_DB_NAME=mtcrm_pos"
-set "DEFAULT_DB_USER=postgres"
-set "DEFAULT_DB_PASS=postgres"
+set "DEFAULT_DB_USER=mtcrm_pos"
+set "DEFAULT_DB_PASS=mtcrm_pos"
 set "DEFAULT_DB_HOST=localhost"
 set "DEFAULT_DB_PORT=5432"
 
 echo ============================================
-echo   Instalador POS Local - SitioMTCRM
+echo   Instalador POS Local - TechVentas
 echo   (Windows)
 echo ============================================
 echo.
@@ -41,23 +41,21 @@ psql --version >nul 2>&1
 if errorlevel 1 (
     echo [ERROR] PostgreSQL no esta instalado o psql no esta en el PATH.
     echo Descargue e instale PostgreSQL desde https://www.postgresql.org/download/windows/
-    echo Durante la instalacion use el usuario 'postgres' con contrasena 'postgres'.
     echo.
-    echo Si ya lo instalo, asegurese de que la carpeta 'bin' de PostgreSQL este en el PATH.
     pause
     exit /b 1
 )
 echo [OK] PostgreSQL detectado.
 
 REM ---------------------------------------------------------------------------
-REM 3) Crear base de datos PostgreSQL
+REM 3) Crear usuario y base de datos PostgreSQL
 REM ---------------------------------------------------------------------------
 echo.
-echo Conectando a PostgreSQL con usuario '%DEFAULT_POSTGRES_USER%' y creando DB '%DEFAULT_DB_NAME%'...
+echo Conectando a PostgreSQL con superusuario '%DEFAULT_POSTGRES_USER%'...
 
 set "PGPASSWORD=%DEFAULT_POSTGRES_PASS%"
 
-REM Verificar conexion
+REM Verificar conexion con contrasena por defecto
 psql -U %DEFAULT_POSTGRES_USER% -h %DEFAULT_DB_HOST% -p %DEFAULT_DB_PORT% -c "SELECT 1;" >nul 2>&1
 if errorlevel 1 (
     echo [ADVERTENCIA] No se pudo conectar con la contrasena por defecto '%DEFAULT_POSTGRES_PASS%'.
@@ -72,21 +70,38 @@ if errorlevel 1 (
         pause
         exit /b 1
     )
+    echo [OK] Conectado con la contrasena ingresada.
+) else (
+    echo [OK] Conectado a PostgreSQL.
 )
 
-REM Verificar si la base de datos existe
-psql -U %DEFAULT_POSTGRES_USER% -h %DEFAULT_DB_HOST% -p %DEFAULT_DB_PORT% -tc "SELECT 1 FROM pg_database WHERE datname='%DEFAULT_DB_NAME%';" | findstr "1" >nul
+REM Crear usuario dedicado y base de datos
+set "SQL_TEMP=%TEMP%\create_mtcrm_db.sql"
+(
+    echo DO $$
+    echo BEGIN
+    echo     IF NOT EXISTS ^(SELECT FROM pg_catalog.pg_roles WHERE rolname = '%DEFAULT_DB_USER%'^) THEN
+    echo         CREATE ROLE %DEFAULT_DB_USER% WITH LOGIN PASSWORD '%DEFAULT_DB_PASS%';
+    echo     ELSE
+    echo         ALTER ROLE %DEFAULT_DB_USER% WITH PASSWORD '%DEFAULT_DB_PASS%';
+    echo     END IF;
+    echo END
+    echo $$;
+    echo SELECT pg_terminate_backend^(pid^) FROM pg_stat_activity WHERE datname = '%DEFAULT_DB_NAME%';
+    echo DROP DATABASE IF EXISTS %DEFAULT_DB_NAME%;
+    echo CREATE DATABASE %DEFAULT_DB_NAME% OWNER %DEFAULT_DB_USER%;
+    echo GRANT ALL PRIVILEGES ON DATABASE %DEFAULT_DB_NAME% TO %DEFAULT_DB_USER%;
+) > "%SQL_TEMP%"
+
+psql -U %DEFAULT_POSTGRES_USER% -h %DEFAULT_DB_HOST% -p %DEFAULT_DB_PORT% -f "%SQL_TEMP%" >nul
 if errorlevel 1 (
-    echo Creando base de datos %DEFAULT_DB_NAME%...
-    psql -U %DEFAULT_POSTGRES_USER% -h %DEFAULT_DB_HOST% -p %DEFAULT_DB_PORT% -c "CREATE DATABASE %DEFAULT_DB_NAME% OWNER %DEFAULT_POSTGRES_USER%;" >nul
-    if errorlevel 1 (
-        echo [ADVERTENCIA] No se pudo crear la base de datos. Puede que ya exista o el usuario no tenga permisos.
-    ) else (
-        echo [OK] Base de datos %DEFAULT_DB_NAME% creada.
-    )
-) else (
-    echo [OK] La base de datos %DEFAULT_DB_NAME% ya existe.
+    echo [ERROR] No se pudo crear la base de datos o el usuario de la aplicacion.
+    del "%SQL_TEMP%" 2>nul
+    pause
+    exit /b 1
 )
+del "%SQL_TEMP%" 2>nul
+echo [OK] Base de datos '%DEFAULT_DB_NAME%' y usuario '%DEFAULT_DB_USER%' creados.
 
 REM ---------------------------------------------------------------------------
 REM 4) Crear / actualizar .env
@@ -99,7 +114,7 @@ if not exist .env (
         echo APP_VERSION=1.0.0
         echo POS_SYNC_INTERVAL_SECONDS=300
         echo.
-        echo # Base de datos local ^(PostgreSQL^)
+        echo # Base de datos local ^(PostgreSQL^) - usuario DEDICADO de la app
         echo DB_NAME=%DEFAULT_DB_NAME%
         echo DB_USER=%DEFAULT_DB_USER%
         echo DB_PASSWORD=%DEFAULT_DB_PASS%
@@ -277,14 +292,16 @@ set "VAR_NAME=%~1"
 set "VAR_VALUE=%~2"
 set "FILE=.env"
 set "TEMP_FILE=%TEMP%\.env.tmp"
+if not exist "%TEMP_FILE%" type nul > "%TEMP_FILE%"
 (
     for /f "delims=" %%a in (%FILE%) do (
         set "LINE=%%a"
-        echo %%a | findstr /b "%VAR_NAME%=" >nul
-        if errorlevel 1 (
-            echo %%a
-        ) else (
-            echo %VAR_NAME%=%VAR_VALUE%
+        for /f "tokens=1,* delims==" %%b in ("%%a") do (
+            if /I "%%b"=="%VAR_NAME%" (
+                echo %VAR_NAME%=%VAR_VALUE%
+            ) else (
+                echo %%a
+            )
         )
     )
 ) > "%TEMP_FILE%"
