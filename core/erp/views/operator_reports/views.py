@@ -255,7 +255,7 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                             transfer_amount = sale_total
                         elif payment_method in ['card', 'check']:
                             other_amount = sale_total
-                        elif payment_method and '+' in payment_method:
+                        elif payment_method == 'combined' or (payment_method and '+' in payment_method):
                             # Pagos combinados - usar los detalles de pago
                             if payment_details and isinstance(payment_details, list):
                                 for payment in payment_details:
@@ -1020,7 +1020,7 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
             transfer_amount = sale_total
         elif payment_method in ['card', 'check']:
             other_amount = sale_total
-        elif payment_method and '+' in payment_method:
+        elif payment_method == 'combined' or (payment_method and '+' in payment_method):
             # Pagos combinados - usar los detalles de pago
             if payment_details and isinstance(payment_details, list):
                 for payment in payment_details:

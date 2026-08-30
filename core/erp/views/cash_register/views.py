@@ -344,9 +344,23 @@ class CashRegisterDetailView(LoginRequiredMixin, ValidatePermissionRequiredMixin
         combined_sales = sales_qs.filter(payment_method='combined')
         for sale in combined_sales:
             if sale.payment_details:
-                # Sumar cada método del pago combinado
                 payment_breakdown = sale.payment_details
-                if isinstance(payment_breakdown, dict):
+                if isinstance(payment_breakdown, list):
+                    for payment in payment_breakdown:
+                        if isinstance(payment, dict):
+                            method = payment.get('method', '')
+                            amount = float(payment.get('amount', 0))
+                            if method == 'cash':
+                                dynamic_cash += amount
+                            elif method == 'card':
+                                dynamic_card += amount
+                            elif method == 'transfer':
+                                dynamic_transfer += amount
+                            elif method == 'mp':
+                                dynamic_mp += amount
+                            elif method == 'check':
+                                dynamic_check += amount
+                elif isinstance(payment_breakdown, dict):
                     dynamic_cash += payment_breakdown.get('cash', 0)
                     dynamic_card += payment_breakdown.get('card', 0)
                     dynamic_transfer += payment_breakdown.get('transfer', 0)

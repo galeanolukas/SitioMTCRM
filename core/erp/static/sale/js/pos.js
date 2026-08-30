@@ -1722,9 +1722,9 @@
     const invoiceType = wantsInvoice ? 'Factura' : 'Ticket';
     $('#firstPaymentSummary').text(`${getPaymentMethodName(firstMethod)}: ${fmt(firstAmount)} (${invoiceType})`);
     
-    // Deshabilitar el método ya elegido en el segundo select
-    $('#secondPaymentMethod option').prop('disabled', false);
-    $('#secondPaymentMethod option[value="' + firstMethod + '"]').prop('disabled', true);
+    // Deshabilitar y ocultar el método ya elegido en el segundo select
+    $('#secondPaymentMethod option').prop('disabled', false).show();
+    $('#secondPaymentMethod option[value="' + firstMethod + '"]').prop('disabled', true).hide();
     // Si el valor actual es el deshabilitado, cambiar al primero disponible
     if ($('#secondPaymentMethod').val() === firstMethod) {
       const firstAvailable = $('#secondPaymentMethod option:not(:disabled)').first().val();
@@ -1800,7 +1800,8 @@
       subtotal: subtotal,
       iva: iva,
       total: total,
-      payment_method: paymentDescription,
+      payment_method: 'combined',
+      payment_method_desc: paymentDescription,
       combined_payments: [
         { method: firstMethod, amount: firstAmount },
         { method: secondMethod, amount: secondAmount }
