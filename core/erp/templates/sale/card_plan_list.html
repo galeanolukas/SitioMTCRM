@@ -2,7 +2,6 @@
 {% load static %}
 
 {% block head_list %}
-  <script src="{% static 'sale/js/card_plan_list.js' %}"></script>
 {% endblock %}
 
 {% block buttons_list %}
@@ -57,60 +56,7 @@
   {% endfor %}
 {% endblock %}
 
-{% block javascript %}
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      const importForm = document.getElementById('importForm');
-      if (importForm) {
-        importForm.addEventListener('submit', function(e) {
-          e.preventDefault();
-          const formData = new FormData(importForm);
-          const btn = document.getElementById('btnImportCsv');
-          const btnText = btn.innerHTML;
-          btn.disabled = true;
-          btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importando...';
-          const resultDiv = document.getElementById('importResult');
-          resultDiv.innerHTML = '';
-          resultDiv.style.display = 'none';
-
-          fetch('{% url "erp:card_plan_import" %}', {
-            method: 'POST',
-            body: formData,
-            headers: { 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value }
-          })
-          .then(r => r.json())
-          .then(data => {
-            if (data.success) {
-              resultDiv.className = 'alert alert-success small';
-              resultDiv.innerHTML = '<i class="fas fa-check-circle"></i> ' + data.message;
-              if (data.errors && data.errors.length > 0) {
-                resultDiv.innerHTML += '<hr><ul class="mb-0">';
-                data.errors.forEach(err => { resultDiv.innerHTML += '<li>' + err + '</li>'; });
-                resultDiv.innerHTML += '</ul>';
-              }
-              resultDiv.style.display = 'block';
-              setTimeout(() => { window.location.reload(); }, 2000);
-            } else {
-              resultDiv.className = 'alert alert-danger small';
-              resultDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> ' + (data.error || 'Error al importar');
-              resultDiv.style.display = 'block';
-            }
-          })
-          .catch(err => {
-            resultDiv.className = 'alert alert-danger small';
-            resultDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> Error de conexión';
-            resultDiv.style.display = 'block';
-          })
-          .finally(() => {
-            btn.disabled = false;
-            btn.innerHTML = btnText;
-          });
-        });
-      }
-    });
-  </script>
-{% endblock %}
-
+{% block extra_js %}
 <!-- Modal Importar CSV -->
 <div class="modal fade" id="importModal" tabindex="-1" aria-labelledby="importModalLabel" aria-hidden="true">
   <div class="modal-dialog">
@@ -142,3 +88,56 @@
     </div>
   </div>
 </div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const importForm = document.getElementById('importForm');
+    if (importForm) {
+      importForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const formData = new FormData(importForm);
+        const btn = document.getElementById('btnImportCsv');
+        const btnText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importando...';
+        const resultDiv = document.getElementById('importResult');
+        resultDiv.innerHTML = '';
+        resultDiv.style.display = 'none';
+
+        fetch('{% url "erp:card_plan_import" %}', {
+          method: 'POST',
+          body: formData,
+          headers: { 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value }
+        })
+        .then(r => r.json())
+        .then(data => {
+          if (data.success) {
+            resultDiv.className = 'alert alert-success small';
+            resultDiv.innerHTML = '<i class="fas fa-check-circle"></i> ' + data.message;
+            if (data.errors && data.errors.length > 0) {
+              resultDiv.innerHTML += '<hr><ul class="mb-0">';
+              data.errors.forEach(err => { resultDiv.innerHTML += '<li>' + err + '</li>'; });
+              resultDiv.innerHTML += '</ul>';
+            }
+            resultDiv.style.display = 'block';
+            setTimeout(() => { window.location.reload(); }, 2000);
+          } else {
+            resultDiv.className = 'alert alert-danger small';
+            resultDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> ' + (data.error || 'Error al importar');
+            resultDiv.style.display = 'block';
+          }
+        })
+        .catch(err => {
+          resultDiv.className = 'alert alert-danger small';
+          resultDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> Error de conexión';
+          resultDiv.style.display = 'block';
+        })
+        .finally(() => {
+          btn.disabled = false;
+          btn.innerHTML = btnText;
+        });
+      });
+    }
+  });
+</script>
+{% endblock %}
