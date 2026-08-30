@@ -88,6 +88,11 @@ class RemitoCreateView(LoginRequiredMixin, PermissionRequiredMixin, CreateView):
     permission_required = 'erp.add_remito'
     success_url = reverse_lazy('erp:remito_list')
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['request'] = self.request
+        return kwargs
+
     def form_valid(self, form):
         form.instance.created_by = self.request.user
         if not form.instance.company_id:
@@ -147,6 +152,11 @@ class RemitoUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateView):
     form_class = RemitoForm
     permission_required = 'erp.change_remito'
     success_url = reverse_lazy('erp:remito_list')
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['request'] = self.request
+        return kwargs
 
     def form_valid(self, form):
         messages.success(self.request, 'Remito actualizado exitosamente.')

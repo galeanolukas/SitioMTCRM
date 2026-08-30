@@ -737,6 +737,16 @@ class RemitoForm(ModelForm):
         elif 'company' in self.fields:
             self.fields['company'].queryset = Company.objects.filter(is_active=True)
 
+        # Filtrar proveedores por empresa del usuario
+        if 'supplier' in self.fields and self.request and hasattr(self.request, 'user') and not getattr(self.request.user, 'is_superuser', False):
+            active_cid = self.request.session.get('company_id') or getattr(self.request.user, 'company_id', None)
+            if active_cid:
+                self.fields['supplier'].queryset = Supplier.objects.filter(company_id=active_cid, is_active=True)
+            else:
+                self.fields['supplier'].queryset = Supplier.objects.none()
+        elif 'supplier' in self.fields:
+            self.fields['supplier'].queryset = Supplier.objects.filter(is_active=True)
+
         # Auto-generar número de remito si está vacío
         if not self.initial.get('numero') and not self.data.get('numero'):
             last_remito = Remito.objects.order_by('-id').first()
