@@ -22,6 +22,12 @@
 {% block buttons_list %}
     <a href="{{ create_url }}" class="btn btn-primary btn-flat btnTest"><i class="fas fa-plus"></i> Nuevo registro</a>
     <a href="{{ list_url }}" class="btn btn-success btn-flat"><i class="fas fa-sync"></i> Actualizar</a>
+    <button type="button" class="btn btn-warning btn-flat" data-bs-toggle="modal" data-bs-target="#modalAdjustMargin">
+        <i class="fas fa-percentage"></i> Ajustar Margen
+    </button>
+    <button type="button" class="btn btn-info btn-flat" id="btnUndoMargin" data-bs-toggle="modal" data-bs-target="#modalUndoMargin" style="display:none;">
+        <i class="fas fa-undo"></i> Deshacer Último Ajuste
+    </button>
     {% if request.user.is_superuser %}
     <button type="button" class="btn btn-danger btn-flat" id="btnDeleteAll" data-bs-toggle="modal" data-bs-target="#modalDeleteAll">
         <i class="fas fa-trash-alt"></i> Eliminar todos
@@ -74,6 +80,90 @@ $(function () {
             btn.prop('disabled', false).html('<i class="fas fa-trash-alt"></i> Sí, eliminar todos');
         });
     });
+
+    // Verificar si hay un ajuste reciente para mostrar botón deshacer
+    function checkLastAdjustment() {
+        $.ajax({
+            url: window.location.pathname,
+            type: 'POST',
+            data: {
+                'action': 'last_margin_adjustment',
+                'csrfmiddlewaretoken': getCookie('csrftoken')
+            },
+            dataType: 'json'
+        }).done(function (resp) {
+            if (resp && resp.id) {
+                $('#btnUndoMargin').show();
+                $('#undoInfo').html('<strong>+' + resp.percentage + '%</strong> aplicado a ' + resp.product_count + ' productos el ' + resp.created_at);
+            } else {
+                $('#btnUndoMargin').hide();
+            }
+        });
+    }
+    checkLastAdjustment();
+
+    // Ajustar margen masivo
+    $(document).on('click', '#btnConfirmAdjustMargin', function () {
+        var btn = $(this);
+        var percentage = $('#marginPercentage').val();
+        if (!percentage || parseFloat(percentage) <= 0) {
+            alert('Ingrese un porcentaje válido mayor a 0');
+            return;
+        }
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Aplicando...');
+        $.ajax({
+            url: window.location.pathname,
+            type: 'POST',
+            data: {
+                'action': 'adjust_margin',
+                'percentage': percentage,
+                'csrfmiddlewaretoken': getCookie('csrftoken')
+            },
+            dataType: 'json'
+        }).done(function (resp) {
+            $('#modalAdjustMargin').modal('hide');
+            if (resp.success) {
+                $('#data').DataTable().ajax.reload(null, false);
+                alert(resp.message);
+                checkLastAdjustment();
+            } else {
+                alert(resp.error || 'Error al ajustar el margen');
+            }
+        }).fail(function (jqXHR, textStatus, errorThrown) {
+            alert('Error: ' + (jqXHR.responseJSON ? jqXHR.responseJSON.error : textStatus));
+        }).always(function () {
+            btn.prop('disabled', false).html('<i class="fas fa-check"></i> Aplicar Ajuste');
+            $('#marginPercentage').val('');
+        });
+    });
+
+    // Deshacer último ajuste
+    $(document).on('click', '#btnConfirmUndoMargin', function () {
+        var btn = $(this);
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Deshaciendo...');
+        $.ajax({
+            url: window.location.pathname,
+            type: 'POST',
+            data: {
+                'action': 'undo_margin',
+                'csrfmiddlewaretoken': getCookie('csrftoken')
+            },
+            dataType: 'json'
+        }).done(function (resp) {
+            $('#modalUndoMargin').modal('hide');
+            if (resp.success) {
+                $('#data').DataTable().ajax.reload(null, false);
+                alert(resp.message);
+                checkLastAdjustment();
+            } else {
+                alert(resp.error || 'Error al deshacer');
+            }
+        }).fail(function (jqXHR, textStatus, errorThrown) {
+            alert('Error: ' + (jqXHR.responseJSON ? jqXHR.responseJSON.error : textStatus));
+        }).always(function () {
+            btn.prop('disabled', false).html('<i class="fas fa-undo"></i> Sí, deshacer');
+        });
+    });
 });
 </script>
 
@@ -93,6 +183,60 @@ $(function () {
         <button type="button" class="btn btn-secondary btn-flat" data-bs-dismiss="modal">Cancelar</button>
         <button type="button" class="btn btn-danger btn-flat" id="btnConfirmDeleteAll">
           <i class="fas fa-trash-alt"></i> Sí, eliminar todos
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal ajustar margen masivo -->
+<div class="modal fade" id="modalAdjustMargin" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-warning">
+        <h5 class="modal-title"><i class="fas fa-percentage"></i> Ajustar Margen de Ganancia</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p>Se aumentará el margen de ganancia de <strong>todos los productos con costo</strong> en el porcentaje ingresado, sumándolo al margen actual.</p>
+        <div class="alert alert-info small">
+          <i class="fas fa-info-circle"></i> El PVP y precio final se recalcularán automáticamente. Esta acción se puede deshacer.
+        </div>
+        <div class="form-group mb-2">
+          <label>Porcentaje a sumar al margen actual (%)</label>
+          <input type="number" id="marginPercentage" class="form-control" placeholder="Ej: 5" step="0.5" min="0.1">
+        </div>
+        <div class="form-text text-muted">
+          Ejemplo: Si un producto tiene 30% de margen y se ingresa 5%, quedará en 35%.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-flat" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-warning btn-flat" id="btnConfirmAdjustMargin">
+          <i class="fas fa-check"></i> Aplicar Ajuste
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal deshacer ajuste de margen -->
+<div class="modal fade" id="modalUndoMargin" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-info">
+        <h5 class="modal-title text-white"><i class="fas fa-undo"></i> Deshacer Ajuste de Margen</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p>Se restaurarán los precios y márgenes al estado anterior del último ajuste:</p>
+        <p id="undoInfo" class="alert alert-warning"></p>
+        <p class="text-muted small"><i class="fas fa-info-circle"></i> Solo se puede deshacer el último ajuste no deshecho.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-flat" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-info btn-flat" id="btnConfirmUndoMargin">
+          <i class="fas fa-undo"></i> Sí, deshacer
         </button>
       </div>
     </div>

@@ -2560,3 +2560,22 @@ class DetalleRemito(models.Model):
         verbose_name = 'Detalle de Remito'
         verbose_name_plural = 'Detalles de Remitos'
         ordering = ['id']
+
+
+class MarginAdjustmentHistory(models.Model):
+    """Historial de ajustes masivos de margen para poder deshacer"""
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa', null=True, blank=True)
+    percentage = models.DecimalField(max_digits=5, decimal_places=2, verbose_name='Porcentaje aplicado')
+    product_count = models.IntegerField(verbose_name='Productos afectados')
+    snapshot = models.JSONField(verbose_name='Snapshot de precios anteriores')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha')
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, verbose_name='Usuario')
+    undone = models.BooleanField(default=False, verbose_name='Deshecho')
+
+    def __str__(self):
+        return f"Ajuste +{self.percentage}% - {self.product_count} productos - {self.created_at:%d/%m/%Y %H:%M}"
+
+    class Meta:
+        verbose_name = 'Ajuste de Margen'
+        verbose_name_plural = 'Ajustes de Margen'
+        ordering = ['-created_at']

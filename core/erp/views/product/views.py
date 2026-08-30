@@ -124,6 +124,118 @@ class ProductListView(ValidatePermissionRequiredMixin, LoginRequiredMixin, ListV
                 count = qs.count()
                 qs.delete()
                 data = {'success': True, 'count': count}
+            elif action == 'adjust_margin':
+                from core.erp.models import MarginAdjustmentHistory
+                from decimal import Decimal
+                import math
+
+                percentage = Decimal(request.POST.get('percentage', '0'))
+                if not percentage:
+                    data = {'error': 'Debe ingresar un porcentaje'}
+                else:
+                    active_cid = get_active_company_id(request)
+                    qs = Product.objects.all()
+                    if active_cid:
+                        qs = qs.filter(company_id=active_cid)
+                    else:
+                        qs = qs.none()
+
+                    snapshot = []
+                    count = 0
+                    with transaction.atomic():
+                        for prod in qs:
+                            if prod.cost_price and prod.cost_price > 0:
+                                # Guardar snapshot antes de modificar
+                                snapshot.append({
+                                    'id': prod.id,
+                                    'margin_percentage': str(prod.margin_percentage),
+                                    'pvp': str(prod.pvp),
+                                    'pvp_final': str(prod.pvp_final),
+                                })
+
+                                # Sumar el porcentaje al margen existente
+                                prod.margin_percentage = (prod.margin_percentage or Decimal('0')) + percentage
+
+                                # Recalcular PVP: costo * (1 + flete%) * (1 + margen%)
+                                cost_with_freight = prod.cost_price * (1 + (prod.freight_percentage or Decimal('0')) / 100)
+                                margin_rate = prod.margin_percentage / 100
+                                new_pvp = (cost_with_freight * (1 + margin_rate)).quantize(Decimal('0.01'))
+                                # Redondear hacia arriba al entero
+                                prod.pvp = Decimal(math.ceil(float(new_pvp)))
+
+                                # Recalcular pvp_final
+                                rate = prod.iva_rate or Decimal('0.21')
+                                if rate > Decimal('1'):
+                                    rate = rate / 100
+                                prod.pvp_final = (prod.pvp * (1 + rate)).quantize(Decimal('0.01'))
+
+                                prod.synced_to_server = False
+                                prod.save()
+                                count += 1
+
+                        # Guardar historial
+                        MarginAdjustmentHistory.objects.create(
+                            company_id=active_cid,
+                            percentage=percentage,
+                            product_count=count,
+                            snapshot=snapshot,
+                            created_by=request.user,
+                        )
+
+                    data = {'success': True, 'count': count, 'message': f'Se ajustó el margen de {count} productos en +{percentage}%'}
+            elif action == 'undo_margin':
+                from core.erp.models import MarginAdjustmentHistory
+
+                active_cid = get_active_company_id(request)
+                history_id = request.POST.get('history_id')
+                if not history_id:
+                    # Obtener el último ajuste no deshecho
+                    hist = MarginAdjustmentHistory.objects.filter(
+                        undone=False,
+                        company_id=active_cid
+                    ).order_by('-created_at').first()
+                else:
+                    hist = MarginAdjustmentHistory.objects.filter(pk=history_id, company_id=active_cid).first()
+
+                if not hist:
+                    data = {'error': 'No hay ajustes para deshacer'}
+                else:
+                    count = 0
+                    with transaction.atomic():
+                        for item in hist.snapshot:
+                            try:
+                                prod = Product.objects.get(pk=item['id'])
+                                prod.margin_percentage = Decimal(item['margin_percentage'])
+                                prod.pvp = Decimal(item['pvp'])
+                                prod.pvp_final = Decimal(item['pvp_final'])
+                                prod.synced_to_server = False
+                                prod.save()
+                                count += 1
+                            except Product.DoesNotExist:
+                                pass
+
+                        hist.undone = True
+                        hist.save()
+
+                    data = {'success': True, 'count': count, 'message': f'Se deshizo el ajuste de {count} productos'}
+            elif action == 'last_margin_adjustment':
+                from core.erp.models import MarginAdjustmentHistory
+
+                active_cid = get_active_company_id(request)
+                hist = MarginAdjustmentHistory.objects.filter(
+                    undone=False,
+                    company_id=active_cid
+                ).order_by('-created_at').first()
+
+                if hist:
+                    data = {
+                        'id': hist.id,
+                        'percentage': str(hist.percentage),
+                        'product_count': hist.product_count,
+                        'created_at': hist.created_at.strftime('%d/%m/%Y %H:%M'),
+                    }
+                else:
+                    data = {}
             else:
                 data = {'error': 'Ha ocurrido un error'}
         except Exception as e:
