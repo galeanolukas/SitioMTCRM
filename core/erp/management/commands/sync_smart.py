@@ -275,51 +275,96 @@ class Command(BaseCommand):
         self.stdout.write(f"Productos sincronizados: {synced_count}")
 
     def sync_expenses(self):
-        """Sincronizar gastos evitando duplicados"""
+        """Sincronizar gastos evitando duplicados por local_uuid y local_expense_id"""
         self.stdout.write("Sincronizando gastos...")
         
-        local_expenses = Expense.objects.using('default').all()
+        from core.erp.models import Company, Supplier
+        from django.utils import timezone
+        
+        local_expenses = Expense.objects.using('default').filter(synced_to_server=False).order_by('id')
         synced_count = 0
+        updated_count = 0
         
         for expense in local_expenses:
             try:
+                # Resolver empresa remota equivalente
+                remote_company_id = None
+                if expense.company_id:
+                    comp = Company.objects.using('default').filter(pk=expense.company_id).first()
+                    if comp:
+                        remote_comp = None
+                        if comp.cuit:
+                            remote_comp = Company.objects.using('remote').filter(cuit=comp.cuit).first()
+                        if not remote_comp:
+                            remote_comp = Company.objects.using('remote').filter(name=comp.name).first()
+                        if remote_comp:
+                            remote_company_id = remote_comp.id
+
+                # Resolver proveedor remoto equivalente
+                remote_supplier_id = None
+                if expense.supplier_id:
+                    local_supplier = Supplier.objects.using('default').filter(pk=expense.supplier_id).first()
+                    if local_supplier:
+                        remote_supplier = Supplier.objects.using('remote').filter(name=local_supplier.name).first()
+                        if remote_supplier:
+                            remote_supplier_id = remote_supplier.id
+
                 with transaction.atomic(using='remote'):
-                    # Verificar si ya existe por fecha, monto y descripción
-                    existing = Expense.objects.using('remote').filter(
-                        date=expense.date,
-                        amount=expense.amount,
-                        description=expense.description
-                    ).first()
-                    
+                    # Buscar gasto existente por local_uuid
+                    existing = None
+                    if expense.local_uuid:
+                        existing = Expense.objects.using('remote').filter(
+                            local_uuid=expense.local_uuid
+                        ).first()
+
+                    # Si no hay UUID, buscar por local_expense_id + empresa
+                    if not existing and expense.local_expense_id:
+                        existing = Expense.objects.using('remote').filter(
+                            local_expense_id=expense.local_expense_id,
+                            company_id=remote_company_id
+                        ).first()
+
+                    expense_defaults = {
+                        'company_id': remote_company_id,
+                        'supplier_id': remote_supplier_id,
+                        'date': expense.date,
+                        'time': expense.time,
+                        'description': expense.description,
+                        'recurring_reason': expense.recurring_reason,
+                        'amount': expense.amount,
+                        'payment_method': expense.payment_method,
+                        'payer': expense.payer,
+                        'is_active': expense.is_active,
+                        'synced_to_server': True,
+                        'local_expense_id': expense.id,
+                        'source': getattr(expense, 'source', 'local_pos'),
+                        'synced_at': timezone.now(),
+                    }
+
                     if existing:
-                        # Ya existe, marcar como sincronizado
-                        expense.synced_to_server = True
-                        expense.save(using='default')
+                        for field, value in expense_defaults.items():
+                            setattr(existing, field, value)
+                        if not existing.local_uuid and expense.local_uuid:
+                            existing.local_uuid = expense.local_uuid
+                        existing.save()
+                        updated_count += 1
+                    else:
+                        Expense.objects.using('remote').create(
+                            local_uuid=expense.local_uuid,
+                            **expense_defaults,
+                        )
                         synced_count += 1
-                        continue
-                    
-                    # Crear gasto remoto
-                    remote_expense = Expense.objects.using('remote').create(
-                        company_id=expense.company_id,
-                        date=expense.date,
-                        amount=expense.amount,
-                        description=expense.description,
-                        category=expense.category,
-                        payment_type=expense.payment_type,
-                        receipt_number=expense.receipt_number,
-                        notes=expense.notes,
-                        synced_to_server=True
-                    )
-                    
-                    # Marcar como sincronizado
-                    expense.synced_to_server = True
-                    expense.save(using='default')
-                    synced_count += 1
+
+                # Marcar gasto local como sincronizado
+                Expense.objects.using('default').filter(pk=expense.pk).update(
+                    synced_to_server=True,
+                    synced_at=timezone.now(),
+                )
                     
             except Exception as e:
                 self.stdout.write(self.style.ERROR(f"Error sincronizando gasto {expense.id}: {e}"))
         
-        self.stdout.write(f"Gastos sincronizados: {synced_count}")
+        self.stdout.write(self.style.SUCCESS(f"Gastos sincronizados: {synced_count} nuevos, {updated_count} actualizados"))
 
     def sync_cash_registers(self):
         """Sincronizar cierres de caja evitando duplicados"""

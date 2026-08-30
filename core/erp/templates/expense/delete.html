@@ -1,21 +1,2 @@
-{% extends 'base/form.html' %}
-{% block content %}
-<div class="card card-danger">
-  <div class="card-header">
-    <h3 class="card-title">
-      <i class="fas fa-exclamation-triangle"></i>
-      Confirmar eliminación
-    </h3>
-  </div>
-  <div class="card-body">
-    <p>¿Eliminar el gasto/compra <strong>{{ object }}</strong>?</p>
-    <form method="post">
-      {% csrf_token %}
-      <button type="submit" class="btn btn-danger btn-flat">
-        <i class="fas fa-trash"></i> Eliminar
-      </button>
-      <a href="{% url 'erp:expense_list' %}" class="btn btn-secondary btn-flat">Cancelar</a>
-    </form>
-  </div>
-</div>
-{% endblock %}
+{% extends 'base/delete.html' %}
+{% block name %}¿Estas seguro de eliminar el gasto/compra de {{ object.date|date:"Y-m-d" }} por {{ object.amount }} ({{ object.description }})?{% endblock name %}

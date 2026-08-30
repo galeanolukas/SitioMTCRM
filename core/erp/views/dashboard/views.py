@@ -590,7 +590,7 @@ class ExpenseListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListV
             remote_expenses = []
             with connections['remote'].cursor() as cursor:
                 cursor.execute("""
-                    SELECT id, local_uuid, local_expense_id, amount, date, desc, company_id, 
+                    SELECT id, local_uuid, local_expense_id, amount, date, description, company_id, 
                            synced_to_server, source
                     FROM erp_expense 
                     WHERE is_active = TRUE
@@ -801,36 +801,50 @@ class ExpenseDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Del
     template_name = 'expense/delete.html'
     success_url = reverse_lazy('erp:expense_list')
     permission_required = 'erp.delete_expense'
+    url_redirect = success_url
 
-    def delete(self, request, *args, **kwargs):
+    def dispatch(self, request, *args, **kwargs):
         self.object = self.get_object()
+        return super().dispatch(request, *args, **kwargs)
 
-        # Eliminar gasto del servidor remoto si tiene local_uuid
-        exp_uuid = self.object.local_uuid
-        exp_local_id = self.object.local_expense_id or self.object.id
-        if exp_uuid or exp_local_id:
-            try:
-                from django.db import connections
-                with connections['remote'].cursor() as cursor:
-                    if exp_uuid:
-                        cursor.execute(
-                            "DELETE FROM erp_expense WHERE local_uuid = %s",
-                            [exp_uuid]
-                        )
-                    else:
-                        cursor.execute(
-                            "DELETE FROM erp_expense WHERE local_expense_id = %s AND source = 'local_pos'",
-                            [exp_local_id]
-                        )
-            except Exception as remote_err:
-                import logging
-                logging.getLogger(__name__).warning(
-                    f"No se pudo eliminar gasto {self.object.id} del servidor remoto: {remote_err}"
-                )
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['title'] = 'Eliminar Gasto/Compra'
+        ctx['entity'] = 'Gastos/Compras'
+        ctx['list_url'] = reverse_lazy('erp:expense_list')
+        return ctx
 
-        response = super().delete(request, *args, **kwargs)
-        messages.success(self.request, 'Gasto/Compra eliminado correctamente')
-        return response
+    def post(self, request, *args, **kwargs):
+        data = {}
+        try:
+            with transaction.atomic():
+                # Eliminar gasto del servidor remoto si tiene local_uuid o local_expense_id
+                exp_uuid = self.object.local_uuid
+                exp_local_id = self.object.local_expense_id or self.object.id
+                if exp_uuid or exp_local_id:
+                    try:
+                        from django.db import connections
+                        with connections['remote'].cursor() as cursor:
+                            if exp_uuid:
+                                cursor.execute(
+                                    "DELETE FROM erp_expense WHERE local_uuid = %s",
+                                    [exp_uuid]
+                                )
+                            else:
+                                cursor.execute(
+                                    "DELETE FROM erp_expense WHERE local_expense_id = %s AND source = 'local_pos'",
+                                    [exp_local_id]
+                                )
+                    except Exception as remote_err:
+                        import logging
+                        logging.getLogger(__name__).warning(
+                            f"No se pudo eliminar gasto {self.object.id} del servidor remoto: {remote_err}"
+                        )
+
+                self.object.delete()
+        except Exception as e:
+            data['error'] = str(e)
+        return JsonResponse(data)
 
 
 class CompanyView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView):
