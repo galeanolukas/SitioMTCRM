@@ -94,6 +94,14 @@ class ProductListView(ValidatePermissionRequiredMixin, LoginRequiredMixin, ListV
                     qs = qs.filter(company_id=active_cid)
                 else:
                     qs = qs.none()
+                # Filtro opcional por proveedor (usado desde remitos)
+                supplier_id = request.POST.get('supplier_id')
+                if supplier_id:
+                    qs = qs.filter(supplier_id=supplier_id)
+                # Filtro opcional por término de búsqueda
+                term = request.POST.get('term', '').strip()
+                if term:
+                    qs = qs.filter(name__icontains=term)
                 print(f"DEBUG Product: Found {qs.count()} products")
                 for i in qs:
                     product_data = i.toJSON()
@@ -158,7 +166,17 @@ class ProductCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Com
              if action == 'add':
                  with transaction.atomic():
                      form = self.get_form()
-                     data = form.save()
+                     if form.is_valid():
+                         product = form.save()
+                         data = {
+                             'id': product.id,
+                             'name': product.name,
+                             'pvp': str(product.pvp),
+                             'pvp_final': str(product.pvp_final),
+                             'cost_price': str(product.cost_price),
+                         }
+                     else:
+                         data = {'error': 'Formulario inválido', 'errors': form.errors}
              else:
                  data['error'] = 'No ha ingresado a ninguna opción'
          except Exception as e:

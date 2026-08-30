@@ -69,6 +69,9 @@
 
         <hr>
         <h4>Productos</h4>
+        <div class="alert alert-info small py-1 px-2 mb-2" id="productSearchHint">
+          <i class="fas fa-info-circle"></i> Seleccione un proveedor para filtrar productos, o busque entre todos si no selecciona ninguno.
+        </div>
         <div class="row mb-3">
           <div class="col-md-4">
             <select id="productSelect" class="form-select select2">
@@ -173,7 +176,7 @@
     // Inicializar Select2 con búsqueda AJAX
     $('#productSelect').select2({
       theme: 'bootstrap-5',
-      placeholder: 'Buscar producto...',
+      placeholder: 'Seleccione un proveedor primero...',
       allowClear: true,
       language: {
         inputTooShort: function() { return 'Escriba al menos 2 caracteres'; },
@@ -187,7 +190,8 @@
         data: function(params) {
           return {
             action: 'searchdata',
-            term: params.term || ''
+            term: params.term || '',
+            supplier_id: $('#id_supplier').val() || ''
           };
         },
         headers: {
@@ -199,7 +203,8 @@
               return {
                 id: prod.id,
                 text: prod.name + ' - $' + prod.pvp_final,
-                price: prod.pvp_final
+                price: prod.pvp_final,
+                cost_price: prod.cost_price
               };
             })
           };
@@ -213,14 +218,33 @@
     $('#productSelect').on('select2:select', function(e) {
       const data = e.params.data;
       const tipo = $('#id_tipo').val();
-      if (tipo === 'entrada' && data.price) {
-        // Para entrada, usar precio de costo si está disponible
-        // Por ahora usamos el precio de venta como referencia
-        document.getElementById('precioUnitario').value = data.price;
+      if (tipo === 'entrada' && data.cost_price) {
+        // Para entrada, usar precio de costo
+        document.getElementById('precioUnitario').value = data.cost_price;
       } else if (data.price) {
         document.getElementById('precioUnitario').value = data.price;
       }
     });
+
+    // Cuando cambia el proveedor, resetear el select de productos
+    $('#id_supplier').on('change', function() {
+      $('#productSelect').val(null).trigger('change');
+      const supplierId = $(this).val();
+      if (supplierId) {
+        $('#productSelect').prop('disabled', false);
+        $('#productSelect').data('select2').dropdown.$search.attr('placeholder', 'Buscar producto del proveedor...');
+      } else {
+        $('#productSelect').prop('disabled', false);
+        $('#productSelect').data('select2').dropdown.$search.attr('placeholder', 'Buscar producto (todos)...');
+      }
+    });
+
+    // Estado inicial del select de productos
+    const initialSupplier = $('#id_supplier').val();
+    if (!initialSupplier) {
+      // Si no hay proveedor seleccionado, permitir buscar todos
+      $('#productSelect').data('select2').dropdown.$search.attr('placeholder', 'Buscar producto (todos)...');
+    }
   });
 
   function agregarProducto() {
@@ -287,6 +311,39 @@
       return;
     }
     
+    // Pre-seleccionar proveedor en el modal si hay uno elegido
+    const supplierId = $('#id_supplier').val();
+    const supplierName = $('#id_supplier option:selected').text();
+    if (supplierId) {
+      document.getElementById('nuevoProductoSupplier').value = supplierId;
+      document.getElementById('nuevoProductoSupplierLabel').textContent = supplierName;
+      document.getElementById('nuevoProductoSupplierGroup').style.display = 'none';
+    } else {
+      document.getElementById('nuevoProductoSupplier').value = '';
+      document.getElementById('nuevoProductoSupplierLabel').textContent = 'Sin proveedor';
+      document.getElementById('nuevoProductoSupplierGroup').style.display = 'block';
+      // Cargar proveedores en el select del modal
+      fetch('/erp/supplier/list/', {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': getCookie('csrftoken'),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action: 'searchdata', term: '' })
+      })
+      .then(response => response.json())
+      .then(data => {
+        const select = document.getElementById('nuevoProductoSupplier');
+        select.innerHTML = '<option value="">--- Sin proveedor ---</option>';
+        data.forEach(sup => {
+          const option = document.createElement('option');
+          option.value = sup.id;
+          option.textContent = sup.name;
+          select.appendChild(option);
+        });
+      });
+    }
+    
     // Cargar categorías
     fetch('/erp/category/list/', {
       method: 'POST',
@@ -315,6 +372,7 @@
     const nombre = document.getElementById('nuevoProductoNombre').value;
     const categoria = document.getElementById('nuevoProductoCategoria').value;
     const precioCosto = document.getElementById('nuevoProductoPrecioCosto').value;
+    const supplierId = document.getElementById('nuevoProductoSupplier').value;
     
     if (!nombre || !categoria || !precioCosto) {
       alert('Complete todos los campos');
@@ -324,10 +382,14 @@
     const formData = new FormData();
     formData.append('action', 'add');
     formData.append('name', nombre);
-    formData.append('category', categoria);
+    formData.append('cat', categoria);
     formData.append('cost_price', precioCosto);
     formData.append('pvp', (parseFloat(precioCosto) * 1.3).toFixed(2));
+    formData.append('pvp_final', (parseFloat(precioCosto) * 1.3).toFixed(2));
     formData.append('stock', 0);
+    if (supplierId) {
+      formData.append('supplier', supplierId);
+    }
     
     fetch('/erp/product/create/', {
       method: 'POST',
@@ -340,13 +402,14 @@
     .then(data => {
       if (data.id) {
         // Agregar producto al select y seleccionarlo
-        const option = new Option(nombre + ' - $' + data.pvp, data.id, true, true);
+        const option = new Option(data.name + ' - $' + data.pvp_final, data.id, true, true);
         $('#productSelect').append(option).trigger('change');
-        document.getElementById('precioUnitario').value = precioCosto;
+        document.getElementById('precioUnitario').value = data.cost_price || precioCosto;
         $('#modalNuevoProducto').modal('hide');
         // Limpiar formulario
         document.getElementById('nuevoProductoNombre').value = '';
         document.getElementById('nuevoProductoPrecioCosto').value = '';
+        showToast('success', 'Producto creado correctamente');
       } else {
         alert('Error al crear producto: ' + (data.error || 'Error desconocido'));
       }
@@ -360,19 +423,24 @@
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">Crear Nuevo Producto</h5>
+        <h5 class="modal-title"><i class="fas fa-plus-circle"></i> Crear Nuevo Producto</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
         <div class="form-group mb-3">
           <label>Nombre del Producto</label>
-          <input type="text" id="nuevoProductoNombre" class="form-control" placeholder="Nombre">
+          <input type="text" id="nuevoProductoNombre" class="form-control" placeholder="Nombre" autofocus>
+        </div>
+        <div class="form-group mb-3" id="nuevoProductoSupplierGroup">
+          <label>Proveedor: <strong id="nuevoProductoSupplierLabel">Sin proveedor</strong></label>
+          <select id="nuevoProductoSupplier" class="form-select">
+            <option value="">--- Sin proveedor ---</option>
+          </select>
         </div>
         <div class="form-group mb-3">
           <label>Categoría</label>
           <select id="nuevoProductoCategoria" class="form-select">
             <option value="">Seleccione categoría...</option>
-            <!-- Se llenará dinámicamente -->
           </select>
         </div>
         <div class="form-group mb-3">
@@ -382,7 +450,7 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-        <button type="button" onclick="crearNuevoProducto()" class="btn btn-success">Crear</button>
+        <button type="button" onclick="crearNuevoProducto()" class="btn btn-success"><i class="fas fa-check"></i> Crear</button>
       </div>
     </div>
   </div>
