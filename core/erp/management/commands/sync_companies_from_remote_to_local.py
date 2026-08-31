@@ -39,11 +39,13 @@ class Command(BaseCommand):
             while retry_count < max_retries and not success:
                 try:
                     with transaction.atomic(using='default'):
-                        # Intentar ubicar empresa local por CUIT si existe, si no por nombre
-                        lookup = {}
+                        # Intentar ubicar empresa local por ID remoto, luego por CUIT, luego por nombre
                         local_obj = None
 
-                        if r.cuit:
+                        if r.id:
+                            local_obj = Company.objects.using('default').filter(pk=r.id).first()
+
+                        if not local_obj and r.cuit:
                             local_obj = Company.objects.using('default').filter(cuit=r.cuit).first()
 
                         if not local_obj:
@@ -57,6 +59,7 @@ class Command(BaseCommand):
                         if local_obj is None:
                             # Crear nueva empresa local basada en la remota
                             local_obj = Company.objects.using('default').create(
+                                id=r.id,
                                 name=r.name,
                                 address=r.address,
                                 cuit=r.cuit,
