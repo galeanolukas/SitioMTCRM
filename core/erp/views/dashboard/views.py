@@ -431,9 +431,27 @@ class UpdatesView(LoginRequiredMixin, TemplateView):
         # Detectar sistema operativo para mostrar el botón correcto
         import platform
         system_os = platform.system().lower()  # 'windows', 'linux', 'darwin'
-        ctx['is_windows'] = system_os == 'windows'
-        ctx['is_linux'] = system_os == 'linux'
-        ctx['is_mac'] = system_os == 'darwin'  # macOS
+
+        os_map = {
+            'windows': ('Windows', 'fa-windows', 'windows', True, 'actualizar_pos_simple.bat'),
+            'linux': ('Linux', 'fa-linux', 'linux', True, 'python3 update_system.py'),
+            'darwin': ('macOS', 'fa-apple', 'manual', False, 'python3 update_system.py'),
+        }
+        os_name, os_icon, os_update_type, update_enabled, manual_command = os_map.get(
+            system_os, ('Sistema Operativo', 'fa-desktop', 'manual', False, 'python3 update_system.py')
+        )
+
+        ctx.update({
+            'is_windows': system_os == 'windows',
+            'is_linux': system_os == 'linux',
+            'is_mac': system_os == 'darwin',
+            'os_type': system_os,
+            'os_name': os_name,
+            'os_icon': os_icon,
+            'os_update_type': os_update_type,
+            'update_enabled': update_enabled,
+            'manual_command': manual_command,
+        })
         
         # Verificar estado del sistema de actualización
         try:

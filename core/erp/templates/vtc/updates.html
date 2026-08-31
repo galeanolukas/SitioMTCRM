@@ -103,20 +103,13 @@
                     <div class="row">
                         <div class="col-12">
                             <div class="btn-group w-100" role="group">
-                                {% if is_windows %}
-                                    <button type="button" class="btn btn-warning btn-lg" onclick="ejecutarActualizacion('windows')">
-                                        <i class="fas fa-download"></i> Actualizar Sistema (Windows)
-                                    </button>
-                                    <button type="button" class="btn btn-info btn-lg" onclick="ejecutarActualizacion('windows-portable')">
-                                        <i class="fas fa-usb"></i> Actualizar (Portable)
-                                    </button>
-                                {% elif is_linux %}
-                                    <button type="button" class="btn btn-warning btn-lg" onclick="ejecutarActualizacion('linux')">
-                                        <i class="fas fa-download"></i> Actualizar Sistema (Linux)
+                                {% if update_enabled %}
+                                    <button type="button" class="btn btn-warning btn-lg" onclick="ejecutarActualizacion('{{ os_update_type }}')">
+                                        <i class="fas fa-download"></i> Actualizar Sistema ({{ os_name }})
                                     </button>
                                 {% else %}
-                                    <button type="button" class="btn btn-warning btn-lg" onclick="ejecutarActualizacion('manual')">
-                                        <i class="fas fa-download"></i> Actualizar Sistema (Manual)
+                                    <button type="button" class="btn btn-warning btn-lg" disabled>
+                                        <i class="fas fa-download"></i> Actualización no soportada ({{ os_name }})
                                     </button>
                                 {% endif %}
                                 
@@ -154,13 +147,12 @@
                                             </ol>
                                         </div>
                                         <div class="col-md-6">
-                                            <h6>Actualización Manual:</h6>
+                                            <h6>Actualización Manual ({{ os_name }}):</h6>
                                             <ol>
                                                 <li>Cierre el sistema completamente</li>
                                                 <li>Ejecute el script correspondiente:
                                                     <ul>
-                                                        <li><strong>Windows:</strong> <code>actualizar_pos.bat</code></li>
-                                                        <li><strong>Linux:</strong> <code>./actualizar_pos.sh</code></li>
+                                                        <li><strong>{{ os_name }}:</strong> <code>{{ manual_command }}</code></li>
                                                     </ul>
                                                 </li>
                                                 <li>Vuelva a iniciar el sistema</li>
