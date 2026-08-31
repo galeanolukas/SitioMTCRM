@@ -187,6 +187,11 @@ class DashboardView(TemplateView):
         context['filter_label'] = filter_label
         context['start_date'] = start_date
         context['end_date'] = end_date
+        context['chart_title'] = {
+            'today': 'Recaudación de hoy',
+            'week': 'Recaudación últimos 7 días',
+            'month': 'Recaudación últimos 30 días',
+        }.get(time_filter, 'Recaudación')
         
         # Resolver empresa activa
         active_cid = self.request.session.get('company_id')
@@ -230,6 +235,17 @@ class DashboardView(TemplateView):
         context['sales_count'] = sale_qs.count()
         context['revenue_total'] = sale_qs.aggregate(total=Sum('total'))['total'] or 0
         context['expenses_total'] = expense_qs.aggregate(total=Sum('amount'))['total'] or 0
+
+        # Balance simple del período
+        revenue = context['revenue_total'] or 0
+        expenses = context['expenses_total'] or 0
+        try:
+            from decimal import Decimal
+            context['balance'] = float(Decimal(str(revenue)) - Decimal(str(expenses)))
+        except Exception:
+            context['balance'] = 0.0
+        context['balance_class'] = 'success' if context['balance'] >= 0 else 'danger'
+        context['balance_icon'] = 'fa-arrow-up' if context['balance'] >= 0 else 'fa-arrow-down'
         # Gráfico de recaudación según el período
         if time_filter == 'today':
             # Para hoy, mostrar horas

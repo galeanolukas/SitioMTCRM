@@ -68,6 +68,15 @@
         <div class="icon"><i class="fas fa-receipt"></i></div>
       </a>
     </div>
+    <div class="{{ box_class }}">
+      <div class="small-box bg-{{ balance_class }}">
+        <div class="inner">
+          <h3>${{ balance|floatformat:2 }}</h3>
+          <p>Balance del período</p>
+        </div>
+        <div class="icon"><i class="fas {{ balance_icon }}"></i></div>
+      </div>
+    </div>
     
     <!-- Selector de tiempo para filtros -->
     <div class="row mb-3">
@@ -143,7 +152,7 @@
     <div class="col-12 col-lg-6 mb-3">
       <div class="card chart-card">
         <div class="card-header">
-          <h3 class="card-title">Recaudación últimos 7 días</h3>
+          <h3 class="card-title">{{ chart_title }}</h3>
         </div>
         <div class="card-body">
           <canvas id="revenueChart" height="240"></canvas>
