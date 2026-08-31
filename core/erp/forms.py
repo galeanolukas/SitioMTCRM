@@ -547,6 +547,7 @@ class ExpenseForm(ModelForm):
     class Meta:
         model = Expense
         fields = '__all__'
+        exclude = ['is_active']
         widgets = {
             'date': DateInput(attrs={'type': 'date', 'class': 'form-control'}),
             'time': TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
@@ -601,6 +602,10 @@ class ExpenseForm(ModelForm):
                         obj.company_id = active_cid
                     elif not getattr(obj, 'company_id', None):
                         obj.company_id = active_cid
+
+                # Asegurar que is_active sea True al crear
+                if not obj.pk:
+                    obj.is_active = True
                 
                 if commit:
                     obj.save()
