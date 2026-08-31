@@ -115,10 +115,9 @@ class Command(BaseCommand):
                 self.stdout.write(f"Grupos encontrados en servidor: {len(grupos_servidor)}")
                 
                 for grupo_id, grupo_name in grupos_servidor:
-                    # Usar get_or_create para evitar problemas de concurrencia
+                    # Usar get_or_create por nombre (no por ID) para evitar duplicados
                     grupo_local, created = Group.objects.get_or_create(
-                        id=grupo_id,
-                        defaults={'name': grupo_name}
+                        name=grupo_name
                     )
                     
                     # Actualizar nombre si es diferente
@@ -153,7 +152,7 @@ class Command(BaseCommand):
                     
                     # Obtener grupo local
                     try:
-                        grupo_local = Group.objects.get(id=grupo_id)
+                        grupo_local = Group.objects.get(name=grupo_name)
                         
                         # Limpiar permisos existentes y agregar los nuevos
                         if not dry_run:
