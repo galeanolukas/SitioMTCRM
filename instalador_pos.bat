@@ -37,15 +37,47 @@ if errorlevel 1 (
 REM ---------------------------------------------------------------------------
 REM 2) Verificar PostgreSQL
 REM ---------------------------------------------------------------------------
-psql --version >nul 2>&1
-if errorlevel 1 (
+set "PGSQL_BIN="
+for /f "delims=" %%i in ('where psql 2^>nul') do set "PGSQL_BIN=%%i"
+
+if not defined PGSQL_BIN (
+    for %%p in (
+        "C:\Program Files\PostgreSQL\15\bin\psql.exe"
+        "C:\Program Files\PostgreSQL\16\bin\psql.exe"
+        "C:\Program Files\PostgreSQL\14\bin\psql.exe"
+        "C:\Program Files\PostgreSQL\17\bin\psql.exe"
+        "C:\Program Files\PostgreSQL\13\bin\psql.exe"
+        "C:\Program Files\PostgreSQL\12\bin\psql.exe"
+        "C:\Program Files (x86)\PostgreSQL\15\bin\psql.exe"
+        "C:\Program Files (x86)\PostgreSQL\16\bin\psql.exe"
+        "C:\Program Files\pgAdmin 4\v7\runtime\psql.exe"
+        "C:\Program Files\pgAdmin 4\v6\runtime\psql.exe"
+        "C:\Program Files\pgAdmin 4\v8\runtime\psql.exe"
+    ) do (
+        if exist "%%~p" set "PGSQL_BIN=%%~p"
+    )
+)
+
+if not defined PGSQL_BIN (
+    echo.
+    echo [ADVERTENCIA] No se encontro psql automaticamente.
+    set /p "PSQL_PATH= Ingrese la ruta completa a psql.exe o deje en blanco para salir: "
+    if not "!PSQL_PATH!"=="" if exist "!PSQL_PATH!" (
+        set "PGSQL_BIN=!PSQL_PATH!"
+    )
+)
+
+if not defined PGSQL_BIN (
     echo [ERROR] PostgreSQL no esta instalado o psql no esta en el PATH.
     echo Descargue e instale PostgreSQL desde https://www.postgresql.org/download/windows/
     echo.
     pause
     exit /b 1
 )
-echo [OK] PostgreSQL detectado.
+
+for %%f in ("%PGSQL_BIN%") do set "PSQL_DIR=%%~dpf"
+set "PATH=%PSQL_DIR%;%PATH%"
+echo [OK] PostgreSQL detectado: %PGSQL_BIN%
 
 REM ---------------------------------------------------------------------------
 REM 3) Crear usuario y base de datos PostgreSQL
