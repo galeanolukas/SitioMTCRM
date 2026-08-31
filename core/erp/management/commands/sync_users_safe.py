@@ -7,6 +7,8 @@ from django.conf import settings
 import logging
 import time
 
+from core.utils.media_sync import download_remote_image
+
 logger = logging.getLogger(__name__)
 
 User = get_user_model()
@@ -230,7 +232,8 @@ class Command(BaseCommand):
                                 )
                                 local_user.company = company
                     
-                    # Asignar URL remota de la imagen
+                    # Asignar imagen y URL remota
+                    local_user.image = image_path
                     local_user.image_remote_url = image_remote_url
 
                     # Asignar grupos del usuario
@@ -239,6 +242,7 @@ class Command(BaseCommand):
                     # Guardar cambios
                     if not dry_run:
                         local_user.save()
+                        download_remote_image(image_path)
                     synced_count += 1
                     
                 except User.DoesNotExist:
@@ -279,12 +283,14 @@ class Command(BaseCommand):
                                 )
                                 new_user.company = company
                     
-                    # Asignar URL remota de la imagen
+                    # Asignar imagen y URL remota
+                    new_user.image = image_path
                     new_user.image_remote_url = image_remote_url
 
                     # Guardar usuario primero
                     if not dry_run:
                         new_user.save()
+                        download_remote_image(image_path)
                     
                     # Asignar grupos del usuario
                     self.assign_user_groups(new_user, remote_user.get('groups', []), dry_run)

@@ -4,6 +4,7 @@ from django.conf import settings
 import time
 
 from core.erp.models import Company
+from core.utils.media_sync import download_remote_image
 
 
 class Command(BaseCommand):
@@ -68,6 +69,7 @@ class Command(BaseCommand):
                                 synced_to_server=True,
                                 logo_round=r.logo_round,
                                 custom_title=r.custom_title,
+                                logo=r.logo.name if r.logo else None,
                                 logo_remote_url=remote_logo_url or r.logo_remote_url,
                                 sync_destination=r.sync_destination,
                                 local_server_url=r.local_server_url,
@@ -86,6 +88,7 @@ class Command(BaseCommand):
                             local_obj.synced_to_server = True
                             local_obj.logo_round = r.logo_round
                             local_obj.custom_title = r.custom_title
+                            local_obj.logo = r.logo.name if r.logo else None
                             local_obj.logo_remote_url = remote_logo_url or r.logo_remote_url
                             local_obj.sync_destination = r.sync_destination
                             local_obj.local_server_url = r.local_server_url
@@ -93,6 +96,7 @@ class Command(BaseCommand):
 
                     synced += 1
                     success = True
+                    download_remote_image(r.logo.name if r.logo else None)
                 except OperationalError as e:
                     if "database is locked" in str(e).lower():
                         retry_count += 1

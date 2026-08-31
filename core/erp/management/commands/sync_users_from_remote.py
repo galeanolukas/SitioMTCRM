@@ -5,6 +5,8 @@ from django.db import connections
 from django.conf import settings
 import logging
 
+from core.utils.media_sync import download_remote_image
+
 logger = logging.getLogger(__name__)
 
 User = get_user_model()
@@ -48,6 +50,7 @@ class Command(BaseCommand):
 
                     # URL remota de la imagen (prioridad local si el archivo existe)
                     image_path = remote_user.get('image')
+                    local_user.image = image_path
                     local_user.image_remote_url = f"{settings.REMOTE_SERVER_URL.rstrip('/')}/media/{image_path}" if image_path else ''
                     
                     # Asignar empresa si existe
@@ -60,6 +63,7 @@ class Command(BaseCommand):
                             self.stdout.write(f"⚠️  Empresa ID {company_id} no encontrada para usuario {username}")
                     
                     local_user.save()
+                    download_remote_image(image_path)
                     synced_count += 1
                     self.stdout.write(f"✅ Usuario actualizado: {username}")
                     
@@ -80,6 +84,7 @@ class Command(BaseCommand):
 
                     # URL remota de la imagen (prioridad local si el archivo existe)
                     image_path = remote_user.get('image')
+                    new_user.image = image_path
                     new_user.image_remote_url = f"{settings.REMOTE_SERVER_URL.rstrip('/')}/media/{image_path}" if image_path else ''
                     
                     # Asignar empresa si existe
@@ -88,10 +93,10 @@ class Command(BaseCommand):
                         try:
                             company = Company.objects.get(id=company_id)
                             new_user.company = company
-                            new_user.save()
                         except Company.DoesNotExist:
                             self.stdout.write(f"⚠️  Empresa ID {company_id} no encontrada para usuario {username}")
-                    
+                    new_user.save()
+                    download_remote_image(image_path)
                     created_count += 1
                     self.stdout.write(f"✅ Usuario creado: {username} (contraseña temporal: {password})")
             

@@ -300,24 +300,13 @@ AFIP_KEY_PATH = os.environ.get('AFIP_KEY_PATH', None)
 
 MEDIA_URL = '/media/'
 
-# URL base del servidor remoto para construir URLs de logos en sincronización
-# Se obtiene dinámicamente de la configuración de la base de datos remota
-# Si no está configurada, usa la variable de entorno REMOTE_SERVER_URL como fallback
+# URL base del servidor remoto para construir URLs de logos y descargar imágenes
+# Puede ser distinta del host de la base de datos remota. Se lee de .env con fallback al servidor web público.
 def get_remote_server_url():
-    """Obtiene la URL del servidor remoto dinámicamente."""
-    # Primero intentar obtener de la variable de entorno explícita
+    """Obtiene la URL del servidor remoto."""
     explicit_url = os.environ.get('REMOTE_SERVER_URL')
     if explicit_url:
         return explicit_url
-    
-    # Si no, construir a partir del HOST de la base de datos remota
-    remote_db_host = os.getenv('REMOTE_DB_HOST')
-    if remote_db_host:
-        # Convertir hostname de BD a URL HTTPS (ej: db.multilideres.com -> https://erp.multilideres.com)
-        # Por defecto usar el mismo dominio
-        return f"https://{remote_db_host}"
-    
-    # Fallback a un valor por defecto
     return 'https://erp.multiliderestech.online'
 
 REMOTE_SERVER_URL = get_remote_server_url()
