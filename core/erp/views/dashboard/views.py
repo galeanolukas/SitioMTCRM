@@ -6,7 +6,7 @@ from django.urls import reverse_lazy
 from django.http import JsonResponse, HttpResponse, HttpResponseRedirect, HttpResponseForbidden
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import redirect
-from django.db.models import Sum, Count
+from django.db.models import Sum, Count, Q
 from django.apps import apps
 from django.db import transaction
 from django.contrib.auth import get_user_model
@@ -230,7 +230,7 @@ class DashboardView(TemplateView):
         if active_cid:
             prod_qs = prod_qs.filter(company_id=active_cid)
             sale_qs = sale_qs.filter(company_id=active_cid)
-            expense_qs = expense_qs.filter(company_id=active_cid)
+            expense_qs = expense_qs.filter(Q(company_id=active_cid) | Q(company_id__isnull=True))
         context['products_count'] = prod_qs.count()
         context['sales_count'] = sale_qs.count()
         context['revenue_total'] = sale_qs.aggregate(total=Sum('total'))['total'] or 0

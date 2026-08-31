@@ -528,15 +528,21 @@ class ExpenseForm(ModelForm):
         if 'supplier' in self.fields:
             self.fields['supplier'].required = False
             self.fields['supplier'].empty_label = '--- Sin proveedor ---'
-        if 'company' in self.fields and self.request and hasattr(self.request, 'user') and not getattr(self.request.user, 'is_superuser', False):
-            if getattr(self.request.user, 'company_id', None):
-                self.fields['company'].queryset = Company.objects.filter(pk=self.request.user.company_id, is_active=True)
-                self.fields['company'].initial = self.request.user.company
-                self.fields['company'].widget = HiddenInput()
-                self.fields['company'].required = False
-        elif 'company' in self.fields:
-            # Para superusuarios, mostrar solo empresas activas
-            self.fields['company'].queryset = Company.objects.filter(is_active=True)
+        if 'company' in self.fields and self.request:
+            active_cid = get_active_company_id(self.request)
+            if active_cid:
+                if not getattr(self.request.user, 'is_superuser', False):
+                    self.fields['company'].queryset = Company.objects.filter(pk=active_cid, is_active=True)
+                    self.fields['company'].initial = active_cid
+                    self.fields['company'].widget = HiddenInput()
+                    self.fields['company'].required = False
+                else:
+                    # Para superusuarios, preseleccionar la empresa activa pero permitir cambiar
+                    self.fields['company'].queryset = Company.objects.filter(is_active=True)
+                    self.fields['company'].initial = active_cid
+            else:
+                # Sin empresa activa, mostrar todas las activas (super) o ninguna
+                self.fields['company'].queryset = Company.objects.filter(is_active=True)
 
     class Meta:
         model = Expense
@@ -588,8 +594,13 @@ class ExpenseForm(ModelForm):
                     obj.time = timezone.now().time()
                 
                 active_cid = get_active_company_id(self.request) if self.request else None
-                if active_cid and not getattr(obj, 'company_id', None):
-                    obj.company_id = active_cid
+                if active_cid:
+                    # Asignar siempre la empresa activa para usuarios comunes;
+                    # para super, solo si no eligio otra empresa.
+                    if not self.request.user.is_superuser:
+                        obj.company_id = active_cid
+                    elif not getattr(obj, 'company_id', None):
+                        obj.company_id = active_cid
                 
                 if commit:
                     obj.save()
