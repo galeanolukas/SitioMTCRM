@@ -318,7 +318,7 @@ def get_remote_server_url():
         return f"https://{remote_db_host}"
     
     # Fallback a un valor por defecto
-    return 'https://erp.multilideres.com'
+    return 'https://erp.multiliderestech.online'
 
 REMOTE_SERVER_URL = get_remote_server_url()
 
