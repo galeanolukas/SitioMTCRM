@@ -13,21 +13,32 @@ set "SCRIPT_DIR=%~dp0"
 set "PROJECT_DIR=%SCRIPT_DIR%"
 
 REM Verificar si Git Portable esta disponible
-set "GIT_PATH=%~dp0tools\PortableGit\bin\git.exe"
-IF NOT EXIST "%GIT_PATH%" (
-    echo [ERROR] Git Portable no encontrado en: %GIT_PATH%
+set "GIT_BASE=%~dp0tools\PortableGit"
+set "GIT_PATH="
+for %%p in (
+    "%GIT_BASE%\cmd\git.exe"
+    "%GIT_BASE%\mingw64\bin\git.exe"
+    "%GIT_BASE%\mingw64\libexec\git-core\git.exe"
+    "%GIT_BASE%\bin\git.exe"
+) do (
+    if exist "%%~p" set "GIT_PATH=%%~p"
+)
+
+IF NOT DEFINED GIT_PATH (
+    echo [ERROR] Git Portable no encontrado en: %GIT_BASE%
     echo.
-    echo Por favor, ejecute primero el instalador o configure Git Portable:
-    echo   1. Ejecute: instalador_pos_bat.bat
-    echo   2. O ejecute: setup_git_portable_inline.bat
+    echo Buscado en:
+    echo   %GIT_BASE%\cmd\git.exe
+    echo   %GIT_BASE%\mingw64\bin\git.exe
+    echo   %GIT_BASE%\mingw64\libexec\git-core\git.exe
+    echo   %GIT_BASE%\bin\git.exe
     echo.
-    echo Si ya tiene Git instalado en el sistema, use actualizar_pos.bat en su lugar.
-    echo.
+    echo Por favor, ejecute primero el instalador o configure Git Portable.
     pause
     exit /b 1
 )
 
-echo [OK] Git Portable encontrado: %GIT_PATH%
+set "PATH=%GIT_BASE%\cmd;%GIT_BASE%\mingw64\bin;%GIT_BASE%\mingw64\libexec\git-core;%PATH%"
 echo.
 
 REM Usar Git Portable para operaciones de Git
