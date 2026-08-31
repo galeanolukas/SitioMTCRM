@@ -41,11 +41,16 @@ def run_command(cmd, cwd=BASE_DIR, capture=False):
 
 def get_git_executable():
     """Retorna el ejecutable de git según el SO."""
-    # En Windows, intentar usar git del PATH o PortableGit
     if platform.system().lower() == 'windows':
-        portable_git = os.path.join(BASE_DIR, 'tools', 'PortableGit', 'bin', 'git.exe')
-        if os.path.exists(portable_git):
-            return portable_git
+        candidates = [
+            os.path.join(BASE_DIR, 'tools', 'PortableGit', 'cmd', 'git.exe'),
+            os.path.join(BASE_DIR, 'tools', 'PortableGit', 'mingw64', 'bin', 'git.exe'),
+            os.path.join(BASE_DIR, 'tools', 'PortableGit', 'mingw64', 'libexec', 'git-core', 'git.exe'),
+            os.path.join(BASE_DIR, 'tools', 'PortableGit', 'bin', 'git.exe'),
+        ]
+        for candidate in candidates:
+            if os.path.exists(candidate):
+                return candidate
     return 'git'
 
 
@@ -257,14 +262,21 @@ def do_update(force=False):
     print("Si hay un servidor Django corriendo, debe reiniciarse.")
     print()
     
-    # Obtener la nueva versión
+    # Obtener la nueva versión y escribirla en version.txt
     ok, out, err = run_command([git_exe, 'describe', '--tags', '--abbrev=0'], capture=True)
-    if ok:
-        print(f"Nueva versión: {out}")
-    else:
+    if not ok:
         ok, out, err = run_command([git_exe, 'log', '-1', '--format=%h'], capture=True)
-        if ok:
-            print(f"Commit actual: {out}")
+    
+    version = out.lstrip('v') if ok else 'unknown'
+    if version:
+        print(f"Nueva versión: {version}")
+        version_file = os.path.join(BASE_DIR, 'version.txt')
+        try:
+            with open(version_file, 'w') as f:
+                f.write(version)
+            print(f"  version.txt actualizado: {version}")
+        except Exception as e:
+            print(f"  [ADVERTENCIA] No se pudo escribir version.txt: {e}")
     
     return True
 

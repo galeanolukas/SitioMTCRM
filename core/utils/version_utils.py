@@ -2,6 +2,7 @@
 Utilidades para manejo de versiones y actualizaciones.
 """
 import json
+import os
 import urllib.request
 import urllib.error
 from packaging import version
@@ -117,10 +118,18 @@ def _fetch_github_tags(timeout=5):
 
 
 def get_current_local_version():
-    """Lee la versión local dinámicamente desde git (no cacheada al arranque)."""
+    """Lee la versión local. Primero archivo version.txt, luego git, luego settings."""
     import subprocess
-    import os
     base_dir = getattr(settings, 'BASE_DIR', os.getcwd())
+    version_file = os.path.join(base_dir, 'version.txt')
+    if os.path.exists(version_file):
+        try:
+            with open(version_file, 'r') as f:
+                version = f.read().strip().lstrip('v')
+            if version:
+                return version
+        except Exception:
+            pass
     try:
         result = subprocess.run(
             ['git', 'describe', '--tags', '--abbrev=0'],

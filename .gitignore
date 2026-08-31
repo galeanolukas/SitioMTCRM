@@ -64,6 +64,7 @@ local_settings.py
 settings_local.py
 DJENV/
 .env.server
+version.txt
 instalar_modo_servidor.md
 plan_transicion_servidor.md
 migration_server_safe.py

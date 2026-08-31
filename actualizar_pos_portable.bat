@@ -1,4 +1,5 @@
 @echo off
+setlocal EnableDelayedExpansion
 REM Actualizador POS Portable con Git Portable - Windows
 REM Requiere Git Portable en USB o carpeta local
 
@@ -144,6 +145,16 @@ if errorlevel 1 (
 )
 
 echo [OK] Sistema actualizado exitosamente.
+
+REM Actualizar archivo de version
+echo Actualizando archivo de version...
+set "NEW_VERSION="
+for /f "tokens=*" %%i in ('"%GIT_PATH%" describe --tags --abbrev=0 2^>nul') do set "NEW_VERSION=%%i"
+if not defined NEW_VERSION for /f "tokens=*" %%i in ('"%GIT_PATH%" log -1 "--format=%%h"') do set "NEW_VERSION=%%i"
+if not defined NEW_VERSION set "NEW_VERSION=unknown"
+if "!NEW_VERSION:~0,1!"=="v" set "NEW_VERSION=!NEW_VERSION:~1!"
+> version.txt echo !NEW_VERSION!
+echo [OK] version.txt actualizado a !NEW_VERSION!
 echo.
 
 REM 1) Activar entorno virtual DJENV (o crearlo si no existe)

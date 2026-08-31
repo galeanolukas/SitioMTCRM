@@ -88,6 +88,16 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+# Escribir version.txt con la versión actual
+echo "Actualizando archivo de versión..."
+VERSION_TAG=$(git describe --tags --abbrev=0 2>/dev/null || true)
+if [ -z "$VERSION_TAG" ]; then
+    VERSION_TAG=$(git log -1 --format=%h)
+fi
+VERSION_TAG=${VERSION_TAG#v}
+echo "$VERSION_TAG" > version.txt
+echo "[OK] version.txt actualizado a $VERSION_TAG"
+
 # 1) Activar entorno virtual (o crearlo si no existe)
 if [ ! -d "venv" ]; then
     echo "Entorno virtual no encontrado. Creando uno nuevo..."

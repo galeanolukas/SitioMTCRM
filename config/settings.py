@@ -20,7 +20,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Obtener versión automáticamente desde Git
 def get_version():
-    """Obtener versión desde git tags o commit hash"""
+    """Obtener versión desde version.txt, git tags o commit hash"""
+    version_file = BASE_DIR / 'version.txt'
+    if version_file.exists():
+        try:
+            version = version_file.read_text().strip().lstrip('v')
+            if version:
+                return version
+        except (OSError, ValueError):
+            pass
+    
     try:
         # Intentar obtener el último tag
         result = subprocess.run(['git', 'describe', '--tags', '--abbrev=0'], 
@@ -32,7 +41,7 @@ def get_version():
     
     try:
         # Si no hay tags, usar el commit hash
-        result = subprocess.run(['git', 'log', '-1', '--format="%h"'], 
+        result = subprocess.run(['git', 'log', '-1', '--format=%h'], 
                               capture_output=True, text=True, cwd=BASE_DIR)
         if result.returncode == 0:
             return f"dev-{result.stdout.strip()}"

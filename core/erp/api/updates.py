@@ -157,8 +157,13 @@ def check_git_portable(request):
     """
     try:
         base_dir = getattr(settings, 'BASE_DIR', os.getcwd())
-        git_portable_path = os.path.join(base_dir, 'tools', 'PortableGit', 'bin', 'git.exe')
-        
+        candidates = [
+            os.path.join(base_dir, 'tools', 'PortableGit', 'cmd', 'git.exe'),
+            os.path.join(base_dir, 'tools', 'PortableGit', 'mingw64', 'bin', 'git.exe'),
+            os.path.join(base_dir, 'tools', 'PortableGit', 'mingw64', 'libexec', 'git-core', 'git.exe'),
+            os.path.join(base_dir, 'tools', 'PortableGit', 'bin', 'git.exe'),
+        ]
+        git_portable_path = next((p for p in candidates if os.path.exists(p)), candidates[-1])
         git_portable_ready = os.path.exists(git_portable_path)
         
         return JsonResponse({

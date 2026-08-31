@@ -1,4 +1,5 @@
 @echo off
+setlocal EnableDelayedExpansion
 REM Ir siempre a la carpeta donde está este script
 cd /d "%~dp0"
 
@@ -92,6 +93,16 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
+
+REM Actualizar archivo de version
+echo Actualizando archivo de version...
+set "NEW_VERSION="
+for /f "tokens=*" %%i in ('git describe --tags --abbrev=0 2^>nul') do set "NEW_VERSION=%%i"
+if not defined NEW_VERSION for /f "tokens=*" %%i in ('git log -1 "--format=%%h"') do set "NEW_VERSION=%%i"
+if not defined NEW_VERSION set "NEW_VERSION=unknown"
+if "!NEW_VERSION:~0,1!"=="v" set "NEW_VERSION=!NEW_VERSION:~1!"
+> version.txt echo !NEW_VERSION!
+echo [OK] version.txt actualizado a !NEW_VERSION!
 
 REM 1) Activar entorno virtual (o crearlo si no existe)
 IF NOT EXIST venv (
