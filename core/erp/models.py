@@ -614,6 +614,7 @@ class CardInstallmentPlan(models.Model):
         ('mastercard', 'Mastercard'),
         ('amex', 'American Express'),
         ('maestro', 'Maestro'),
+        ('otras', 'Otras'),
     )
     company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa', null=True, blank=True)
     card_brand = models.CharField(max_length=20, choices=CARD_BRAND_CHOICES, default='visa', verbose_name='Marca de tarjeta')
