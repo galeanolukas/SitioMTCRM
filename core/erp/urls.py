@@ -106,6 +106,7 @@ urlpatterns = [
     path('product/delete/<int:pk>/', ProductDeleteView.as_view(), name='product_delete'),
     path('product/import/', ImportInventoryView.as_view(), name='product_import'),
     path('product/labels/', ProductLabelsView.as_view(), name='product_labels'),
+    path('product/category-suggest/', CategorySuggestView.as_view(), name='product_category_suggest'),
     # public QR flows
     path('public/p/<str:token>/', ProductPublicDetailView.as_view(), name='product_public_detail'),
     path('quick-cart/', QuickCartView.as_view(), name='product_quick_cart'),

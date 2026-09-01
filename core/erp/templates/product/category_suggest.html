@@ -1,0 +1,267 @@
+{% extends 'base/form.html' %}
+{% load static %}
+{% block content %}
+<div class="card card-primary">
+  <div class="card-header">
+    <h3 class="card-title"><i class="fas fa-tags"></i> {{ title }}</h3>
+    <div class="card-tools">
+      <a href="{{ list_url }}" class="btn btn-tool">
+        <i class="fas fa-list"></i> Volver al listado
+      </a>
+    </div>
+  </div>
+  <div class="card-body">
+    <!-- Panel de configuración -->
+    <div class="row mb-4">
+      <div class="col-md-6">
+        <div class="form-group">
+          <label><i class="fas fa-filter"></i> Frecuencia mínima</label>
+          <input type="number" id="minFrequency" class="form-control" value="3" min="2" max="20">
+          <small class="text-muted">Palabras que aparecen en al menos N productos se vuelven categoría</small>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="form-group">
+          <label><i class="fas fa-bullseye"></i> Alcance</label>
+          <select id="onlyUncategorized" class="form-control">
+            <option value="false">Todos los productos</option>
+            <option value="true">Solo productos sin categoría</option>
+          </select>
+          <small class="text-muted">Analizar todos o solo los que no tienen categoría asignada</small>
+        </div>
+      </div>
+    </div>
+
+    <div class="text-center mb-4">
+      <button type="button" class="btn btn-primary btn-lg" id="btnAnalyze" onclick="analyzeProducts()">
+        <i class="fas fa-search"></i> Analizar productos
+      </button>
+    </div>
+
+    <!-- Resultados -->
+    <div id="resultsSection" style="display: none;">
+      <hr>
+      <!-- Stats -->
+      <div class="row mb-3" id="statsRow"></div>
+
+      <!-- Sugerencias -->
+      <h5><i class="fas fa-lightbulb text-warning"></i> Categorías sugeridas</h5>
+      <div class="table-responsive">
+        <table class="table table-bordered table-hover" id="suggestionsTable">
+          <thead class="thead-light">
+            <tr>
+              <th style="width: 40px;"><input type="checkbox" id="selectAll" checked onchange="toggleSelectAll(this)"></th>
+              <th>Categoría sugerida</th>
+              <th style="width: 100px;">Origen</th>
+              <th style="width: 80px;">Productos</th>
+              <th>Productos de ejemplo</th>
+            </tr>
+          </thead>
+          <tbody id="suggestionsBody"></tbody>
+        </table>
+      </div>
+
+      <!-- Sin matchear -->
+      <div id="unmatchedSection" style="display: none;" class="mt-4">
+        <h5><i class="fas fa-exclamation-circle text-muted"></i> Productos sin categoría sugerida</h5>
+        <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+          <table class="table table-sm table-striped">
+            <thead>
+              <tr><th>Producto</th></tr>
+            </thead>
+            <tbody id="unmatchedBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Botón aplicar -->
+      <div class="text-center mt-4">
+        <button type="button" class="btn btn-success btn-lg" id="btnApply" onclick="applyCategories()">
+          <i class="fas fa-check-circle"></i> Crear y asignar categorías seleccionadas
+        </button>
+      </div>
+    </div>
+
+    <!-- Loading -->
+    <div id="loadingSection" style="display: none;" class="text-center py-4">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Analizando...</span>
+      </div>
+      <p class="mt-2">Analizando nombres de productos...</p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block javascript %}
+<script>
+var analysisData = null;
+
+function analyzeProducts() {
+  var btn = document.getElementById('btnAnalyze');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analizando...';
+  document.getElementById('loadingSection').style.display = 'block';
+  document.getElementById('resultsSection').style.display = 'none';
+
+  var formData = new FormData();
+  formData.append('action', 'analyze');
+  formData.append('min_frequency', document.getElementById('minFrequency').value);
+  formData.append('only_uncategorized', document.getElementById('onlyUncategorized').value);
+  formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+
+  fetch('', {
+    method: 'POST',
+    body: formData
+  })
+  .then(r => r.json())
+  .then(data => {
+    analysisData = data;
+    renderResults(data);
+  })
+  .catch(err => {
+    console.error('Error:', err);
+    alert('Error al analizar productos');
+  })
+  .finally(() => {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-search"></i> Analizar productos';
+    document.getElementById('loadingSection').style.display = 'none';
+  });
+}
+
+function renderResults(data) {
+  var stats = data.stats;
+  document.getElementById('statsRow').innerHTML = `
+    <div class="col-md-3">
+      <div class="small-box bg-info">
+        <div class="inner"><h3>${stats.total_products}</h3><p>Total productos</p></div>
+        <div class="icon"><i class="fas fa-box"></i></div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="small-box bg-success">
+        <div class="inner"><h3>${stats.matched}</h3><p>Con categoría sugerida</p></div>
+        <div class="icon"><i class="fas fa-check"></i></div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="small-box bg-warning">
+        <div class="inner"><h3>${stats.unmatched}</h3><p>Sin categoría</p></div>
+        <div class="icon"><i class="fas fa-question"></i></div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="small-box bg-primary">
+        <div class="inner"><h3>${stats.categories_suggested}</h3><p>Categorías sugeridas</p></div>
+        <div class="icon"><i class="fas fa-tags"></i></div>
+      </div>
+    </div>
+  `;
+
+  // Sugerencias
+  var tbody = document.getElementById('suggestionsBody');
+  tbody.innerHTML = '';
+  data.suggestions.forEach(function(sug, idx) {
+    var sourceBadge = sug.source === 'diccionario'
+      ? '<span class="badge badge-info">Diccionario</span>'
+      : '<span class="badge badge-warning">Frecuencia</span>';
+    var examples = sug.product_names.map(function(p) {
+      return '<small>' + escapeHtml(p.name) + '</small>';
+    }).join('<br>');
+    if (sug.product_count > 10) {
+      examples += '<br><small class="text-muted">... y ' + (sug.product_count - 10) + ' más</small>';
+    }
+
+    var tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="checkbox" class="sug-check" data-idx="${idx}" checked></td>
+      <td><strong>${escapeHtml(sug.category_name)}</strong></td>
+      <td>${sourceBadge}</td>
+      <td><span class="badge badge-secondary">${sug.product_count}</span></td>
+      <td>${examples}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  // Sin matchear
+  var unmatchedBody = document.getElementById('unmatchedBody');
+  unmatchedBody.innerHTML = '';
+  if (data.unmatched.length > 0) {
+    document.getElementById('unmatchedSection').style.display = 'block';
+    data.unmatched.forEach(function(p) {
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + escapeHtml(p.product_name) + '</td>';
+      unmatchedBody.appendChild(tr);
+    });
+  } else {
+    document.getElementById('unmatchedSection').style.display = 'none';
+  }
+
+  document.getElementById('resultsSection').style.display = 'block';
+}
+
+function toggleSelectAll(cb) {
+  document.querySelectorAll('.sug-check').forEach(function(c) {
+    c.checked = cb.checked;
+  });
+}
+
+function applyCategories() {
+  var checked = document.querySelectorAll('.sug-check:checked');
+  if (checked.length === 0) {
+    alert('Seleccioná al menos una categoría');
+    return;
+  }
+
+  if (!confirm('¿Confirmás crear/asignar ' + checked.length + ' categorías?')) return;
+
+  var btn = document.getElementById('btnApply');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Aplicando...';
+
+  var data = [];
+  checked.forEach(function(c) {
+    var idx = parseInt(c.dataset.idx);
+    var sug = analysisData.suggestions[idx];
+    data.push({
+      category_name: sug.category_name,
+      product_ids: sug.product_ids
+    });
+  });
+
+  var formData = new FormData();
+  formData.append('action', 'apply');
+  formData.append('data', JSON.stringify(data));
+  formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+
+  fetch('', {
+    method: 'POST',
+    body: formData
+  })
+  .then(r => r.json())
+  .then(result => {
+    if (result.success) {
+      alert('Categorías creadas: ' + result.categories_created + '\nProductos actualizados: ' + result.products_updated);
+      location.reload();
+    } else {
+      alert('Error: ' + (result.error || 'desconocido'));
+    }
+  })
+  .catch(err => {
+    console.error('Error:', err);
+    alert('Error al aplicar categorías');
+  })
+  .finally(() => {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-check-circle"></i> Crear y asignar categorías seleccionadas';
+  });
+}
+
+function escapeHtml(text) {
+  var div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+</script>
+{% endblock %}

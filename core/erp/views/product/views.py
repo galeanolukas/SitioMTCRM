@@ -2269,3 +2269,94 @@ class ProductDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Del
         context['entity'] = 'Productos'
         context['list_url'] = reverse_lazy('erp:product_list')
         return context
+
+
+class CategorySuggestView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView):
+    """Vista para sugerir y crear categorías automáticamente desde nombres de productos."""
+    permission_required = 'erp.add_category'
+    template_name = 'product/category_suggest.html'
+    url_redirect = reverse_lazy('erp:product_list')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Sugerir Categorías Automáticamente'
+        context['entity'] = 'Categorías'
+        context['list_url'] = reverse_lazy('erp:category_list')
+        return context
+
+    def post(self, request, *args, **kwargs):
+        from core.erp.utils.category_suggester import suggest_categories
+        from core.erp.models import Product, Category
+        from core.erp.mixins import get_active_company_id
+        import json
+
+        action = request.POST.get('action', '')
+
+        if action == 'analyze':
+            # Analizar productos sin categoría o todos (según parámetro)
+            active_cid = get_active_company_id(request)
+            only_uncategorized = request.POST.get('only_uncategorized') == 'true'
+            min_freq = int(request.POST.get('min_frequency', 3))
+
+            qs = Product.objects.all()
+            if active_cid:
+                qs = qs.filter(company_id=active_cid)
+            if only_uncategorized:
+                qs = qs.filter(cat__isnull=True) | qs.filter(cat__name__iexact='SIN CATEGORIA') | qs.filter(cat__name__iexact='SIN CATEGORÍA')
+            else:
+                qs = qs.all()
+
+            products = list(qs.only('id', 'name', 'cat_id'))
+            result = suggest_categories(products, min_frequency=min_freq)
+
+            # Adjuntar nombres de productos para previsualizar
+            prod_map = {p.id: p.name for p in products}
+            for sug in result['suggestions']:
+                sug['product_names'] = [
+                    {'id': pid, 'name': prod_map.get(pid, '?')}
+                    for pid in sug['product_ids'][:10]  # solo primeros 10 para preview
+                ]
+                sug['product_ids'] = sug['product_ids']
+
+            return JsonResponse(result)
+
+        elif action == 'apply':
+            # Crear categorías y asignar productos
+            data = json.loads(request.POST.get('data', '[]'))
+            active_cid = get_active_company_id(request)
+            created = 0
+            updated = 0
+            errors = []
+
+            for item in data:
+                cat_name = item.get('category_name', '').strip().upper()
+                product_ids = item.get('product_ids', [])
+                if not cat_name or not product_ids:
+                    continue
+
+                # Buscar o crear categoría
+                cat_qs = Category.objects.filter(name__iexact=cat_name)
+                if active_cid:
+                    cat_qs = cat_qs.filter(company_id=active_cid)
+                cat = cat_qs.first()
+                if not cat:
+                    cat = Category.objects.create(
+                        name=cat_name,
+                        company_id=active_cid,
+                    )
+                    created += 1
+
+                # Asignar productos
+                prod_qs = Product.objects.filter(id__in=product_ids)
+                if active_cid:
+                    prod_qs = prod_qs.filter(company_id=active_cid)
+                updated += prod_qs.update(cat=cat)
+
+            return JsonResponse({
+                'success': True,
+                'categories_created': created,
+                'products_updated': updated,
+                'errors': errors,
+            })
+
+        return JsonResponse({'error': 'Acción no válida'}, status=400)
