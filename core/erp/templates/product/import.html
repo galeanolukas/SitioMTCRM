@@ -567,35 +567,40 @@ function showFileImport() {
 }
 
 function toggleEntityFields() {
-  var type = document.getElementById('entityType').value;
+  var typeEl = document.getElementById('entityType');
+  if (!typeEl) return;
+  var type = typeEl.value;
   var hints = ['hintProduct', 'hintClient', 'hintSupplier'];
   var infos = ['infoProduct', 'infoClient', 'infoSupplier'];
   var fields = ['fieldsProduct', 'fieldsClient', 'fieldsSupplier'];
   var labels = {product: 'Productos', client: 'Clientes', supplier: 'Proveedores'};
   var hintsMap = {product: 'hintProduct', client: 'hintClient', supplier: 'hintSupplier'};
-  var infosMap = {product: 'infoProduct', client: 'infoClient', supplier: 'infoSupplier'};
   var fieldsMap = {product: 'fieldsProduct', client: 'fieldsClient', supplier: 'fieldsSupplier'};
 
-  hints.forEach(function(id) { document.getElementById(id).style.display = 'none'; });
-  infos.forEach(function(id) { document.getElementById(id).style.display = 'none'; });
+  hints.forEach(function(id) { var el = document.getElementById(id); if (el) el.style.display = 'none'; });
+  infos.forEach(function(id) { var el = document.getElementById(id); if (el) el.style.display = 'none'; });
   fields.forEach(function(id) {
     var el = document.getElementById(id);
+    if (!el) return;
     el.style.display = 'none';
-    // Desactivar required de campos ocultos
     el.querySelectorAll('select[required]').forEach(function(sel) {
       sel.removeAttribute('required');
     });
   });
 
+  var activeHint = document.getElementById(hintsMap[type]);
+  if (activeHint) activeHint.style.display = 'block';
+
   var activeFields = document.getElementById(fieldsMap[type]);
-  activeFields.style.display = 'flex';
-  // Reactivar required solo para campos visibles marcados con *
-  activeFields.querySelectorAll('select').forEach(function(sel) {
-    var label = sel.closest('.col-md-4, .col-md-6');
-    if (label && label.querySelector('.text-danger')) {
-      sel.setAttribute('required', 'required');
-    }
-  });
+  if (activeFields) {
+    activeFields.style.display = 'flex';
+    activeFields.querySelectorAll('select').forEach(function(sel) {
+      var label = sel.closest('.col-md-4, .col-md-6');
+      if (label && label.querySelector('.text-danger')) {
+        sel.setAttribute('required', 'required');
+      }
+    });
+  }
 
   var btn = document.getElementById('importBtn');
   var hint = document.getElementById('importHint');
