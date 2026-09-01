@@ -614,6 +614,7 @@ class CardInstallmentPlan(models.Model):
         ('mastercard', 'Mastercard'),
         ('amex', 'American Express'),
         ('maestro', 'Maestro'),
+        ('cabal', 'Cabal'),
         ('otras', 'Otras'),
     )
     company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa', null=True, blank=True)
