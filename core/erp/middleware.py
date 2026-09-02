@@ -57,6 +57,7 @@ class ActivityLogMiddleware:
             
         # Crear registro de actividad
         try:
+            from .mixins import get_active_company_id
             ActivityLog.objects.create(
                 user=request.user,
                 action=action,
@@ -65,7 +66,7 @@ class ActivityLogMiddleware:
                 object_id=self._get_object_id(request),
                 ip_address=self._get_client_ip(request),
                 user_agent=request.META.get('HTTP_USER_AGENT', ''),
-                company=getattr(request.user, 'company_id', None)
+                company_id=get_active_company_id(request)
             )
         except Exception:
             # Silenciosamente ignorar errores para no afectar la aplicación

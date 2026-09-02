@@ -123,6 +123,14 @@
                     <h3 class="card-title">
                         <i class="fas fa-list"></i> Actividades Recientes
                     </h3>
+                    <div class="card-tools">
+                        <button type="button" class="btn btn-danger btn-sm" onclick="deleteFiltered()">
+                            <i class="fas fa-trash"></i> Eliminar filtrados
+                        </button>
+                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="deleteAll()">
+                            <i class="fas fa-trash-alt"></i> Eliminar todo
+                        </button>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
@@ -136,6 +144,7 @@
                                     <th>Modelo</th>
                                     <th>IP</th>
                                     <th>Empresa</th>
+                                    <th>Acciones</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -160,10 +169,15 @@
                                     <td>{{ activity.model_name|default:"-" }}</td>
                                     <td>{{ activity.ip_address|default:"-" }}</td>
                                     <td>{{ activity.company.name|default:"-" }}</td>
+                                    <td>
+                                        <button type="button" class="btn btn-danger btn-xs" onclick="deleteOne({{ activity.id }})">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </td>
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="7" class="text-center text-muted">
+                                    <td colspan="8" class="text-center text-muted">
                                         No hay actividades registradas
                                     </td>
                                 </tr>
@@ -204,4 +218,58 @@
 {% endblock %}
 
 {% block javascript %}
+<script>
+var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '{{ csrf_token }}';
+
+function deleteOne(id) {
+    if (!confirm('¿Eliminar este registro de actividad?')) return;
+    var formData = new FormData();
+    formData.append('action', 'delete_one');
+    formData.append('id', id);
+    formData.append('csrfmiddlewaretoken', csrfToken);
+    fetch('', {method: 'POST', body: formData})
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) location.reload();
+            else alert('Error: ' + (data.error || 'desconocido'));
+        })
+        .catch(err => alert('Error de conexión'));
+}
+
+function deleteFiltered() {
+    if (!confirm('¿Eliminar todos los registros que coinciden con los filtros actuales?')) return;
+    var formData = new FormData();
+    formData.append('action', 'delete_filtered');
+    formData.append('csrfmiddlewaretoken', csrfToken);
+    fetch('', {method: 'POST', body: formData})
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                alert('Registros eliminados: ' + data.deleted);
+                location.reload();
+            } else {
+                alert('Error: ' + (data.error || 'desconocido'));
+            }
+        })
+        .catch(err => alert('Error de conexión'));
+}
+
+function deleteAll() {
+    if (!confirm('¿ATENCIÓN: Eliminar TODOS los registros de actividad? Esta acción no se puede deshacer.')) return;
+    var formData = new FormData();
+    formData.append('action', 'delete_all');
+    formData.append('csrfmiddlewaretoken', csrfToken);
+    fetch('', {method: 'POST', body: formData})
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                alert('Registros eliminados: ' + data.deleted);
+                location.reload();
+            } else {
+                alert('Error: ' + (data.error || 'desconocido'));
+            }
+        })
+        .catch(err => alert('Error de conexión'));
+}
+</script>
 {% endblock %}

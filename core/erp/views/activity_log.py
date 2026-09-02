@@ -5,6 +5,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.views.generic import ListView, TemplateView
 from django.db.models import Q, Count
 from django.utils import timezone
+from django.http import JsonResponse
 from datetime import timedelta
 from ..models import ActivityLog
 
@@ -18,6 +19,29 @@ class ActivityLogView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     
     def test_func(self):
         return self.request.user.is_superuser
+    
+    def post(self, request, *args, **kwargs):
+        action = request.POST.get('action', '')
+        
+        if action == 'delete_all':
+            count = ActivityLog.objects.all().count()
+            ActivityLog.objects.all().delete()
+            return JsonResponse({'success': True, 'deleted': count})
+        
+        elif action == 'delete_filtered':
+            qs = self.get_queryset()
+            count = qs.count()
+            qs.delete()
+            return JsonResponse({'success': True, 'deleted': count})
+        
+        elif action == 'delete_one':
+            log_id = request.POST.get('id')
+            if log_id:
+                ActivityLog.objects.filter(id=log_id).delete()
+                return JsonResponse({'success': True})
+            return JsonResponse({'success': False, 'error': 'ID no proporcionado'}, status=400)
+        
+        return JsonResponse({'error': 'Acción no válida'}, status=400)
     
     def get_queryset(self):
         queryset = ActivityLog.objects.all().select_related('user', 'company')
