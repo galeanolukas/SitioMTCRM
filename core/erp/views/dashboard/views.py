@@ -437,11 +437,20 @@ class UpdatesView(LoginRequiredMixin, TemplateView):
 
         # Usar el nuevo sistema de versiones
         version_info = get_version_info()
+        # Parsear fecha de publicación ISO a objeto date para el template
+        latest_published_raw = version_info.get('latest_published', '')
+        latest_published = None
+        if latest_published_raw:
+            from django.utils.dateparse import parse_datetime
+            latest_published = parse_datetime(latest_published_raw)
+
         ctx.update({
             'app_version': format_version_display(version_info['current_version']),
             'latest_version': format_version_display(version_info['latest_version']),
             'update_available': version_info['update_available'],
-            'is_dev_version': version_info['is_dev_version']
+            'is_dev_version': version_info['is_dev_version'],
+            'latest_description': version_info.get('latest_description', ''),
+            'latest_published': latest_published,
         })
         
         # Detectar sistema operativo para mostrar el botón correcto
