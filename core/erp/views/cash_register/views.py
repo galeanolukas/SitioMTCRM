@@ -194,6 +194,35 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
         dynamic_card = sales_qs.filter(payment_method='card').aggregate(total=Sum('total'))['total'] or 0
         dynamic_transfer = sales_qs.filter(payment_method='transfer').aggregate(total=Sum('total'))['total'] or 0
         dynamic_mp = sales_qs.filter(payment_method='mp').aggregate(total=Sum('total'))['total'] or 0
+        dynamic_check = sales_qs.filter(payment_method='check').aggregate(total=Sum('total'))['total'] or 0
+        dynamic_debt = sales_qs.filter(payment_method='debt').aggregate(total=Sum('total'))['total'] or 0
+
+        # Desglosar ventas combinadas y sumar a los métodos individuales
+        combined_sales = sales_qs.filter(payment_method='combined')
+        for sale in combined_sales:
+            if sale.payment_details:
+                payment_breakdown = sale.payment_details
+                if isinstance(payment_breakdown, list):
+                    for payment in payment_breakdown:
+                        if isinstance(payment, dict):
+                            method = payment.get('method', '')
+                            amount = float(payment.get('amount', 0))
+                            if method == 'cash':
+                                dynamic_cash += amount
+                            elif method == 'card':
+                                dynamic_card += amount
+                            elif method == 'transfer':
+                                dynamic_transfer += amount
+                            elif method == 'mp':
+                                dynamic_mp += amount
+                            elif method == 'check':
+                                dynamic_check += amount
+                elif isinstance(payment_breakdown, dict):
+                    dynamic_cash += payment_breakdown.get('cash', 0)
+                    dynamic_card += payment_breakdown.get('card', 0)
+                    dynamic_transfer += payment_breakdown.get('transfer', 0)
+                    dynamic_mp += payment_breakdown.get('mp', 0)
+                    dynamic_check += payment_breakdown.get('check', 0)
 
         expenses_qs = Expense.objects.filter(
             date=cash_register.date,
@@ -207,7 +236,11 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
         dynamic_other_expenses = expenses_qs.filter(payment_method='otro').aggregate(total=Sum('amount'))['total'] or 0
         dynamic_total_expenses = dynamic_cash_expenses + dynamic_transfer_expenses + dynamic_mp_expenses + dynamic_card_expenses + dynamic_cheque_expenses + dynamic_other_expenses
 
-        dynamic_total_sales = dynamic_cash + dynamic_card + dynamic_transfer + dynamic_mp
+        dynamic_total_sales = dynamic_cash + dynamic_card + dynamic_transfer + dynamic_mp + dynamic_check + dynamic_debt
+
+        # Conteo de operaciones
+        sales_count = sales_qs.count()
+        expenses_count = expenses_qs.count()
 
         # Saldo esperado en caja solo para efectivo
         cash_movements = cash_register.movements.filter(payment_type='cash').aggregate(
@@ -229,6 +262,8 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
         context['dynamic_card_sales'] = dynamic_card
         context['dynamic_transfer_sales'] = dynamic_transfer
         context['dynamic_mp_sales'] = dynamic_mp
+        context['dynamic_check_sales'] = dynamic_check
+        context['dynamic_debt_sales'] = dynamic_debt
         context['dynamic_cash_expenses'] = dynamic_cash_expenses
         context['dynamic_transfer_expenses'] = dynamic_transfer_expenses
         context['dynamic_mp_expenses'] = dynamic_mp_expenses
@@ -239,6 +274,8 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
         context['dynamic_expenses'] = dynamic_cash_expenses
         context['dynamic_total_sales'] = dynamic_total_sales
         context['dynamic_calculated_balance'] = dynamic_calculated_balance
+        context['sales_count'] = sales_count
+        context['expenses_count'] = expenses_count
         context['title'] = 'Cierre de Caja'
         context['entity'] = 'Cierre de Caja'
         return context
@@ -260,6 +297,35 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
         card_total = sales_qs.filter(payment_method='card').aggregate(total=Sum('total'))['total'] or 0
         transfer_total = sales_qs.filter(payment_method='transfer').aggregate(total=Sum('total'))['total'] or 0
         mp_total = sales_qs.filter(payment_method='mp').aggregate(total=Sum('total'))['total'] or 0
+        check_total = sales_qs.filter(payment_method='check').aggregate(total=Sum('total'))['total'] or 0
+        debt_total = sales_qs.filter(payment_method='debt').aggregate(total=Sum('total'))['total'] or 0
+
+        # Desglosar ventas combinadas
+        combined_sales = sales_qs.filter(payment_method='combined')
+        for sale in combined_sales:
+            if sale.payment_details:
+                payment_breakdown = sale.payment_details
+                if isinstance(payment_breakdown, list):
+                    for payment in payment_breakdown:
+                        if isinstance(payment, dict):
+                            method = payment.get('method', '')
+                            amount = float(payment.get('amount', 0))
+                            if method == 'cash':
+                                cash_total += amount
+                            elif method == 'card':
+                                card_total += amount
+                            elif method == 'transfer':
+                                transfer_total += amount
+                            elif method == 'mp':
+                                mp_total += amount
+                            elif method == 'check':
+                                check_total += amount
+                elif isinstance(payment_breakdown, dict):
+                    cash_total += payment_breakdown.get('cash', 0)
+                    card_total += payment_breakdown.get('card', 0)
+                    transfer_total += payment_breakdown.get('transfer', 0)
+                    mp_total += payment_breakdown.get('mp', 0)
+                    check_total += payment_breakdown.get('check', 0)
 
         # Calcular gastos del día por método de pago (usando fecha de la caja y empresa de la caja)
         expenses_qs = Expense.objects.filter(date=cash_register_date, company_id=company_id)
@@ -289,7 +355,7 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
         
         # Debug: imprimir valores para verificar
         print(f"Cerrando caja ID {cash_register.id} - Fecha: {cash_register_date} - Empresa: {company_id}")
-        print(f"Ventas efectivo: {cash_total}, tarjeta: {card_total}, transfer: {transfer_total}, MP: {mp_total}")
+        print(f"Ventas efectivo: {cash_total}, tarjeta: {card_total}, transfer: {transfer_total}, MP: {mp_total}, cheque: {check_total}, deuda: {debt_total}")
         print(f"Gastos efectivo: {cash_expenses_total}, transfer: {transfer_expenses_total}, MP: {mp_expenses_total}, tarjeta: {card_expenses_total}, cheque: {cheque_expenses_total}, otro: {other_expenses_total}")
         print(f"Total gastos: {expenses_total}")
         cash_movements_total = cash_register.cash_movements_total

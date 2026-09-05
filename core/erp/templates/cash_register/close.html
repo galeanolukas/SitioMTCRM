@@ -10,7 +10,7 @@
     <div class="card-body">
         <div class="row mb-4">
             <div class="col-md-6">
-                <h5>Resumen de Ventas (en tiempo real)</h5>
+                <h5>Resumen de Ventas ({{ sales_count }} operaciones)</h5>
                 <table class="table table-bordered">
                     <tr>
                         <th>Saldo Inicial</th>
@@ -32,16 +32,57 @@
                         <th>Ventas por Mercado Pago</th>
                         <td class="text-right">${{ dynamic_mp_sales|floatformat:2 }}</td>
                     </tr>
+                    <tr>
+                        <th>Ventas por Cheque</th>
+                        <td class="text-right">${{ dynamic_check_sales|floatformat:2 }}</td>
+                    </tr>
+                    {% if dynamic_debt_sales|floatformat:2 != '0,00' %}
+                    <tr>
+                        <th>Ventas por Deuda</th>
+                        <td class="text-right">${{ dynamic_debt_sales|floatformat:2 }}</td>
+                    </tr>
+                    {% endif %}
                     <tr class="table-primary">
                         <th>Total Ventas</th>
                         <th class="text-right">${{ dynamic_total_sales|floatformat:2 }}</th>
                     </tr>
+                </table>
+
+                <h5>Desglose de Gastos ({{ expenses_count }} gastos)</h5>
+                <table class="table table-bordered table-sm">
                     <tr>
-                        <th>Gastos</th>
-                        <td class="text-right">${{ dynamic_expenses|floatformat:2 }}</td>
+                        <th>Gastos en Efectivo</th>
+                        <td class="text-right">${{ dynamic_cash_expenses|floatformat:2 }}</td>
                     </tr>
+                    <tr>
+                        <th>Gastos por Transferencia</th>
+                        <td class="text-right">${{ dynamic_transfer_expenses|floatformat:2 }}</td>
+                    </tr>
+                    <tr>
+                        <th>Gastos por Mercado Pago</th>
+                        <td class="text-right">${{ dynamic_mp_expenses|floatformat:2 }}</td>
+                    </tr>
+                    <tr>
+                        <th>Gastos con Tarjeta</th>
+                        <td class="text-right">${{ dynamic_card_expenses|floatformat:2 }}</td>
+                    </tr>
+                    <tr>
+                        <th>Gastos con Cheque</th>
+                        <td class="text-right">${{ dynamic_cheque_expenses|floatformat:2 }}</td>
+                    </tr>
+                    <tr>
+                        <th>Otros Gastos</th>
+                        <td class="text-right">${{ dynamic_other_expenses|floatformat:2 }}</td>
+                    </tr>
+                    <tr class="table-warning">
+                        <th>Total Gastos</th>
+                        <th class="text-right">${{ dynamic_total_expenses|floatformat:2 }}</th>
+                    </tr>
+                </table>
+
+                <table class="table table-bordered">
                     <tr class="table-success">
-                        <th>Saldo Esperado</th>
+                        <th>Saldo Esperado (Efectivo)</th>
                         <th class="text-right">${{ dynamic_calculated_balance|floatformat:2 }}</th>
                     </tr>
                 </table>
@@ -88,23 +129,61 @@
         <form method="post">
             {% csrf_token %}
             <div class="row">
-                <div class="col-md-6">
+                <div class="col-md-4">
                     <div class="form-group">
                         <label for="id_closing_balance">Saldo Final en Caja</label>
-                        <input type="number" name="closing_balance" step="0.01" class="form-control" id="id_closing_balance" required>
+                        <input type="number" name="closing_balance" step="0.01" class="form-control" id="id_closing_balance" required oninput="updateDifference()">
                         <small class="form-text text-muted">Ingrese el conteo físico de dinero en caja</small>
                     </div>
                 </div>
-                <div class="col-md-6">
+                <div class="col-md-4">
                     <div class="form-group">
-                        <label for="id_notes">Notas</label>
-                        <textarea name="notes" class="form-control" id="id_notes" rows="3">{{ object.notes }}</textarea>
+                        <label>Saldo Esperado</label>
+                        <input type="text" class="form-control" id="expectedBalance" value="${{ dynamic_calculated_balance|floatformat:2 }}" readonly>
+                        <small class="form-text text-muted">Calculado automáticamente</small>
                     </div>
                 </div>
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label>Diferencia</label>
+                        <input type="text" class="form-control" id="differenceDisplay" value="$0.00" readonly>
+                        <small class="form-text text-muted" id="differenceHint">Ingrese el saldo final para ver la diferencia</small>
+                    </div>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="id_notes">Notas</label>
+                <textarea name="notes" class="form-control" id="id_notes" rows="3">{{ object.notes }}</textarea>
             </div>
             <button type="submit" class="btn btn-primary">Confirmar Cierre</button>
             <a href="{% url 'erp:cash_register_list' %}" class="btn btn-secondary">Cancelar</a>
         </form>
     </div>
 </div>
+
+<script>
+var expectedBalance = parseFloat('{{ dynamic_calculated_balance|floatformat:2 }}'.replace(',', '.')) || 0;
+
+function updateDifference() {
+    var closingInput = document.getElementById('id_closing_balance');
+    var diffDisplay = document.getElementById('differenceDisplay');
+    var diffHint = document.getElementById('differenceHint');
+    var closingVal = parseFloat(closingInput.value) || 0;
+    var diff = closingVal - expectedBalance;
+    diffDisplay.value = '$' + diff.toFixed(2);
+    if (Math.abs(diff) < 0.01) {
+        diffDisplay.classList.remove('text-danger', 'text-warning');
+        diffDisplay.classList.add('text-success');
+        diffHint.textContent = 'Cuadra correctamente';
+    } else if (diff > 0) {
+        diffDisplay.classList.remove('text-success', 'text-warning');
+        diffDisplay.classList.add('text-danger');
+        diffHint.textContent = 'Sobran $' + diff.toFixed(2) + ' en caja';
+    } else {
+        diffDisplay.classList.remove('text-success', 'text-danger');
+        diffDisplay.classList.add('text-warning');
+        diffHint.textContent = 'Faltan $' + Math.abs(diff).toFixed(2) + ' en caja';
+    }
+}
+</script>
 {% endblock %}
