@@ -330,7 +330,17 @@ class ProductUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Upd
             if action == 'edit':
                 with transaction.atomic():
                     form = self.get_form()
-                    data = form.save()
+                    if form.is_valid():
+                        product = form.save()
+                        data = {
+                            'id': product.id,
+                            'name': product.name,
+                            'pvp': str(product.pvp),
+                            'pvp_final': str(product.pvp_final),
+                            'cost_price': str(product.cost_price),
+                        }
+                    else:
+                        data = {'error': 'Formulario inválido', 'errors': form.errors}
             else:
                 data['error'] = 'No ha ingresado a ninguna opción'
         except Exception as e:

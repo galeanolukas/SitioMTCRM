@@ -227,28 +227,13 @@ class ProductForm(ModelForm):
 
     
     def save(self, commit=True):
-         data = {}
-         form = super()
-         try:
-             if form.is_valid():
-                 obj = form.save(commit=False)
-                 active_cid = get_active_company_id(self.request) if self.request else None
-                 if active_cid and not getattr(obj, 'company_id', None):
-                     obj.company_id = active_cid
-                 if commit:
-                     obj.save()
-                 try:
-                     data = obj.toJSON() if hasattr(obj, 'toJSON') else {}
-                 except Exception as json_error:
-                     print('ERROR EN toJSON:', str(json_error))
-                     data = {'id': obj.id, 'name': obj.name}
-             else:
-                 print('ERRORES DEL FORMULARIO:', form.errors)
-                 data['error'] = form.errors
-         except Exception as e:
-             print('EXCEPCIÓN EN SAVE:', str(e))
-             data['error'] = str(e)
-         return data
+        obj = super().save(commit=False)
+        active_cid = get_active_company_id(self.request) if self.request else None
+        if active_cid and not getattr(obj, 'company_id', None):
+            obj.company_id = active_cid
+        if commit:
+            obj.save()
+        return obj
 
 class ClientForm(ModelForm):
     def __init__(self, *args, **kwargs):
