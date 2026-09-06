@@ -63,12 +63,9 @@
           </div>
           <div class="col-md-4">
             <div class="form-group">
-              <label>IVA</label>
-              <div class="form-check mt-2">
-                {{ form.iva_incluido }}
-                <label class="form-check-label" for="id_iva_incluido">IVA incluido en precio</label>
-              </div>
-              <small class="text-muted">Marcar si los precios de los productos ya incluyen IVA</small>
+              <label>IVA incluido (%)</label>
+              {{ form.iva_porcentaje }}
+              <small class="text-muted">Ej: 21, 10.5, 27. Dejar 0 si no incluye IVA.</small>
             </div>
           </div>
         </div>
@@ -128,7 +125,7 @@
               <th></th>
             </tr>
             <tr id="tfootIva" style="display:none;">
-              <th colspan="4" class="text-end">IVA (21%):</th>
+              <th colspan="4" class="text-end"><span id="ivaLabel">IVA:</span></th>
               <th id="totalIva">$0.00</th>
               <th></th>
             </tr>
@@ -150,20 +147,27 @@
 
   <script>
     let detalles = [];
-    const IVA_RATE = 0.21;
+
+    function getIvaRate() {
+      const val = parseFloat(document.getElementById('id_iva_porcentaje').value) || 0;
+      return val / 100;
+    }
 
     function toggleIvaColumns() {
-      const ivaIncluido = document.getElementById('id_iva_incluido').checked;
-      const display = ivaIncluido ? '' : 'none';
+      const ivaRate = getIvaRate();
+      const showIva = ivaRate > 0;
+      const display = showIva ? '' : 'none';
       document.getElementById('thIva').style.display = display;
       document.getElementById('thNeto').style.display = display;
       document.getElementById('tfootNeto').style.display = display;
       document.getElementById('tfootIva').style.display = display;
       document.getElementById('thTotalCol').style.display = display;
+      const ivaLabel = document.getElementById('ivaLabel');
+      if (ivaLabel) ivaLabel.textContent = 'IVA (' + (ivaRate * 100) + '%):';
       renderDetalles();
     }
 
-    document.getElementById('id_iva_incluido').addEventListener('change', toggleIvaColumns);
+    document.getElementById('id_iva_porcentaje').addEventListener('input', toggleIvaColumns);
 
     $('form').on('submit', function (e) {
       if (detalles.length === 0) {
@@ -316,19 +320,20 @@
     let total = 0;
     let totalNeto = 0;
     let totalIva = 0;
-    const ivaIncluido = document.getElementById('id_iva_incluido').checked;
+    const ivaRate = getIvaRate();
+    const hasIva = ivaRate > 0;
 
     detalles.forEach((det, index) => {
       total += det.subtotal;
       let neto = det.subtotal;
       let iva = 0;
-      if (ivaIncluido) {
-        neto = det.subtotal / (1 + IVA_RATE);
+      if (hasIva) {
+        neto = det.subtotal / (1 + ivaRate);
         iva = det.subtotal - neto;
         totalNeto += neto;
         totalIva += iva;
       }
-      const ivaCols = ivaIncluido ? `
+      const ivaCols = hasIva ? `
         <td>$${iva.toFixed(2)}</td>
         <td>$${neto.toFixed(2)}</td>
       ` : '';
@@ -350,7 +355,7 @@
     });
 
     document.getElementById('totalGeneral').textContent = '$' + total.toFixed(2);
-    if (ivaIncluido) {
+    if (hasIva) {
       document.getElementById('totalNeto').textContent = '$' + totalNeto.toFixed(2);
       document.getElementById('totalIva').textContent = '$' + totalIva.toFixed(2);
     }

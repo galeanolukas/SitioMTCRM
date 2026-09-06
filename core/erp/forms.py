@@ -765,9 +765,10 @@ class RemitoForm(ModelForm):
     
     class Meta:
         model = Remito
-        fields = ['tipo', 'supplier', 'numero', 'fecha', 'estado', 'iva_incluido', 'observaciones']
+        fields = ['tipo', 'supplier', 'numero', 'fecha', 'estado', 'iva_porcentaje', 'observaciones']
         widgets = {
             'fecha': DateInput(attrs={'type': 'date'}),
             'observaciones': Textarea(attrs={'rows': 3}),
+            'iva_porcentaje': NumberInput(attrs={'step': '0.01', 'min': '0', 'max': '100', 'placeholder': '0'}),
         }
         exclude = ['company', 'synced_to_server', 'created_at', 'updated_at', 'created_by']

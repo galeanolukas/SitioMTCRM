@@ -138,9 +138,10 @@ class RemitoDetailView(LoginRequiredMixin, PermissionRequiredMixin, DetailView):
         detalles = list(self.object.detalleremito_set.select_related('prod'))
         total = sum(d.subtotal for d in detalles)
         context['total'] = total
-        if self.object.iva_incluido:
+        if self.object.iva_porcentaje and self.object.iva_porcentaje > 0:
+            iva_divisor = Decimal('1') + (self.object.iva_porcentaje / Decimal('100'))
             for d in detalles:
-                d.neto = (d.subtotal / Decimal('1.21')).quantize(Decimal('0.01'))
+                d.neto = (d.subtotal / iva_divisor).quantize(Decimal('0.01'))
                 d.iva_monto = d.subtotal - d.neto
             context['total_neto'] = sum(d.neto for d in detalles)
             context['total_iva'] = sum(d.iva_monto for d in detalles)
@@ -374,10 +375,11 @@ def facturar_remito(request, pk):
         return JsonResponse({'error': 'Solo se pueden facturar remitos de entrada'}, status=400)
 
     detalles = list(remito.detalleremito_set.select_related('prod').all())
-    if remito.iva_incluido:
-        neto_remito = sum(d.subtotal / Decimal('1.21') for d in detalles)
+    if remito.iva_porcentaje and remito.iva_porcentaje > 0:
+        iva_divisor = Decimal('1') + (remito.iva_porcentaje / Decimal('100'))
+        neto_remito = sum(d.subtotal / iva_divisor for d in detalles)
         for d in detalles:
-            d.neto = (d.subtotal / Decimal('1.21')).quantize(Decimal('0.01'))
+            d.neto = (d.subtotal / iva_divisor).quantize(Decimal('0.01'))
     else:
         neto_remito = sum(d.subtotal for d in detalles)
 
@@ -434,18 +436,20 @@ def facturar_remito(request, pk):
                 # Ajustar cost_price de los productos si el neto de la factura difiere del remito
                 # Distribuir el neto_gravado proporcionalmente entre los productos del remito
                 ajustes = []
-                # Calcular neto_remito: si iva_incluido, el precio ya tiene IVA, hay que sacarlo
-                if remito.iva_incluido:
-                    neto_remito = sum(d.subtotal / Decimal('1.21') for d in detalles)
+                # Calcular neto_remito: si tiene iva_porcentaje, el precio ya tiene IVA, hay que sacarlo
+                if remito.iva_porcentaje and remito.iva_porcentaje > 0:
+                    iva_divisor = Decimal('1') + (remito.iva_porcentaje / Decimal('100'))
+                    neto_remito = sum(d.subtotal / iva_divisor for d in detalles)
                 else:
                     neto_remito = sum(d.subtotal for d in detalles)
                 if neto_gravado > 0 and neto_remito > 0 and neto_gravado != neto_remito:
                     factor = neto_gravado / neto_remito
                     for detalle in detalles:
                         if detalle.prod:
-                            # Si iva_incluido, el precio_unitario incluye IVA, calcular neto
-                            if remito.iva_incluido:
-                                precio_neto = detalle.precio_unitario / Decimal('1.21')
+                            # Si tiene iva_porcentaje, el precio_unitario incluye IVA, calcular neto
+                            if remito.iva_porcentaje and remito.iva_porcentaje > 0:
+                                iva_divisor = Decimal('1') + (remito.iva_porcentaje / Decimal('100'))
+                                precio_neto = detalle.precio_unitario / iva_divisor
                             else:
                                 precio_neto = detalle.precio_unitario
                             nuevo_costo = (precio_neto * factor).quantize(Decimal('0.01'))
