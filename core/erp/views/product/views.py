@@ -1573,6 +1573,7 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
             updated_items = []
 
             # Pre-cargar categorías por nombre y empresa
+            # El modelo Category guarda name en mayúsculas, por eso buscamos con upper()
             cat_names = set()
             if map_cat:
                 for _, row in df.iterrows():
@@ -1580,13 +1581,15 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                         continue
                     cname = str(row[map_cat]).strip()
                     if cname:
-                        cat_names.add(cname)
+                        cat_names.add(cname.upper())
             
-            # Buscar categorías existentes por nombre y empresa activa
+            # Buscar categorías existentes por nombre (mayúsculas) y empresa activa
             existing_cats = Category.objects.filter(name__in=cat_names)
             if active_cid:
                 existing_cats = existing_cats.filter(company_id=active_cid)
-            cats_by_name = {c.name: c for c in existing_cats}
+            cats_by_name = {}
+            for c in existing_cats:
+                cats_by_name[c.name] = c
 
             for idx, row in df.iterrows():
                 try:
@@ -1698,13 +1701,17 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                     if map_cat and not pd.isna(row.get(map_cat)):
                         cat_name = str(row.get(map_cat)).strip()
                         if cat_name:
-                            cat = cats_by_name.get(cat_name)
+                            # El modelo Category guarda name en mayúsculas
+                            cat_name_upper = cat_name.upper()
+                            cat = cats_by_name.get(cat_name_upper) or cats_by_name.get(cat_name)
                             if not cat:
                                 # Crear categoría con empresa activa
-                                cat, _ = Category.objects.get_or_create(
-                                    name=cat_name,
-                                    company_id=active_cid
+                                cat, created_cat = Category.objects.get_or_create(
+                                    name__iexact=cat_name,
+                                    company_id=active_cid,
+                                    defaults={'name': cat_name_upper}
                                 )
+                                cats_by_name[cat_name_upper] = cat
                                 cats_by_name[cat_name] = cat
 
                     comp_name = None
@@ -1781,10 +1788,17 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                             if prod:
                                 products_by_name[name] = prod
                     if prod is None:
+                        # Fallback de categoría: buscar una de la empresa activa
+                        fallback_cat = cat
+                        if not fallback_cat:
+                            if active_cid:
+                                fallback_cat = Category.objects.filter(company_id=active_cid).first()
+                            else:
+                                fallback_cat = Category.objects.first()
                         prod = Product(
                             code=code,
                             name=name,
-                            cat=cat or Category.objects.first(),
+                            cat=fallback_cat,
                             pvp=pvp,
                             unit=unit,
                             stock=stock,
