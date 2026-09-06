@@ -49,16 +49,26 @@
           </div>
         </div>
         <div class="row">
-          <div class="col-md-6">
+          <div class="col-md-4">
             <div class="form-group">
               <label>{{ form.fecha.label }}</label>
               {{ form.fecha }}
             </div>
           </div>
-          <div class="col-md-6">
+          <div class="col-md-4">
             <div class="form-group">
               <label>{{ form.estado.label }}</label>
               {{ form.estado }}
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-group">
+              <label>IVA</label>
+              <div class="form-check mt-2">
+                {{ form.iva_incluido }}
+                <label class="form-check-label" for="id_iva_incluido">IVA incluido en precio</label>
+              </div>
+              <small class="text-muted">Marcar si los precios de los productos ya incluyen IVA</small>
             </div>
           </div>
         </div>
@@ -103,6 +113,8 @@
               <th>Cantidad</th>
               <th>Precio Unitario</th>
               <th>Subtotal</th>
+              <th id="thIva" style="display:none;">IVA</th>
+              <th id="thNeto" style="display:none;">Neto</th>
               <th>Acciones</th>
             </tr>
           </thead>
@@ -110,9 +122,20 @@
             <!-- Se llenará dinámicamente -->
           </tbody>
           <tfoot>
+            <tr id="tfootNeto" style="display:none;">
+              <th colspan="4" class="text-end">Neto:</th>
+              <th id="totalNeto">$0.00</th>
+              <th></th>
+            </tr>
+            <tr id="tfootIva" style="display:none;">
+              <th colspan="4" class="text-end">IVA (21%):</th>
+              <th id="totalIva">$0.00</th>
+              <th></th>
+            </tr>
             <tr>
               <th colspan="3" class="text-end">Total:</th>
               <th id="totalGeneral">$0.00</th>
+              <th id="thTotalCol" style="display:none;"></th>
               <th></th>
             </tr>
           </tfoot>
@@ -127,6 +150,20 @@
 
   <script>
     let detalles = [];
+    const IVA_RATE = 0.21;
+
+    function toggleIvaColumns() {
+      const ivaIncluido = document.getElementById('id_iva_incluido').checked;
+      const display = ivaIncluido ? '' : 'none';
+      document.getElementById('thIva').style.display = display;
+      document.getElementById('thNeto').style.display = display;
+      document.getElementById('tfootNeto').style.display = display;
+      document.getElementById('tfootIva').style.display = display;
+      document.getElementById('thTotalCol').style.display = display;
+      renderDetalles();
+    }
+
+    document.getElementById('id_iva_incluido').addEventListener('change', toggleIvaColumns);
 
     $('form').on('submit', function (e) {
       if (detalles.length === 0) {
@@ -277,15 +314,31 @@
     const tbody = document.getElementById('detallesTable');
     tbody.innerHTML = '';
     let total = 0;
+    let totalNeto = 0;
+    let totalIva = 0;
+    const ivaIncluido = document.getElementById('id_iva_incluido').checked;
 
     detalles.forEach((det, index) => {
       total += det.subtotal;
+      let neto = det.subtotal;
+      let iva = 0;
+      if (ivaIncluido) {
+        neto = det.subtotal / (1 + IVA_RATE);
+        iva = det.subtotal - neto;
+        totalNeto += neto;
+        totalIva += iva;
+      }
+      const ivaCols = ivaIncluido ? `
+        <td>$${iva.toFixed(2)}</td>
+        <td>$${neto.toFixed(2)}</td>
+      ` : '';
       const row = `
         <tr>
           <td>${det.prod_name}</td>
           <td>${det.cantidad.toFixed(3)}</td>
           <td>$${det.precio_unitario.toFixed(2)}</td>
           <td>$${det.subtotal.toFixed(2)}</td>
+          ${ivaCols}
           <td>
             <button type="button" onclick="eliminarDetalle(${det.temp_id})" class="btn btn-sm btn-danger btn-flat">
               <i class="fas fa-trash"></i>
@@ -297,6 +350,10 @@
     });
 
     document.getElementById('totalGeneral').textContent = '$' + total.toFixed(2);
+    if (ivaIncluido) {
+      document.getElementById('totalNeto').textContent = '$' + totalNeto.toFixed(2);
+      document.getElementById('totalIva').textContent = '$' + totalIva.toFixed(2);
+    }
   }
 
   function eliminarDetalle(tempId) {

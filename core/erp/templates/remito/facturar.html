@@ -28,6 +28,7 @@
           <tr><th style="width:40%;">Remito:</th><td>{{ remito.numero }}</td></tr>
           <tr><th>Proveedor:</th><td>{{ remito.supplier.name|default:"-" }}</td></tr>
           <tr><th>Fecha remito:</th><td>{{ remito.fecha|date:"d/m/Y" }}</td></tr>
+          <tr><th>IVA:</th><td>{% if remito.iva_incluido %}<span class="badge bg-info">Incluido en precio</span>{% else %}<span class="badge bg-secondary">No incluido</span>{% endif %}</td></tr>
         </table>
       </div>
       <div class="col-md-6">
@@ -48,6 +49,9 @@
             <th>Cantidad</th>
             <th>Precio Unitario</th>
             <th>Subtotal</th>
+            {% if remito.iva_incluido %}
+            <th>Neto (sin IVA)</th>
+            {% endif %}
           </tr>
         </thead>
         <tbody>
@@ -57,6 +61,9 @@
             <td>{{ d.cantidad|floatformat:3 }}</td>
             <td>${{ d.precio_unitario|floatformat:2 }}</td>
             <td>${{ d.subtotal|floatformat:2 }}</td>
+            {% if remito.iva_incluido %}
+            <td>${{ d.neto|floatformat:2 }}</td>
+            {% endif %}
           </tr>
           {% endfor %}
         </tbody>

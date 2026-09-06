@@ -765,7 +765,7 @@ class RemitoForm(ModelForm):
     
     class Meta:
         model = Remito
-        fields = ['tipo', 'supplier', 'numero', 'fecha', 'estado', 'observaciones']
+        fields = ['tipo', 'supplier', 'numero', 'fecha', 'estado', 'iva_incluido', 'observaciones']
         widgets = {
             'fecha': DateInput(attrs={'type': 'date'}),
             'observaciones': Textarea(attrs={'rows': 3}),
