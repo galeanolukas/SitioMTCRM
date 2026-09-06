@@ -141,9 +141,13 @@ class Command(BaseCommand):
                                 name = f"{original_name} ({counter})"
                                 counter += 1
                             
+                            # Sincronizar proveedor
+                            local_supplier = self.get_local_supplier(active_company.id, remote_prod_data.get('supplier_id'))
+                            
                             return Product.objects.using('default').create(
                                 company_id=active_company.id,
                                 cat=local_cat,
+                                supplier=local_supplier,
                                 code=remote_prod_data.get('code', ''),
                                 name=name,
                                 pvp=remote_prod_data.get('pvp', 0),
@@ -183,6 +187,11 @@ class Command(BaseCommand):
                             local_prod.min_stock = remote_prod_data.get('min_stock', 5)
                             local_prod.iva_rate = remote_prod_data.get('iva_rate', 0.21)
                             local_prod.synced_from_server = True
+                            
+                            # Sincronizar proveedor
+                            local_supplier = self.get_local_supplier(active_company.id, remote_prod_data.get('supplier_id'))
+                            if local_supplier:
+                                local_prod.supplier = local_supplier
                             
                             # Lógica segura de stock
                             if self.should_update_stock_safe(local_prod, remote_stock):
@@ -238,7 +247,7 @@ class Command(BaseCommand):
         with connections['remote'].cursor() as cursor:
             cursor.execute("""
                 SELECT id, name, code, pvp, pvp_final, cost_price, unit, stock, 
-                       min_stock, iva_rate, cat_id, company_id
+                       min_stock, iva_rate, cat_id, company_id, supplier_id
                 FROM erp_product 
                 WHERE company_id = %s
             """, [company_id])
@@ -251,6 +260,44 @@ class Command(BaseCommand):
                 products.append(product_dict)
             
             return products
+
+    def get_local_supplier(self, company_id, remote_supplier_id):
+        """Obtiene el proveedor local correspondiente al supplier_id remoto"""
+        if not remote_supplier_id:
+            return None
+        
+        from core.erp.models import Supplier
+        
+        # Obtener el proveedor remoto
+        with connections['remote'].cursor() as cursor:
+            cursor.execute("""
+                SELECT code, cuit, name
+                FROM erp_supplier
+                WHERE id = %s
+            """, [remote_supplier_id])
+            row = cursor.fetchone()
+        
+        if not row:
+            return None
+        
+        remote_code, remote_cuit, remote_name = row
+        
+        # Buscar proveedor local por code o cuit
+        local_supplier = None
+        if remote_code:
+            local_supplier = Supplier.objects.using('default').filter(
+                company_id=company_id, code=remote_code
+            ).first()
+        if not local_supplier and remote_cuit:
+            local_supplier = Supplier.objects.using('default').filter(
+                company_id=company_id, cuit=remote_cuit
+            ).first()
+        if not local_supplier and remote_name:
+            local_supplier = Supplier.objects.using('default').filter(
+                company_id=company_id, name=remote_name
+            ).first()
+        
+        return local_supplier
 
     def get_remote_category(self, cat_id):
         """Obtener categoría remota usando SQL directo"""

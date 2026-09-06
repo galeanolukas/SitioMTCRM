@@ -2211,7 +2211,7 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                         with connections['remote'].cursor() as cursor:
                             cursor.execute("""
                                 SELECT id, name, code, pvp, pvp_final, cost_price, unit, stock, 
-                                       min_stock, iva_rate, cat_id
+                                       min_stock, iva_rate, cat_id, supplier_id
                                 FROM erp_product 
                                 WHERE id = %s AND company_id = %s
                             """, [product_id, company.id])
@@ -2230,10 +2230,37 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                                 defaults={'name': f'Categoría {server_product[10]}'}
                             )
                         
+                        # Obtener proveedor local
+                        local_supplier = None
+                        if server_product[11]:  # supplier_id remoto
+                            with connections['remote'].cursor() as cursor:
+                                cursor.execute("""
+                                    SELECT code, cuit, name
+                                    FROM erp_supplier
+                                    WHERE id = %s
+                                """, [server_product[11]])
+                                sup_row = cursor.fetchone()
+                            if sup_row:
+                                from core.erp.models import Supplier
+                                sup_code, sup_cuit, sup_name = sup_row
+                                if sup_code:
+                                    local_supplier = Supplier.objects.filter(
+                                        company_id=company.id, code=sup_code
+                                    ).first()
+                                if not local_supplier and sup_cuit:
+                                    local_supplier = Supplier.objects.filter(
+                                        company_id=company.id, cuit=sup_cuit
+                                    ).first()
+                                if not local_supplier and sup_name:
+                                    local_supplier = Supplier.objects.filter(
+                                        company_id=company.id, name=sup_name
+                                    ).first()
+                        
                         # Crear producto local
                         Product.objects.create(
                             company=company,
                             cat=cat,
+                            supplier=local_supplier,
                             name=server_product[1],
                             code=server_product[2] or '',
                             pvp=server_product[3],
