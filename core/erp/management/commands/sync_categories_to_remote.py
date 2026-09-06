@@ -96,17 +96,27 @@ class Command(BaseCommand):
                     cat.save(using='default')
                     continue
 
-                # Buscar categoría existente por nombre (sin importar empresa)
-                remote_cat = Category.objects.using('remote').filter(name=cat.name).first()
+                # Buscar categoría existente por nombre y empresa primero
+                remote_cat = Category.objects.using('remote').filter(name=cat.name, company_id=company_id).first()
+                if not remote_cat:
+                    # Fallback: buscar por nombre sin empresa (puede tener company_id=None)
+                    remote_cat = Category.objects.using('remote').filter(name=cat.name).first()
 
                 created = False
                 if remote_cat:
-                    # La categoría ya existe, reutilizarla
-                    action = "reutilizada (ya existía)"
+                    # La categoría ya existe
                     if remote_cat.company_id != company_id:
-                        self.stdout.write(f"⚠️ Categoría '{cat.name}' ya existía (Empresa {remote_cat.company_id}), reutilizando para Empresa {company_id}")
+                        # Actualizar la empresa de la categoría remota
+                        if remote_cat.company_id is None:
+                            self.stdout.write(f"⚠️ Categoría '{cat.name}' existía sin empresa, asignando a Empresa {company_id}")
+                        else:
+                            self.stdout.write(f"⚠️ Categoría '{cat.name}' existía (Empresa {remote_cat.company_id}), reasignando a Empresa {company_id}")
+                        remote_cat.company_id = company_id
+                        remote_cat.save(using='remote')
+                        action = "actualizada (empresa reasignada)"
                     else:
                         self.stdout.write(f"✅ Categoría '{cat.name}' encontrada (Empresa {company_id})")
+                        action = "reutilizada (ya existía)"
                 else:
                     # Crear nueva categoría con empresa
                     try:

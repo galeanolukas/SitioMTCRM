@@ -1493,6 +1493,9 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                 messages.error(request, f'Debe mapear los campos obligatorios: {", ".join(missing_fields)}')
                 return self.get(request, *args, **kwargs)
             active_cid = get_active_company_id(request)
+            # Asegurar que active_cid no sea None para categorías
+            if not active_cid and hasattr(request.user, 'company_id') and request.user.company_id:
+                active_cid = request.user.company_id
             created, updated = 0, 0
             errors = []
             unit_choices = dict(Product.UNIT_CHOICES)
