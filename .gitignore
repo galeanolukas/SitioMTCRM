@@ -3,8 +3,6 @@
 *.pot
 *.pyc
 __pycache__/
-*/migrations/*
-**/migrations/*
 */logs/*
 db.sqlite3
 .env
@@ -69,8 +67,6 @@ instalar_modo_servidor.md
 plan_transicion_servidor.md
 migration_server_safe.py
 sync_service_compatible.py
-/core/erp/migrations
-/core/user/migrations
 staticfiles/
 cache/
 
