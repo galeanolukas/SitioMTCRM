@@ -17,7 +17,15 @@ source DJENV/bin/activate
 # Asegurar entorno de POS (no production)
 export ENVIRONMENT=development
 
-echo "Iniciando servidor Django en http://localhost:8000 ..."
+# Leer dominio local desde .env (si existe)
+LOCAL_DOMAIN="localhost"
+if [ -f ".env" ]; then
+    LOCAL_DOMAIN=$(grep -E '^LOCAL_DOMAIN=' .env | cut -d'=' -f2 | tr -d '[:space:]')
+    [ -z "$LOCAL_DOMAIN" ] && LOCAL_DOMAIN="localhost"
+fi
+
+ACCESS_HOST="$LOCAL_DOMAIN"
+echo "Iniciando servidor Django en http://${ACCESS_HOST}:8000 ..."
 # Abrir el servidor en segundo plano para no bloquear este script
 python manage.py runserver 0.0.0.0:8000 &
 SERVER_PID=$!
@@ -27,20 +35,21 @@ echo "Esperando a que el servidor se inicie..."
 sleep 10
 
 # Abrir el navegador en la URL del POS (launcher)
-echo "Abriendo navegador en http://localhost:8000/erp/launcher/"
+echo "Abriendo navegador en http://${ACCESS_HOST}:8000/erp/launcher/"
+LAUNCHER_URL="http://${ACCESS_HOST}:8000/erp/launcher/"
 if command -v xdg-open &> /dev/null; then
-    xdg-open "http://localhost:8000/erp/launcher/"
+    xdg-open "$LAUNCHER_URL"
 elif command -v gnome-open &> /dev/null; then
-    gnome-open "http://localhost:8000/erp/launcher/"
+    gnome-open "$LAUNCHER_URL"
 elif command -v firefox &> /dev/null; then
-    firefox "http://localhost:8000/erp/launcher/" &
+    firefox "$LAUNCHER_URL" &
 elif command -v google-chrome &> /dev/null; then
-    google-chrome "http://localhost:8000/erp/launcher/" &
+    google-chrome "$LAUNCHER_URL" &
 elif command -v chromium &> /dev/null; then
-    chromium "http://localhost:8000/erp/launcher/" &
+    chromium "$LAUNCHER_URL" &
 else
     echo "No se pudo detectar un navegador. Abra manualmente:"
-    echo "http://localhost:8000/erp/launcher/"
+    echo "$LAUNCHER_URL"
 fi
 
 echo

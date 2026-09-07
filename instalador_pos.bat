@@ -177,6 +177,46 @@ if /I "%CONFIG_REMOTE%"=="s" (
 )
 
 REM ---------------------------------------------------------------------------
+REM 4.5) Configurar dominio local (DNS local)
+REM ---------------------------------------------------------------------------
+set "LOCAL_DOMAIN="
+echo.
+echo ------------------------------------------------------------
+echo   Configuracion de dominio local (DNS local)
+echo ------------------------------------------------------------
+echo   Permite acceder al sistema usando un nombre personalizado
+echo   en lugar de localhost (ej: techventas.app)
+set /p "CONFIG_DOMAIN=  Desea configurar un dominio local? (s/n) [n]: "
+if /I "%CONFIG_DOMAIN%"=="s" (
+    set /p "INPUT_DOMAIN=  Ingrese el dominio local [techventas.app]: "
+    if "!INPUT_DOMAIN!"=="" (
+        set "LOCAL_DOMAIN=techventas.app"
+    ) else (
+        set "LOCAL_DOMAIN=!INPUT_DOMAIN!"
+    )
+
+    REM Verificar si ya existe en hosts
+    findstr /C:"!LOCAL_DOMAIN!" "%SystemRoot%\System32\drivers\etc\hosts" >nul 2>&1
+    if errorlevel 1 (
+        REM Intentar agregar con permisos de admin
+        echo 127.0.0.1 !LOCAL_DOMAIN! >> "%SystemRoot%\System32\drivers\etc\hosts" 2>nul
+        if errorlevel 1 (
+            echo [ADVERTENCIA] No se pudo modificar el archivo hosts.
+            echo   Ejecute como administrador o agregue manualmente:
+            echo   127.0.0.1 !LOCAL_DOMAIN!
+            echo   en: C:\Windows\System32\drivers\etc\hosts
+            set "LOCAL_DOMAIN="
+        ) else (
+            echo [OK] Dominio '!LOCAL_DOMAIN!' agregado al archivo hosts.
+        )
+    ) else (
+        echo [OK] El dominio '!LOCAL_DOMAIN!' ya existe en el archivo hosts.
+    )
+) else (
+    echo   Dominio local no configurado. Se usara localhost.
+)
+
+REM ---------------------------------------------------------------------------
 REM 5) Crear / actualizar .env
 REM ---------------------------------------------------------------------------
 if not exist .env (
@@ -213,6 +253,9 @@ if not exist .env (
         echo # Catalogo
         echo CATALOGO_URL=
         echo CATALOGO_API_KEY=
+        echo.
+        echo # Dominio local ^(DNS local^)
+        echo LOCAL_DOMAIN=!LOCAL_DOMAIN!
     ) > .env
 ) else (
     echo Actualizando variables de base de datos en .env...
@@ -221,6 +264,7 @@ if not exist .env (
     call :UpdateEnvVar DB_PASSWORD %DEFAULT_DB_PASS%
     call :UpdateEnvVar DB_HOST %DEFAULT_DB_HOST%
     call :UpdateEnvVar DB_PORT %DEFAULT_DB_PORT%
+    call :UpdateEnvVar LOCAL_DOMAIN !LOCAL_DOMAIN!
     if /I "!CONFIG_REMOTE!"=="s" (
         call :UpdateEnvVar REMOTE_DB_NAME %REMOTE_DB_NAME%
         call :UpdateEnvVar REMOTE_DB_USER %REMOTE_DB_USER%
@@ -352,8 +396,13 @@ echo Para iniciar el POS:
 echo   - Use el acceso directo del escritorio
 echo   - O ejecute: lanzar_pos.bat
 echo.
-echo URL del sistema: http://localhost:8000/erp/launcher/
-echo URL del POS:     http://localhost:8000/erp/sale/pos/
+if not "!LOCAL_DOMAIN!"=="" (
+    echo URL del sistema: http://!LOCAL_DOMAIN!:8000/erp/launcher/
+    echo URL del POS:     http://!LOCAL_DOMAIN!:8000/erp/sale/pos/
+) else (
+    echo URL del sistema: http://localhost:8000/erp/launcher/
+    echo URL del POS:     http://localhost:8000/erp/sale/pos/
+)
 echo.
 
 choice /c SN /M "Desea iniciar el POS ahora"

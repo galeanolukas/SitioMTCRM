@@ -16,7 +16,18 @@ call DJENV\Scripts\activate
 REM Asegurar entorno de POS (no production)
 set ENVIRONMENT=development
 
-echo Iniciando servidor Django en http://localhost:8000 ...
+REM Leer dominio local desde .env (si existe)
+set "ACCESS_HOST=localhost"
+if exist .env (
+    for /f "tokens=1,* delims==" %%a in (.env) do (
+        if /I "%%a"=="LOCAL_DOMAIN" (
+            set "DOMAIN_VALUE=%%b"
+            if not "!DOMAIN_VALUE!"=="" set "ACCESS_HOST=!DOMAIN_VALUE!"
+        )
+    )
+)
+
+echo Iniciando servidor Django en http://%ACCESS_HOST%:8000 ...
 REM Abrir el servidor en una nueva ventana para no bloquear este script
 start "POS_Local_Django" python manage.py runserver 0.0.0.0:8000
 
@@ -24,6 +35,6 @@ REM Esperar unos segundos a que levante el servidor (ajustado a 10s para equipos
 timeout /t 10 /nobreak >nul
 
 REM Abrir el navegador en la URL del POS (launcher)
-start "" "http://localhost:8000/erp/launcher/"
+start "" "http://%ACCESS_HOST%:8000/erp/launcher/"
 
 pause

@@ -231,8 +231,40 @@ else
     echo -e "${YELLOW}  Conexión remota no configurada. Se puede agregar luego editando .env${NC}"
 fi
 
-# Exportar para que el heredoc de Python las vea
-export REMOTE_DB_NAME REMOTE_DB_USER REMOTE_DB_PASSWORD REMOTE_DB_HOST REMOTE_DB_PORT REMOTE_DB_SSLMODE
+# ---------------------------------------------------------------------------
+# 4.5) Configurar dominio local (DNS local)
+# ---------------------------------------------------------------------------
+LOCAL_DOMAIN=""
+echo
+echo "------------------------------------------------------------"
+echo "  Configuracion de dominio local (DNS local)"
+echo "------------------------------------------------------------"
+echo "  Permite acceder al sistema usando un nombre personalizado"
+echo "  en lugar de localhost (ej: techventas.app)"
+read -rp "  Desea configurar un dominio local? (s/n) [n]: " config_domain
+if [[ $config_domain =~ ^[Ss]$ ]]; then
+    read -rp "  Ingrese el dominio local [techventas.app]: " input_domain
+    LOCAL_DOMAIN="${input_domain:-techventas.app}"
+
+    # Agregar al archivo /etc/hosts si no existe
+    if grep -q "^[[:space:]]*127\.0\.0\.1[[:space:]]\+${LOCAL_DOMAIN}\b" /etc/hosts 2>/dev/null; then
+        echo -e "${GREEN}✓ El dominio '${LOCAL_DOMAIN}' ya existe en /etc/hosts.${NC}"
+    else
+        echo "127.0.0.1 ${LOCAL_DOMAIN}" | sudo tee -a /etc/hosts > /dev/null
+        if [ $? -eq 0 ]; then
+            echo -e "${GREEN}✓ Dominio '${LOCAL_DOMAIN}' agregado a /etc/hosts.${NC}"
+        else
+            echo -e "${YELLOW}[ADVERTENCIA] No se pudo modificar /etc/hosts. Agréguelo manualmente:${NC}"
+            echo "  echo '127.0.0.1 ${LOCAL_DOMAIN}' | sudo tee -a /etc/hosts"
+            LOCAL_DOMAIN=""
+        fi
+    fi
+else
+    echo -e "${YELLOW}  Dominio local no configurado. Se usara localhost.${NC}"
+fi
+
+# Exportar para que el heredoc de Python lo vea
+export LOCAL_DOMAIN
 
 # ---------------------------------------------------------------------------
 # 5) Crear / actualizar .env
@@ -271,6 +303,9 @@ AFIP_ENVIRONMENT=dev
 # Catálogo
 CATALOGO_URL=
 CATALOGO_API_KEY=
+
+# Dominio local (DNS local)
+LOCAL_DOMAIN=$LOCAL_DOMAIN
 EOENV
 else
     python3 - <<'PY'
@@ -300,6 +335,10 @@ for k in ['REMOTE_DB_NAME', 'REMOTE_DB_USER', 'REMOTE_DB_PASSWORD', 'REMOTE_DB_H
     v = os.environ.get(k)
     if v is not None and v != '':
         content = set_var(k, v, content)
+
+# Dominio local
+local_domain = os.environ.get('LOCAL_DOMAIN', '')
+content = set_var('LOCAL_DOMAIN', local_domain, content)
 
 with open(env_file, 'w') as f:
     f.write(content)
@@ -437,8 +476,13 @@ echo "Para iniciar el POS:"
 echo "  ./lanzar_pos.sh"
 echo "  o use el acceso directo del escritorio."
 echo
+if [ -n "$LOCAL_DOMAIN" ]; then
+echo "URL del sistema: http://${LOCAL_DOMAIN}:8000/erp/launcher/"
+echo "URL del POS:     http://${LOCAL_DOMAIN}:8000/erp/sale/pos/"
+else
 echo "URL del sistema: http://localhost:8000/erp/launcher/"
 echo "URL del POS:     http://localhost:8000/erp/sale/pos/"
+fi
 echo
 
 read -p "¿Desea iniciar el POS ahora? (s/n): " start_now
