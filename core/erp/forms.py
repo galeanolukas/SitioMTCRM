@@ -534,8 +534,8 @@ class ExpenseForm(ModelForm):
         fields = '__all__'
         exclude = ['is_active']
         widgets = {
-            'date': DateInput(attrs={'type': 'date', 'class': 'form-control'}),
-            'time': TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
+            'date': DateInput(attrs={'type': 'date', 'class': 'form-control'}, format='%Y-%m-%d'),
+            'time': TimeInput(attrs={'type': 'time', 'class': 'form-control'}, format='%H:%M'),
             'supplier': Select(attrs={'class': 'select2', 'style': 'width: 100%'}),
             'description': TextInput(attrs={'placeholder': 'Descripción del gasto'}),
             'amount': NumberInput(attrs={'step': '0.01'}),
@@ -761,13 +761,13 @@ class RemitoForm(ModelForm):
         # Fecha por defecto: hoy
         if not self.initial.get('fecha') and not self.data.get('fecha'):
             from datetime import date
-            self.initial['fecha'] = date.today()
+            self.initial['fecha'] = date.today().isoformat()
     
     class Meta:
         model = Remito
         fields = ['tipo', 'supplier', 'numero', 'fecha', 'estado', 'iva_porcentaje', 'observaciones']
         widgets = {
-            'fecha': DateInput(attrs={'type': 'date'}),
+            'fecha': DateInput(format='%Y-%m-%d', attrs={'type': 'date'}),
             'observaciones': Textarea(attrs={'rows': 3}),
             'iva_porcentaje': NumberInput(attrs={'step': '0.01', 'min': '0', 'max': '100', 'placeholder': '0'}),
         }
