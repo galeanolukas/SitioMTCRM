@@ -153,10 +153,15 @@ class Command(BaseCommand):
                                 pvp=remote_prod_data.get('pvp', 0),
                                 pvp_final=remote_prod_data.get('pvp_final', 0),
                                 cost_price=remote_prod_data.get('cost_price', 0),
+                                freight_percentage=remote_prod_data.get('freight_percentage', 0) or 0,
+                                margin_percentage=remote_prod_data.get('margin_percentage', 0) or 0,
+                                iva_rate=remote_prod_data.get('iva_rate', 0.21),
+                                vat_code=remote_prod_data.get('vat_code', '5'),
+                                codigo_proveedor=remote_prod_data.get('codigo_proveedor', '') or '',
+                                descripcion=remote_prod_data.get('descripcion', '') or '',
                                 unit=remote_prod_data.get('unit', 'unit'),
                                 stock=remote_prod_data.get('stock', 0),
                                 min_stock=remote_prod_data.get('min_stock', 5),
-                                iva_rate=remote_prod_data.get('iva_rate', 0.21),
                                 synced_from_server=True,
                                 server_product_id=remote_prod_data['id'],
                                 synced_to_server=True,
@@ -183,9 +188,14 @@ class Command(BaseCommand):
                             local_prod.pvp = remote_prod_data.get('pvp', 0)
                             local_prod.pvp_final = remote_prod_data.get('pvp_final', 0)
                             local_prod.cost_price = remote_prod_data.get('cost_price', 0)
+                            local_prod.freight_percentage = remote_prod_data.get('freight_percentage', 0) or 0
+                            local_prod.margin_percentage = remote_prod_data.get('margin_percentage', 0) or 0
+                            local_prod.iva_rate = remote_prod_data.get('iva_rate', 0.21)
+                            local_prod.vat_code = remote_prod_data.get('vat_code', '5') or '5'
+                            local_prod.codigo_proveedor = remote_prod_data.get('codigo_proveedor', '') or ''
+                            local_prod.descripcion = remote_prod_data.get('descripcion', '') or ''
                             local_prod.unit = remote_prod_data.get('unit', 'unit')
                             local_prod.min_stock = remote_prod_data.get('min_stock', 5)
-                            local_prod.iva_rate = remote_prod_data.get('iva_rate', 0.21)
                             local_prod.synced_from_server = True
                             
                             # Sincronizar proveedor
@@ -247,7 +257,8 @@ class Command(BaseCommand):
         with connections['remote'].cursor() as cursor:
             cursor.execute("""
                 SELECT id, name, code, pvp, pvp_final, cost_price, unit, stock, 
-                       min_stock, iva_rate, cat_id, company_id, supplier_id
+                       min_stock, iva_rate, cat_id, company_id, supplier_id,
+                       freight_percentage, margin_percentage, codigo_proveedor, descripcion, vat_code
                 FROM erp_product 
                 WHERE company_id = %s
             """, [company_id])

@@ -2211,7 +2211,8 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                         with connections['remote'].cursor() as cursor:
                             cursor.execute("""
                                 SELECT id, name, code, pvp, pvp_final, cost_price, unit, stock, 
-                                       min_stock, iva_rate, cat_id, supplier_id
+                                       min_stock, iva_rate, cat_id, supplier_id,
+                                       freight_percentage, margin_percentage, codigo_proveedor, descripcion, vat_code
                                 FROM erp_product 
                                 WHERE id = %s AND company_id = %s
                             """, [product_id, company.id])
@@ -2266,10 +2267,15 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                             pvp=server_product[3],
                             pvp_final=server_product[4],
                             cost_price=server_product[5] or 0,
+                            freight_percentage=server_product[12] or 0,
+                            margin_percentage=server_product[13] or 0,
+                            iva_rate=server_product[9],
+                            vat_code=server_product[16] or '5',
+                            codigo_proveedor=server_product[14] or '',
+                            descripcion=server_product[15] or '',
                             unit=server_product[6],
                             stock=server_product[7],
                             min_stock=server_product[8] or 5,
-                            iva_rate=server_product[9],
                             server_product_id=server_product[0],
                             synced_from_server=True,
                             synced_to_server=True,  # Marcar como sincronizado para no volver a subirlo
