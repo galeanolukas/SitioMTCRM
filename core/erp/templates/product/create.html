@@ -147,14 +147,14 @@
           $('#id_pvp').val(calculatedPVP.toFixed(2));
 
           // Después de calcular PVP, calcular automáticamente el precio final
-          calcularPrecioFinal();
+          calcularPrecioFinal(true);
         }
       }
       
             
       // Event listeners para cálculo automático
       $('#id_pvp, #id_iva_rate').on('input change', function() {
-        calcularPrecioFinal();
+        calcularPrecioFinal(true);
       });
       
       // Event listener principal: margen dispara el cálculo de PVP
@@ -178,13 +178,14 @@
       });
       
       // Modificar la función de cálculo para respetar la modificación manual
-      function calcularPrecioFinal() {
+      function calcularPrecioFinal(forced) {
         const pvp = parseFloat($('#id_pvp').val()) || 0;
         const ivaRate = parseFloat($('#id_iva_rate').val()) || 0;
         const pvpFinalField = $('#id_pvp_final');
         
-        // Solo calcular si no ha sido modificado manualmente o está vacío/0
-        if (!pvpFinalField.data('manual-modified') || !pvpFinalField.val() || parseFloat(pvpFinalField.val()) === 0) {
+        // Si es forzado (cambio del usuario), recalcular siempre
+        // Si no es forzado (carga de página), solo calcular si está vacío/0
+        if (forced || !pvpFinalField.val() || parseFloat(pvpFinalField.val()) === 0) {
           // Normalizar iva_rate: si es mayor que 1, tratarlo como porcentaje (21 -> 0.21)
           let rate = ivaRate;
           if (rate > 1) {
@@ -196,11 +197,16 @@
         }
       }
       
-      // Calcular al cargar la página si pvp_final está vacío
-      calcularPrecioFinal();
-      
-      // Calcular PVP desde costo si hay valores
-      calcularPVPDesdeCosto();
+      // NO recalcular precios al cargar la página para productos existentes.
+      // Solo calcular si los campos están vacíos (producto nuevo).
+      const pvpVal = parseFloat($('#id_pvp').val()) || 0;
+      const pvpFinalVal = parseFloat($('#id_pvp_final').val()) || 0;
+      if (pvpFinalVal === 0) {
+        calcularPrecioFinal(false);
+      }
+      if (pvpVal === 0) {
+        calcularPVPDesdeCosto();
+      }
 
       // Agregar botón de escáner al campo de código
       const codeField = $('#id_code').parent();
