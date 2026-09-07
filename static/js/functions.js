@@ -112,7 +112,22 @@ function submit_with_ajax(url, title, content, parameters, callback) {
     }).fail(function (jqXHR, textStatus, errorThrown) {
       console.error('AJAX Error:', textStatus, errorThrown);
       console.error('Response:', jqXHR.responseText);
-      alert(textStatus + ': ' + errorThrown);
+      try {
+        var data = JSON.parse(jqXHR.responseText);
+        if (data.errors) {
+          var errorMessages = [];
+          for (var field in data.errors) {
+            errorMessages.push(field + ': ' + data.errors[field].join(', '));
+          }
+          message_error(errorMessages.join('\n'));
+        } else if (data.error) {
+          message_error(data.error);
+        } else {
+          alert(textStatus + ': ' + errorThrown);
+        }
+      } catch(e) {
+        alert(textStatus + ': ' + errorThrown);
+      }
       var modalEl = document.getElementById('ajaxModal');
       var modal = bootstrap.Modal.getInstance(modalEl);
       if (modal) modal.hide();

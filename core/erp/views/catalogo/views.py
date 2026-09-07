@@ -214,6 +214,15 @@ class CatalogoConfigCreateView(LoginRequiredMixin, ValidatePermissionRequiredMix
             return JsonResponse({'success': True, 'message': 'Configuración creada correctamente'})
         return response
 
+    def form_invalid(self, form):
+        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            errors = {}
+            for field in form:
+                if field.errors:
+                    errors[field.name] = [str(e) for e in field.errors]
+            return JsonResponse({'error': 'Error de validación', 'errors': errors}, status=400)
+        return super().form_invalid(form)
+
 
 class CatalogoConfigUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, UpdateView):
     """Actualizar configuración de catálogo"""
@@ -259,6 +268,15 @@ class CatalogoConfigUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMix
         if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
             return JsonResponse({'success': True, 'message': 'Configuración actualizada correctamente'})
         return response
+
+    def form_invalid(self, form):
+        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            errors = {}
+            for field in form:
+                if field.errors:
+                    errors[field.name] = [str(e) for e in field.errors]
+            return JsonResponse({'error': 'Error de validación', 'errors': errors}, status=400)
+        return super().form_invalid(form)
 
 
 class CatalogoConfigDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin, DeleteView):
