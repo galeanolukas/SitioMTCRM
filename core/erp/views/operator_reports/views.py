@@ -5,7 +5,7 @@ from core.erp.mixins import ValidatePermissionRequiredMixin, get_active_company_
 from django.db.models import Sum, Count, F
 from django.utils import timezone
 from datetime import datetime, timedelta
-from core.erp.models import Sale, Company, DetSale
+from core.erp.models import Sale, Company, DetSale, Category
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 import json
@@ -44,6 +44,12 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
         active_cid = get_active_company_id(self.request)
         context['active_company_id'] = active_cid
         
+        # Categorías para filtro
+        if active_cid:
+            context['categories'] = Category.objects.filter(company_id=active_cid).order_by('name')
+        else:
+            context['categories'] = Category.objects.all().order_by('name')
+        
         return context
 
     def post(self, request, *args, **kwargs):
@@ -57,6 +63,7 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                 company_id = request.POST.get('company', '')
                 start_date = request.POST.get('start_date', '')
                 end_date = request.POST.get('end_date', '')
+                category_id = request.POST.get('category', '')
                 
                 # Get company filter
                 active_cid = get_active_company_id(request)
@@ -85,6 +92,10 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                 
                 # Get sales data
                 sales = Sale.objects.filter(**filters).order_by('-date_joined')
+                
+                # Filtro por categoría: solo ventas que tienen productos de la categoría
+                if category_id:
+                    sales = sales.filter(detsale__prod__cat_id=category_id).distinct()
                 
                 # Si el formato es ranking de productos, calcular agrupación por producto
                 if report_format == 'products':
@@ -334,6 +345,7 @@ def operator_sales_export(request):
         start_date = request.GET.get('start_date', '')
         end_date = request.GET.get('end_date', '')
         export_format = request.GET.get('format', 'csv')
+        category_id = request.GET.get('category', '')
         
         # Get company filter
         active_cid = get_active_company_id(request)
@@ -362,6 +374,10 @@ def operator_sales_export(request):
         
         # Get sales data
         sales = Sale.objects.filter(**filters).order_by('-date_joined')
+        
+        # Filtro por categoría
+        if category_id:
+            sales = sales.filter(detsale__prod__cat_id=category_id).distinct()
         
         if export_format == 'pdf':
             from django.http import HttpResponse
