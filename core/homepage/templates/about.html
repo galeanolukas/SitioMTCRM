@@ -18,13 +18,22 @@
 
                         <h4 class="mt-4 mb-3">Novedades recientes</h4>
                         <ul>
-                          <li><strong>Sincronización de usuarios y permisos de operadores:</strong> el POS local replica automáticamente los usuarios y el grupo <code>operadores</code> desde el servidor. Los permisos del grupo operadores se copian desde la BD remota hacia la local para mantenerlos alineados.</li>
-                          <li><strong>Permisos de operadores en UI:</strong> pantalla dedicada para gestionar permisos del grupo <code>operadores</code>, con contador de permisos activos y botones de “Marcar todo / Desmarcar todo”.</li>
-                          <li><strong>Inventario por planilla con código como clave:</strong> importación de productos desde CSV/Excel usando el campo <code>code</code> como identificador único. Si el código existe se actualiza el producto; si no, se crea uno nuevo. Se validan código, nombre, precio y stock por fila.</li>
-                          <li><strong>Sincronización maestro de productos y categorías:</strong> los POS locales pueden crear/editar categorías y productos, y luego sincronizarlos hacia el servidor (incluyendo stock) usando los comandos de sync y el launcher.</li>
-                          <li><strong>Usuarios registrados inactivos por defecto:</strong> los usuarios creados mediante el formulario de registro quedan desactivados (<code>is_active = False</code>) hasta que un administrador los habilite.</li>
-                          <li><strong>Campos adicionales de perfil:</strong> el perfil de usuario permite cargar imagen y número de teléfono desde la pantalla de edición de perfil.</li>
-                          <li><strong>Sync periódica en POS locales:</strong> los nodos POS pueden ejecutar sincronizaciones en segundo plano cada cierto intervalo de tiempo, sin intervención manual, siempre que haya conexión con la BD remota.</li>
+                          <li><strong>Filtro por categoría en reportes de ventas:</strong> el reporte de ventas del operador ahora permite filtrar por categoría, mostrando solo las ventas que contienen productos de la categoría seleccionada.</li>
+                          <li><strong>Importación completa de productos desde servidor:</strong> al importar productos del servidor ahora se traen todos los campos: flete, margen, IVA, código de proveedor, descripción y código AFIP.</li>
+                          <li><strong>Fecha actual por defecto en gastos:</strong> el formulario de gastos muestra la fecha y hora actual por defecto al crear un nuevo registro.</li>
+                          <li><strong>Corrección de precios en formulario de producto:</strong> al editar un producto existente, los precios ya no se recalculan automáticamente. Solo se calculan si los campos están vacíos (producto nuevo) o si el usuario modifica un campo manualmente.</li>
+                          <li><strong>Configuración de catálogo externo:</strong> nuevo módulo para sincronizar productos con un catálogo web externo (SitioCatalogoMarcos), con URL y API key por empresa.</li>
+                          <li><strong>Módulo Fiscal AFIP:</strong> Libro IVA Digital, Cuenta Corriente de Clientes, Asientos Contables y Facturas de Proveedores, accesibles desde Reportes (solo superusuario).</li>
+                          <li><strong>Transferencias internas:</strong> módulo para transferir productos entre sucursales/empresas, con búsqueda de productos y confirmación de recepción.</li>
+                          <li><strong>Planes de cuotas:</strong> gestión de planes de cuotas para tarjetas de crédito, con importación y exportación.</li>
+                          <li><strong>Remitos:</strong> gestión de remitos de entrada de mercadería desde proveedores.</li>
+                          <li><strong>Listas de precios:</strong> creación y gestión de listas de precios alternativas.</li>
+                          <li><strong>Etiquetas QR:</strong> generación de etiquetas con código QR para productos.</li>
+                          <li><strong>Escáner móvil:</strong> página dedicada para escanear códigos de barras desde el celular.</li>
+                          <li><strong>Registro de actividad:</strong> historial de acciones de usuarios en el sistema.</li>
+                          <li><strong>Sincronización de usuarios y permisos de operadores:</strong> el POS local replica automáticamente los usuarios y el grupo <code>operadores</code> desde el servidor.</li>
+                          <li><strong>Inventario por planilla con código como clave:</strong> importación de productos desde CSV/Excel usando el campo <code>code</code> como identificador único.</li>
+                          <li><strong>Sync periódica en POS locales:</strong> los nodos POS pueden ejecutar sincronizaciones en segundo plano cada cierto intervalo de tiempo.</li>
                         </ul>
 
                         <h3 class="mb-3">Índice</h3>
@@ -34,14 +43,24 @@
                           <li><a href="#usuarios">Usuarios ERP</a></li>
                           <li><a href="#permisos">Permisos del grupo Operadores</a></li>
                           <li><a href="#productos">Productos e Inventario</a></li>
-                          <li><a href="#proveedores">Proveedores</a></li>
+                          <li><a href="#importar-servidor">Importar productos del servidor</a></li>
+                          <li><a href="#etiquetas-qr">Etiquetas QR</a></li>
+                          <li><a href="#listas-precios">Listas de Precios</a></li>
+                          <li><a href="#proveedores">Proveedores y Remitos</a></li>
                           <li><a href="#clientes">Clientes</a></li>
                           <li><a href="#pos">POS / Ventas</a></li>
+                          <li><a href="#transferencias">Transferencias internas</a></li>
+                          <li><a href="#cuotas">Planes de Cuotas</a></li>
                           <li><a href="#caja">Caja diaria / Cierre de cajas</a></li>
                           <li><a href="#compra-rapida">Compra rápida (QR + Mercado Pago)</a></li>
                           <li><a href="#gastos">Gastos / Compras</a></li>
-                          <li><a href="#reportes">Reportes (Inventario, Ventas y Gastos)</a></li>
+                          <li><a href="#reportes">Reportes de Ventas</a></li>
+                          <li><a href="#fiscal">Módulo Fiscal (AFIP)</a></li>
+                          <li><a href="#catalogo">Catálogo externo</a></li>
                           <li><a href="#iva">Configuración de IVA</a></li>
+                          <li><a href="#sync">Sincronización automática</a></li>
+                          <li><a href="#scanner">Escáner móvil</a></li>
+                          <li><a href="#actividad">Registro de actividad</a></li>
                         </ol>
 
                         <div class="mt-3 mb-3">
@@ -74,13 +93,34 @@
                           <h5 class="mt-3">5) Productos e Inventario</h5>
                           <ol>
                             <li>ERP → Productos: crear/editar con categoría, precio, unidad, stock, código y proveedor (opcional).</li>
+                            <li>Campos de precio: costo, flete (%), margen (%), PVP (sin IVA), IVA (%), precio final (con IVA).</li>
+                            <li>Al editar un producto existente, los precios no se recalculan automáticamente. Solo se calculan si están vacíos o si modificás un campo manualmente.</li>
                             <li>Importar inventario desde la opción “Importar inventario” si aplica.</li>
                             <li>Verificá el stock; se descuenta automáticamente al vender.</li>
                           </ol>
-                          <h5 class="mt-3">6) Proveedores</h5>
+                          <h5 class="mt-3">5 bis) Importar productos del servidor</h5>
+                          <ol>
+                            <li>ERP → Importar inventario → pestaña “Importar del Servidor”.</li>
+                            <li>Seleccioná los productos a importar desde el servidor remoto.</li>
+                            <li>Se importan todos los campos: nombre, código, precios, flete, margen, IVA, stock, categoría, proveedor, código de proveedor, descripción y código AFIP.</li>
+                          </ol>
+                          <h5 class="mt-3">5 ter) Etiquetas QR</h5>
+                          <ol>
+                            <li>ERP → Inventario → Etiquetas QR (solo superusuario).</li>
+                            <li>Generá etiquetas con código QR para productos.</li>
+                            <li>Seleccioná productos y generá un PDF imprimible.</li>
+                          </ol>
+                          <h5 class="mt-3">5 quater) Listas de Precios</h5>
+                          <ol>
+                            <li>ERP → Inventario → Listas de Precios.</li>
+                            <li>Creá listas de precios alternativas con porcentajes de ajuste sobre el PVP.</li>
+                            <li>Asociá productos a una lista para aplicar el precio ajustado.</li>
+                          </ol>
+                          <h5 class="mt-3">6) Proveedores y Remitos</h5>
                           <ol>
                             <li>ERP → Proveedores: alta, edición y baja.</li>
                             <li>Vinculá productos a proveedores si necesitás seguimiento.</li>
+                            <li>ERP → Proveedores → Remitos: registrar remitos de entrada de mercadería.</li>
                           </ol>
                           <h5 class="mt-3">7) Clientes</h5>
                           <ol>
@@ -95,7 +135,20 @@
                             <li>Facturar: emite factura con numeración correlativa por punto de venta y tipo.</li>
                             <li>Revisá el historial de ventas recientes y abrí PDF si corresponde.</li>
                           </ol>
-                          <h5 class="mt-3">8 bis) Caja diaria / Cierre de cajas</h5>
+                          <h5 class="mt-3">8 bis) Transferencias internas</h5>
+                          <ol>
+                            <li>ERP → Ventas → Transferencias.</li>
+                            <li>Creá una transferencia de productos entre empresas/sucursales.</li>
+                            <li>Buscá productos por código o nombre y agregalos con cantidad.</li>
+                            <li>La sucursal destino puede confirmar la recepción.</li>
+                          </ol>
+                          <h5 class="mt-3">8 ter) Planes de Cuotas</h5>
+                          <ol>
+                            <li>ERP → Ventas → Planes de Cuotas.</li>
+                            <li>Gestioná planes de cuotas para tarjetas de crédito.</li>
+                            <li>Importá/exportá planes desde/hacia archivos.</li>
+                          </ol>
+                          <h5 class="mt-3">8 quater) Caja diaria / Cierre de cajas</h5>
                           <ol>
                             <li>Menú lateral → <strong>Caja</strong>.</li>
                             <li>Abrir caja: indicá saldo inicial para el día y usuario.</li>
@@ -106,20 +159,50 @@
                           <h5 class="mt-3">9) Gastos / Compras</h5>
                           <ol>
                             <li>ERP → Gastos: lista, crear, editar o borrar registros.</li>
+                            <li>La fecha y hora se cargan por defecto con la actual.</li>
                             <li>Campos: fecha, proveedor (opcional), descripción, importe, pagado por, comprobante PDF/imagen (opcional).</li>
                             <li>Usá el link del comprobante para visualizar/descargar.</li>
                           </ol>
-                          <h5 class="mt-3">10) Reportes</h5>
+                          <h5 class="mt-3">10) Reportes de Ventas</h5>
                           <ol>
-                            <li>Header → Reportes (solo superusuario).</li>
-                            <li>Elegí alcance (Empresa activa o Todas), empresa (si aplica) y formato (CSV/XLSX/PDF).</li>
-                            <li>Exportá: Inventario, Ventas o Gastos. Los archivos incluyen sello de fecha/hora.</li>
+                            <li>Menú lateral → Reportes → Reporte de Ventas.</li>
+                            <li>Filtros: tipo de reporte (diario, semanal, mensual, personalizado), formato (método de pago, ranking de productos, detalle fiscal), fechas, categoría y empresa.</li>
+                            <li>Filtro por categoría: muestra solo ventas con productos de la categoría seleccionada.</li>
+                            <li>Exportá en CSV, Excel o PDF.</li>
+                          </ol>
+                          <h5 class="mt-3">10 bis) Módulo Fiscal (AFIP)</h5>
+                          <ol>
+                            <li>Menú lateral → Reportes → Libro IVA Digital, Cta. Corriente Clientes, Asientos Contables, Facturas Proveedores (solo superusuario).</li>
+                            <li>Configuración AFIP desde Administración → Módulo Fiscal.</li>
+                          </ol>
+                          <h5 class="mt-3">10 ter) Catálogo externo</h5>
+                          <ol>
+                            <li>Administración → Catálogo.</li>
+                            <li>Configurá la URL y API key del catálogo web externo por empresa.</li>
+                            <li>Sincronizá productos desde el CRM hacia el catálogo.</li>
                           </ol>
                           <h5 class="mt-3">11) Configuración de IVA</h5>
                           <ol>
                             <li>Header → Configurar IVA.</li>
                             <li>Ingresá la tasa como proporción (0–1). Ej.: 0.21 = 21%.</li>
                             <li>Se guarda en el navegador (localStorage) y actualiza POS/formulario de venta.</li>
+                          </ol>
+                          <h5 class="mt-3">12) Sincronización automática</h5>
+                          <ol>
+                            <li>Administración → Sync automática (solo superusuario).</li>
+                            <li>Configurá el intervalo de sincronización con el servidor remoto.</li>
+                            <li>Los POS locales sincronizan productos, ventas, stock, clientes, gastos y datos fiscales.</li>
+                          </ol>
+                          <h5 class="mt-3">13) Escáner móvil</h5>
+                          <ol>
+                            <li>Menú lateral → Escáner Móvil (abre en nueva pestaña).</li>
+                            <li>Permite escanear códigos de barras desde el celular.</li>
+                            <li>Accesible para usuarios con grupo <code>scanner</code> o superusuarios.</li>
+                          </ol>
+                          <h5 class="mt-3">14) Registro de actividad</h5>
+                          <ol>
+                            <li>Administración → Registro de Actividad (solo superusuario).</li>
+                            <li>Historial de acciones de usuarios: creación, edición, eliminación de registros.</li>
                           </ol>
                         </div>
                         <hr/>
@@ -159,6 +242,7 @@
                         <h4 id="productos">5. Productos e Inventario</h4>
                         <ul>
                           <li>Gestión de productos con categoría, precio neto (sin IVA), IVA por producto, precio final (con IVA), unidad, stock, código y <em>proveedor opcional</em>.</li>
+                          <li>Campos de precio: costo, flete (%), margen (%), PVP (sin IVA), IVA (%), precio final (con IVA). Al editar un producto existente los precios no se recalculan automáticamente.</li>
                           <li>Importación de inventario y control de stock en ventas.</li>
                           <li><strong>Importar inventario (CSV/XLSX)</strong>
                             <ul>
@@ -182,10 +266,33 @@
                           </li>
                         </ul>
 
-                        <h4 id="proveedores">6. Proveedores</h4>
+                        <h4 id="importar-servidor">5 bis. Importar productos del servidor</h4>
+                        <ul>
+                          <li>Acceso: ERP → Inventario → Importar inventario → pestaña “Importar del Servidor”.</li>
+                          <li>Seleccioná los productos a importar desde el servidor remoto.</li>
+                          <li>Se importan todos los campos: nombre, código, precios (PVP, PVP final, costo), flete (%), margen (%), IVA, stock, categoría, proveedor, código de proveedor, descripción y código AFIP.</li>
+                          <li>Los productos importados quedan marcados como sincronizados para no volver a subirse al servidor.</li>
+                        </ul>
+
+                        <h4 id="etiquetas-qr">5 ter. Etiquetas QR</h4>
+                        <ul>
+                          <li>Acceso: ERP → Inventario → Etiquetas QR (solo superusuario).</li>
+                          <li>Generá etiquetas con código QR para productos individuales o masivamente.</li>
+                          <li>Seleccioná productos y generá un PDF imprimible con las etiquetas.</li>
+                        </ul>
+
+                        <h4 id="listas-precios">5 quater. Listas de Precios</h4>
+                        <ul>
+                          <li>Acceso: ERP → Inventario → Listas de Precios.</li>
+                          <li>Creá listas de precios alternativas con porcentajes de ajuste sobre el PVP.</li>
+                          <li>Asociá productos a una lista para aplicar el precio ajustado en ventas.</li>
+                        </ul>
+
+                        <h4 id="proveedores">6. Proveedores y Remitos</h4>
                         <ul>
                           <li>ABM de proveedores. Campo empresa se asigna según el contexto.</li>
                           <li>Productos pueden vincularse a un proveedor (opcional).</li>
+                          <li><strong>Remitos</strong>: ERP → Proveedores → Remitos. Registrar remitos de entrada de mercadería desde proveedores.</li>
                         </ul>
 
                         <h4 id="clientes">7. Clientes</h4>
@@ -204,6 +311,22 @@
                             </ul>
                           </li>
                           <li>Debajo del POS se muestra un <em>historial de ventas recientes</em> con enlaces a PDF de factura.</li>
+                        </ul>
+
+                        <h4 id="transferencias">8 bis. Transferencias internas</h4>
+                        <ul>
+                          <li>Acceso: ERP → Ventas → Transferencias.</li>
+                          <li>Creá una transferencia de productos entre empresas/sucursales.</li>
+                          <li>Buscá productos por código o nombre y agregalos con cantidad.</li>
+                          <li>La sucursal destino puede confirmar la recepción de la transferencia.</li>
+                          <li>El stock se ajusta automáticamente al confirmar la recepción.</li>
+                        </ul>
+
+                        <h4 id="cuotas">8 ter. Planes de Cuotas</h4>
+                        <ul>
+                          <li>Acceso: ERP → Ventas → Planes de Cuotas.</li>
+                          <li>Gestioná planes de cuotas para tarjetas de crédito.</li>
+                          <li>Importá/exportá planes desde/hacia archivos CSV.</li>
                         </ul>
 
                         <h4 id="compra-rapida">9. Compra rápida (QR + Mercado Pago)</h4>
@@ -235,31 +358,74 @@
                         <h4 id="gastos">10. Gastos / Compras</h4>
                         <ul>
                           <li>Módulo de <strong>Gastos</strong>: lista, crear, editar y eliminar gastos.</li>
+                          <li>La <strong>fecha y hora actual</strong> se cargan por defecto al crear un nuevo gasto.</li>
                           <li>Campos: fecha, proveedor (opcional), descripción, importe, pagado por, y <em>comprobante</em> (PDF/imagen) opcional.</li>
                           <li>Los comprobantes quedan accesibles desde la lista.</li>
                         </ul>
 
-                        <h4 id="reportes">10. Reportes</h4>
+                        <h4 id="reportes">11. Reportes de Ventas</h4>
                         <ul>
-                          <li>Acceso: Header → <strong>Reportes</strong> (solo superusuario).</li>
-                          <li>Filtros: alcance (empresa activa o todas), empresa (si aplica) y formato (CSV, XLSX, PDF).</li>
-                          <li>Tipos:
+                          <li>Acceso: Menú lateral → Reportes → <strong>Reporte de Ventas</strong>.</li>
+                          <li>Filtros disponibles:
                             <ul>
-                              <li><strong>Inventario</strong>: ID, Código, Producto, Categoría, <strong>Precio s/IVA</strong>, <strong>Precio c/IVA</strong>, Unidad, Stock y Empresa.</li>
-                              <li><strong>Ventas</strong>: ID, Fecha, <strong>Subtotal (neto s/IVA)</strong>, <strong>IVA</strong>, <strong>Total (con IVA)</strong>, Forma de pago y Empresa.</li>
-                              <li><strong>Gastos</strong>: ID, Fecha, Proveedor, Descripción, Importe, Pagado por, Empresa y Comprobante.</li>
+                              <li><strong>Tipo de reporte</strong>: diario, últimos 7 días, últimos 30 días, personalizado.</li>
+                              <li><strong>Formato</strong>: por método de pago, ranking de productos, detalle fiscal (IVA/AFIP).</li>
+                              <li><strong>Fecha desde/hasta</strong>: rango de fechas personalizado.</li>
+                              <li><strong>Categoría</strong>: filtra solo ventas con productos de la categoría seleccionada.</li>
+                              <li><strong>Empresa</strong>: solo superusuario puede ver todas las empresas.</li>
                             </ul>
                           </li>
+                          <li>Exportación en CSV, Excel y PDF.</li>
                         </ul>
 
-                        <h4 id="iva">11. Configuración de IVA</h4>
+                        <h4 id="fiscal">12. Módulo Fiscal (AFIP)</h4>
+                        <ul>
+                          <li>Acceso: Menú lateral → Reportes (solo superusuario).</li>
+                          <li><strong>Libro IVA Digital</strong>: registro de compras y ventas con detalle de IVA.</li>
+                          <li><strong>Cuenta Corriente de Clientes</strong>: estado de cuenta por cliente.</li>
+                          <li><strong>Asientos Contables</strong>: asientos generados desde facturación.</li>
+                          <li><strong>Facturas de Proveedores</strong>: registro de facturas de compra.</li>
+                          <li>Configuración AFIP desde Administración → Módulo Fiscal.</li>
+                        </ul>
+
+                        <h4 id="catalogo">13. Catálogo externo</h4>
+                        <ul>
+                          <li>Acceso: Administración → Catálogo (solo superusuario).</li>
+                          <li>Configurá la URL y API key del catálogo web externo (SitioCatalogoMarcos) por empresa.</li>
+                          <li>Sincronizá productos desde el CRM hacia el catálogo externo.</li>
+                          <li>Se puede configurar sincronización automática con intervalo personalizado.</li>
+                        </ul>
+
+                        <h4 id="iva">14. Configuración de IVA</h4>
                         <ul>
                           <li>Acceso: Header → <strong>Configurar IVA</strong> (modal).</li>
                           <li>Ingresá la tasa como proporción (ej.: 0.21 = 21%). Se guarda en el navegador (<code>localStorage</code>).</li>
                           <li>Impacta en POS y formularios de venta al recalcular los totales.</li>
                         </ul>
 
-                        <h4 id="caja">12. Caja diaria / Cierre de cajas</h4>
+                        <h4 id="sync">15. Sincronización automática</h4>
+                        <ul>
+                          <li>Acceso: Administración → Sync automática (solo superusuario).</li>
+                          <li>Configurá el intervalo de sincronización con el servidor remoto.</li>
+                          <li>Los POS locales sincronizan: productos, ventas, stock, clientes, proveedores, gastos, categorías, cierres de caja, listas de precios y datos fiscales.</li>
+                          <li>La sincronización corre en segundo plano cada 5 minutos por defecto.</li>
+                        </ul>
+
+                        <h4 id="scanner">16. Escáner móvil</h4>
+                        <ul>
+                          <li>Acceso: Menú lateral → Escáner Móvil (abre en nueva pestaña).</li>
+                          <li>Permite escanear códigos de barras desde el celular.</li>
+                          <li>Accesible para usuarios con grupo <code>scanner</code> o superusuarios.</li>
+                        </ul>
+
+                        <h4 id="actividad">17. Registro de actividad</h4>
+                        <ul>
+                          <li>Acceso: Administración → Registro de Actividad (solo superusuario).</li>
+                          <li>Historial de acciones de usuarios: creación, edición, eliminación de registros.</li>
+                          <li>Permite filtrar por usuario, acción y fecha.</li>
+                        </ul>
+
+                        <h4 id="caja">18. Caja diaria / Cierre de cajas</h4>
                         <ul>
                           <li><strong>Objetivo:</strong> registrar la apertura de caja, movimientos de efectivo y otros medios de pago, y el cierre diario por usuario y empresa.</li>
                           <li><strong>Permisos clave:</strong>
