@@ -394,62 +394,65 @@ echo   Dominio local no configurado. Se usara localhost.
 REM ---------------------------------------------------------------------------
 REM 5) Crear / actualizar .env
 REM ---------------------------------------------------------------------------
-if not exist .env (
-    echo Creando archivo .env con configuracion por defecto...
-    (
-        echo # Entorno
-        echo ENVIRONMENT=development
-        echo APP_VERSION=1.0.0
-        echo POS_SYNC_INTERVAL_SECONDS=300
-        echo.
-        echo # Base de datos local PostgreSQL - usuario DEDICADO de la app
-        echo DB_NAME=%DEFAULT_DB_NAME%
-        echo DB_USER=%DEFAULT_DB_USER%
-        echo DB_PASSWORD=%DEFAULT_DB_PASS%
-        echo DB_HOST=%DEFAULT_DB_HOST%
-        echo DB_PORT=%DEFAULT_DB_PORT%
-        echo.
-        echo # Base de datos remota servidor central
-        echo REMOTE_DB_NAME=%REMOTE_DB_NAME%
-        echo REMOTE_DB_USER=%REMOTE_DB_USER%
-        echo REMOTE_DB_PASSWORD=%REMOTE_DB_PASSWORD%
-        echo REMOTE_DB_HOST=%REMOTE_DB_HOST%
-        echo REMOTE_DB_PORT=%REMOTE_DB_PORT%
-        echo REMOTE_DB_SSLMODE=%REMOTE_DB_SSLMODE%
-        echo.
-        echo # Configuracion sincronizacion
-        echo POS_SYNC_PRODUCTS_MODE=safe
-        echo.
-        echo # AFIP
-        echo AFIP_ACCESS_TOKEN=
-        echo AFIP_CUIT=
-        echo AFIP_ENVIRONMENT=dev
-        echo.
-        echo # Catalogo
-        echo CATALOGO_URL=
-        echo CATALOGO_API_KEY=
-        echo.
-        echo # Dominio local DNS local
-        echo LOCAL_DOMAIN=!LOCAL_DOMAIN!
-    ) > .env
-) else (
-    echo Actualizando variables de base de datos en .env...
-    call :UpdateEnvVar DB_NAME %DEFAULT_DB_NAME%
-    call :UpdateEnvVar DB_USER %DEFAULT_DB_USER%
-    call :UpdateEnvVar DB_PASSWORD %DEFAULT_DB_PASS%
-    call :UpdateEnvVar DB_HOST %DEFAULT_DB_HOST%
-    call :UpdateEnvVar DB_PORT %DEFAULT_DB_PORT%
-    call :UpdateEnvVar LOCAL_DOMAIN !LOCAL_DOMAIN!
-    if /I "!CONFIG_REMOTE!"=="s" (
-        call :UpdateEnvVar REMOTE_DB_NAME %REMOTE_DB_NAME%
-        call :UpdateEnvVar REMOTE_DB_USER %REMOTE_DB_USER%
-        call :UpdateEnvVar REMOTE_DB_PASSWORD %REMOTE_DB_PASSWORD%
-        call :UpdateEnvVar REMOTE_DB_HOST %REMOTE_DB_HOST%
-        call :UpdateEnvVar REMOTE_DB_PORT %REMOTE_DB_PORT%
-        call :UpdateEnvVar REMOTE_DB_SSLMODE %REMOTE_DB_SSLMODE%
-    )
+if exist .env goto :env_update
+
+echo Creando archivo .env con configuracion por defecto...
+echo # Entorno> .env
+echo ENVIRONMENT=development>> .env
+echo APP_VERSION=1.0.0>> .env
+echo POS_SYNC_INTERVAL_SECONDS=300>> .env
+echo.>> .env
+echo # Base de datos local PostgreSQL - usuario DEDICADO de la app>> .env
+echo DB_NAME=%DEFAULT_DB_NAME%>> .env
+echo DB_USER=%DEFAULT_DB_USER%>> .env
+echo DB_PASSWORD=%DEFAULT_DB_PASS%>> .env
+echo DB_HOST=%DEFAULT_DB_HOST%>> .env
+echo DB_PORT=%DEFAULT_DB_PORT%>> .env
+echo.>> .env
+echo # Base de datos remota servidor central>> .env
+echo REMOTE_DB_NAME=%REMOTE_DB_NAME%>> .env
+echo REMOTE_DB_USER=%REMOTE_DB_USER%>> .env
+echo REMOTE_DB_PASSWORD=%REMOTE_DB_PASSWORD%>> .env
+echo REMOTE_DB_HOST=%REMOTE_DB_HOST%>> .env
+echo REMOTE_DB_PORT=%REMOTE_DB_PORT%>> .env
+echo REMOTE_DB_SSLMODE=%REMOTE_DB_SSLMODE%>> .env
+echo.>> .env
+echo # Configuracion sincronizacion>> .env
+echo POS_SYNC_PRODUCTS_MODE=safe>> .env
+echo.>> .env
+echo # AFIP>> .env
+echo AFIP_ACCESS_TOKEN=>> .env
+echo AFIP_CUIT=>> .env
+echo AFIP_ENVIRONMENT=dev>> .env
+echo.>> .env
+echo # Catalogo>> .env
+echo CATALOGO_URL=>> .env
+echo CATALOGO_API_KEY=>> .env
+echo.>> .env
+echo # Dominio local DNS local>> .env
+echo LOCAL_DOMAIN=!LOCAL_DOMAIN!>> .env
+echo [OK] Archivo .env configurado.
+goto :env_done
+
+:env_update
+echo Actualizando variables de base de datos en .env...
+call :UpdateEnvVar DB_NAME %DEFAULT_DB_NAME%
+call :UpdateEnvVar DB_USER %DEFAULT_DB_USER%
+call :UpdateEnvVar DB_PASSWORD %DEFAULT_DB_PASS%
+call :UpdateEnvVar DB_HOST %DEFAULT_DB_HOST%
+call :UpdateEnvVar DB_PORT %DEFAULT_DB_PORT%
+call :UpdateEnvVar LOCAL_DOMAIN !LOCAL_DOMAIN!
+if /I "!CONFIG_REMOTE!"=="s" (
+    call :UpdateEnvVar REMOTE_DB_NAME %REMOTE_DB_NAME%
+    call :UpdateEnvVar REMOTE_DB_USER %REMOTE_DB_USER%
+    call :UpdateEnvVar REMOTE_DB_PASSWORD %REMOTE_DB_PASSWORD%
+    call :UpdateEnvVar REMOTE_DB_HOST %REMOTE_DB_HOST%
+    call :UpdateEnvVar REMOTE_DB_PORT %REMOTE_DB_PORT%
+    call :UpdateEnvVar REMOTE_DB_SSLMODE %REMOTE_DB_SSLMODE%
 )
 echo [OK] Archivo .env configurado.
+
+:env_done
 
 REM ---------------------------------------------------------------------------
 REM 4.6) Verificar GTK3 Runtime (requerido por WeasyPrint)
@@ -606,20 +609,20 @@ REM ---------------------------------------------------------------------------
 REM 9) Crear / verificar lanzador
 REM ---------------------------------------------------------------------------
 set "TARGET=%~dp0lanzar_pos.bat"
-if not exist "%TARGET%" (
-    echo Creando lanzador lanzar_pos.bat...
-    (
-        echo @echo off
-        echo cd /d "%%~dp0"
-        echo call DJENV\Scripts\activate
-        echo set ENVIRONMENT=development
-        echo echo Iniciando servidor Django en http://localhost:8000 ...
-        echo start "POS_Local_Django" python manage.py runserver 0.0.0.0:8000
-        echo timeout /t 7 /nobreak ^^>nul
-        echo start "" "http://localhost:8000/erp/launcher/"
-        echo exit
-    ) > "%TARGET%"
-)
+if exist "%TARGET%" goto :launcher_done
+
+echo Creando lanzador lanzar_pos.bat...
+echo @echo off> "%TARGET%"
+echo cd /d "%%~dp0">> "%TARGET%"
+echo call DJENV\Scripts\activate>> "%TARGET%"
+echo set ENVIRONMENT=development>> "%TARGET%"
+echo echo Iniciando servidor Django en http://localhost:8000 ...>> "%TARGET%"
+echo start "POS_Local_Django" python manage.py runserver 0.0.0.0:8000>> "%TARGET%"
+echo timeout /t 7 /nobreak ^>nul>> "%TARGET%"
+echo start "" "http://localhost:8000/erp/launcher/">> "%TARGET%"
+echo exit>> "%TARGET%"
+
+:launcher_done
 
 REM ---------------------------------------------------------------------------
 REM 10) Acceso directo en el escritorio con icono
