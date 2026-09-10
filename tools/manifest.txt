@@ -1,0 +1,27 @@
+# Manifest de URLs para instalación bajo demanda (Windows)
+# ============================================================
+# Este archivo es de referencia. Las URLs también están embebidas
+# en instalar_todo.bat. Si se actualiza una URL, actualizar ambos.
+#
+# Python 3.12.10 (última versión 3.12 con instalador .exe para Windows)
+#   https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe
+#   Instalación silenciosa:
+#     python-3.12.10-amd64.exe /quiet InstallAllUsers=1 PrependPath=1 Include_test=0
+#
+# PostgreSQL 16.15-1 (instalador EDB para Windows x64)
+#   https://get.enterprisedb.com/postgresql/postgresql-16.15-1-windows-x64.exe
+#   Instalación silenciosa:
+#     postgresql-16.15-1-windows-x64.exe --mode unattended --unattendedmodeui none --superpassword postgres --serverport 5432
+#
+# GTK3 Runtime (para WeasyPrint - renderizado PDF)
+#   https://github.com/tschoonj/GTK-for-Windows-Runtime-Environment-Installer/releases/download/2022-01-04/gtk3-runtime-3.24.31-2022-01-04-ts-win64.exe
+#   Instalación silenciosa (NSIS):
+#     gtk3-runtime-3.24.31-2022-01-04-ts-win64.exe /S
+#
+# PortableGit 2.55.0.5 (git portable para Windows x64)
+#   https://github.com/git-for-windows/git/releases/download/v2.55.0.windows.5/PortableGit-2.55.0.5-64-bit.7z.exe
+#   Extracción:
+#     PortableGit-2.55.0.5-64-bit.7z.exe -y -o<directorio_destino>
+#
+# Repositorio
+#   https://github.com/galeanolukas/SitioMTCRM.git
