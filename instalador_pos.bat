@@ -24,19 +24,16 @@ echo ============================================
 echo.
 
 REM ---------------------------------------------------------------------------
-REM 1) Verificar Python
+REM 1) Verificar Python 3.12
 REM ---------------------------------------------------------------------------
-python --version >nul 2>&1
-if errorlevel 1 (
-    echo [ERROR] Python no esta instalado o no esta en el PATH.
-    echo Descarguela desde https://www.python.org/downloads/
-    pause
-    exit /b 1
-)
+set "TOOLS_DIR=%~dp0tools"
+set "PYTHON_INSTALLER="
+for %%f in ("%TOOLS_DIR%\python-3.12*-amd64.exe") do set "PYTHON_INSTALLER=%%f"
+set "PYTHON_URL=https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe"
 
-REM Verificar version de Python (requerido: 3.12.x)
-REM requirements.txt usa paquetes (Pillow 10.4.0, psycopg2-binary 2.9.9)
-REM que solo tienen wheels precompilados hasta Python 3.12.
+python --version >nul 2>&1
+if errorlevel 1 goto :py_missing
+
 for /f "tokens=2 delims= " %%v in ('python --version 2^>^&1') do set "PY_VERSION=%%v"
 for /f "tokens=1,2 delims=." %%a in ("!PY_VERSION!") do (
     set "PY_MAJOR=%%a"
@@ -49,11 +46,66 @@ goto :py_ok
 
 :py_wrong
 echo [ERROR] Se requiere Python 3.12.x. Version detectada: !PY_VERSION!
-echo Descargue Python 3.12 desde https://www.python.org/downloads/release/python-3120/
-echo Si tiene varias versiones instaladas, ajuste el PATH para que 'python'
-echo apunte a 3.12, o edite este script para llamar a py -3.12 explicitamente.
-pause
-exit /b 1
+goto :py_install
+
+:py_missing
+echo [ADVERTENCIA] Python no esta instalado o no esta en el PATH.
+goto :py_install
+
+:py_install
+echo.
+echo   Puede instalar Python 3.12 desde:
+if defined PYTHON_INSTALLER (
+    echo   [1] Usar instalador en tools\: !PYTHON_INSTALLER!
+) else (
+    echo   [1] Descargar desde internet y instalar
+)
+echo   [2] Salir e instalar manualmente
+echo.
+set /p "PY_CHOICE=  Seleccione una opcion [1]: "
+if "!PY_CHOICE!"=="" set "PY_CHOICE=1"
+if "!PY_CHOICE!"=="2" (
+    echo Descargue Python 3.12 desde https://www.python.org/downloads/release/python-3120/
+    pause
+    exit /b 1
+)
+if not "!PY_CHOICE!"=="1" goto :py_install
+
+if not defined PYTHON_INSTALLER (
+    echo Descargando Python 3.12...
+    if not exist "%TOOLS_DIR%" mkdir "%TOOLS_DIR%"
+    curl -L -o "%TOOLS_DIR%\python-3.12.10-amd64.exe" "%PYTHON_URL%"
+    if errorlevel 1 (
+        echo [ERROR] No se pudo descargar Python.
+        echo         URL: %PYTHON_URL%
+        pause
+        exit /b 1
+    )
+    set "PYTHON_INSTALLER=%TOOLS_DIR%\python-3.12.10-amd64.exe"
+)
+echo Instalando Python 3.12 silenciosamente...
+echo   (Requiere permisos de administrador. Si falla, ejecute como admin.)
+"!PYTHON_INSTALLER!" /quiet InstallAllUsers=1 PrependPath=1 Include_test=0
+if errorlevel 1 (
+    echo [ERROR] No se pudo instalar Python 3.12.
+    echo         Intente ejecutar este script como administrador.
+    pause
+    exit /b 1
+)
+echo [OK] Python 3.12 instalado.
+REM Refrescar PATH de esta sesion
+for /f "tokens=2*" %%a in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do set "SYS_PATH=%%b"
+set "PATH=!SYS_PATH!;%PATH%"
+python --version >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] Python se instalo pero no se encuentra en el PATH.
+    echo         Abra una nueva terminal y vuelva a ejecutar este script.
+    pause
+    exit /b 1
+)
+for /f "tokens=2 delims= " %%v in ('python --version 2^>^&1') do set "PY_VERSION=%%v"
+echo [INFO] Python detectado: !PY_VERSION!
+goto :py_ok
 
 :py_warn
 echo [ADVERTENCIA] Version detectada: !PY_VERSION!. Se recomienda Python 3.12.x.
@@ -105,14 +157,88 @@ if not defined PGSQL_BIN (
     )
 )
 
-if not defined PGSQL_BIN (
-    echo [ERROR] PostgreSQL no esta instalado o psql no esta en el PATH.
-    echo Descargue e instale PostgreSQL desde https://www.postgresql.org/download/windows/
-    echo.
+if not defined PGSQL_BIN goto :pg_missing
+goto :pg_found
+
+:pg_missing
+echo.
+echo [ADVERTENCIA] PostgreSQL no esta instalado o psql no esta en el PATH.
+set "PG_INSTALLER="
+for %%f in ("%TOOLS_DIR%\postgresql-*-windows-x64.exe") do set "PG_INSTALLER=%%f"
+set "PG_URL=https://get.enterprisedb.com/postgresql/postgresql-16.15-1-windows-x64.exe"
+echo.
+echo   Puede instalar PostgreSQL desde:
+if defined PG_INSTALLER (
+    echo   [1] Usar instalador en tools\: !PG_INSTALLER!
+) else (
+    echo   [1] Descargar desde internet y instalar (~350 MB)
+)
+echo   [2] Ingresar ruta manualmente a psql.exe
+echo   [3] Salir e instalar manualmente
+echo.
+set /p "PG_CHOICE=  Seleccione una opcion [1]: "
+if "!PG_CHOICE!"=="" set "PG_CHOICE=1"
+
+if "!PG_CHOICE!"=="3" (
+    echo Descargue PostgreSQL desde https://www.postgresql.org/download/windows/
     pause
     exit /b 1
 )
+if "!PG_CHOICE!"=="2" goto :pg_manual
+if not "!PG_CHOICE!"=="1" goto :pg_invalid
 
+REM Opcion 1: instalar desde tools/ o descargar
+if not defined PG_INSTALLER (
+    echo Descargando PostgreSQL 16 (~350 MB, puede tardar varios minutos)...
+    if not exist "%TOOLS_DIR%" mkdir "%TOOLS_DIR%"
+    curl -L -o "%TOOLS_DIR%\postgresql-16.15-1-windows-x64.exe" "%PG_URL%"
+    if errorlevel 1 (
+        echo [ERROR] No se pudo descargar PostgreSQL.
+        echo         URL: %PG_URL%
+        pause
+        exit /b 1
+    )
+    set "PG_INSTALLER=%TOOLS_DIR%\postgresql-16.15-1-windows-x64.exe"
+)
+echo Instalando PostgreSQL silenciosamente...
+echo   (Requiere permisos de administrador. Si falla, ejecute como admin.)
+"!PG_INSTALLER!" --mode unattended --unattendedmodeui none --superpassword %DEFAULT_POSTGRES_PASS% --serverport %DEFAULT_DB_PORT%
+if errorlevel 1 (
+    echo [ERROR] No se pudo instalar PostgreSQL.
+    pause
+    exit /b 1
+)
+echo [OK] PostgreSQL instalado.
+REM Buscar psql recien instalado
+for %%v in (18 17 16 15 14 13) do (
+    if exist "C:\Program Files\PostgreSQL\%%v\bin\psql.exe" (
+        set "PGSQL_BIN=C:\Program Files\PostgreSQL\%%v\bin\psql.exe"
+    )
+)
+if not defined PGSQL_BIN (
+    echo [ERROR] PostgreSQL se instalo pero no se encontro psql.exe.
+    echo         Abra una nueva terminal y vuelva a ejecutar este script.
+    pause
+    exit /b 1
+)
+goto :pg_found
+
+:pg_manual
+set /p "PSQL_PATH= Ingrese la ruta completa a psql.exe: "
+if not "!PSQL_PATH!"=="" if exist "!PSQL_PATH!" (
+    set "PGSQL_BIN=!PSQL_PATH!"
+    goto :pg_found
+)
+echo [ERROR] La ruta ingresada no existe.
+pause
+exit /b 1
+
+:pg_invalid
+echo [ERROR] Opcion invalida.
+pause
+exit /b 1
+
+:pg_found
 for %%f in ("%PGSQL_BIN%") do set "PSQL_DIR=%%~dpf"
 set "PATH=%PSQL_DIR%;%PATH%"
 echo [OK] PostgreSQL detectado: %PGSQL_BIN%
@@ -311,6 +437,70 @@ if not exist .env (
     )
 )
 echo [OK] Archivo .env configurado.
+
+REM ---------------------------------------------------------------------------
+REM 4.6) Verificar GTK3 Runtime (requerido por WeasyPrint)
+REM ---------------------------------------------------------------------------
+set "GTK_FOUND="
+for %%p in (
+    "C:\Program Files\GTK3-Runtime Win64\bin"
+    "C:\GTK3-Runtime Win64\bin"
+    "C:\Program Files\GTK3-Runtime\bin"
+) do (
+    if exist "%%~p\libgobject-2.0-0.dll" set "GTK_FOUND=%%~p"
+)
+
+if defined GTK_FOUND (
+    echo [OK] GTK3 Runtime detectado: !GTK_FOUND!
+) else (
+    echo [ADVERTENCIA] GTK3 Runtime no encontrado (requerido por WeasyPrint).
+    set "GTK_INSTALLER="
+    for %%f in ("%TOOLS_DIR%\gtk3-runtime-*-ts-win64.exe") do set "GTK_INSTALLER=%%f"
+    set "GTK_URL=https://github.com/tschoonj/GTK-for-Windows-Runtime-Environment-Installer/releases/download/2022-01-04/gtk3-runtime-3.24.31-2022-01-04-ts-win64.exe"
+    echo.
+    echo   Puede instalar GTK3 Runtime desde:
+    if defined GTK_INSTALLER (
+        echo   [1] Usar instalador en tools\: !GTK_INSTALLER!
+    ) else (
+        echo   [1] Descargar desde internet y instalar (~47 MB)
+    )
+    echo   [2] Continuar sin instalar (WeasyPrint no funcionara)
+    echo   [3] Salir
+    echo.
+    set /p "GTK_CHOICE=  Seleccione una opcion [1]: "
+    if "!GTK_CHOICE!"=="" set "GTK_CHOICE=1"
+
+    if "!GTK_CHOICE!"=="3" (
+        pause
+        exit /b 1
+    )
+    if "!GTK_CHOICE!"=="2" (
+        echo   Continuando sin GTK3. WeasyPrint puede fallar al generar PDFs.
+        goto :gtk_done
+    )
+    if not "!GTK_CHOICE!"=="1" goto :gtk_done
+
+    if not defined GTK_INSTALLER (
+        echo Descargando GTK3 Runtime...
+        if not exist "%TOOLS_DIR%" mkdir "%TOOLS_DIR%"
+        curl -L -o "%TOOLS_DIR%\gtk3-runtime-3.24.31-2022-01-04-ts-win64.exe" "%GTK_URL%"
+        if errorlevel 1 (
+            echo [ERROR] No se pudo descargar GTK3 Runtime.
+            echo         Continuando sin GTK3...
+            goto :gtk_done
+        )
+        set "GTK_INSTALLER=%TOOLS_DIR%\gtk3-runtime-3.24.31-2022-01-04-ts-win64.exe"
+    )
+    echo Instalando GTK3 Runtime silenciosamente...
+    "!GTK_INSTALLER!" /S
+    if errorlevel 1 (
+        echo [ADVERTENCIA] No se pudo instalar GTK3 Runtime.
+        echo           Continuando sin GTK3...
+    ) else (
+        echo [OK] GTK3 Runtime instalado.
+    )
+)
+:gtk_done
 
 REM ---------------------------------------------------------------------------
 REM 5) Crear entorno virtual
