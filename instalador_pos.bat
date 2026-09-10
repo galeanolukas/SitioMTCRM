@@ -344,10 +344,10 @@ REM ---------------------------------------------------------------------------
 set "LOCAL_DOMAIN="
 echo.
 echo ------------------------------------------------------------
-echo   Configuracion de dominio local (DNS local)
+echo   Configuracion de dominio local ^(DNS local^)
 echo ------------------------------------------------------------
 echo   Permite acceder al sistema usando un nombre personalizado
-echo   en lugar de localhost (ej: techventas.app)
+echo   en lugar de localhost ^(ej: techventas.app^)
 set /p "CONFIG_DOMAIN=  Desea configurar un dominio local? (s/n) [n]: "
 if /I not "%CONFIG_DOMAIN%"=="s" goto :dns_skip
 
@@ -402,14 +402,14 @@ if not exist .env (
         echo APP_VERSION=1.0.0
         echo POS_SYNC_INTERVAL_SECONDS=300
         echo.
-        echo # Base de datos local ^(PostgreSQL^) - usuario DEDICADO de la app
+        echo # Base de datos local PostgreSQL - usuario DEDICADO de la app
         echo DB_NAME=%DEFAULT_DB_NAME%
         echo DB_USER=%DEFAULT_DB_USER%
         echo DB_PASSWORD=%DEFAULT_DB_PASS%
         echo DB_HOST=%DEFAULT_DB_HOST%
         echo DB_PORT=%DEFAULT_DB_PORT%
         echo.
-        echo # Base de datos remota ^(servidor central^)
+        echo # Base de datos remota servidor central
         echo REMOTE_DB_NAME=%REMOTE_DB_NAME%
         echo REMOTE_DB_USER=%REMOTE_DB_USER%
         echo REMOTE_DB_PASSWORD=%REMOTE_DB_PASSWORD%
@@ -429,7 +429,7 @@ if not exist .env (
         echo CATALOGO_URL=
         echo CATALOGO_API_KEY=
         echo.
-        echo # Dominio local ^(DNS local^)
+        echo # Dominio local DNS local
         echo LOCAL_DOMAIN=!LOCAL_DOMAIN!
     ) > .env
 ) else (
@@ -615,7 +615,7 @@ if not exist "%TARGET%" (
         echo set ENVIRONMENT=development
         echo echo Iniciando servidor Django en http://localhost:8000 ...
         echo start "POS_Local_Django" python manage.py runserver 0.0.0.0:8000
-        echo timeout /t 7 /nobreak ^>nul
+        echo timeout /t 7 /nobreak ^^>nul
         echo start "" "http://localhost:8000/erp/launcher/"
         echo exit
     ) > "%TARGET%"
