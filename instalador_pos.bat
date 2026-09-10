@@ -458,6 +458,7 @@ echo [OK] Archivo .env configurado.
 REM ---------------------------------------------------------------------------
 REM 4.6) Verificar GTK3 Runtime (requerido por WeasyPrint)
 REM ---------------------------------------------------------------------------
+echo [DEBUG] Iniciando seccion GTK...
 set "GTK_FOUND="
 for %%p in (
     "C:\Program Files\GTK3-Runtime Win64\bin"
@@ -468,22 +469,23 @@ for %%p in (
 )
 
 if defined GTK_FOUND (
+    echo [DEBUG] GTK encontrado: !GTK_FOUND!
     echo [OK] GTK3 Runtime detectado: !GTK_FOUND!
 ) else (
-    echo [ADVERTENCIA] GTK3 Runtime no encontrado (requerido por WeasyPrint).
+    echo [DEBUG] GTK no encontrado, mostrando opciones...
     set "GTK_INSTALLER="
     for %%f in ("%TOOLS_DIR%\gtk3-runtime-*-ts-win64.exe") do set "GTK_INSTALLER=%%f"
     set "GTK_URL=https://github.com/tschoonj/GTK-for-Windows-Runtime-Environment-Installer/releases/download/2022-01-04/gtk3-runtime-3.24.31-2022-01-04-ts-win64.exe"
-    echo.
+    echo=
     echo   Puede instalar GTK3 Runtime desde:
     if defined GTK_INSTALLER (
         echo   [1] Usar instalador en tools\: !GTK_INSTALLER!
     ) else (
-        echo   [1] Descargar desde internet y instalar (~47 MB)
+        echo   [1] Descargar desde internet e instalar ^(~47 MB^)
     )
-    echo   [2] Continuar sin instalar (WeasyPrint no funcionara)
+    echo   [2] Continuar sin instalar ^(WeasyPrint no funcionara^)
     echo   [3] Salir
-    echo.
+    echo=
     set /p "GTK_CHOICE=  Seleccione una opcion [1]: "
     if "!GTK_CHOICE!"=="" set "GTK_CHOICE=1"
 
