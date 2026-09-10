@@ -34,6 +34,42 @@ if errorlevel 1 (
     exit /b 1
 )
 
+REM Verificar version de Python (requerido: 3.12.x)
+REM requirements.txt usa paquetes (Pillow 10.4.0, psycopg2-binary 2.9.9)
+REM que solo tienen wheels precompilados hasta Python 3.12.
+for /f "tokens=2 delims= " %%v in ('python --version 2^>^&1') do set "PY_VERSION=%%v"
+for /f "tokens=1,2 delims=." %%a in ("!PY_VERSION!") do (
+    set "PY_MAJOR=%%a"
+    set "PY_MINOR=%%b"
+)
+echo [INFO] Python detectado: !PY_VERSION!
+if not "!PY_MAJOR!"=="3" goto :py_wrong
+if not "!PY_MINOR!"=="12" goto :py_warn
+goto :py_ok
+
+:py_wrong
+echo [ERROR] Se requiere Python 3.12.x. Version detectada: !PY_VERSION!
+echo Descargue Python 3.12 desde https://www.python.org/downloads/release/python-3120/
+echo Si tiene varias versiones instaladas, ajuste el PATH para que 'python'
+echo apunte a 3.12, o edite este script para llamar a py -3.12 explicitamente.
+pause
+exit /b 1
+
+:py_warn
+echo [ADVERTENCIA] Version detectada: !PY_VERSION!. Se recomienda Python 3.12.x.
+echo   requirements.txt usa Pillow 10.4.0 y psycopg2-binary 2.9.9, que solo
+echo   tienen wheels precompilados hasta Python 3.12. Con !PY_VERSION! es
+echo   probable que pip intente compilar desde source y falle.
+set /p "CONT_PY=  Desea continuar de todas formas? (s/n) [n]: "
+if /I not "!CONT_PY!"=="s" (
+    echo Instalacion cancelada. Instale Python 3.12.x e intente nuevamente.
+    pause
+    exit /b 1
+)
+echo.
+
+:py_ok
+
 REM ---------------------------------------------------------------------------
 REM 2) Verificar PostgreSQL
 REM ---------------------------------------------------------------------------
