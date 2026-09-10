@@ -18,6 +18,9 @@ User = get_user_model()
 #   company_path = 'company' para modelos con FK directo a Company
 #   company_path = 'sale__company', 'cash_register__company', ... para modelos
 #   de detalle que no tienen FK directo pero se filtran vía su padre.
+#   company_path = None para modelos GLOBALES (sin FK a Company, ej. SyncLog):
+#     - si hay empresa seleccionada se OMITE el borrado (no se puede aislar por empresa)
+#     - si está en "Todas" se borra todo el contenido del modelo
 # Orden: primero detalles, luego padres (para respetar restricciones de FK).
 _MODELS_TO_CLEAR = None
 
@@ -45,7 +48,7 @@ def _get_models_to_clear():
         ('Productos en Listas', PriceListProduct, 'price_list__company'),
         ('Apertura IVA por Venta', SaleVatBreakdown, 'sale__company'),
         ('Movimientos de Caja', CashMovement, 'cash_register__company'),
-        ('Logs de Sync', SyncLog, 'company'),
+        ('Logs de Sync', SyncLog, None),  # global: sin company, se omite si hay empresa seleccionada
         ('Reportes de Ganancia', ProfitReport, 'company'),
         ('Cuenta Corriente Clientes', CuentaCorrienteCliente, 'company'),
         ('Asientos Contables', AsientoContable, 'company'),
@@ -76,11 +79,18 @@ def _get_models_to_clear():
 
 
 def _filtered_queryset(model, company_path, company_id):
-    """Devuelve el queryset del modelo filtrado por empresa si company_id está seteado."""
-    qs = model.objects.all()
+    """Devuelve el queryset del modelo a borrar según el alcance.
+
+    - Si company_id es None (Todas): devuelve todos los registros.
+    - Si company_id está seteado y company_path no es None: filtra por empresa.
+    - Si company_id está seteado y company_path es None (modelo global): devuelve
+      queryset vacío (se omite el borrado para no afectar a otras empresas).
+    """
     if company_id:
-        qs = qs.filter(**{company_path: company_id})
-    return qs
+        if company_path is None:
+            return model.objects.none()
+        return model.objects.filter(**{company_path: company_id})
+    return model.objects.all()
 
 
 @method_decorator([csrf_exempt, login_required], name='dispatch')
