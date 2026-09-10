@@ -8,12 +8,89 @@ from django.contrib.auth import get_user_model
 from django.db import connection, transaction
 from django.contrib import messages
 
+from core.erp.mixins import get_active_company_id
+
 User = get_user_model()
+
+
+# Definición centralizada de modelos a limpiar.
+# Cada entrada: (label, model, company_path)
+#   company_path = 'company' para modelos con FK directo a Company
+#   company_path = 'sale__company', 'cash_register__company', ... para modelos
+#   de detalle que no tienen FK directo pero se filtran vía su padre.
+# Orden: primero detalles, luego padres (para respetar restricciones de FK).
+_MODELS_TO_CLEAR = None
+
+
+def _get_models_to_clear():
+    global _MODELS_TO_CLEAR
+    if _MODELS_TO_CLEAR is not None:
+        return _MODELS_TO_CLEAR
+    from core.erp.models import (
+        Product, Category, Client, Supplier, Sale, DetSale,
+        CashRegister, CashMovement, Expense, PriceList, PriceListProduct,
+        CardInstallmentPlan, InternalTransfer, InternalTransferDetail,
+        RemitoEntrada, Remito, DetalleRemito, LibroIvaRegistro,
+        CuentaCorrienteCliente, AsientoContable, FacturaProveedor,
+        SaleVatBreakdown, QuickOrder, SyncLog, ProfitReport,
+        AfipConfig, AfipPuntoVenta, CatalogoConfig, PosTerminal,
+        DetalleRemitoEntrada, MercadoPagoConfig,
+    )
+    _MODELS_TO_CLEAR = [
+        # Detalles primero
+        ('Detalles de Venta', DetSale, 'sale__company'),
+        ('Detalles de Remito', DetalleRemito, 'remito__company'),
+        ('Detalles de Remito de Entrada', DetalleRemitoEntrada, 'remito__company'),
+        ('Detalles de Transferencia', InternalTransferDetail, 'transfer__company'),
+        ('Productos en Listas', PriceListProduct, 'price_list__company'),
+        ('Apertura IVA por Venta', SaleVatBreakdown, 'sale__company'),
+        ('Movimientos de Caja', CashMovement, 'cash_register__company'),
+        ('Logs de Sync', SyncLog, 'company'),
+        ('Reportes de Ganancia', ProfitReport, 'company'),
+        ('Cuenta Corriente Clientes', CuentaCorrienteCliente, 'company'),
+        ('Asientos Contables', AsientoContable, 'company'),
+        ('Registros Libro IVA', LibroIvaRegistro, 'company'),
+        ('Facturas Proveedores', FacturaProveedor, 'company'),
+        # Padres
+        ('Ventas', Sale, 'company'),
+        ('Cajas', CashRegister, 'company'),
+        ('Gastos', Expense, 'company'),
+        ('Pedidos Rápidos', QuickOrder, 'company'),
+        ('Transferencias', InternalTransfer, 'company'),
+        ('Remitos de Entrada', RemitoEntrada, 'company'),
+        ('Remitos', Remito, 'company'),
+        ('Listas de Precios', PriceList, 'company'),
+        ('Planes de Cuotas', CardInstallmentPlan, 'company'),
+        ('Productos', Product, 'company'),
+        ('Categorías', Category, 'company'),
+        ('Clientes', Client, 'company'),
+        ('Proveedores', Supplier, 'company'),
+        # Configs que se pueden limpiar (se resincronizan)
+        ('Configs AFIP', AfipConfig, 'company'),
+        ('Puntos de Venta AFIP', AfipPuntoVenta, 'company'),
+        ('Configs Catálogo', CatalogoConfig, 'company'),
+        ('Terminales POS', PosTerminal, 'company'),
+        ('Configs Mercado Pago', MercadoPagoConfig, 'company'),
+    ]
+    return _MODELS_TO_CLEAR
+
+
+def _filtered_queryset(model, company_path, company_id):
+    """Devuelve el queryset del modelo filtrado por empresa si company_id está seteado."""
+    qs = model.objects.all()
+    if company_id:
+        qs = qs.filter(**{company_path: company_id})
+    return qs
 
 
 @method_decorator([csrf_exempt, login_required], name='dispatch')
 class ClearLocalDBView(TemplateView):
-    """Vista para limpiar la DB local (todo menos usuarios, grupos, empresas y configs de sync)."""
+    """Vista para limpiar la DB local (todo menos usuarios, grupos, empresas y configs de sync).
+
+    Si hay una empresa activa seleccionada en el topheader (session['company_id']),
+    sólo se eliminan los registros de esa empresa. Si no hay empresa seleccionada
+    (opción "Todas"), se eliminan todos los registros de todas las empresas.
+    """
     template_name = 'clear_db/clear_local_db.html'
 
     def dispatch(self, request, *args, **kwargs):
@@ -25,52 +102,22 @@ class ClearLocalDBView(TemplateView):
         ctx = super().get_context_data(**kwargs)
         ctx['title'] = 'Limpiar Base de Datos Local'
         ctx['entity'] = 'Administración'
-        # Contar registros actuales para mostrar al usuario
-        from core.erp.models import (
-            Product, Category, Client, Supplier, Sale, DetSale,
-            CashRegister, CashMovement, Expense, PriceList, PriceListProduct,
-            CardInstallmentPlan, InternalTransfer, InternalTransferDetail,
-            RemitoEntrada, Remito, DetalleRemito, LibroIvaRegistro,
-            CuentaCorrienteCliente, AsientoContable, FacturaProveedor,
-            SaleVatBreakdown, QuickOrder, SyncLog, ProfitReport,
-            AfipConfig, AfipPuntoVenta, CatalogoConfig, PosTerminal,
-            DetalleRemitoEntrada,
-        )
-        models_to_count = [
-            ('Productos', Product),
-            ('Categorías', Category),
-            ('Clientes', Client),
-            ('Proveedores', Supplier),
-            ('Ventas', Sale),
-            ('Detalles de Venta', DetSale),
-            ('Cajas', CashRegister),
-            ('Movimientos de Caja', CashMovement),
-            ('Gastos', Expense),
-            ('Listas de Precios', PriceList),
-            ('Productos en Listas', PriceListProduct),
-            ('Planes de Cuotas', CardInstallmentPlan),
-            ('Transferencias', InternalTransfer),
-            ('Detalles de Transferencia', InternalTransferDetail),
-            ('Remitos de Entrada', RemitoEntrada),
-            ('Remitos', Remito),
-            ('Detalles de Remito', DetalleRemito),
-            ('Registros Libro IVA', LibroIvaRegistro),
-            ('Cuenta Corriente Clientes', CuentaCorrienteCliente),
-            ('Asientos Contables', AsientoContable),
-            ('Facturas Proveedores', FacturaProveedor),
-            ('Apertura IVA por Venta', SaleVatBreakdown),
-            ('Pedidos Rápidos', QuickOrder),
-            ('Logs de Sync', SyncLog),
-            ('Reportes de Ganancia', ProfitReport),
-            ('Configs AFIP', AfipConfig),
-            ('Puntos de Venta AFIP', AfipPuntoVenta),
-            ('Configs Catálogo', CatalogoConfig),
-            ('Terminales POS', PosTerminal),
-        ]
+
+        company_id = get_active_company_id(self.request)
+        ctx['scope_company_id'] = company_id
+        if company_id:
+            from core.erp.models import Company
+            ctx['scope_company'] = Company.objects.filter(pk=company_id).first()
+            ctx['scope_label'] = ctx['scope_company'].name if ctx['scope_company'] else 'Empresa #%s' % company_id
+        else:
+            ctx['scope_company'] = None
+            ctx['scope_label'] = 'Todas las empresas'
+
+        models = _get_models_to_clear()
         ctx['counts'] = []
         total = 0
-        for label, model in models_to_count:
-            count = model.objects.count()
+        for label, model, company_path in models:
+            count = _filtered_queryset(model, company_path, company_id).count()
             ctx['counts'].append({'label': label, 'count': count})
             total += count
         ctx['total_records'] = total
@@ -92,85 +139,49 @@ class ClearLocalDBView(TemplateView):
                 'error': 'Clave de confirmación incorrecta. Debe escribir "LIMPIAR" para confirmar.'
             }, status=400)
 
+        company_id = get_active_company_id(request)
+        scope_label = 'Todas las empresas'
+        if company_id:
+            from core.erp.models import Company
+            c = Company.objects.filter(pk=company_id).first()
+            scope_label = c.name if c else 'Empresa #%s' % company_id
+
         try:
             with transaction.atomic():
-                from core.erp.models import (
-                    Product, Category, Client, Supplier, Sale, DetSale,
-                    CashRegister, CashMovement, Expense, PriceList, PriceListProduct,
-                    CardInstallmentPlan, InternalTransfer, InternalTransferDetail,
-                    RemitoEntrada, Remito, DetalleRemito, LibroIvaRegistro,
-                    CuentaCorrienteCliente, AsientoContable, FacturaProveedor,
-                    SaleVatBreakdown, QuickOrder, SyncLog, ProfitReport,
-                    AfipConfig, AfipPuntoVenta, CatalogoConfig, PosTerminal,
-                    DetalleRemitoEntrada, MercadoPagoConfig,
-                )
-
-                # Orden de borrado: primero dependencias, luego padres
-                # Usar _raw_delete para bypass de signals y mejorar performance
+                models = _get_models_to_clear()
                 deleted_counts = {}
 
-                def delete_model(model, label):
-                    count, _ = model.objects.all().delete()
+                for label, model, company_path in models:
+                    qs = _filtered_queryset(model, company_path, company_id)
+                    count, _ = qs.delete()
                     deleted_counts[label] = count
-                    return count
 
-                # Detalles primero
-                delete_model(DetSale, 'Detalles de Venta')
-                delete_model(DetalleRemito, 'Detalles de Remito')
-                delete_model(InternalTransferDetail, 'Detalles de Transferencia')
-                delete_model(PriceListProduct, 'Productos en Listas')
-                delete_model(SaleVatBreakdown, 'Apertura IVA por Venta')
-                delete_model(CashMovement, 'Movimientos de Caja')
-                delete_model(SyncLog, 'Logs de Sync')
-                delete_model(ProfitReport, 'Reportes de Ganancia')
-                delete_model(CuentaCorrienteCliente, 'Cuenta Corriente Clientes')
-                delete_model(AsientoContable, 'Asientos Contables')
-                delete_model(LibroIvaRegistro, 'Registros Libro IVA')
-                delete_model(FacturaProveedor, 'Facturas Proveedores')
-
-                # Padres
-                delete_model(Sale, 'Ventas')
-                delete_model(CashRegister, 'Cajas')
-                delete_model(Expense, 'Gastos')
-                delete_model(QuickOrder, 'Pedidos Rápidos')
-                delete_model(InternalTransfer, 'Transferencias')
-                delete_model(RemitoEntrada, 'Remitos de Entrada')
-                delete_model(Remito, 'Remitos')
-                delete_model(PriceList, 'Listas de Precios')
-                delete_model(CardInstallmentPlan, 'Planes de Cuotas')
-                delete_model(Product, 'Productos')
-                delete_model(Category, 'Categorías')
-                delete_model(Client, 'Clientes')
-                delete_model(Supplier, 'Proveedores')
-
-                # Configs que se pueden limpiar (se resincronizan)
-                delete_model(AfipConfig, 'Configs AFIP')
-                delete_model(AfipPuntoVenta, 'Puntos de Venta AFIP')
-                delete_model(CatalogoConfig, 'Configs Catálogo')
-                delete_model(PosTerminal, 'Terminales POS')
-                delete_model(MercadoPagoConfig, 'Configs Mercado Pago')
-
-                # Resetear auto_increment en SQLite/PostgreSQL
-                with connection.cursor() as cursor:
-                    if connection.vendor == 'sqlite':
-                        # SQLite: resetear sqlite_sequence
-                        cursor.execute("DELETE FROM sqlite_sequence WHERE name IN (%s)" % ','.join([
-                            "'erp_product'", "'erp_category'", "'erp_client'", "'erp_supplier'",
-                            "'erp_sale'", "'erp_detsale'", "'erp_cashregister'", "'erp_cashmovement'",
-                            "'erp_expense'", "'erp_pricelist'", "'erp_pricelistproduct'",
-                            "'erp_cardinstallmentplan'", "'erp_internaltransfer'",
-                            "'erp_internaltransferdetail'", "'erp_remitoentrada'",
-                            "'erp_remito'", "'erp_detalleremito'", "'erp_libroivaregistro'",
-                            "'erp_cuentacorrientecliente'", "'erp_asientocontable'",
-                            "'erp_facturaproveedor'", "'erp_salevatbreakdown'",
-                            "'erp_quickorder'", "'erp_synclog'", "'erp_profitreport'",
-                            "'erp_afipconfig'", "'erp_afippuntoventa'", "'erp_catalogoconfig'",
-                            "'erp_posterminal'", "'erp_mercadopagoconfig'",
-                        ]))
+                # Resetear auto_increment sólo cuando se limpia TODO (sin filtro de empresa).
+                # Si se filtra por empresa, no se tocan las secuencias.
+                if not company_id:
+                    with connection.cursor() as cursor:
+                        if connection.vendor == 'sqlite':
+                            # SQLite: resetear sqlite_sequence
+                            cursor.execute("DELETE FROM sqlite_sequence WHERE name IN (%s)" % ','.join([
+                                "'erp_product'", "'erp_category'", "'erp_client'", "'erp_supplier'",
+                                "'erp_sale'", "'erp_detsale'", "'erp_cashregister'", "'erp_cashmovement'",
+                                "'erp_expense'", "'erp_pricelist'", "'erp_pricelistproduct'",
+                                "'erp_cardinstallmentplan'", "'erp_internaltransfer'",
+                                "'erp_internaltransferdetail'", "'erp_remitoentrada'",
+                                "'erp_remito'", "'erp_detalleremito'", "'erp_libroivaregistro'",
+                                "'erp_cuentacorrientecliente'", "'erp_asientocontable'",
+                                "'erp_facturaproveedor'", "'erp_salevatbreakdown'",
+                                "'erp_quickorder'", "'erp_synclog'", "'erp_profitreport'",
+                                "'erp_afipconfig'", "'erp_afippuntoventa'", "'erp_catalogoconfig'",
+                                "'erp_posterminal'", "'erp_mercadopagoconfig'",
+                                "'erp_detalleremitoentrada'",
+                            ]))
 
             return JsonResponse({
                 'success': True,
-                'message': 'Base de datos local limpiada correctamente.',
+                'message': 'Base de datos local limpiada correctamente (Alcance: %s).' % scope_label,
+                'scope': scope_label,
+                'company_id': company_id,
                 'deleted': deleted_counts,
             })
 

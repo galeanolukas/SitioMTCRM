@@ -44,6 +44,23 @@
   }
   .keep-box h6 { color: #065f46; margin-bottom: 0.5rem; }
   .keep-box li { color: #047857; }
+  .scope-box {
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border: 1px solid;
+  }
+  .scope-box.scope-all {
+    background: #fff7ed;
+    border-color: #f59e0b;
+  }
+  .scope-box.scope-company {
+    background: #eff6ff;
+    border-color: #3b82f6;
+  }
+  .scope-box h6 { margin-bottom: 0.25rem; }
+  .scope-box.scope-all h6 { color: #92400e; }
+  .scope-box.scope-company h6 { color: #1e40af; }
 </style>
 {% endblock %}
 
@@ -57,9 +74,27 @@
     </div>
     <div class="card-body">
 
+      {% if scope_company %}
+      <div class="scope-box scope-company">
+        <h6><i class="fas fa-building"></i> Alcance: Empresa seleccionada</h6>
+        <p class="mb-0 text-muted">Se eliminarán <strong>sólo</strong> los registros de la empresa <strong>{{ scope_label }}</strong>.
+        Cambie la empresa en el selector superior (topheader) para limpiar otra, o seleccione "Todas" para limpiar todo.</p>
+      </div>
+      {% else %}
+      <div class="scope-box scope-all">
+        <h6><i class="fas fa-globe"></i> Alcance: Todas las empresas</h6>
+        <p class="mb-0 text-muted">No hay empresa seleccionada en el topheader. Se eliminarán los registros de <strong>todas</strong> las empresas.
+        Seleccione una empresa específica en el topheader para limitar el alcance.</p>
+      </div>
+      {% endif %}
+
       <div class="warning-box">
         <h5><i class="fas fa-exclamation-triangle"></i> ADVERTENCIA: Esta acción es IRREVERSIBLE</h5>
-        <p class="mt-2 mb-1">Se eliminarán <strong>TODOS</strong> los datos locales:</p>
+        {% if scope_company %}
+        <p class="mt-2 mb-1">Se eliminarán los datos locales de la empresa <strong>{{ scope_label }}</strong>:</p>
+        {% else %}
+        <p class="mt-2 mb-1">Se eliminarán <strong>TODOS</strong> los datos locales (todas las empresas):</p>
+        {% endif %}
         <ul>
           <li>Productos, Categorías, Clientes, Proveedores</li>
           <li>Ventas, Detalles de Venta, Cajas, Movimientos de Caja</li>
@@ -81,7 +116,7 @@
         </ul>
       </div>
 
-      <h6>Registros actuales en DB local:</h6>
+      <h6>Registros actuales en DB local{% if scope_company %} (empresa: {{ scope_label }}){% else %} (todas las empresas){% endif %}:</h6>
       <table class="table table-sm counts-table">
         <thead>
           <tr><th>Tipo de Dato</th><th class="text-end">Cantidad</th></tr>
@@ -133,8 +168,13 @@ $(function() {
   });
 
   $btn.on('click', function() {
+    var scopeCompany = {% if scope_company %}true{% else %}false{% endif %};
+    var scopeLabel = "{{ scope_label|escapejs }}";
+    var scopeMsg = scopeCompany
+      ? 'Se borrarán TODOS los datos locales de la empresa: ' + scopeLabel + '. ¿Continuar?'
+      : 'Se borrarán TODOS los datos locales (todas las empresas). ¿Continuar?';
     if (!confirm('¿Está ABSOLUTAMENTE seguro? Esta acción NO se puede deshacer.')) return;
-    if (!confirm('ÚLTIMA confirmación: Se borrarán TODOS los datos locales. ¿Continuar?')) return;
+    if (!confirm('ÚLTIMA confirmación: ' + scopeMsg)) return;
 
     var $b = $(this);
     $b.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Limpiando...');
