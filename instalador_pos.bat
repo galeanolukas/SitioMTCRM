@@ -349,34 +349,47 @@ echo ------------------------------------------------------------
 echo   Permite acceder al sistema usando un nombre personalizado
 echo   en lugar de localhost (ej: techventas.app)
 set /p "CONFIG_DOMAIN=  Desea configurar un dominio local? (s/n) [n]: "
-if /I "%CONFIG_DOMAIN%"=="s" (
-    set /p "INPUT_DOMAIN=  Ingrese el dominio local [techventas.app]: "
-    if "!INPUT_DOMAIN!"=="" (
-        set "LOCAL_DOMAIN=techventas.app"
-    ) else (
-        set "LOCAL_DOMAIN=!INPUT_DOMAIN!"
-    )
+if /I not "%CONFIG_DOMAIN%"=="s" goto :dns_skip
 
-    REM Verificar si ya existe en hosts
-    findstr /C:"!LOCAL_DOMAIN!" "%SystemRoot%\System32\drivers\etc\hosts" >nul 2>&1
-    if errorlevel 1 (
-        REM Intentar agregar con permisos de admin
-        echo 127.0.0.1 !LOCAL_DOMAIN! >> "%SystemRoot%\System32\drivers\etc\hosts" 2>nul
-        if errorlevel 1 (
-            echo [ADVERTENCIA] No se pudo modificar el archivo hosts.
-            echo   Ejecute como administrador o agregue manualmente:
-            echo   127.0.0.1 !LOCAL_DOMAIN!
-            echo   en: C:\Windows\System32\drivers\etc\hosts
-            set "LOCAL_DOMAIN="
-        ) else (
-            echo [OK] Dominio '!LOCAL_DOMAIN!' agregado al archivo hosts.
-        )
-    ) else (
-        echo [OK] El dominio '!LOCAL_DOMAIN!' ya existe en el archivo hosts.
-    )
+set /p "INPUT_DOMAIN=  Ingrese el dominio local [techventas.app]: "
+if "!INPUT_DOMAIN!"=="" (
+    set "LOCAL_DOMAIN=techventas.app"
 ) else (
-    echo   Dominio local no configurado. Se usara localhost.
+    set "LOCAL_DOMAIN=!INPUT_DOMAIN!"
 )
+
+REM Verificar si ya existe en hosts
+findstr /C:"!LOCAL_DOMAIN!" "%SystemRoot%\System32\drivers\etc\hosts" >nul 2>&1
+if not errorlevel 1 (
+    echo [OK] El dominio '!LOCAL_DOMAIN!' ya existe en el archivo hosts.
+    goto :dns_done
+)
+
+REM Intentar agregar al archivo hosts
+REM Usar archivo temporal + type para evitar errores de redirect en consola
+set "HOSTS_FILE=%SystemRoot%\System32\drivers\etc\hosts"
+set "HOSTS_TMP=%TEMP%\hosts_append.txt"
+(echo 127.0.0.1 !LOCAL_DOMAIN!) > "%HOSTS_TMP%" 2>nul
+if errorlevel 1 goto :dns_fail
+type "%HOSTS_TMP%" >> "%HOSTS_FILE%" 2>nul
+if errorlevel 1 goto :dns_fail
+del "%HOSTS_TMP%" 2>nul
+echo [OK] Dominio '!LOCAL_DOMAIN!' agregado al archivo hosts.
+goto :dns_done
+
+:dns_fail
+del "%HOSTS_TMP%" 2>nul
+echo [ADVERTENCIA] No se pudo modificar el archivo hosts.
+echo   Ejecute como administrador o agregue manualmente:
+echo   127.0.0.1 !LOCAL_DOMAIN!
+echo   en: C:\Windows\System32\drivers\etc\hosts
+set "LOCAL_DOMAIN="
+goto :dns_done
+
+:dns_skip
+echo   Dominio local no configurado. Se usara localhost.
+
+:dns_done
 
 REM ---------------------------------------------------------------------------
 REM 5) Crear / actualizar .env
