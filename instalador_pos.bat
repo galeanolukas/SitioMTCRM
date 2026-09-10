@@ -397,41 +397,42 @@ REM ---------------------------------------------------------------------------
 if exist .env goto :env_update
 
 echo Creando archivo .env con configuracion por defecto...
-echo # Entorno> .env
-echo ENVIRONMENT=development>> .env
-echo APP_VERSION=1.0.0>> .env
-echo POS_SYNC_INTERVAL_SECONDS=300>> .env
-echo.>> .env
-echo # Base de datos local PostgreSQL - usuario DEDICADO de la app>> .env
-echo DB_NAME=%DEFAULT_DB_NAME%>> .env
-echo DB_USER=%DEFAULT_DB_USER%>> .env
-echo DB_PASSWORD=%DEFAULT_DB_PASS%>> .env
-echo DB_HOST=%DEFAULT_DB_HOST%>> .env
-echo DB_PORT=%DEFAULT_DB_PORT%>> .env
-echo.>> .env
-echo # Base de datos remota servidor central>> .env
-echo REMOTE_DB_NAME=%REMOTE_DB_NAME%>> .env
-echo REMOTE_DB_USER=%REMOTE_DB_USER%>> .env
-echo REMOTE_DB_PASSWORD=%REMOTE_DB_PASSWORD%>> .env
-echo REMOTE_DB_HOST=%REMOTE_DB_HOST%>> .env
-echo REMOTE_DB_PORT=%REMOTE_DB_PORT%>> .env
-echo REMOTE_DB_SSLMODE=%REMOTE_DB_SSLMODE%>> .env
-echo.>> .env
-echo # Configuracion sincronizacion>> .env
-echo POS_SYNC_PRODUCTS_MODE=safe>> .env
-echo.>> .env
-echo # AFIP>> .env
-echo AFIP_ACCESS_TOKEN=>> .env
-echo AFIP_CUIT=>> .env
-echo AFIP_ENVIRONMENT=dev>> .env
-echo.>> .env
-echo # Catalogo>> .env
-echo CATALOGO_URL=>> .env
-echo CATALOGO_API_KEY=>> .env
-echo.>> .env
-echo # Dominio local DNS local>> .env
-echo LOCAL_DOMAIN=!LOCAL_DOMAIN!>> .env
+echo # Entorno > .env
+echo ENVIRONMENT=development >> .env
+echo APP_VERSION=1.0.0 >> .env
+echo POS_SYNC_INTERVAL_SECONDS=300 >> .env
+echo( >> .env
+echo # Base de datos local PostgreSQL - usuario DEDICADO de la app >> .env
+echo DB_NAME=%DEFAULT_DB_NAME% >> .env
+echo DB_USER=%DEFAULT_DB_USER% >> .env
+echo DB_PASSWORD=%DEFAULT_DB_PASS% >> .env
+echo DB_HOST=%DEFAULT_DB_HOST% >> .env
+echo DB_PORT=%DEFAULT_DB_PORT% >> .env
+echo( >> .env
+echo # Base de datos remota servidor central >> .env
+echo REMOTE_DB_NAME=%REMOTE_DB_NAME% >> .env
+echo REMOTE_DB_USER=%REMOTE_DB_USER% >> .env
+echo REMOTE_DB_PASSWORD=%REMOTE_DB_PASSWORD% >> .env
+echo REMOTE_DB_HOST=%REMOTE_DB_HOST% >> .env
+echo REMOTE_DB_PORT=%REMOTE_DB_PORT% >> .env
+echo REMOTE_DB_SSLMODE=%REMOTE_DB_SSLMODE% >> .env
+echo( >> .env
+echo # Configuracion sincronizacion >> .env
+echo POS_SYNC_PRODUCTS_MODE=safe >> .env
+echo( >> .env
+echo # AFIP >> .env
+echo AFIP_ACCESS_TOKEN= >> .env
+echo AFIP_CUIT= >> .env
+echo AFIP_ENVIRONMENT=dev >> .env
+echo( >> .env
+echo # Catalogo >> .env
+echo CATALOGO_URL= >> .env
+echo CATALOGO_API_KEY= >> .env
+echo( >> .env
+echo # Dominio local DNS local >> .env
+echo LOCAL_DOMAIN=!LOCAL_DOMAIN! >> .env
 echo [OK] Archivo .env configurado.
+pause
 goto :env_done
 
 :env_update
