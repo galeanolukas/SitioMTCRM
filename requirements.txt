@@ -4,11 +4,12 @@ Django==4.2.16
 # Middleware para usuario actual en modelos
 django-crum==0.7.9
 
-# Imágenes - Versión estable
-Pillow==10.4.0
+# Imágenes - 12.x trae wheels para Python 3.14 (10.4 no)
+Pillow==12.3.0
 
 # PostgreSQL (servidor central / producción)
-psycopg2-binary==2.9.9
+# 2.9.12 trae wheels para Python 3.14 (2.9.9 no, y fallaba al compilar desde source)
+psycopg2-binary==2.9.12
 
 # Reportes y PDF - Versiones compatibles
 reportlab==4.2.2
@@ -26,9 +27,9 @@ python-dotenv==1.0.1
 # Servir static files en producción
 whitenoise==6.6.0
 
-# Manejo de datos en Excel - Versiones compatibles y estables para Python 3.12
+# Manejo de datos en Excel - Versiones con wheels para Python 3.14
 numpy==2.4.2
-pandas==2.2.3
+pandas==2.3.3
 openpyxl==3.1.5
 
 # Manejo de versiones semánticas

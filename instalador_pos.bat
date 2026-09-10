@@ -296,7 +296,31 @@ echo Actualizando pip...
 python -m pip install --upgrade pip >nul
 
 echo Instalando dependencias desde requirements.txt...
-pip install -r requirements.txt || exit /b 1
+pip install -r requirements.txt
+if errorlevel 1 (
+    echo.
+    echo ============================================
+    echo   [ERROR] Fallo la instalacion de dependencias.
+    echo ============================================
+    echo.
+    echo Posibles causas:
+    echo   - Algun paquete no tiene wheel para su version de Python.
+    echo   - Sin conexion a internet / PyPI no responde.
+    echo   - pip desactualizado (ya se intento actualizar).
+    echo.
+    echo Sugerencias:
+    echo   - Verifique su version de Python: python --version
+    echo     Si es muy nueva (ej. 3.14), asegurese de que requirements.txt
+    echo     use versiones de paquetes con wheels para esa version.
+    echo   - Reintente: active DJENV y ejecute manualmente:
+    echo       call DJENV\Scripts\activate
+    echo       pip install -r requirements.txt
+    echo   - Si un paquete especifico falla, instale primero esa dependencia
+    echo     por separado para ver el error completo.
+    echo.
+    pause
+    exit /b 1
+)
 echo [OK] Dependencias instaladas.
 
 REM ---------------------------------------------------------------------------
