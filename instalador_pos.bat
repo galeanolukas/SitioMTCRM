@@ -21,7 +21,7 @@ echo ============================================
 echo   Instalador POS Local - TechVentas
 echo   (Windows)
 echo ============================================
-echo.
+echo=
 
 REM ---------------------------------------------------------------------------
 REM 1) Verificar Python 3.12
@@ -53,7 +53,7 @@ echo [ADVERTENCIA] Python no esta instalado o no esta en el PATH.
 goto :py_install
 
 :py_install
-echo.
+echo=
 echo   Puede instalar Python 3.12 desde:
 if defined PYTHON_INSTALLER (
     echo   [1] Usar instalador en tools\: !PYTHON_INSTALLER!
@@ -61,7 +61,7 @@ if defined PYTHON_INSTALLER (
     echo   [1] Descargar desde internet y instalar
 )
 echo   [2] Salir e instalar manualmente
-echo.
+echo=
 set /p "PY_CHOICE=  Seleccione una opcion [1]: "
 if "!PY_CHOICE!"=="" set "PY_CHOICE=1"
 if "!PY_CHOICE!"=="2" (
@@ -118,7 +118,7 @@ if /I not "!CONT_PY!"=="s" (
     pause
     exit /b 1
 )
-echo.
+echo=
 
 :py_ok
 
@@ -149,7 +149,7 @@ if not defined PGSQL_BIN (
 )
 
 if not defined PGSQL_BIN (
-    echo.
+    echo=
     echo [ADVERTENCIA] No se encontro psql automaticamente.
     set /p "PSQL_PATH= Ingrese la ruta completa a psql.exe o deje en blanco para salir: "
     if not "!PSQL_PATH!"=="" if exist "!PSQL_PATH!" (
@@ -161,12 +161,12 @@ if not defined PGSQL_BIN goto :pg_missing
 goto :pg_found
 
 :pg_missing
-echo.
+echo=
 echo [ADVERTENCIA] PostgreSQL no esta instalado o psql no esta en el PATH.
 set "PG_INSTALLER="
 for %%f in ("%TOOLS_DIR%\postgresql-*-windows-x64.exe") do set "PG_INSTALLER=%%f"
 set "PG_URL=https://get.enterprisedb.com/postgresql/postgresql-16.15-1-windows-x64.exe"
-echo.
+echo=
 echo   Puede instalar PostgreSQL desde:
 if defined PG_INSTALLER (
     echo   [1] Usar instalador en tools\: !PG_INSTALLER!
@@ -175,7 +175,7 @@ if defined PG_INSTALLER (
 )
 echo   [2] Ingresar ruta manualmente a psql.exe
 echo   [3] Salir e instalar manualmente
-echo.
+echo=
 set /p "PG_CHOICE=  Seleccione una opcion [1]: "
 if "!PG_CHOICE!"=="" set "PG_CHOICE=1"
 
@@ -246,7 +246,7 @@ echo [OK] PostgreSQL detectado: %PGSQL_BIN%
 REM ---------------------------------------------------------------------------
 REM 3) Crear usuario y base de datos PostgreSQL
 REM ---------------------------------------------------------------------------
-echo.
+echo=
 echo Conectando a PostgreSQL con superusuario '%DEFAULT_POSTGRES_USER%'...
 
 set "PGPASSWORD=%DEFAULT_POSTGRES_PASS%"
@@ -314,7 +314,7 @@ if exist .env.server (
     )
 )
 
-echo.
+echo=
 echo ------------------------------------------------------------
 echo   Configuracion de base de datos remota (servidor central)
 echo ------------------------------------------------------------
@@ -342,7 +342,7 @@ REM ---------------------------------------------------------------------------
 REM 4.5) Configurar dominio local (DNS local)
 REM ---------------------------------------------------------------------------
 set "LOCAL_DOMAIN="
-echo.
+echo=
 echo ------------------------------------------------------------
 echo   Configuracion de dominio local ^(DNS local^)
 echo ------------------------------------------------------------
@@ -543,16 +543,16 @@ python -m pip install --upgrade pip >nul
 echo Instalando dependencias desde requirements.txt...
 pip install -r requirements.txt
 if errorlevel 1 (
-    echo.
+    echo=
     echo ============================================
     echo   [ERROR] Fallo la instalacion de dependencias.
     echo ============================================
-    echo.
+    echo=
     echo Posibles causas:
     echo   - Algun paquete no tiene wheel para su version de Python.
     echo   - Sin conexion a internet / PyPI no responde.
     echo   - pip desactualizado (ya se intento actualizar).
-    echo.
+    echo=
     echo Sugerencias:
     echo   - Verifique su version de Python: python --version
     echo     Si es muy nueva (ej. 3.14), asegurese de que requirements.txt
@@ -562,11 +562,12 @@ if errorlevel 1 (
     echo       pip install -r requirements.txt
     echo   - Si un paquete especifico falla, instale primero esa dependencia
     echo     por separado para ver el error completo.
-    echo.
+    echo=
     pause
     exit /b 1
 )
 echo [OK] Dependencias instaladas.
+echo [DEBUG] Antes de makemigrations
 
 REM ---------------------------------------------------------------------------
 REM 7) Migraciones y datos iniciales
@@ -587,6 +588,7 @@ if errorlevel 1 (
     exit /b 1
 )
 echo [OK] Migraciones aplicadas.
+echo [DEBUG] Despues de migrate
 
 REM ---------------------------------------------------------------------------
 REM 8) Superusuario y roles
@@ -652,19 +654,19 @@ echo [OK] Acceso directo creado: %SHORTCUT%
 REM ---------------------------------------------------------------------------
 REM 11) Final
 REM ---------------------------------------------------------------------------
-echo.
+echo=
 echo ============================================
 echo   INSTALACION COMPLETADA
 echo ============================================
-echo.
+echo=
 echo Base de datos: %DEFAULT_DB_NAME% (%DEFAULT_DB_HOST%:%DEFAULT_DB_PORT%)
 echo Usuario DB:    %DEFAULT_DB_USER%
 echo Contrasena DB: %DEFAULT_DB_PASS%
-echo.
+echo=
 echo Para iniciar el POS:
 echo   - Use el acceso directo del escritorio
 echo   - O ejecute: lanzar_pos.bat
-echo.
+echo=
 if not "!LOCAL_DOMAIN!"=="" (
     echo URL del sistema: http://!LOCAL_DOMAIN!:8000/erp/launcher/
     echo URL del POS:     http://!LOCAL_DOMAIN!:8000/erp/sale/pos/
@@ -672,7 +674,7 @@ if not "!LOCAL_DOMAIN!"=="" (
     echo URL del sistema: http://localhost:8000/erp/launcher/
     echo URL del POS:     http://localhost:8000/erp/sale/pos/
 )
-echo.
+echo=
 
 choice /c SN /M "Desea iniciar el POS ahora"
 if errorlevel 2 (
