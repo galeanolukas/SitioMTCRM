@@ -196,6 +196,10 @@
                     <a href="{% url 'erp:sale_ticket_x_print' s.id %}" target="_blank" class="btn btn-xs btn-outline-warning" title="Imprimir Ticket X">
                       <i class="fas fa-file-alt"></i>
                     </a>
+                    {% elif s.is_budget %}
+                    <a href="{% url 'erp:ticket_budget_print' s.id %}" target="_blank" class="btn btn-xs btn-outline-primary" title="Reimprimir presupuesto">
+                      <i class="fas fa-print"></i>
+                    </a>
                     {% else %}
                     <a href="{% url 'erp:sale_ticket_print' s.id %}" target="_blank" class="btn btn-xs btn-outline-success" title="Reimprimir ticket">
                       <i class="fas fa-print"></i>
