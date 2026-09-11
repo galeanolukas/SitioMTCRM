@@ -75,7 +75,7 @@ if not defined PYTHON_INSTALLER (
     echo Descargando Python 3.12...
     if not exist "%TOOLS_DIR%" mkdir "%TOOLS_DIR%"
     curl -L -o "%TOOLS_DIR%\python-3.12.10-amd64.exe" "%PYTHON_URL%"
-    if errorlevel 1 (
+    if not "%errorlevel%"=="0" (
         echo [ERROR] No se pudo descargar Python.
         echo         URL: %PYTHON_URL%
         pause
@@ -86,7 +86,7 @@ if not defined PYTHON_INSTALLER (
 echo Instalando Python 3.12 silenciosamente...
 echo   (Requiere permisos de administrador. Si falla, ejecute como admin.)
 "!PYTHON_INSTALLER!" /quiet InstallAllUsers=1 PrependPath=1 Include_test=0
-if errorlevel 1 (
+if not "%errorlevel%"=="0" (
     echo [ERROR] No se pudo instalar Python 3.12.
     echo         Intente ejecutar este script como administrador.
     pause
@@ -97,7 +97,7 @@ REM Refrescar PATH de esta sesion
 for /f "tokens=2*" %%a in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do set "SYS_PATH=%%b"
 set "PATH=!SYS_PATH!;%PATH%"
 python --version >nul 2>&1
-if errorlevel 1 (
+if not "%errorlevel%"=="0" (
     echo [ERROR] Python se instalo pero no se encuentra en el PATH.
     echo         Abra una nueva terminal y vuelva a ejecutar este script.
     pause
@@ -192,7 +192,7 @@ if not defined PG_INSTALLER (
     echo Descargando PostgreSQL 16 (~350 MB, puede tardar varios minutos)...
     if not exist "%TOOLS_DIR%" mkdir "%TOOLS_DIR%"
     curl -L -o "%TOOLS_DIR%\postgresql-16.15-1-windows-x64.exe" "%PG_URL%"
-    if errorlevel 1 (
+    if not "%errorlevel%"=="0" (
         echo [ERROR] No se pudo descargar PostgreSQL.
         echo         URL: %PG_URL%
         pause
@@ -203,7 +203,7 @@ if not defined PG_INSTALLER (
 echo Instalando PostgreSQL silenciosamente...
 echo   (Requiere permisos de administrador. Si falla, ejecute como admin.)
 "!PG_INSTALLER!" --mode unattended --unattendedmodeui none --superpassword %DEFAULT_POSTGRES_PASS% --serverport %DEFAULT_DB_PORT%
-if errorlevel 1 (
+if not "%errorlevel%"=="0" (
     echo [ERROR] No se pudo instalar PostgreSQL.
     pause
     exit /b 1
@@ -253,7 +253,7 @@ set "PGPASSWORD=%DEFAULT_POSTGRES_PASS%"
 
 REM Verificar conexion con contrasena por defecto
 psql -U %DEFAULT_POSTGRES_USER% -h %DEFAULT_DB_HOST% -p %DEFAULT_DB_PORT% -c "SELECT 1;" >nul 2>&1
-if errorlevel 1 (
+if not "%errorlevel%"=="0" (
     echo [ADVERTENCIA] No se pudo conectar con la contrasena por defecto '%DEFAULT_POSTGRES_PASS%'.
     set /p "PG_INPUT=Contrasena del superusuario PostgreSQL [%DEFAULT_POSTGRES_USER%]: "
     if not "!PG_INPUT!"=="" (
@@ -261,7 +261,7 @@ if errorlevel 1 (
         set "PGPASSWORD=!PG_INPUT!"
     )
     psql -U %DEFAULT_POSTGRES_USER% -h %DEFAULT_DB_HOST% -p %DEFAULT_DB_PORT% -c "SELECT 1;" >nul 2>&1
-    if errorlevel 1 (
+    if not "%errorlevel%"=="0" (
         echo [ERROR] No se pudo conectar a PostgreSQL. Verifique las credenciales.
         pause
         exit /b 1
@@ -283,7 +283,7 @@ set "SQL_TEMP=%TEMP%\create_mtcrm_db.sql"
 ) > "%SQL_TEMP%"
 
 psql -U %DEFAULT_POSTGRES_USER% -h %DEFAULT_DB_HOST% -p %DEFAULT_DB_PORT% -f "%SQL_TEMP%" >nul
-if errorlevel 1 (
+if not "%errorlevel%"=="0" (
     echo [ERROR] No se pudo crear la base de datos o el usuario de la aplicacion.
     del "%SQL_TEMP%" 2>nul
     pause
@@ -503,7 +503,7 @@ if defined GTK_FOUND (
         echo Descargando GTK3 Runtime...
         if not exist "%TOOLS_DIR%" mkdir "%TOOLS_DIR%"
         curl -L -o "%TOOLS_DIR%\gtk3-runtime-3.24.31-2022-01-04-ts-win64.exe" "%GTK_URL%"
-        if errorlevel 1 (
+        if not "%errorlevel%"=="0" (
             echo [ERROR] No se pudo descargar GTK3 Runtime.
             echo         Continuando sin GTK3...
             goto :gtk_done
@@ -512,7 +512,7 @@ if defined GTK_FOUND (
     )
     echo Instalando GTK3 Runtime silenciosamente...
     "!GTK_INSTALLER!" /S
-    if errorlevel 1 (
+    if not "%errorlevel%"=="0" (
         echo [ADVERTENCIA] No se pudo instalar GTK3 Runtime.
         echo           Continuando sin GTK3...
     ) else (
@@ -543,7 +543,7 @@ python -m pip install --upgrade pip >nul
 echo Instalando dependencias desde requirements.txt...
 pip install -r requirements.txt
 echo [DEBUG] pip termino con errorlevel %errorlevel%
-if errorlevel 1 (
+if not "%errorlevel%"=="0" (
     echo+
     echo ============================================
     echo   [ERROR] Fallo la instalacion de dependencias.
@@ -575,7 +575,7 @@ REM 7) Migraciones y datos iniciales
 REM ---------------------------------------------------------------------------
 echo Creando migraciones...
 python manage.py makemigrations user erp
-if errorlevel 1 (
+if not "%errorlevel%"=="0" (
     echo [ERROR] Fallo makemigrations.
     pause
     exit /b 1
@@ -583,7 +583,7 @@ if errorlevel 1 (
 
 echo Aplicando migraciones...
 python manage.py migrate
-if errorlevel 1 (
+if not "%errorlevel%"=="0" (
     echo [ERROR] Fallo migrate.
     pause
     exit /b 1
@@ -605,7 +605,7 @@ del "%TEMP%\superuser_check.txt" 2>nul
 
 echo Configurando roles estandar...
 python manage.py setup_roles --migrate
-if errorlevel 1 (
+if not "%errorlevel%"=="0" (
     echo [ADVERTENCIA] No se pudieron configurar los roles.
 ) else (
     echo [OK] Roles configurados.
@@ -678,7 +678,7 @@ if not "!LOCAL_DOMAIN!"=="" (
 echo+
 
 choice /c SN /M "Desea iniciar el POS ahora"
-if errorlevel 2 (
+if not "%errorlevel%"=="0" (
     pause
     exit /b 0
 )
