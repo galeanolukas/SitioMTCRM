@@ -154,6 +154,20 @@
       </tr>
     </table>
 
+    {% if sale.card_plan %}
+    <div class="dashed"></div>
+    <div class="small lh">
+      <span class="bold">Forma de pago:</span> Tarjeta {{ sale.card_brand|default:"" }}<br>
+      Plan: {{ sale.card_plan.name }}<br>
+      {% if installment_amount %}
+        {{ sale.card_plan.installments }} cuotas de ${{ installment_amount|floatformat:"-2" }}<br>
+      {% endif %}
+      {% if cft_amount %}
+        CFT: ${{ cft_amount|floatformat:"-2" }} ({{ sale.card_plan.multiplier|floatformat:4 }}x)<br>
+      {% endif %}
+    </div>
+    {% endif %}
+
     <div class="dashed"></div>
 
     <!-- Validez del presupuesto -->

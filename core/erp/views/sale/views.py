@@ -651,6 +651,17 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         sale.budget_notes = payload.get('budget_notes', '')
                         import socket
                         sale.pos_id = socket.gethostname() or 'pos_default'
+                        # Guardar info de lista de precios y descuento
+                        if payload.get('subtotal_original'):
+                            sale.subtotal_original = float(payload.get('subtotal_original', 0))
+                        if payload.get('discount_amount'):
+                            sale.discount_amount = float(payload.get('discount_amount', 0))
+                        if payload.get('price_list_id'):
+                            try:
+                                from core.erp.models import PriceList
+                                sale.price_list = PriceList.objects.get(pk=payload.get('price_list_id'))
+                            except PriceList.DoesNotExist:
+                                pass
                         print(f"[DEBUG] Presupuesto configurado: pos_id={sale.pos_id}")
                     
                     if 'combined_payments' in payload and payload['combined_payments']:
@@ -1130,10 +1141,22 @@ def ticket_budget_print(request, pk):
     dets = sale.detsale_set.select_related('prod').all()
     company = sale.company or Company.objects.first()
 
+    # Calcular monto por cuota si hay plan de tarjeta
+    installment_amount = None
+    if sale.card_plan and sale.card_plan.installments and sale.card_plan.installments > 0:
+        installment_amount = float(sale.total) / sale.card_plan.installments
+    # Calcular CFT si hay multiplicador
+    cft_amount = None
+    if sale.card_plan and sale.card_plan.multiplier and float(sale.card_plan.multiplier) > 1:
+        # CFT = total con recargo - subtotal original (sin recargo)
+        cft_amount = float(sale.total) - (float(sale.total) / float(sale.card_plan.multiplier))
+
     ctx = {
         'sale': sale,
         'dets': dets,
         'company': company,
+        'installment_amount': installment_amount,
+        'cft_amount': cft_amount,
     }
     return render(request, 'sale/ticket_budget.html', ctx)
 

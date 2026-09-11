@@ -1502,6 +1502,9 @@
       is_budget: true,
       budget_notes: budgetNotes,
       date_joined: dateStr,
+      subtotal_original: (priceListName && discountAmount > 0.01) ? (subtotal + discountAmount) : 0,
+      discount_amount: discountAmount,
+      price_list_id: priceListId || null,
       sale_token: 'budget_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
     };
     // Incluir datos de tarjeta si hay plan seleccionado
