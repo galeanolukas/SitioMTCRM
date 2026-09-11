@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableDelayedExpansion
 
-REM Instalar TODO - Bootstrap Windows para TechVentas POS
+REM Instalador TechVentas - Bootstrap Windows para TechVentas POS
 REM Clona el repositorio usando PortableGit y ejecuta instalador_pos.bat
 
 cd /d "%~dp0"
