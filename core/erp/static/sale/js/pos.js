@@ -1396,10 +1396,33 @@
     const calc = buildPayload(false); // Usar precios netos (sin IVA)
     const subtotal = calc.subtotal_con_iva; // Usar subtotal con IVA
     const iva = 0; // Presupuestos no tienen IVA
-    const total = subtotal;
+    let total = subtotal;
     const payMethod = ($('#payMethod').val() || 'cash');
     const budgetNotes = $('#budgetNotes').val() || '';
     
+    // Si es tarjeta de crédito con plan de cuotas, calcular recargo
+    let planInfo = null;
+    if (payMethod === 'card' && window.cardPaymentData && window.cardPaymentData.card_type === 'credit' && window.cardPaymentData.card_plan_id) {
+      const planSelect = $('#cardPlan option[value="' + window.cardPaymentData.card_plan_id + '"]');
+      const installments = parseFloat(planSelect.data('installments'));
+      let multiplier = parseFloat(planSelect.data('multiplier'));
+      if (isNaN(multiplier) || multiplier <= 0) multiplier = 1;
+      if (installments && installments > 0 && multiplier > 1) {
+        const newTotal = subtotal * multiplier;
+        const surchargeAmount = newTotal - subtotal;
+        const installmentAmount = newTotal / installments;
+        total = newTotal;
+        planInfo = {
+          name: planSelect.text().trim(),
+          installments: installments,
+          multiplier: multiplier,
+          surcharge: surchargeAmount,
+          total_with_surcharge: newTotal,
+          installment_amount: installmentAmount
+        };
+      }
+    }
+
     // Llenar modal de confirmación
     $('#budgetConfirmClient').text(calc.client_name || 'Cliente no seleccionado');
     $('#budgetConfirmNotes').text(budgetNotes || 'Sin notas');
@@ -1425,6 +1448,18 @@
     $('#budgetConfirmSubtotal').text(fmt(subtotal));
     $('#budgetConfirmIva').text('$0.00');
     $('#budgetConfirmTotal').text(fmt(total));
+
+    // Mostrar info de plan de cuotas si hay recargo
+    if (planInfo) {
+      $('#budgetPlanName').text(planInfo.name);
+      $('#budgetPlanSurcharge').text(fmt(planInfo.surcharge) + ' (' + ((planInfo.multiplier - 1) * 100).toFixed(1) + '%)');
+      $('#budgetPlanTotal').text(fmt(planInfo.total_with_surcharge));
+      $('#budgetPlanInstallments').text(planInfo.installments);
+      $('#budgetPlanInstallmentAmount').text(fmt(planInfo.installment_amount));
+      $('#budgetPlanInfo').show();
+    } else {
+      $('#budgetPlanInfo').hide();
+    }
     
     // Guardar datos para enviar después de confirmar
     const now = new Date();
@@ -1439,6 +1474,31 @@
       budget_notes: budgetNotes,
       date_joined: dateStr,
       sale_token: 'budget_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
+    };
+    // Incluir datos de tarjeta si hay plan seleccionado
+    if (payMethod === 'card' && window.cardPaymentData) {
+      window.budgetPayload.card_type = window.cardPaymentData.card_type;
+      window.budgetPayload.card_brand = window.cardPaymentData.card_brand;
+      window.budgetPayload.card_plan_id = window.cardPaymentData.card_plan_id;
+    }
+    // Incluir datos de pago combinado si existen
+    if (payMethod === 'combined' && window.combinedPaymentData) {
+      window.budgetPayload.payment_method_desc = window.combinedPaymentData.description;
+      window.budgetPayload.combined_payments = [
+        { method: window.combinedPaymentData.first_method, amount: window.combinedPaymentData.first_amount },
+        { method: window.combinedPaymentData.second_method, amount: window.combinedPaymentData.second_amount }
+      ];
+    }
+    // Guardar info para WhatsApp
+    window.budgetWhatsAppData = {
+      client_name: calc.client_name || 'Cliente no seleccionado',
+      items: calc.items_net.map(it => ({ name: it.name, cant: it.cant, pvp: it.pvp })),
+      subtotal: subtotal,
+      total: total,
+      planInfo: planInfo,
+      notes: budgetNotes,
+      payMethod: payMethod,
+      combinedPaymentData: (payMethod === 'combined') ? window.combinedPaymentData : null
     };
     
     // Mostrar modal
@@ -1656,6 +1716,12 @@
     
     // Cerrar modal y continuar con el flujo normal
     bootstrap.Modal.getInstance(document.getElementById('cardPaymentModal')).hide();
+    
+    // Si estamos en modo presupuesto, ir directo a crear presupuesto
+    if (window.posMode === 'budget') {
+      doCreateBudget();
+      return;
+    }
     
     // Abrir modal de modo de venta (ticket vs factura)
     const modalEl = document.getElementById('saleModeModal');
@@ -1891,6 +1957,19 @@
     // Cerrar modal y registrar venta
     bootstrap.Modal.getInstance(document.getElementById('combinedPaymentStep2Modal')).hide();
     
+    // Si estamos en modo presupuesto, ir a crear presupuesto
+    if (window.posMode === 'budget') {
+      window.combinedPaymentData = {
+        first_method: firstMethod,
+        first_amount: firstAmount,
+        second_method: secondMethod,
+        second_amount: secondAmount,
+        description: paymentDescription
+      };
+      doCreateBudget();
+      return;
+    }
+    
     if (wantsInvoice) {
       // Generar factura
       ajaxAction('invoice', { action: 'invoice', sale: JSON.stringify(payload), sale_token: saleToken })
@@ -2065,7 +2144,54 @@
       return;
     }
     
+    const payMethod = $('#payMethod').val();
+    // Si el método de pago es tarjeta, abrir modal de selección de tarjeta
+    if (payMethod === 'card') {
+      console.log('[DEBUG] Abriendo modal de tarjeta para presupuesto...');
+      openCardPaymentModal();
+      return;
+    }
+    // Si es pago combinado, abrir modal de pago combinado
+    if (payMethod === 'combined') {
+      openCombinedPaymentModal();
+      return;
+    }
+    
     doCreateBudget();
+  });
+
+  // Botón para enviar presupuesto por WhatsApp
+  $('#btnBudgetWhatsApp').on('click', function() {
+    if (!window.budgetWhatsAppData) {
+      showToast('error', 'Error: no hay datos del presupuesto');
+      return;
+    }
+    const d = window.budgetWhatsAppData;
+    let text = '*PRESUPUESTO*\n';
+    text += 'Cliente: ' + d.client_name + '\n';
+    text += 'Fecha: ' + new Date().toLocaleDateString() + '\n';
+    text += '\n*Detalle:*\n';
+    d.items.forEach(function(item) {
+      text += '• ' + item.name + ' x' + item.cant + ' - $' + item.pvp.toFixed(2) + '\n';
+    });
+    text += '\n*Subtotal: $' + d.subtotal.toFixed(2) + '*\n';
+    if (d.planInfo) {
+      text += '*Recargo: $' + d.planInfo.surcharge.toFixed(2) + ' (' + ((d.planInfo.multiplier - 1) * 100).toFixed(1) + '%)*\n';
+      text += '*Total: $' + d.planInfo.total_with_surcharge.toFixed(2) + '*\n';
+      text += d.planInfo.installments + ' cuotas de $' + d.planInfo.installment_amount.toFixed(2) + '\n';
+    } else {
+      text += '*Total: $' + d.total.toFixed(2) + '*\n';
+    }
+    if (d.combinedPaymentData) {
+      text += '\nPago combinado: ' + d.combinedPaymentData.description + '\n';
+      text += '  - $' + d.combinedPaymentData.first_amount.toFixed(2) + ' (' + d.combinedPaymentData.first_method + ')\n';
+      text += '  - $' + d.combinedPaymentData.second_amount.toFixed(2) + ' (' + d.combinedPaymentData.second_method + ')\n';
+    }
+    if (d.notes) {
+      text += '\nNotas: ' + d.notes + '\n';
+    }
+    var url = 'https://wa.me/?text=' + encodeURIComponent(text);
+    window.open(url, '_blank');
   });
 
   // Botón para confirmar creación de presupuesto

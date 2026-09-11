@@ -954,6 +954,28 @@
           <label class="form-label fw-bold">Notas del Presupuesto:</label>
           <p id="budgetConfirmNotes" class="text-muted">-</p>
         </div>
+
+        <!-- Info de plan de cuotas (visible si pago es tarjeta o combinado) -->
+        <div id="budgetPlanInfo" class="mb-3" style="display: none;">
+          <div class="card card-body bg-light p-2">
+            <div class="d-flex justify-content-between mb-1">
+              <span class="small text-muted">Plan de cuotas:</span>
+              <span id="budgetPlanName" class="small fw-bold"></span>
+            </div>
+            <div class="d-flex justify-content-between mb-1">
+              <span class="small text-muted">Recargo:</span>
+              <span id="budgetPlanSurcharge" class="small fw-bold text-warning"></span>
+            </div>
+            <div class="d-flex justify-content-between mb-1">
+              <span class="small text-muted">Total con recargo:</span>
+              <span id="budgetPlanTotal" class="small fw-bold text-success"></span>
+            </div>
+            <div class="d-flex justify-content-between">
+              <span class="small text-muted"><span id="budgetPlanInstallments"></span> cuotas de:</span>
+              <span id="budgetPlanInstallmentAmount" class="small fw-bold text-primary"></span>
+            </div>
+          </div>
+        </div>
         
         <div class="card">
           <div class="card-header">
@@ -998,6 +1020,9 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-success" id="btnBudgetWhatsApp">
+          <i class="fab fa-whatsapp"></i> Enviar por WhatsApp
+        </button>
         <button type="button" class="btn btn-info" id="btnConfirmBudget">
           <i class="fas fa-check"></i> Crear y Sincronizar Presupuesto
         </button>
