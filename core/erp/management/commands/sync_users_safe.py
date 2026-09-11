@@ -199,16 +199,23 @@ class Command(BaseCommand):
                     local_user.is_active = remote_user.get('is_active', local_user.is_active)
                     
                     # NO sobrescribir contraseña de usuarios existentes.
-                    # La contraseña se gestiona localmente; solo se copia del servidor
-                    # cuando se crea un usuario nuevo (ver más abajo en User.DoesNotExist).
-                    # EXCEPCIÓN: si el hash del servidor es diferente, sincronizar
-                    # (ej: superusuario cambió la contraseña en el servidor)
+                    # La contraseña se gestiona localmente en el POS.
+                    # Sincronizar la contraseña SOLO para usuarios nuevos o
+                    # usuarios que no han iniciado sesion localmente (sin last_login).
+                    # Esto evita deslogueo: Django guarda el hash de la password
+                    # en la sesion y al cambiarla, la sesion se invalida.
                     remote_password = remote_user.get('password')
                     if remote_password and local_user.password != remote_password:
-                        local_user.password = remote_password
-                        if not dry_run:
-                            local_user.save(update_fields=['password'])
-                        self.stdout.write(f"  Contraseña actualizada para usuario '{username}' (hash cambiado en servidor)")
+                        # Solo sincronizar password si el usuario nunca inicio sesion localmente
+                        if local_user.last_login is None:
+                            local_user.password = remote_password
+                            if not dry_run:
+                                local_user.save(update_fields=['password'])
+                            self.stdout.write(f"  Contraseña copiada para usuario '{username}' (sin sesion local previa)")
+                        else:
+                            # Usuario con sesion activa: NO sobrescribir password
+                            # para no invalidar su sesion actual
+                            pass
                     
                     # Asignar empresa si existe (manteniendo ID exacto del servidor)
                     company_id = remote_user.get('company_id')
