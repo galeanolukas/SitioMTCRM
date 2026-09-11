@@ -2179,6 +2179,7 @@
     });
     text += '\n*Subtotal: $' + d.subtotal.toFixed(2) + '*\n';
     if (d.planInfo) {
+      text += '*Plan: ' + d.planInfo.name + '*\n';
       text += '*Recargo: $' + d.planInfo.surcharge.toFixed(2) + ' (' + ((d.planInfo.multiplier - 1) * 100).toFixed(1) + '%)*\n';
       text += '*Total: $' + d.planInfo.total_with_surcharge.toFixed(2) + '*\n';
       text += d.planInfo.installments + ' cuotas de $' + d.planInfo.installment_amount.toFixed(2) + '\n';
