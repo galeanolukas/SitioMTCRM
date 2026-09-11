@@ -1,4 +1,5 @@
 @echo off
+setlocal enabledelayedexpansion
 REM Lanzar POS local de MultilideresCRM en Windows
 
 REM Ir siempre a la carpeta donde esta este script
@@ -16,14 +17,12 @@ call DJENV\Scripts\activate
 REM Asegurar entorno de POS (no production)
 set ENVIRONMENT=development
 
-REM Leer dominio local desde .env (si existe)
+REM Leer dominio local desde .env (si existe), por defecto localhost
 set "ACCESS_HOST=localhost"
 if exist .env (
-    for /f "tokens=1,* delims==" %%a in (.env) do (
-        if /I "%%a"=="LOCAL_DOMAIN" (
-            set "DOMAIN_VALUE=%%b"
-            if not "!DOMAIN_VALUE!"=="" set "ACCESS_HOST=!DOMAIN_VALUE!"
-        )
+    for /f "tokens=1,* delims==" %%a in ('findstr /b /i "LOCAL_DOMAIN" .env 2^>nul') do (
+        set "DOMAIN_VALUE=%%b"
+        if not "!DOMAIN_VALUE!"=="" set "ACCESS_HOST=!DOMAIN_VALUE!"
     )
 )
 
