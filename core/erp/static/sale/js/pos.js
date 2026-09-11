@@ -460,10 +460,45 @@
       items.splice(selectedIndex, 1); selectedIndex = -1; recalc();
     }
     if (e.key === 'F2') {
-      $('#btnCheckout').trigger('click');
+      if (window.posMode === 'budget') {
+        $('#btnCreateBudget').trigger('click');
+      } else {
+        $('#btnCheckout').trigger('click');
+      }
+      e.preventDefault();
+    }
+    if (e.key === 'F4') {
+      setPosMode(window.posMode === 'budget' ? 'sale' : 'budget');
       e.preventDefault();
     }
   });
+
+  // Toggle modo Venta / Presupuesto
+  window.posMode = 'sale';
+  window.setPosMode = function(mode) {
+    window.posMode = mode;
+    var btnSale = document.getElementById('btnModeSale');
+    var btnBudget = document.getElementById('btnModeBudget');
+    var btnCheckout = document.getElementById('btnCheckout');
+    var btnEmployeeAccount = document.getElementById('btnEmployeeAccount');
+    var btnCreateBudget = document.getElementById('btnCreateBudget');
+    var notesContainer = document.getElementById('budgetNotesContainer');
+    if (mode === 'budget') {
+      if (btnSale) btnSale.classList.remove('active');
+      if (btnBudget) btnBudget.classList.add('active');
+      if (btnCheckout) btnCheckout.classList.add('d-none');
+      if (btnEmployeeAccount) btnEmployeeAccount.classList.add('d-none');
+      if (btnCreateBudget) btnCreateBudget.classList.remove('d-none');
+      if (notesContainer) notesContainer.classList.remove('d-none');
+    } else {
+      if (btnSale) btnSale.classList.add('active');
+      if (btnBudget) btnBudget.classList.remove('active');
+      if (btnCheckout) btnCheckout.classList.remove('d-none');
+      if (btnEmployeeAccount) btnEmployeeAccount.classList.remove('d-none');
+      if (btnCreateBudget) btnCreateBudget.classList.add('d-none');
+      if (notesContainer) notesContainer.classList.add('d-none');
+    }
+  };
 
   // Limpiar
   $('#btnClear').on('click', function () {
