@@ -394,6 +394,14 @@ def _run_full_sync_impl(company_id=None):
             logger.error(f"Error en sincronización de listas de precios: {e}")
             errors.append(f"sync_price_lists_to_remote: {e}")
 
+        # 3.k) Planes de cuotas de tarjeta
+        try:
+            call_command("sync_card_plans_to_remote")
+            logger.info("✅ Planes de cuotas sincronizados")
+        except Exception as e:
+            logger.error(f"Error en sincronización de planes de cuotas: {e}")
+            errors.append(f"sync_card_plans_to_remote: {e}")
+
         # 3.j) Pedidos entregados del catálogo (solo si hay configuración activa)
         logger.info("🛒 PASO 3.j: Sincronizando pedidos entregados del catálogo...")
         try:
