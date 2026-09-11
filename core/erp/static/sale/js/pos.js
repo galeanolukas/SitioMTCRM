@@ -12,6 +12,7 @@
   let items = [];
   let selectedIndex = -1;
   let lastSaleId = null; // ID de la última venta registrada (para ticket)
+  let lastSaleIsBudget = false; // True si la última venta fue un presupuesto
   let pendingWeightProduct = null; // Producto pendiente de ingresar peso
   let originalPrices = {}; // Precios originales para restaurar al cambiar cliente
   let currentPriceList = null; // Lista de precios activa del cliente seleccionado
@@ -1291,6 +1292,7 @@
       .done(resp => {
         if (resp && resp.id) {
           lastSaleId = resp.id;
+          lastSaleIsBudget = false;
           flashSummary();
           showToast('success', 'Venta registrada correctamente.');
           showAfipInfo(resp);
@@ -1372,6 +1374,7 @@
       .done(resp => {
         if (resp && resp.id) {
           lastSaleId = resp.id;
+          lastSaleIsBudget = false;
           flashSummary();
           showToast('success', 'Factura generada correctamente.');
           showAfipInfo(resp);
@@ -2029,6 +2032,7 @@
         .done(resp => {
           if (resp && resp.id) {
             lastSaleId = resp.id;
+            lastSaleIsBudget = false;
             flashSummary();
             showToast('success', 'Venta con pagos combinados registrada correctamente.');
             const modalEl = document.getElementById('printTicketModal');
@@ -2097,7 +2101,9 @@
     const modal = bootstrap.Modal.getInstance(document.getElementById('printTicketModal'));
     if (modal) modal.hide();
     if (lastSaleId) {
-      const url = '/erp/sale/ticket/' + lastSaleId + '/print/';
+      const url = lastSaleIsBudget
+        ? '/erp/budget/ticket/' + lastSaleId + '/'
+        : '/erp/sale/ticket/' + lastSaleId + '/print/';
       window.open(url, '_blank');
     }
   });
@@ -2260,8 +2266,16 @@
         console.log('[DEBUG] Respuesta del backend:', resp);
         if (resp && resp.id) {
           lastSaleId = resp.id;
+          lastSaleIsBudget = true;  // Marcar que es presupuesto
           flashSummary();
           showToast('success', 'Presupuesto creado correctamente. ID: ' + resp.id);
+          
+          // Abrir modal de impresión
+          const modalEl = document.getElementById('printTicketModal');
+          if (modalEl) {
+            const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+          }
           
           // Limpiar campos
           $('#budgetNotes').val('');
