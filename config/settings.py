@@ -321,8 +321,10 @@ SESSION_COOKIE_AGE = 2592000
 # La sesión NO expira al cerrar el navegador
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 
-# Guardar la sesión en cada solicitud (renueva el contador de expiración)
-SESSION_SAVE_EVERY_REQUEST = True
+# No guardar la sesión en cada solicitud - evita SessionInterrupted en
+# peticiones largas como /erp/sync/data/ que tardan y la sesión se borra
+# en una petición concurrente antes de que termine esta.
+SESSION_SAVE_EVERY_REQUEST = False
 
 # Configuración adicional para mayor duración de sesión
 # No requerir renovación de sesión por inactividad
@@ -331,9 +333,11 @@ SESSION_INACTIVITY_TIMEOUT = None  # Desactivado
 # CSRF cookie con misma duración que la sesión
 CSRF_COOKIE_AGE = 2592000
 
-# Usar caché basada en archivos para sesiones (compartido entre procesos uWSGI)
-SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
-SESSION_CACHE_ALIAS = 'default'
+# Usar sesiones basadas en base de datos (más robustas ante concurrencia
+# que cache-based sessions, que lanzan UpdateError/SessionInterrupted
+# cuando una petición larga como sync/data coincide con logout u otra
+# petición que borra la sesión del caché).
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 
 # Configurar caché basada en archivos para producción (compartido entre procesos)
 CACHES = {
