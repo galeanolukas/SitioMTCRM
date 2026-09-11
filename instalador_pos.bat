@@ -21,106 +21,18 @@ echo ============================================
 echo   Instalador POS Local - TechVentas
 echo   (Windows)
 echo ============================================
-echo+
+echo.
 
 REM ---------------------------------------------------------------------------
-REM 1) Verificar Python 3.12
+REM 1) Verificar Python
 REM ---------------------------------------------------------------------------
-set "TOOLS_DIR=%~dp0tools"
-set "PYTHON_INSTALLER="
-for %%f in ("%TOOLS_DIR%\python-3.12*-amd64.exe") do set "PYTHON_INSTALLER=%%f"
-set "PYTHON_URL=https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe"
-
 python --version >nul 2>&1
-if errorlevel 1 goto :py_missing
-
-for /f "tokens=2 delims= " %%v in ('python --version 2^>^&1') do set "PY_VERSION=%%v"
-for /f "tokens=1,2 delims=." %%a in ("!PY_VERSION!") do (
-    set "PY_MAJOR=%%a"
-    set "PY_MINOR=%%b"
-)
-echo [INFO] Python detectado: !PY_VERSION!
-if not "!PY_MAJOR!"=="3" goto :py_wrong
-if not "!PY_MINOR!"=="12" goto :py_warn
-goto :py_ok
-
-:py_wrong
-echo [ERROR] Se requiere Python 3.12.x. Version detectada: !PY_VERSION!
-goto :py_install
-
-:py_missing
-echo [ADVERTENCIA] Python no esta instalado o no esta en el PATH.
-goto :py_install
-
-:py_install
-echo+
-echo   Puede instalar Python 3.12 desde:
-if defined PYTHON_INSTALLER (
-    echo   [1] Usar instalador en tools\: !PYTHON_INSTALLER!
-) else (
-    echo   [1] Descargar desde internet y instalar
-)
-echo   [2] Salir e instalar manualmente
-echo+
-set /p "PY_CHOICE=  Seleccione una opcion [1]: "
-if "!PY_CHOICE!"=="" set "PY_CHOICE=1"
-if "!PY_CHOICE!"=="2" (
-    echo Descargue Python 3.12 desde https://www.python.org/downloads/release/python-3120/
+if errorlevel 1 (
+    echo [ERROR] Python no esta instalado o no esta en el PATH.
+    echo Descarguela desde https://www.python.org/downloads/
     pause
     exit /b 1
 )
-if not "!PY_CHOICE!"=="1" goto :py_install
-
-if not defined PYTHON_INSTALLER (
-    echo Descargando Python 3.12...
-    if not exist "%TOOLS_DIR%" mkdir "%TOOLS_DIR%"
-    curl -L -o "%TOOLS_DIR%\python-3.12.10-amd64.exe" "%PYTHON_URL%"
-    if not "%errorlevel%"=="0" (
-        echo [ERROR] No se pudo descargar Python.
-        echo         URL: %PYTHON_URL%
-        pause
-        exit /b 1
-    )
-    set "PYTHON_INSTALLER=%TOOLS_DIR%\python-3.12.10-amd64.exe"
-)
-echo Instalando Python 3.12 silenciosamente...
-echo   (Requiere permisos de administrador. Si falla, ejecute como admin.)
-"!PYTHON_INSTALLER!" /quiet InstallAllUsers=1 PrependPath=1 Include_test=0
-if not "%errorlevel%"=="0" (
-    echo [ERROR] No se pudo instalar Python 3.12.
-    echo         Intente ejecutar este script como administrador.
-    pause
-    exit /b 1
-)
-echo [OK] Python 3.12 instalado.
-REM Refrescar PATH de esta sesion
-for /f "tokens=2*" %%a in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do set "SYS_PATH=%%b"
-set "PATH=!SYS_PATH!;%PATH%"
-python --version >nul 2>&1
-if not "%errorlevel%"=="0" (
-    echo [ERROR] Python se instalo pero no se encuentra en el PATH.
-    echo         Abra una nueva terminal y vuelva a ejecutar este script.
-    pause
-    exit /b 1
-)
-for /f "tokens=2 delims= " %%v in ('python --version 2^>^&1') do set "PY_VERSION=%%v"
-echo [INFO] Python detectado: !PY_VERSION!
-goto :py_ok
-
-:py_warn
-echo [ADVERTENCIA] Version detectada: !PY_VERSION!. Se recomienda Python 3.12.x.
-echo   requirements.txt usa Pillow 10.4.0 y psycopg2-binary 2.9.9, que solo
-echo   tienen wheels precompilados hasta Python 3.12. Con !PY_VERSION! es
-echo   probable que pip intente compilar desde source y falle.
-set /p "CONT_PY=  Desea continuar de todas formas? (s/n) [n]: "
-if /I not "!CONT_PY!"=="s" (
-    echo Instalacion cancelada. Instale Python 3.12.x e intente nuevamente.
-    pause
-    exit /b 1
-)
-echo+
-
-:py_ok
 
 REM ---------------------------------------------------------------------------
 REM 2) Verificar PostgreSQL
@@ -149,7 +61,7 @@ if not defined PGSQL_BIN (
 )
 
 if not defined PGSQL_BIN (
-    echo+
+    echo.
     echo [ADVERTENCIA] No se encontro psql automaticamente.
     set /p "PSQL_PATH= Ingrese la ruta completa a psql.exe o deje en blanco para salir: "
     if not "!PSQL_PATH!"=="" if exist "!PSQL_PATH!" (
@@ -157,88 +69,14 @@ if not defined PGSQL_BIN (
     )
 )
 
-if not defined PGSQL_BIN goto :pg_missing
-goto :pg_found
-
-:pg_missing
-echo+
-echo [ADVERTENCIA] PostgreSQL no esta instalado o psql no esta en el PATH.
-set "PG_INSTALLER="
-for %%f in ("%TOOLS_DIR%\postgresql-*-windows-x64.exe") do set "PG_INSTALLER=%%f"
-set "PG_URL=https://get.enterprisedb.com/postgresql/postgresql-16.15-1-windows-x64.exe"
-echo+
-echo   Puede instalar PostgreSQL desde:
-if defined PG_INSTALLER (
-    echo   [1] Usar instalador en tools\: !PG_INSTALLER!
-) else (
-    echo   [1] Descargar desde internet y instalar (~350 MB)
-)
-echo   [2] Ingresar ruta manualmente a psql.exe
-echo   [3] Salir e instalar manualmente
-echo+
-set /p "PG_CHOICE=  Seleccione una opcion [1]: "
-if "!PG_CHOICE!"=="" set "PG_CHOICE=1"
-
-if "!PG_CHOICE!"=="3" (
-    echo Descargue PostgreSQL desde https://www.postgresql.org/download/windows/
-    pause
-    exit /b 1
-)
-if "!PG_CHOICE!"=="2" goto :pg_manual
-if not "!PG_CHOICE!"=="1" goto :pg_invalid
-
-REM Opcion 1: instalar desde tools/ o descargar
-if not defined PG_INSTALLER (
-    echo Descargando PostgreSQL 16 (~350 MB, puede tardar varios minutos)...
-    if not exist "%TOOLS_DIR%" mkdir "%TOOLS_DIR%"
-    curl -L -o "%TOOLS_DIR%\postgresql-16.15-1-windows-x64.exe" "%PG_URL%"
-    if not "%errorlevel%"=="0" (
-        echo [ERROR] No se pudo descargar PostgreSQL.
-        echo         URL: %PG_URL%
-        pause
-        exit /b 1
-    )
-    set "PG_INSTALLER=%TOOLS_DIR%\postgresql-16.15-1-windows-x64.exe"
-)
-echo Instalando PostgreSQL silenciosamente...
-echo   (Requiere permisos de administrador. Si falla, ejecute como admin.)
-"!PG_INSTALLER!" --mode unattended --unattendedmodeui none --superpassword %DEFAULT_POSTGRES_PASS% --serverport %DEFAULT_DB_PORT%
-if not "%errorlevel%"=="0" (
-    echo [ERROR] No se pudo instalar PostgreSQL.
-    pause
-    exit /b 1
-)
-echo [OK] PostgreSQL instalado.
-REM Buscar psql recien instalado
-for %%v in (18 17 16 15 14 13) do (
-    if exist "C:\Program Files\PostgreSQL\%%v\bin\psql.exe" (
-        set "PGSQL_BIN=C:\Program Files\PostgreSQL\%%v\bin\psql.exe"
-    )
-)
 if not defined PGSQL_BIN (
-    echo [ERROR] PostgreSQL se instalo pero no se encontro psql.exe.
-    echo         Abra una nueva terminal y vuelva a ejecutar este script.
+    echo [ERROR] PostgreSQL no esta instalado o psql no esta en el PATH.
+    echo Descargue e instale PostgreSQL desde https://www.postgresql.org/download/windows/
+    echo.
     pause
     exit /b 1
 )
-goto :pg_found
 
-:pg_manual
-set /p "PSQL_PATH= Ingrese la ruta completa a psql.exe: "
-if not "!PSQL_PATH!"=="" if exist "!PSQL_PATH!" (
-    set "PGSQL_BIN=!PSQL_PATH!"
-    goto :pg_found
-)
-echo [ERROR] La ruta ingresada no existe.
-pause
-exit /b 1
-
-:pg_invalid
-echo [ERROR] Opcion invalida.
-pause
-exit /b 1
-
-:pg_found
 for %%f in ("%PGSQL_BIN%") do set "PSQL_DIR=%%~dpf"
 set "PATH=%PSQL_DIR%;%PATH%"
 echo [OK] PostgreSQL detectado: %PGSQL_BIN%
@@ -246,14 +84,14 @@ echo [OK] PostgreSQL detectado: %PGSQL_BIN%
 REM ---------------------------------------------------------------------------
 REM 3) Crear usuario y base de datos PostgreSQL
 REM ---------------------------------------------------------------------------
-echo+
+echo.
 echo Conectando a PostgreSQL con superusuario '%DEFAULT_POSTGRES_USER%'...
 
 set "PGPASSWORD=%DEFAULT_POSTGRES_PASS%"
 
 REM Verificar conexion con contrasena por defecto
 psql -U %DEFAULT_POSTGRES_USER% -h %DEFAULT_DB_HOST% -p %DEFAULT_DB_PORT% -c "SELECT 1;" >nul 2>&1
-if not "%errorlevel%"=="0" (
+if errorlevel 1 (
     echo [ADVERTENCIA] No se pudo conectar con la contrasena por defecto '%DEFAULT_POSTGRES_PASS%'.
     set /p "PG_INPUT=Contrasena del superusuario PostgreSQL [%DEFAULT_POSTGRES_USER%]: "
     if not "!PG_INPUT!"=="" (
@@ -261,7 +99,7 @@ if not "%errorlevel%"=="0" (
         set "PGPASSWORD=!PG_INPUT!"
     )
     psql -U %DEFAULT_POSTGRES_USER% -h %DEFAULT_DB_HOST% -p %DEFAULT_DB_PORT% -c "SELECT 1;" >nul 2>&1
-    if not "%errorlevel%"=="0" (
+    if errorlevel 1 (
         echo [ERROR] No se pudo conectar a PostgreSQL. Verifique las credenciales.
         pause
         exit /b 1
@@ -283,7 +121,7 @@ set "SQL_TEMP=%TEMP%\create_mtcrm_db.sql"
 ) > "%SQL_TEMP%"
 
 psql -U %DEFAULT_POSTGRES_USER% -h %DEFAULT_DB_HOST% -p %DEFAULT_DB_PORT% -f "%SQL_TEMP%" >nul
-if not "%errorlevel%"=="0" (
+if errorlevel 1 (
     echo [ERROR] No se pudo crear la base de datos o el usuario de la aplicacion.
     del "%SQL_TEMP%" 2>nul
     pause
@@ -314,7 +152,7 @@ if exist .env.server (
     )
 )
 
-echo+
+echo.
 echo ------------------------------------------------------------
 echo   Configuracion de base de datos remota (servidor central)
 echo ------------------------------------------------------------
@@ -342,184 +180,101 @@ REM ---------------------------------------------------------------------------
 REM 4.5) Configurar dominio local (DNS local)
 REM ---------------------------------------------------------------------------
 set "LOCAL_DOMAIN="
-echo+
+echo.
 echo ------------------------------------------------------------
-echo   Configuracion de dominio local ^(DNS local^)
+echo   Configuracion de dominio local (DNS local)
 echo ------------------------------------------------------------
 echo   Permite acceder al sistema usando un nombre personalizado
-echo   en lugar de localhost ^(ej: techventas.app^)
+echo   en lugar de localhost (ej: techventas.app)
 set /p "CONFIG_DOMAIN=  Desea configurar un dominio local? (s/n) [n]: "
-if /I not "%CONFIG_DOMAIN%"=="s" goto :dns_skip
+if /I "%CONFIG_DOMAIN%"=="s" (
+    set /p "INPUT_DOMAIN=  Ingrese el dominio local [techventas.app]: "
+    if "!INPUT_DOMAIN!"=="" (
+        set "LOCAL_DOMAIN=techventas.app"
+    ) else (
+        set "LOCAL_DOMAIN=!INPUT_DOMAIN!"
+    )
 
-set /p "INPUT_DOMAIN=  Ingrese el dominio local [techventas.app]: "
-if "!INPUT_DOMAIN!"=="" (
-    set "LOCAL_DOMAIN=techventas.app"
+    REM Verificar si ya existe en hosts
+    findstr /C:"!LOCAL_DOMAIN!" "%SystemRoot%\System32\drivers\etc\hosts" >nul 2>&1
+    if errorlevel 1 (
+        REM Intentar agregar con permisos de admin
+        echo 127.0.0.1 !LOCAL_DOMAIN! >> "%SystemRoot%\System32\drivers\etc\hosts" 2>nul
+        if errorlevel 1 (
+            echo [ADVERTENCIA] No se pudo modificar el archivo hosts.
+            echo   Ejecute como administrador o agregue manualmente:
+            echo   127.0.0.1 !LOCAL_DOMAIN!
+            echo   en: C:\Windows\System32\drivers\etc\hosts
+            set "LOCAL_DOMAIN="
+        ) else (
+            echo [OK] Dominio '!LOCAL_DOMAIN!' agregado al archivo hosts.
+        )
+    ) else (
+        echo [OK] El dominio '!LOCAL_DOMAIN!' ya existe en el archivo hosts.
+    )
 ) else (
-    set "LOCAL_DOMAIN=!INPUT_DOMAIN!"
+    echo   Dominio local no configurado. Se usara localhost.
 )
-
-REM Verificar si ya existe en hosts
-findstr /C:"!LOCAL_DOMAIN!" "%SystemRoot%\System32\drivers\etc\hosts" >nul 2>&1
-if not errorlevel 1 (
-    echo [OK] El dominio '!LOCAL_DOMAIN!' ya existe en el archivo hosts.
-    goto :dns_done
-)
-
-REM Intentar agregar al archivo hosts
-REM Usar archivo temporal + type para evitar errores de redirect en consola
-set "HOSTS_FILE=%SystemRoot%\System32\drivers\etc\hosts"
-set "HOSTS_TMP=%TEMP%\hosts_append.txt"
-(echo 127.0.0.1 !LOCAL_DOMAIN!) > "%HOSTS_TMP%" 2>nul
-if errorlevel 1 goto :dns_fail
-type "%HOSTS_TMP%" >> "%HOSTS_FILE%" 2>nul
-if errorlevel 1 goto :dns_fail
-del "%HOSTS_TMP%" 2>nul
-echo [OK] Dominio '!LOCAL_DOMAIN!' agregado al archivo hosts.
-goto :dns_done
-
-:dns_fail
-del "%HOSTS_TMP%" 2>nul
-echo [ADVERTENCIA] No se pudo modificar el archivo hosts.
-echo   Ejecute como administrador o agregue manualmente:
-echo   127.0.0.1 !LOCAL_DOMAIN!
-echo   en: C:\Windows\System32\drivers\etc\hosts
-set "LOCAL_DOMAIN="
-goto :dns_done
-
-:dns_skip
-echo   Dominio local no configurado. Se usara localhost.
-
-:dns_done
 
 REM ---------------------------------------------------------------------------
 REM 5) Crear / actualizar .env
 REM ---------------------------------------------------------------------------
-if exist .env goto :env_update
-
-echo Creando archivo .env con configuracion por defecto...
-echo # Entorno > .env
-echo ENVIRONMENT=development >> .env
-echo APP_VERSION=1.0.0 >> .env
-echo POS_SYNC_INTERVAL_SECONDS=300 >> .env
-echo( >> .env
-echo # Base de datos local PostgreSQL - usuario DEDICADO de la app >> .env
-echo DB_NAME=%DEFAULT_DB_NAME% >> .env
-echo DB_USER=%DEFAULT_DB_USER% >> .env
-echo DB_PASSWORD=%DEFAULT_DB_PASS% >> .env
-echo DB_HOST=%DEFAULT_DB_HOST% >> .env
-echo DB_PORT=%DEFAULT_DB_PORT% >> .env
-echo( >> .env
-echo # Base de datos remota servidor central >> .env
-echo REMOTE_DB_NAME=%REMOTE_DB_NAME% >> .env
-echo REMOTE_DB_USER=%REMOTE_DB_USER% >> .env
-echo REMOTE_DB_PASSWORD=%REMOTE_DB_PASSWORD% >> .env
-echo REMOTE_DB_HOST=%REMOTE_DB_HOST% >> .env
-echo REMOTE_DB_PORT=%REMOTE_DB_PORT% >> .env
-echo REMOTE_DB_SSLMODE=%REMOTE_DB_SSLMODE% >> .env
-echo( >> .env
-echo # Configuracion sincronizacion >> .env
-echo POS_SYNC_PRODUCTS_MODE=safe >> .env
-echo( >> .env
-echo # AFIP >> .env
-echo AFIP_ACCESS_TOKEN= >> .env
-echo AFIP_CUIT= >> .env
-echo AFIP_ENVIRONMENT=dev >> .env
-echo( >> .env
-echo # Catalogo >> .env
-echo CATALOGO_URL= >> .env
-echo CATALOGO_API_KEY= >> .env
-echo( >> .env
-echo # Dominio local DNS local >> .env
-echo LOCAL_DOMAIN=!LOCAL_DOMAIN! >> .env
-echo [OK] Archivo .env configurado.
-pause
-goto :env_done
-
-:env_update
-echo Actualizando variables de base de datos en .env...
-call :UpdateEnvVar DB_NAME %DEFAULT_DB_NAME%
-call :UpdateEnvVar DB_USER %DEFAULT_DB_USER%
-call :UpdateEnvVar DB_PASSWORD %DEFAULT_DB_PASS%
-call :UpdateEnvVar DB_HOST %DEFAULT_DB_HOST%
-call :UpdateEnvVar DB_PORT %DEFAULT_DB_PORT%
-call :UpdateEnvVar LOCAL_DOMAIN !LOCAL_DOMAIN!
-if /I "!CONFIG_REMOTE!"=="s" (
-    call :UpdateEnvVar REMOTE_DB_NAME %REMOTE_DB_NAME%
-    call :UpdateEnvVar REMOTE_DB_USER %REMOTE_DB_USER%
-    call :UpdateEnvVar REMOTE_DB_PASSWORD %REMOTE_DB_PASSWORD%
-    call :UpdateEnvVar REMOTE_DB_HOST %REMOTE_DB_HOST%
-    call :UpdateEnvVar REMOTE_DB_PORT %REMOTE_DB_PORT%
-    call :UpdateEnvVar REMOTE_DB_SSLMODE %REMOTE_DB_SSLMODE%
-)
-echo [OK] Archivo .env configurado.
-
-:env_done
-
-REM ---------------------------------------------------------------------------
-REM 4.6) Verificar GTK3 Runtime (requerido por WeasyPrint)
-REM ---------------------------------------------------------------------------
-echo [DEBUG] Iniciando seccion GTK...
-set "GTK_FOUND="
-for %%p in (
-    "C:\Program Files\GTK3-Runtime Win64\bin"
-    "C:\GTK3-Runtime Win64\bin"
-    "C:\Program Files\GTK3-Runtime\bin"
-) do (
-    if exist "%%~p\libgobject-2.0-0.dll" set "GTK_FOUND=%%~p"
-)
-
-if defined GTK_FOUND (
-    echo [DEBUG] GTK encontrado: !GTK_FOUND!
-    echo [OK] GTK3 Runtime detectado: !GTK_FOUND!
+if not exist .env (
+    echo Creando archivo .env con configuracion por defecto...
+    (
+        echo # Entorno
+        echo ENVIRONMENT=development
+        echo APP_VERSION=1.0.0
+        echo POS_SYNC_INTERVAL_SECONDS=300
+        echo.
+        echo # Base de datos local ^(PostgreSQL^) - usuario DEDICADO de la app
+        echo DB_NAME=%DEFAULT_DB_NAME%
+        echo DB_USER=%DEFAULT_DB_USER%
+        echo DB_PASSWORD=%DEFAULT_DB_PASS%
+        echo DB_HOST=%DEFAULT_DB_HOST%
+        echo DB_PORT=%DEFAULT_DB_PORT%
+        echo.
+        echo # Base de datos remota ^(servidor central^)
+        echo REMOTE_DB_NAME=%REMOTE_DB_NAME%
+        echo REMOTE_DB_USER=%REMOTE_DB_USER%
+        echo REMOTE_DB_PASSWORD=%REMOTE_DB_PASSWORD%
+        echo REMOTE_DB_HOST=%REMOTE_DB_HOST%
+        echo REMOTE_DB_PORT=%REMOTE_DB_PORT%
+        echo REMOTE_DB_SSLMODE=%REMOTE_DB_SSLMODE%
+        echo.
+        echo # Configuracion sincronizacion
+        echo POS_SYNC_PRODUCTS_MODE=safe
+        echo.
+        echo # AFIP
+        echo AFIP_ACCESS_TOKEN=
+        echo AFIP_CUIT=
+        echo AFIP_ENVIRONMENT=dev
+        echo.
+        echo # Catalogo
+        echo CATALOGO_URL=
+        echo CATALOGO_API_KEY=
+        echo.
+        echo # Dominio local ^(DNS local^)
+        echo LOCAL_DOMAIN=!LOCAL_DOMAIN!
+    ) > .env
 ) else (
-    echo [DEBUG] GTK no encontrado, mostrando opciones...
-    set "GTK_INSTALLER="
-    for %%f in ("%TOOLS_DIR%\gtk3-runtime-*-ts-win64.exe") do set "GTK_INSTALLER=%%f"
-    set "GTK_URL=https://github.com/tschoonj/GTK-for-Windows-Runtime-Environment-Installer/releases/download/2022-01-04/gtk3-runtime-3.24.31-2022-01-04-ts-win64.exe"
-    echo+
-    echo   Puede instalar GTK3 Runtime desde:
-    if defined GTK_INSTALLER (
-        echo   [1] Usar instalador en tools\: !GTK_INSTALLER!
-    ) else (
-        echo   [1] Descargar desde internet e instalar ^(~47 MB^)
-    )
-    echo   [2] Continuar sin instalar ^(WeasyPrint no funcionara^)
-    echo   [3] Salir
-    echo+
-    set /p "GTK_CHOICE=  Seleccione una opcion [1]: "
-    if "!GTK_CHOICE!"=="" set "GTK_CHOICE=1"
-
-    if "!GTK_CHOICE!"=="3" (
-        pause
-        exit /b 1
-    )
-    if "!GTK_CHOICE!"=="2" (
-        echo   Continuando sin GTK3. WeasyPrint puede fallar al generar PDFs.
-        goto :gtk_done
-    )
-    if not "!GTK_CHOICE!"=="1" goto :gtk_done
-
-    if not defined GTK_INSTALLER (
-        echo Descargando GTK3 Runtime...
-        if not exist "%TOOLS_DIR%" mkdir "%TOOLS_DIR%"
-        curl -L -o "%TOOLS_DIR%\gtk3-runtime-3.24.31-2022-01-04-ts-win64.exe" "%GTK_URL%"
-        if not "%errorlevel%"=="0" (
-            echo [ERROR] No se pudo descargar GTK3 Runtime.
-            echo         Continuando sin GTK3...
-            goto :gtk_done
-        )
-        set "GTK_INSTALLER=%TOOLS_DIR%\gtk3-runtime-3.24.31-2022-01-04-ts-win64.exe"
-    )
-    echo Instalando GTK3 Runtime silenciosamente...
-    "!GTK_INSTALLER!" /S
-    if not "%errorlevel%"=="0" (
-        echo [ADVERTENCIA] No se pudo instalar GTK3 Runtime.
-        echo           Continuando sin GTK3...
-    ) else (
-        echo [OK] GTK3 Runtime instalado.
+    echo Actualizando variables de base de datos en .env...
+    call :UpdateEnvVar DB_NAME %DEFAULT_DB_NAME%
+    call :UpdateEnvVar DB_USER %DEFAULT_DB_USER%
+    call :UpdateEnvVar DB_PASSWORD %DEFAULT_DB_PASS%
+    call :UpdateEnvVar DB_HOST %DEFAULT_DB_HOST%
+    call :UpdateEnvVar DB_PORT %DEFAULT_DB_PORT%
+    call :UpdateEnvVar LOCAL_DOMAIN !LOCAL_DOMAIN!
+    if /I "!CONFIG_REMOTE!"=="s" (
+        call :UpdateEnvVar REMOTE_DB_NAME %REMOTE_DB_NAME%
+        call :UpdateEnvVar REMOTE_DB_USER %REMOTE_DB_USER%
+        call :UpdateEnvVar REMOTE_DB_PASSWORD %REMOTE_DB_PASSWORD%
+        call :UpdateEnvVar REMOTE_DB_HOST %REMOTE_DB_HOST%
+        call :UpdateEnvVar REMOTE_DB_PORT %REMOTE_DB_PORT%
+        call :UpdateEnvVar REMOTE_DB_SSLMODE %REMOTE_DB_SSLMODE%
     )
 )
-:gtk_done
+echo [OK] Archivo .env configurado.
 
 REM ---------------------------------------------------------------------------
 REM 5) Crear entorno virtual
@@ -541,41 +296,15 @@ echo Actualizando pip...
 python -m pip install --upgrade pip >nul
 
 echo Instalando dependencias desde requirements.txt...
-pip install -r requirements.txt
-echo [DEBUG] pip termino con errorlevel %errorlevel%
-if not "%errorlevel%"=="0" (
-    echo+
-    echo ============================================
-    echo   [ERROR] Fallo la instalacion de dependencias.
-    echo ============================================
-    echo+
-    echo Posibles causas:
-    echo   - Algun paquete no tiene wheel para su version de Python.
-    echo   - Sin conexion a internet / PyPI no responde.
-    echo   - pip desactualizado (ya se intento actualizar).
-    echo+
-    echo Sugerencias:
-    echo   - Verifique su version de Python: python --version
-    echo     Si es muy nueva (ej. 3.14), asegurese de que requirements.txt
-    echo     use versiones de paquetes con wheels para esa version.
-    echo   - Reintente: active DJENV y ejecute manualmente:
-    echo       call DJENV\Scripts\activate
-    echo       pip install -r requirements.txt
-    echo   - Si un paquete especifico falla, instale primero esa dependencia
-    echo     por separado para ver el error completo.
-    echo+
-    pause
-    exit /b 1
-)
+pip install -r requirements.txt || exit /b 1
 echo [OK] Dependencias instaladas.
-echo [DEBUG] Antes de makemigrations
 
 REM ---------------------------------------------------------------------------
 REM 7) Migraciones y datos iniciales
 REM ---------------------------------------------------------------------------
 echo Creando migraciones...
 python manage.py makemigrations user erp
-if not "%errorlevel%"=="0" (
+if errorlevel 1 (
     echo [ERROR] Fallo makemigrations.
     pause
     exit /b 1
@@ -583,13 +312,12 @@ if not "%errorlevel%"=="0" (
 
 echo Aplicando migraciones...
 python manage.py migrate
-if not "%errorlevel%"=="0" (
+if errorlevel 1 (
     echo [ERROR] Fallo migrate.
     pause
     exit /b 1
 )
 echo [OK] Migraciones aplicadas.
-echo [DEBUG] Despues de migrate
 
 REM ---------------------------------------------------------------------------
 REM 8) Superusuario y roles
@@ -605,7 +333,7 @@ del "%TEMP%\superuser_check.txt" 2>nul
 
 echo Configurando roles estandar...
 python manage.py setup_roles --migrate
-if not "%errorlevel%"=="0" (
+if errorlevel 1 (
     echo [ADVERTENCIA] No se pudieron configurar los roles.
 ) else (
     echo [OK] Roles configurados.
@@ -615,20 +343,20 @@ REM ---------------------------------------------------------------------------
 REM 9) Crear / verificar lanzador
 REM ---------------------------------------------------------------------------
 set "TARGET=%~dp0lanzar_pos.bat"
-if exist "%TARGET%" goto :launcher_done
-
-echo Creando lanzador lanzar_pos.bat...
-echo @echo off> "%TARGET%"
-echo cd /d "%%~dp0">> "%TARGET%"
-echo call DJENV\Scripts\activate>> "%TARGET%"
-echo set ENVIRONMENT=development>> "%TARGET%"
-echo echo Iniciando servidor Django en http://localhost:8000 ...>> "%TARGET%"
-echo start "POS_Local_Django" python manage.py runserver 0.0.0.0:8000>> "%TARGET%"
-echo timeout /t 7 /nobreak ^>nul>> "%TARGET%"
-echo start "" "http://localhost:8000/erp/launcher/">> "%TARGET%"
-echo exit>> "%TARGET%"
-
-:launcher_done
+if not exist "%TARGET%" (
+    echo Creando lanzador lanzar_pos.bat...
+    (
+        echo @echo off
+        echo cd /d "%%~dp0"
+        echo call DJENV\Scripts\activate
+        echo set ENVIRONMENT=development
+        echo echo Iniciando servidor Django en http://localhost:8000 ...
+        echo start "POS_Local_Django" python manage.py runserver 0.0.0.0:8000
+        echo timeout /t 7 /nobreak ^>nul
+        echo start "" "http://localhost:8000/erp/launcher/"
+        echo exit
+    ) > "%TARGET%"
+)
 
 REM ---------------------------------------------------------------------------
 REM 10) Acceso directo en el escritorio con icono
@@ -655,19 +383,19 @@ echo [OK] Acceso directo creado: %SHORTCUT%
 REM ---------------------------------------------------------------------------
 REM 11) Final
 REM ---------------------------------------------------------------------------
-echo+
+echo.
 echo ============================================
 echo   INSTALACION COMPLETADA
 echo ============================================
-echo+
+echo.
 echo Base de datos: %DEFAULT_DB_NAME% (%DEFAULT_DB_HOST%:%DEFAULT_DB_PORT%)
 echo Usuario DB:    %DEFAULT_DB_USER%
 echo Contrasena DB: %DEFAULT_DB_PASS%
-echo+
+echo.
 echo Para iniciar el POS:
 echo   - Use el acceso directo del escritorio
 echo   - O ejecute: lanzar_pos.bat
-echo+
+echo.
 if not "!LOCAL_DOMAIN!"=="" (
     echo URL del sistema: http://!LOCAL_DOMAIN!:8000/erp/launcher/
     echo URL del POS:     http://!LOCAL_DOMAIN!:8000/erp/sale/pos/
@@ -675,10 +403,10 @@ if not "!LOCAL_DOMAIN!"=="" (
     echo URL del sistema: http://localhost:8000/erp/launcher/
     echo URL del POS:     http://localhost:8000/erp/sale/pos/
 )
-echo+
+echo.
 
 choice /c SN /M "Desea iniciar el POS ahora"
-if not "%errorlevel%"=="0" (
+if errorlevel 2 (
     pause
     exit /b 0
 )
