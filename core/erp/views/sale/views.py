@@ -54,7 +54,16 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
         tipo_map = {1: 'A', 6: 'B', 11: 'C'}
         default_invoice_type = tipo_map.get(afip_config.get('tipo_comprobante', 6), 'B') if afip_config else 'B'
         context['default_invoice_type'] = default_invoice_type
-        
+
+        # Nombre de la empresa activa para mostrar en presupuestos/WhatsApp
+        active_company_name = ''
+        if active_cid:
+            from core.erp.models import Company
+            company_obj = Company.objects.filter(id=active_cid).first()
+            if company_obj:
+                active_company_name = company_obj.name
+        context['active_company_name'] = active_company_name
+
         # Obtener planes de cuotas de tarjeta
         from core.erp.models import CardInstallmentPlan
         card_plans = CardInstallmentPlan.objects.filter(is_active=True).order_by('name', 'installments')

@@ -2168,6 +2168,9 @@
     }
     const d = window.budgetWhatsAppData;
     let text = '*PRESUPUESTO*\n';
+    if (window.ACTIVE_COMPANY_NAME) {
+      text += '*' + window.ACTIVE_COMPANY_NAME + '*\n';
+    }
     text += 'Cliente: ' + d.client_name + '\n';
     text += 'Fecha: ' + new Date().toLocaleDateString() + '\n';
     text += '\n*Detalle:*\n';

@@ -1033,6 +1033,7 @@
 
 
 <script>
+window.ACTIVE_COMPANY_NAME = "{{ active_company_name|escapejs }}";
 document.addEventListener('DOMContentLoaded', function() {
   function getCsrf() {
     var csrf = document.querySelector('[name=csrfmiddlewaretoken]');
