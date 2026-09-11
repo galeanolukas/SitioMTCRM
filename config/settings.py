@@ -339,10 +339,21 @@ CSRF_COOKIE_AGE = 2592000
 # petición que borra la sesión del caché).
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 
-# Configurar caché basada en archivos para producción (compartido entre procesos)
-CACHES = {
-    'default': {
-        'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
-        'LOCATION': os.path.join(BASE_DIR, 'cache'),
+# Configurar caché según entorno
+# En desarrollo: locmem (en memoria, no escribe archivos que disparen
+# el autoreloader de runserver y reinicien el servidor constantemente).
+# En producción: filebased (compartido entre procesos uWSGI).
+if ENVIRONMENT == 'production':
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
+            'LOCATION': os.path.join(BASE_DIR, 'cache'),
+        }
     }
-}
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'pos-local-dev',
+        }
+    }
