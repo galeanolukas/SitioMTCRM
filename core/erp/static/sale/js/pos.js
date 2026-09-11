@@ -1399,6 +1399,8 @@
     let total = subtotal;
     const payMethod = ($('#payMethod').val() || 'cash');
     const budgetNotes = $('#budgetNotes').val() || '';
+    const priceListName = calc.price_list_name || null;
+    const discountAmount = calc.discount_amount || 0;
     
     // Si es tarjeta de crédito con plan de cuotas, calcular recargo
     let planInfo = null;
@@ -1460,6 +1462,20 @@
     } else {
       $('#budgetPlanInfo').hide();
     }
+
+    // Mostrar info de lista de precios si hay una aplicada
+    if (priceListName) {
+      $('#budgetPriceListName').text(priceListName);
+      if (discountAmount > 0.01) {
+        $('#budgetDiscountAmount').text(fmt(discountAmount));
+        $('#budgetDiscountRow').removeAttr('style').show();
+      } else {
+        $('#budgetDiscountRow').hide();
+      }
+      $('#budgetPriceListInfo').show();
+    } else {
+      $('#budgetPriceListInfo').hide();
+    }
     
     // Guardar datos para enviar después de confirmar
     const now = new Date();
@@ -1498,7 +1514,9 @@
       planInfo: planInfo,
       notes: budgetNotes,
       payMethod: payMethod,
-      combinedPaymentData: (payMethod === 'combined') ? window.combinedPaymentData : null
+      combinedPaymentData: (payMethod === 'combined') ? window.combinedPaymentData : null,
+      priceListName: priceListName,
+      discountAmount: discountAmount
     };
     
     // Mostrar modal
@@ -2178,6 +2196,12 @@
       text += '• ' + item.name + ' x' + item.cant + ' - $' + item.pvp.toFixed(2) + '\n';
     });
     text += '\n*Subtotal: $' + d.subtotal.toFixed(2) + '*\n';
+    if (d.priceListName) {
+      text += '*Lista: ' + d.priceListName + '*\n';
+      if (d.discountAmount && d.discountAmount > 0.01) {
+        text += '*Descuento: $' + d.discountAmount.toFixed(2) + '*\n';
+      }
+    }
     if (d.planInfo) {
       text += '*Plan: ' + d.planInfo.name + '*\n';
       text += '*Recargo: $' + d.planInfo.surcharge.toFixed(2) + ' (' + ((d.planInfo.multiplier - 1) * 100).toFixed(1) + '%)*\n';
