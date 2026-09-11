@@ -1394,12 +1394,15 @@
 
   function doCreateBudget() {
     const calc = buildPayload(false); // Usar precios netos (sin IVA)
-    const subtotal = calc.subtotal_con_iva; // Usar subtotal con IVA
+    const subtotal = calc.subtotal_neto; // Usar subtotal neto (con descuento aplicado, sin IVA)
     const iva = 0; // Presupuestos no tienen IVA
     let total = subtotal;
     const payMethod = ($('#payMethod').val() || 'cash');
     const budgetNotes = $('#budgetNotes').val() || '';
-    const priceListName = calc.price_list_name || null;
+    // Solo considerar lista de precios si hay un ID seleccionado (no basta con el nombre)
+    const priceListId = $('#selectedPriceListId').val() || null;
+    const rawPriceListName = $('#selectedPriceListName').text() || '';
+    const priceListName = (priceListId && rawPriceListName && rawPriceListName !== '-') ? rawPriceListName : null;
     const discountAmount = calc.discount_amount || 0;
     
     // Si es tarjeta de crédito con plan de cuotas, calcular recargo
