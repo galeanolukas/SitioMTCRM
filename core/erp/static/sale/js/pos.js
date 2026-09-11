@@ -1450,7 +1450,17 @@
     
     // Llenar totales
     $('#budgetConfirmItemsCount').text(calc.items_net.length);
-    $('#budgetConfirmSubtotal').text(fmt(subtotal));
+    // Si hay descuento, mostrar subtotal original + descuento + total con descuento
+    if (priceListName && discountAmount > 0.01) {
+      const subtotalOriginal = subtotal + discountAmount;
+      $('#budgetConfirmSubtotal').text(fmt(subtotalOriginal));
+      $('#budgetConfirmDiscount').text('-' + fmt(discountAmount));
+      $('#budgetConfirmSubtotalDiscounted').text(fmt(subtotal));
+      $('#budgetDiscountFooterRow').show();
+    } else {
+      $('#budgetConfirmSubtotal').text(fmt(subtotal));
+      $('#budgetDiscountFooterRow').hide();
+    }
     $('#budgetConfirmIva').text('$0.00');
     $('#budgetConfirmTotal').text(fmt(total));
 
@@ -2198,12 +2208,15 @@
     d.items.forEach(function(item) {
       text += '• ' + item.name + ' x' + item.cant + ' - $' + item.pvp.toFixed(2) + '\n';
     });
-    text += '\n*Subtotal: $' + d.subtotal.toFixed(2) + '*\n';
+    text += '\n*Subtotal: $' + (d.subtotal + (d.discountAmount || 0)).toFixed(2) + '*\n';
     if (d.priceListName) {
       text += '*Lista: ' + d.priceListName + '*\n';
       if (d.discountAmount && d.discountAmount > 0.01) {
-        text += '*Descuento: $' + d.discountAmount.toFixed(2) + '*\n';
+        text += '*Descuento: -$' + d.discountAmount.toFixed(2) + '*\n';
       }
+    }
+    if (d.discountAmount && d.discountAmount > 0.01) {
+      text += '*Subtotal c/desc.: $' + d.subtotal.toFixed(2) + '*\n';
     }
     if (d.planInfo) {
       text += '*Plan: ' + d.planInfo.name + '*\n';
