@@ -143,7 +143,8 @@ def update_status_human():
     if status['has_changes']:
         print("[ADVERTENCIA] Hay cambios locales sin commitear.")
         print("  Use --force para descartar los cambios y actualizar igual.")
-    
+        return False
+
     print("[OK] El sistema está listo para actualizar.")
     return True
 
@@ -296,15 +297,32 @@ def main():
             update_status_human()
         return
     
-    if not update_status_human():
-        sys.exit(1)
-    
+    # Mostrar estado del sistema
+    update_status_human()
     print()
-    response = input("¿Desea continuar con la actualización? (s/N): ")
-    if response.lower() not in ('s', 'si', 'y', 'yes'):
-        print("Actualización cancelada.")
-        return
-    
+
+    status = check_status()
+    if not status['git_available'] or not status['git_repo'] or not status['has_remote']:
+        sys.exit(1)
+
+    # Si hay cambios locales y no se paso --force, preguntar que hacer
+    if status['has_changes'] and not force:
+        print("[ADVERTENCIA] Hay cambios locales sin commitear.")
+        print("  Opciones:")
+        print("    s  - Descartar cambios y actualizar (equivalente a --force)")
+        print("    n  - Cancelar la actualizacion")
+        print()
+        response = input("¿Descartar cambios locales y actualizar? (s/N): ")
+        if response.lower() not in ('s', 'si', 'y', 'yes'):
+            print("Actualización cancelada.")
+            return
+        force = True
+    else:
+        response = input("¿Desea continuar con la actualización? (s/N): ")
+        if response.lower() not in ('s', 'si', 'y', 'yes'):
+            print("Actualización cancelada.")
+            return
+
     success = do_update(force=force)
     sys.exit(0 if success else 1)
 
