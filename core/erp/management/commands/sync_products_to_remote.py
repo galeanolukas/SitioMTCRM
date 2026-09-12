@@ -47,6 +47,20 @@ class Command(BaseCommand):
                         remote_cat = Category.objects.using('remote').create(
                             name=prod.cat.name,
                             desc=prod.cat.desc,
+                            category_type=prod.cat.category_type,
+                            external_code=prod.cat.external_code,
+                        )
+
+                # Resolver marca en remoto (Category de tipo brand)
+                remote_brand = None
+                if prod.brand_id:
+                    remote_brand = Category.objects.using('remote').filter(name=prod.brand.name).first()
+                    if not remote_brand:
+                        remote_brand = Category.objects.using('remote').create(
+                            name=prod.brand.name,
+                            desc=prod.brand.desc,
+                            category_type='brand',
+                            external_code=prod.brand.external_code,
                         )
 
                 # Resolver proveedor en remoto
@@ -81,9 +95,11 @@ class Command(BaseCommand):
                         remote_prod.codigo_proveedor = prod.codigo_proveedor
                     if remote_cat:
                         remote_prod.cat = remote_cat
+                    remote_prod.brand = remote_brand
                     remote_prod.supplier = remote_supplier
                     remote_prod.cost_price = prod.cost_price
                     remote_prod.supplier_discount = prod.supplier_discount
+                    remote_prod.external_code = prod.external_code
                     remote_prod.pvp = prod.pvp
                     remote_prod.iva_rate = prod.iva_rate
                     remote_prod.pvp_final = prod.pvp_final
@@ -96,9 +112,11 @@ class Command(BaseCommand):
                         'company_id': remote_company.id if remote_company else None,
                         'name': prod.name,
                         'cat': remote_cat,
+                        'brand': remote_brand,
                         'supplier': remote_supplier,
                         'cost_price': prod.cost_price,
                         'supplier_discount': prod.supplier_discount,
+                        'external_code': prod.external_code,
                         'pvp': prod.pvp,
                         'iva_rate': prod.iva_rate,
                         'pvp_final': prod.pvp_final,
@@ -127,9 +145,11 @@ class Command(BaseCommand):
                                     remote_prod.codigo_proveedor = prod.codigo_proveedor
                                 if remote_cat:
                                     remote_prod.cat = remote_cat
+                                remote_prod.brand = remote_brand
                                 remote_prod.supplier = remote_supplier
                                 remote_prod.cost_price = prod.cost_price
                                 remote_prod.supplier_discount = prod.supplier_discount
+                                remote_prod.external_code = prod.external_code
                                 remote_prod.pvp = prod.pvp
                                 remote_prod.iva_rate = prod.iva_rate
                                 remote_prod.pvp_final = prod.pvp_final

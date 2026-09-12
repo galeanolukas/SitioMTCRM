@@ -30,6 +30,8 @@ class Command(BaseCommand):
                         remote_sup = qs.filter(code=sup.code).first()
                     if not remote_sup and sup.cuit:
                         remote_sup = qs.filter(cuit=sup.cuit).first()
+                    if not remote_sup and sup.external_code:
+                        remote_sup = qs.filter(external_code=sup.external_code).first()
                     if not remote_sup:
                         remote_sup = qs.filter(name=sup.name).first()
                     if not remote_sup:
@@ -46,6 +48,7 @@ class Command(BaseCommand):
                             address=sup.address,
                             phone=sup.phone,
                             email=sup.email,
+                            external_code=sup.external_code,
                             default_discount_percentage=sup.default_discount_percentage,
                             is_active=sup.is_active,
                         )
@@ -57,6 +60,7 @@ class Command(BaseCommand):
                         remote_sup.address = sup.address
                         remote_sup.phone = sup.phone
                         remote_sup.email = sup.email
+                        remote_sup.external_code = sup.external_code
                         remote_sup.default_discount_percentage = sup.default_discount_percentage
                         remote_sup.is_active = sup.is_active
                         remote_sup.save(using='remote')

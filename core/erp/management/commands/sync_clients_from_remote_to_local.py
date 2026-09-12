@@ -139,6 +139,7 @@ class Command(BaseCommand):
                             local_client.surnames = remote_client.surnames
                             local_client.dni = remote_client.dni
                             local_client.cuit_cuil = remote_client.cuit_cuil
+                            local_client.external_code = getattr(remote_client, 'external_code', None)
                             local_client.date_birthday = remote_client.date_birthday
                             local_client.address = remote_client.address
                             local_client.gender = remote_client.gender
@@ -160,6 +161,7 @@ class Command(BaseCommand):
                                 surnames=remote_client.surnames,
                                 dni=remote_client.dni,
                                 cuit_cuil=remote_client.cuit_cuil,
+                                external_code=getattr(remote_client, 'external_code', None),
                                 date_birthday=remote_client.date_birthday,
                                 address=remote_client.address,
                                 gender=remote_client.gender,

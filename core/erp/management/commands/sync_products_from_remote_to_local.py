@@ -156,11 +156,18 @@ class Command(BaseCommand):
             # Sincronizar categoría primero si existe
             local_cat = None
             if remote_prod.cat_id:
-                # Buscar categoría local equivalente por nombre Y empresa
-                local_cat = Category.objects.using('default').filter(
-                    name=remote_prod.cat.name,
-                    company_id=active_company.id
-                ).first()
+                # Buscar categoría local equivalente por external_code o nombre Y empresa
+                local_cat = None
+                if remote_prod.cat.external_code:
+                    local_cat = Category.objects.using('default').filter(
+                        external_code=remote_prod.cat.external_code,
+                        company_id=active_company.id
+                    ).first()
+                if not local_cat:
+                    local_cat = Category.objects.using('default').filter(
+                        name=remote_prod.cat.name,
+                        company_id=active_company.id
+                    ).first()
                 
                 if not local_cat:
                     # Verificar si ya existe una categoría con ese nombre para otra empresa
@@ -177,18 +184,46 @@ class Command(BaseCommand):
                         local_cat = Category.objects.using('default').create(
                             name=remote_prod.cat.name,
                             desc=getattr(remote_prod.cat, 'desc', ''),
+                            category_type=getattr(remote_prod.cat, 'category_type', 'category'),
+                            external_code=getattr(remote_prod.cat, 'external_code', None),
                             company_id=active_company.id,
                             synced_to_server=True  # Viene del servidor
                         )
                         self.stdout.write(f"✅ Categoría '{remote_prod.cat.name}' creada localmente")
+
+            # Sincronizar marca primero si existe
+            local_brand = None
+            if getattr(remote_prod, 'brand_id', None):
+                if remote_prod.brand.external_code:
+                    local_brand = Category.objects.using('default').filter(
+                        external_code=remote_prod.brand.external_code,
+                        company_id=active_company.id
+                    ).first()
+                if not local_brand:
+                    local_brand = Category.objects.using('default').filter(
+                        name=remote_prod.brand.name,
+                        company_id=active_company.id
+                    ).first()
+                if not local_brand:
+                    local_brand = Category.objects.using('default').create(
+                        name=remote_prod.brand.name,
+                        desc=getattr(remote_prod.brand, 'desc', ''),
+                        category_type='brand',
+                        external_code=getattr(remote_prod.brand, 'external_code', None),
+                        company_id=active_company.id,
+                        synced_to_server=True
+                    )
+                    self.stdout.write(f"✅ Marca '{remote_prod.brand.name}' creada localmente")
 
             if local_prod is None:
                 # Crear nuevo producto local
                 local_prod = Product.objects.using('default').create(
                     company_id=active_company.id,
                     cat=local_cat,
+                    brand=local_brand,
                     code=remote_prod.code,
                     name=remote_prod.name,
+                    external_code=getattr(remote_prod, 'external_code', None),
                     pvp=remote_prod.pvp,
                     pvp_final=remote_prod.pvp_final,
                     cost_price=getattr(remote_prod, 'cost_price', 0),
@@ -210,12 +245,15 @@ class Command(BaseCommand):
                 self.stdout.write(f"✅ Producto '{remote_prod.name}' creado localmente")
             else:
                 # Actualizar producto existente
-                update_fields = ['name', 'pvp', 'pvp_final', 'cost_price', 'unit', 'stock', 
+                update_fields = ['name', 'external_code', 'pvp', 'pvp_final', 'cost_price', 'unit', 'stock', 
                                'min_stock', 'iva_rate']
                 
                 for field in update_fields:
                     if hasattr(remote_prod, field):
                         setattr(local_prod, field, getattr(remote_prod, field))
+                
+                if local_brand:
+                    local_prod.brand = local_brand
                 
                 if local_cat:
                     local_prod.cat = local_cat

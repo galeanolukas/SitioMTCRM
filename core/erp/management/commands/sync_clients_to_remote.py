@@ -30,6 +30,8 @@ class Command(BaseCommand):
                         remote_cli = qs.filter(dni=cli.dni).first()
                     if not remote_cli and cli.cuit_cuil:
                         remote_cli = qs.filter(cuit_cuil=cli.cuit_cuil).first()
+                    if not remote_cli and cli.external_code:
+                        remote_cli = qs.filter(external_code=cli.external_code).first()
                     if not remote_cli:
                         remote_cli = qs.filter(names=cli.names, company_id=cli.company_id).first()
                     if not remote_cli:
@@ -44,6 +46,7 @@ class Command(BaseCommand):
                             surnames=cli.surnames,
                             dni=cli.dni,
                             cuit_cuil=cli.cuit_cuil,
+                            external_code=cli.external_code,
                             date_birthday=cli.date_birthday,
                             address=cli.address,
                             gender=cli.gender,
@@ -55,6 +58,7 @@ class Command(BaseCommand):
                         remote_cli.surnames = cli.surnames
                         remote_cli.dni = cli.dni
                         remote_cli.cuit_cuil = cli.cuit_cuil
+                        remote_cli.external_code = cli.external_code
                         remote_cli.date_birthday = cli.date_birthday
                         remote_cli.address = cli.address
                         remote_cli.gender = cli.gender

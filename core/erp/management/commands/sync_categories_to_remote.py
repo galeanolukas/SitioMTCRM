@@ -96,15 +96,19 @@ class Command(BaseCommand):
                     cat.save(using='default')
                     continue
 
-                # Buscar categoría existente por nombre y empresa primero
-                remote_cat = Category.objects.using('remote').filter(name=cat.name, company_id=company_id).first()
+                # Buscar categoría existente por external_code, luego por nombre y empresa
+                remote_cat = None
+                if cat.external_code:
+                    remote_cat = Category.objects.using('remote').filter(external_code=cat.external_code, company_id=company_id).first()
+                if not remote_cat:
+                    remote_cat = Category.objects.using('remote').filter(name=cat.name, company_id=company_id).first()
                 if not remote_cat:
                     # Fallback: buscar por nombre sin empresa (puede tener company_id=None)
                     remote_cat = Category.objects.using('remote').filter(name=cat.name).first()
 
                 created = False
                 if remote_cat:
-                    # La categoría ya existe
+                    # La categoría ya existe - actualizar campos nuevos
                     if remote_cat.company_id != company_id:
                         # Actualizar la empresa de la categoría remota
                         if remote_cat.company_id is None:
@@ -112,11 +116,11 @@ class Command(BaseCommand):
                         else:
                             self.stdout.write(f"⚠️ Categoría '{cat.name}' existía (Empresa {remote_cat.company_id}), reasignando a Empresa {company_id}")
                         remote_cat.company_id = company_id
-                        remote_cat.save(using='remote')
-                        action = "actualizada (empresa reasignada)"
-                    else:
-                        self.stdout.write(f"✅ Categoría '{cat.name}' encontrada (Empresa {company_id})")
-                        action = "reutilizada (ya existía)"
+                    remote_cat.category_type = cat.category_type
+                    if cat.external_code:
+                        remote_cat.external_code = cat.external_code
+                    remote_cat.save(using='remote')
+                    action = "actualizada (empresa reasignada)" if remote_cat.company_id != company_id else "reutilizada (ya existía)"
                 else:
                     # Crear nueva categoría con empresa
                     try:
@@ -124,6 +128,8 @@ class Command(BaseCommand):
                             remote_cat = Category.objects.using('remote').create(
                                 name=cat.name,
                                 desc=cat.desc,
+                                category_type=cat.category_type,
+                                external_code=cat.external_code,
                                 company_id=company_id
                             )
                         created = True
