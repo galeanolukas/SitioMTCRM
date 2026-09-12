@@ -168,9 +168,15 @@ class PosTerminal(models.Model):
 
 
 class Category(BaseModel):
+    CATEGORY_TYPE_CHOICES = [
+        ('category', 'Categoría'),
+        ('brand', 'Marca'),
+    ]
     company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa', null=True, blank=True)
     name = models.CharField(max_length=150, verbose_name='Nombre')
     desc = models.CharField(max_length=500, null=True, blank=True, verbose_name='Descripción')
+    category_type = models.CharField(max_length=20, choices=CATEGORY_TYPE_CHOICES, default='category', verbose_name='Tipo')
+    external_code = models.CharField(max_length=50, null=True, blank=True, verbose_name='Código externo', help_text='Código del rubro/marca en el sistema de gestión externo (Bejerman, Tango, etc.).')
     synced_to_server = models.BooleanField(default=False, verbose_name='Sincronizado con servidor')
 
     def __str__(self):
@@ -235,9 +241,11 @@ class Product(models.Model):
     name = models.CharField(max_length=150, verbose_name='Nombre', unique=True)
     code = models.CharField(max_length=64, verbose_name='Código Barras', null=True, blank=True)
     codigo_proveedor = models.CharField(max_length=64, verbose_name='Código Proveedor', null=True, blank=True)
+    external_code = models.CharField(max_length=50, null=True, blank=True, verbose_name='Código externo/SKU', help_text='Código interno del producto en el sistema de gestión externo.')
     descripcion = models.TextField(null=True, blank=True, verbose_name='Descripción')
     qr_token = models.CharField(max_length=32, verbose_name='Token público QR', unique=True, null=True, blank=True)
     cat = models.ForeignKey(Category, on_delete=models.CASCADE, verbose_name='Categoría')
+    brand = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Marca', related_name='products_brand', help_text='Marca del producto (categoría de tipo marca).')
     supplier = models.ForeignKey('Supplier', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Proveedor')
     image = models.ImageField(upload_to='product/%Y/%m/%d', null=True, blank=True, verbose_name='Imagen')
     cost_price = models.DecimalField(default=0.00, max_digits=12, decimal_places=2, null=True, blank=True, verbose_name='Precio de costo (sin IVA)')
@@ -462,6 +470,7 @@ class Client(models.Model):
     limite_credito = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name='Límite de Crédito')
     descuento_habitual = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True, verbose_name='Descuento Habitual (%)')
     observaciones = models.TextField(null=True, blank=True, verbose_name='Observaciones')
+    external_code = models.CharField(max_length=50, null=True, blank=True, verbose_name='Código externo', help_text='Código del cliente en el sistema de gestión externo.')
     precio_lista = models.ForeignKey('PriceList', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Lista de precios')
     synced_to_server = models.BooleanField(default=False, verbose_name='Sincronizado con servidor')
     is_active = models.BooleanField(default=True, verbose_name='Activo')
@@ -593,6 +602,7 @@ class Supplier(models.Model):
     address = models.CharField(max_length=200, verbose_name='Dirección', blank=True, null=True)
     phone = models.CharField(max_length=30, verbose_name='Teléfono', blank=True, null=True)
     email = models.EmailField(verbose_name='Email', blank=True, null=True)
+    external_code = models.CharField(max_length=50, null=True, blank=True, verbose_name='Código externo', help_text='Código del proveedor en el sistema de gestión externo.')
     default_discount_percentage = models.DecimalField(default=0.00, max_digits=5, decimal_places=2, verbose_name='Descuento de compra (%)', help_text='Descuento general que aplica el proveedor sobre el precio de costo.')
     synced_to_server = models.BooleanField(default=False, verbose_name='Sincronizado con servidor')
     is_active = models.BooleanField(default=True, verbose_name='Activo')

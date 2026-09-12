@@ -95,12 +95,25 @@ class ProductForm(ModelForm):
             active_cid = get_active_company_id(self.request) if self.request else None
             if self.request and hasattr(self.request, 'user') and not getattr(self.request.user, 'is_superuser', False):
                 if active_cid:
-                    self.fields['cat'].queryset = Category.objects.filter(company_id=active_cid)
+                    self.fields['cat'].queryset = Category.objects.filter(company_id=active_cid, category_type='category')
                 else:
                     self.fields['cat'].queryset = Category.objects.none()
             else:
-                # Para superusuarios, mostrar todas las categorías
-                self.fields['cat'].queryset = Category.objects.all()
+                # Para superusuarios, mostrar todas las categorías (solo tipo category)
+                self.fields['cat'].queryset = Category.objects.filter(category_type='category')
+
+        # Filtrar marcas (categorías de tipo brand) por empresa
+        if 'brand' in self.fields:
+            self.fields['brand'].required = False
+            self.fields['brand'].empty_label = '--- Sin marca ---'
+            active_cid = get_active_company_id(self.request) if self.request else None
+            if self.request and hasattr(self.request, 'user') and not getattr(self.request.user, 'is_superuser', False):
+                if active_cid:
+                    self.fields['brand'].queryset = Category.objects.filter(company_id=active_cid, category_type='brand')
+                else:
+                    self.fields['brand'].queryset = Category.objects.none()
+            else:
+                self.fields['brand'].queryset = Category.objects.filter(category_type='brand')
         
         if 'company' in self.fields and self.request and hasattr(self.request, 'user') and not getattr(self.request.user, 'is_superuser', False):
             if getattr(self.request.user, 'company_id', None):
@@ -120,9 +133,11 @@ class ProductForm(ModelForm):
             'name',
             'code',
             'codigo_proveedor',
+            'external_code',
             'descripcion',
             'qr_token',
             'cat',
+            'brand',
             'supplier',
             'image',
             'cost_price',
@@ -332,7 +347,7 @@ class SupplierForm(ModelForm):
 
     class Meta:
         model = Supplier
-        fields = ['company', 'code', 'name', 'cuit', 'address', 'phone', 'email', 'default_discount_percentage']
+        fields = ['company', 'code', 'name', 'cuit', 'address', 'phone', 'email', 'external_code', 'default_discount_percentage']
         widgets = {
             'name': TextInput(attrs={'placeholder': 'Nombre proveedor'}),
             'cuit': TextInput(attrs={'placeholder': 'CUIT'}),
