@@ -34,6 +34,7 @@
                 <option value="product">Productos</option>
                 <option value="client">Clientes</option>
                 <option value="supplier">Proveedores</option>
+                <option value="category">Categorías/Marcas</option>
               </select>
             </div>
             <button type="button" class="btn btn-success btn-flat" onclick="importFromServer()">
@@ -57,6 +58,7 @@
             <option value="product">Productos</option>
             <option value="client">Clientes</option>
             <option value="supplier">Proveedores</option>
+            <option value="category">Categorías/Marcas</option>
           </select>
         </div>
         <div class="mb-3">
@@ -66,17 +68,22 @@
         <div class="mb-3" id="hintProduct">
           <small class="text-muted">
             <strong>Columnas básicas:</strong> code, name, categoria, pvp, unit, stock<br>
-            <strong>Columnas completas:</strong> code, name, categoria, pvp, iva_rate, pvp_final, cost_price, freight_percentage, unit, stock, company
+            <strong>Columnas completas:</strong> code, name, categoria, marca, pvp, iva_rate, pvp_final, cost_price, freight_percentage, supplier_discount, external_code, unit, stock, company
           </small>
         </div>
         <div class="mb-3" id="hintClient" style="display:none;">
           <small class="text-muted">
-            <strong>Columnas:</strong> names, surnames, dni, cuit_cuil, email, telefono, address, ciudad, provincia, condicion_iva
+            <strong>Columnas:</strong> names, surnames, dni, cuit_cuil, email, telefono, address, ciudad, provincia, condicion_iva, external_code
           </small>
         </div>
         <div class="mb-3" id="hintSupplier" style="display:none;">
           <small class="text-muted">
-            <strong>Columnas:</strong> name, cuit, address, phone, email
+            <strong>Columnas:</strong> name, cuit, address, phone, email, external_code, default_discount_percentage
+          </small>
+        </div>
+        <div class="mb-3" id="hintCategory" style="display:none;">
+          <small class="text-muted">
+            <strong>Columnas:</strong> name, category_type, external_code, desc
           </small>
         </div>
         <div class="mb-3">
@@ -128,7 +135,18 @@
       <ul class="mb-0">
         <li><strong>Campos obligatorios (*)</strong>: Nombre</li>
         <li><strong>Duplicados</strong>: Si el CUIT ya existe, se actualiza el proveedor</li>
-        <li><strong>Campos opcionales</strong>: CUIT, Dirección, Teléfono, Email</li>
+        <li><strong>Campos opcionales</strong>: CUIT, Dirección, Teléfono, Email, Código externo, Descuento (%)</li>
+      </ul>
+    </div>
+
+    <!-- Info Categorías/Marcas -->
+    <div class="alert alert-info" id="infoCategory" style="display:none;">
+      <h6><i class="fas fa-info-circle"></i> Importación de Categorías/Marcas:</h6>
+      <ul class="mb-0">
+        <li><strong>Campos obligatorios (*)</strong>: Nombre</li>
+        <li><strong>Tipo</strong>: Si no se mapea, se asigna "category" por defecto. Valores: category o brand</li>
+        <li><strong>Duplicados</strong>: Si ya existe una categoría con el mismo nombre, se actualiza</li>
+        <li><strong>Campos opcionales</strong>: Tipo, Código externo, Descripción</li>
       </ul>
     </div>
 
@@ -248,6 +266,30 @@
           </select>
           <small class="text-muted">Ej: 5 para 5%. Se suma al costo antes de calcular PVP</small>
         </div>
+        <div class="col-md-4 mt-2">
+          <label>Marca (brand) - opcional</label>
+          <select name="map_brand" class="form-control">
+            <option value="">-- Ninguna --</option>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+          <small class="text-muted">Nombre de la marca. Si no existe, se creará como categoría tipo brand.</small>
+        </div>
+        <div class="col-md-4 mt-2">
+          <label>Descuento de proveedor (%) - opcional</label>
+          <select name="map_supplier_discount" class="form-control">
+            <option value="">-- Ninguna --</option>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+          <small class="text-muted">Ej: 10 para 10%. Se aplica sobre el costo.</small>
+        </div>
+        <div class="col-md-4 mt-2">
+          <label>Código externo/SKU (external_code) - opcional</label>
+          <select name="map_external_code" class="form-control">
+            <option value="">-- Ninguna --</option>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+          <small class="text-muted">Código del producto en sistema externo (Bejerman, Tango, etc.)</small>
+        </div>
       </div>
 
       <!-- Campos Clientes -->
@@ -324,6 +366,14 @@
           <small class="text-muted">RI, M, CF, EX, NC</small>
         </div>
         <div class="col-md-4">
+          <label>Código externo (external_code) - opcional</label>
+          <select name="map_external_code" class="form-control">
+            <option value="">-- Ninguna --</option>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+          <small class="text-muted">Código del cliente en sistema externo</small>
+        </div>
+        <div class="col-md-4">
           <label>Tipo de Cliente</label>
           <select name="default_tipo_cliente" class="form-control">
             <option value="">-- Usar archivo --</option>
@@ -382,6 +432,55 @@
         <div class="col-md-4">
           <label>Email</label>
           <select name="map_supplier_email" class="form-control">
+            <option value="">-- Ninguna --</option>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label>Código externo (external_code) - opcional</label>
+          <select name="map_supplier_external_code" class="form-control">
+            <option value="">-- Ninguna --</option>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+          <small class="text-muted">Código del proveedor en sistema externo</small>
+        </div>
+        <div class="col-md-4">
+          <label>Descuento de compra (%) - opcional</label>
+          <select name="map_supplier_discount" class="form-control">
+            <option value="">-- Ninguna --</option>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+          <small class="text-muted">Ej: 10 para 10%. Descuento general del proveedor.</small>
+        </div>
+      </div>
+
+      <!-- Campos Categorías/Marcas -->
+      <div id="fieldsCategory" class="row" style="display:none;">
+        <div class="col-md-4">
+          <label>Nombre (name) <span class="text-danger">*</span></label>
+          <select name="map_cat_name" class="form-control" required>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label>Tipo (category_type) - opcional</label>
+          <select name="map_cat_type" class="form-control">
+            <option value="">-- Ninguna --</option>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+          <small class="text-muted">Valores: category o brand. Default: category</small>
+        </div>
+        <div class="col-md-4">
+          <label>Código externo (external_code) - opcional</label>
+          <select name="map_cat_external_code" class="form-control">
+            <option value="">-- Ninguna --</option>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+          <small class="text-muted">Código en sistema externo</small>
+        </div>
+        <div class="col-md-4">
+          <label>Descripción (desc) - opcional</label>
+          <select name="map_cat_desc" class="form-control">
             <option value="">-- Ninguna --</option>
             {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
           </select>
@@ -570,12 +669,12 @@ function toggleEntityFields() {
   var typeEl = document.getElementById('entityType');
   if (!typeEl) return;
   var type = typeEl.value;
-  var hints = ['hintProduct', 'hintClient', 'hintSupplier'];
-  var infos = ['infoProduct', 'infoClient', 'infoSupplier'];
-  var fields = ['fieldsProduct', 'fieldsClient', 'fieldsSupplier'];
-  var labels = {product: 'Productos', client: 'Clientes', supplier: 'Proveedores'};
-  var hintsMap = {product: 'hintProduct', client: 'hintClient', supplier: 'hintSupplier'};
-  var fieldsMap = {product: 'fieldsProduct', client: 'fieldsClient', supplier: 'fieldsSupplier'};
+  var hints = ['hintProduct', 'hintClient', 'hintSupplier', 'hintCategory'];
+  var infos = ['infoProduct', 'infoClient', 'infoSupplier', 'infoCategory'];
+  var fields = ['fieldsProduct', 'fieldsClient', 'fieldsSupplier', 'fieldsCategory'];
+  var labels = {product: 'Productos', client: 'Clientes', supplier: 'Proveedores', category: 'Categorías/Marcas'};
+  var hintsMap = {product: 'hintProduct', client: 'hintClient', supplier: 'hintSupplier', category: 'hintCategory'};
+  var fieldsMap = {product: 'fieldsProduct', client: 'fieldsClient', supplier: 'fieldsSupplier', category: 'fieldsCategory'};
 
   hints.forEach(function(id) { var el = document.getElementById(id); if (el) el.style.display = 'none'; });
   infos.forEach(function(id) { var el = document.getElementById(id); if (el) el.style.display = 'none'; });
@@ -611,6 +710,7 @@ function toggleEntityFields() {
     if (type === 'product') hint.textContent = 'Se crearán nuevos productos o actualizarán los existentes según el código';
     else if (type === 'client') hint.textContent = 'Se crearán nuevos clientes o actualizarán los existentes según el DNI';
     else if (type === 'supplier') hint.textContent = 'Se crearán nuevos proveedores o actualizarán los existentes según el CUIT';
+    else if (type === 'category') hint.textContent = 'Se crearán nuevas categorías/marcas o actualizarán las existentes según el nombre';
   }
 }
 
@@ -633,7 +733,7 @@ function importFromServer() {
   
   // Obtener tipo de entidad seleccionado
   const entityType = document.getElementById('serverEntityType').value;
-  const entityLabels = {product: 'Productos', client: 'Clientes', supplier: 'Proveedores'};
+  const entityLabels = {product: 'Productos', client: 'Clientes', supplier: 'Proveedores', category: 'Categorías/Marcas'};
   
   // Actualizar título del modal
   document.getElementById('serverImportModalTitle').textContent = 'Importar ' + entityLabels[entityType] + ' del Servidor';
@@ -664,7 +764,7 @@ function importFromServer() {
     const entityType = document.getElementById('serverEntityType').value;
     
     if (data.success) {
-      const entityLabels = {product: 'Productos', client: 'Clientes', supplier: 'Proveedores'};
+      const entityLabels = {product: 'Productos', client: 'Clientes', supplier: 'Proveedores', category: 'Categorías/Marcas'};
       const entityLabel = entityLabels[entityType] || 'Datos';
       
       let html = `
@@ -711,6 +811,11 @@ function importFromServer() {
                     <th>Email</th>
                     <th>Teléfono</th>
                     <th>Ciudad</th>
+                  ` : entityType === 'category' ? `
+                    <th>Nombre</th>
+                    <th>Tipo</th>
+                    <th>Código Externo</th>
+                    <th>Descripción</th>
                   ` : `
                     <th>Nombre</th>
                     <th>Código</th>
@@ -738,6 +843,11 @@ function importFromServer() {
                 <td>${item.email || '-'}</td>
                 <td>${item.telefono || '-'}</td>
                 <td>${item.ciudad || '-'}</td>
+              ` : entityType === 'category' ? `
+                <td><strong>${item.name}</strong></td>
+                <td>${item.category_type || 'category'}</td>
+                <td>${item.external_code || '-'}</td>
+                <td>${item.desc || '-'}</td>
               ` : `
                 <td><strong>${item.name}</strong></td>
                 <td>${item.code || '-'}</td>

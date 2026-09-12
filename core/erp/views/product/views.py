@@ -1243,6 +1243,27 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                 messages.error(request, 'Sesión de importación no encontrada. Analice el archivo nuevamente.')
                 return self.get(request, *args, **kwargs)
 
+            def parse_number(val):
+                """Parsea valores numéricos en formato argentino o internacional.
+                Ej: '$ 5300,00' -> 5300.0, '4240,00' -> 4240.0, '21%' -> 21.0
+                """
+                if val is None or (isinstance(val, float) and pd.isna(val)):
+                    return None
+                if isinstance(val, (int, float)) and not pd.isna(val):
+                    return float(val)
+                s = str(val).strip()
+                if not s:
+                    return None
+                s = s.replace('$', '').replace('€', '').replace('%', '').strip()
+                if ',' in s and '.' in s:
+                    s = s.replace('.', '').replace(',', '.')
+                elif ',' in s:
+                    s = s.replace(',', '.')
+                try:
+                    return float(s)
+                except ValueError:
+                    return None
+
             df = pd.read_json(import_json)
             import_logger.info(f"DataFrame cargado desde sesión - Filas: {len(df)}, Columnas: {len(df.columns)}")
 
@@ -1261,6 +1282,7 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                 map_ciudad = request.POST.get('map_ciudad')
                 map_provincia = request.POST.get('map_provincia')
                 map_condicion_iva = request.POST.get('map_condicion_iva')
+                map_external_code = request.POST.get('map_external_code')
                 default_tipo_cliente = request.POST.get('default_tipo_cliente') or None
                 default_precio_lista_id = request.POST.get('default_precio_lista') or None
 
@@ -1321,6 +1343,10 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                             iva_text = str(row.get(map_condicion_iva)).strip().lower()
                             condicion_iva = iva_map.get(iva_text, 'CF')
 
+                        external_code = ''
+                        if map_external_code and not pd.isna(row.get(map_external_code)):
+                            external_code = str(row.get(map_external_code)).strip()
+
                         client = Client.objects.filter(dni=dni).first()
                         if client is None:
                             client = Client(
@@ -1329,6 +1355,7 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                                 telefono=telefono or None, address=address or None,
                                 ciudad=ciudad or None, provincia=provincia or None,
                                 condicion_iva=condicion_iva, company_id=active_cid,
+                                external_code=external_code or None,
                                 tipo_cliente=default_tipo_cliente or 'minorista',
                                 precio_lista_id=default_precio_lista_id or None,
                                 is_active=True,
@@ -1344,6 +1371,7 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                             if address: client.address = address
                             if ciudad: client.ciudad = ciudad
                             if provincia: client.provincia = provincia
+                            if external_code: client.external_code = external_code
                             client.condicion_iva = condicion_iva
                             if active_cid: client.company_id = active_cid
                             if default_tipo_cliente: client.tipo_cliente = default_tipo_cliente
@@ -1367,6 +1395,8 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                 map_address = request.POST.get('map_supplier_address')
                 map_phone = request.POST.get('map_supplier_phone')
                 map_email = request.POST.get('map_supplier_email')
+                map_external_code = request.POST.get('map_supplier_external_code')
+                map_supplier_discount = request.POST.get('map_supplier_discount')
 
                 active_cid = get_active_company_id(request)
 
@@ -1404,11 +1434,23 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                         if map_email and not pd.isna(row.get(map_email)):
                             email = str(row.get(map_email)).strip()
 
+                        external_code = ''
+                        if map_external_code and not pd.isna(row.get(map_external_code)):
+                            external_code = str(row.get(map_external_code)).strip()
+
+                        supplier_discount_val = 0
+                        if map_supplier_discount and not pd.isna(row.get(map_supplier_discount)):
+                            parsed_sd = parse_number(row.get(map_supplier_discount))
+                            if parsed_sd is not None:
+                                supplier_discount_val = parsed_sd
+
                         supplier = None
                         if code:
                             supplier = Supplier.objects.filter(code=code).first()
                         if supplier is None and cuit:
                             supplier = Supplier.objects.filter(cuit=cuit).first()
+                        if supplier is None and external_code:
+                            supplier = Supplier.objects.filter(external_code=external_code).first()
                         if supplier is None:
                             supplier = Supplier.objects.filter(name__iexact=name).first()
 
@@ -1416,6 +1458,8 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                             supplier = Supplier(
                                 name=name, code=code or None, cuit=cuit or None, address=address or None,
                                 phone=phone or None, email=email or None, company_id=active_cid,
+                                external_code=external_code or None,
+                                default_discount_percentage=supplier_discount_val,
                             )
                             supplier.save()
                             created += 1
@@ -1426,12 +1470,89 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                             if address: supplier.address = address
                             if phone: supplier.phone = phone
                             if email: supplier.email = email
+                            if external_code: supplier.external_code = external_code
+                            if supplier_discount_val: supplier.default_discount_percentage = supplier_discount_val
                             if active_cid: supplier.company_id = active_cid
                             supplier.save()
                             updated += 1
                     except Exception as e:
                         errors.append(f'Fila {idx+1}: {e}')
                         import_logger.error(f"Error procesando proveedor fila {idx+1}: {e}")
+
+                ctx = {'result': True, 'created': created, 'updated': updated, 'errors': errors}
+                for k in ('import_cols', 'import_df'):
+                    request.session.pop(k, None)
+                return self.render_to_response(ctx)
+
+            # --- Importar categorías/marcas ---
+            if entity_type == 'category':
+                map_name = request.POST.get('map_cat_name')
+                map_type = request.POST.get('map_cat_type')
+                map_external_code = request.POST.get('map_cat_external_code')
+                map_desc = request.POST.get('map_cat_desc')
+
+                active_cid = get_active_company_id(request)
+
+                created, updated = 0, 0
+                errors = []
+
+                for idx, row in df.iterrows():
+                    try:
+                        if row.isna().all():
+                            continue
+                        raw_name = row.get(map_name) if map_name else None
+                        name = str(raw_name).strip() if raw_name is not None and not pd.isna(raw_name) else ''
+                        if not name:
+                            errors.append(f'Fila {idx+1}: Nombre vacío.')
+                            continue
+
+                        cat_type = 'category'
+                        if map_type and not pd.isna(row.get(map_type)):
+                            tval = str(row.get(map_type)).strip().lower()
+                            if tval in ('brand', 'marca'):
+                                cat_type = 'brand'
+                            elif tval in ('category', 'categoria', 'categoría'):
+                                cat_type = 'category'
+
+                        external_code = ''
+                        if map_external_code and not pd.isna(row.get(map_external_code)):
+                            external_code = str(row.get(map_external_code)).strip()
+
+                        desc = ''
+                        if map_desc and not pd.isna(row.get(map_desc)):
+                            desc = str(row.get(map_desc)).strip()
+
+                        # Buscar existente por external_code o nombre
+                        cat = None
+                        if external_code:
+                            cat = Category.objects.filter(external_code=external_code).first()
+                        if cat is None:
+                            cat = Category.objects.filter(name__iexact=name).first()
+
+                        if cat is None:
+                            cat = Category(
+                                name=name.upper(),
+                                category_type=cat_type,
+                                external_code=external_code or None,
+                                desc=desc or None,
+                                company_id=active_cid,
+                            )
+                            cat.save()
+                            created += 1
+                        else:
+                            cat.name = name.upper()
+                            cat.category_type = cat_type
+                            if external_code:
+                                cat.external_code = external_code
+                            if desc:
+                                cat.desc = desc
+                            if active_cid:
+                                cat.company_id = active_cid
+                            cat.save()
+                            updated += 1
+                    except Exception as e:
+                        errors.append(f'Fila {idx+1}: {e}')
+                        import_logger.error(f"Error procesando categoria fila {idx+1}: {e}")
 
                 ctx = {'result': True, 'created': created, 'updated': updated, 'errors': errors}
                 for k in ('import_cols', 'import_df'):
@@ -1454,31 +1575,9 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
             map_margin = request.POST.get('map_margin')
             map_cost_price = request.POST.get('map_cost_price')
             map_freight_percentage = request.POST.get('map_freight_percentage')
-
-            def parse_number(val):
-                """Parsea valores numéricos en formato argentino o internacional.
-                Ej: '$ 5300,00' -> 5300.0, '4240,00' -> 4240.0, '21%' -> 21.0
-                """
-                if val is None or (isinstance(val, float) and pd.isna(val)):
-                    return None
-                if isinstance(val, (int, float)) and not pd.isna(val):
-                    return float(val)
-                s = str(val).strip()
-                if not s:
-                    return None
-                # Remover símbolos de moneda, espacios, y %
-                s = s.replace('$', '').replace('€', '').replace('%', '').strip()
-                # Si tiene punto como separador de miles y coma como decimal (formato AR)
-                # Ej: '5.300,00' -> '5300.00'
-                if ',' in s and '.' in s:
-                    s = s.replace('.', '').replace(',', '.')
-                elif ',' in s:
-                    # Solo coma como separador decimal: '5300,00' -> '5300.00'
-                    s = s.replace(',', '.')
-                try:
-                    return float(s)
-                except ValueError:
-                    return None
+            map_brand = request.POST.get('map_brand')
+            map_supplier_discount = request.POST.get('map_supplier_discount')
+            map_external_code = request.POST.get('map_external_code')
 
             import_logger.info(f"Mapeo de columnas - name: {map_name}, code: {map_code}, cat: {map_cat}, pvp: {map_pvp}, stock: {map_stock}")
 
@@ -1784,6 +1883,31 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                         if parsed_freight is not None:
                             freight_pct = parsed_freight
 
+                    # Marca (opcional): buscar o crear Category tipo brand
+                    brand_obj = None
+                    if map_brand and not pd.isna(row.get(map_brand)):
+                        brand_name = str(row[map_brand]).strip()
+                        if brand_name:
+                            brand_obj = Category.objects.filter(name__iexact=brand_name, category_type='brand').first()
+                            if not brand_obj:
+                                brand_obj = Category.objects.create(
+                                    name=brand_name.upper(),
+                                    category_type='brand',
+                                    company_id=company_id or active_cid,
+                                )
+
+                    # Descuento de proveedor (opcional, default 0)
+                    supplier_discount_val = 0
+                    if map_supplier_discount and not pd.isna(row.get(map_supplier_discount)):
+                        parsed_sd = parse_number(row.get(map_supplier_discount))
+                        if parsed_sd is not None:
+                            supplier_discount_val = parsed_sd
+
+                    # Código externo (opcional)
+                    external_code_val = None
+                    if map_external_code and not pd.isna(row.get(map_external_code)):
+                        external_code_val = str(row[map_external_code]).strip() or None
+
                     # Upsert: primero por código, luego por nombre (unique constraint)
                     prod = products_by_code.get(code)
                     if prod is None and name:
@@ -1814,6 +1938,11 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                             prod.supplier = supplier_obj
                         if codigo_prov:
                             prod.codigo_proveedor = codigo_prov
+                        if brand_obj:
+                            prod.brand = brand_obj
+                        prod.supplier_discount = supplier_discount_val
+                        if external_code_val:
+                            prod.external_code = external_code_val
                         prod.margin_percentage = margin_pct
                         if cost_price is not None:
                             prod.cost_price = cost_price
@@ -1852,6 +1981,12 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                             prod.supplier = supplier_obj
                         if codigo_prov:
                             prod.codigo_proveedor = codigo_prov
+                        if brand_obj:
+                            prod.brand = brand_obj
+                        if supplier_discount_val:
+                            prod.supplier_discount = supplier_discount_val
+                        if external_code_val:
+                            prod.external_code = external_code_val
                         prod.margin_percentage = margin_pct
                         if cost_price is not None:
                             prod.cost_price = cost_price
@@ -1955,6 +2090,8 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
             return self.import_clients_from_server(request)
         elif entity_type == 'supplier':
             return self.import_suppliers_from_server(request)
+        elif entity_type == 'category':
+            return self.import_categories_from_server(request)
         else:
             return JsonResponse({
                 'success': False,
@@ -2180,6 +2317,72 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
             return JsonResponse({
                 'success': False,
                 'message': f'Error al sincronizar proveedores: {str(e)}',
+                'error_type': type(e).__name__,
+                'debug_info': error_details if settings.DEBUG else None
+            })
+
+    def import_categories_from_server(self, request):
+        """Importar categorías/marcas desde el servidor remoto"""
+        from django.core.management import call_command
+        from core.erp.models import Category, Company
+        import io
+        from contextlib import redirect_stdout
+
+        try:
+            user = request.user
+            if not hasattr(user, 'company') or not user.company:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'El usuario no tiene una empresa asignada'
+                })
+
+            company = user.company
+            local_count_before = Category.objects.filter(company=company).count()
+
+            # Sincronizar categorías desde el servidor
+            captured_output = io.StringIO()
+            with redirect_stdout(captured_output):
+                call_command("sync_categories_from_remote_to_local", "--company-id", str(company.id))
+
+            output = captured_output.getvalue()
+            local_count_after = Category.objects.filter(company=company).count()
+            new_cats = local_count_after - local_count_before
+
+            imported_cats = Category.objects.filter(company=company).values(
+                'id', 'name', 'category_type', 'external_code', 'desc'
+            )
+
+            cats_list = []
+            for cat in imported_cats:
+                cats_list.append({
+                    'id': cat['id'],
+                    'name': cat['name'],
+                    'category_type': cat.get('category_type', 'category') or 'category',
+                    'external_code': cat.get('external_code') or '',
+                    'desc': cat.get('desc') or ''
+                })
+
+            return JsonResponse({
+                'success': True,
+                'items': cats_list,
+                'message': f'Sincronización completada para {company.name}. {new_cats} categorías/marcas nuevas importadas.',
+                'output': output,
+                'stats': {
+                    'before': local_count_before,
+                    'after': local_count_after,
+                    'new': new_cats,
+                    'company': company.name
+                }
+            })
+
+        except Exception as e:
+            import traceback
+            error_details = f"Error: {str(e)}\nTipo: {type(e).__name__}\nTraceback: {traceback.format_exc()}"
+            print(f"ERROR IMPORT CATEGORIES FROM SERVER: {error_details}")
+
+            return JsonResponse({
+                'success': False,
+                'message': f'Error al sincronizar categorías: {str(e)}',
                 'error_type': type(e).__name__,
                 'debug_info': error_details if settings.DEBUG else None
             })
