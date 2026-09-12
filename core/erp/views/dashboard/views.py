@@ -1010,6 +1010,7 @@ class SupplierView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Template
                         'phone': i.phone or '',
                         'email': i.email or '',
                         'company': i.company_id or None,
+                        'default_discount_percentage': float(i.default_discount_percentage or 0),
                     })
             elif action == 'add':
                 with transaction.atomic():
@@ -1062,6 +1063,16 @@ class SupplierView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Template
         context['create_url'] = reverse_lazy('erp:supplier_list')
         context['form'] = SupplierForm(request=self.request)
         return context
+
+
+@login_required
+def supplier_discount_api(request, pk):
+    """API simple: devuelve el descuento general de un proveedor."""
+    from django.http import JsonResponse
+    supplier = Supplier.objects.filter(pk=pk).first()
+    if not supplier:
+        return JsonResponse({'error': 'Proveedor no encontrado'}, status=404)
+    return JsonResponse({'discount': float(supplier.default_discount_percentage or 0)})
 
 
 class CompanyUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, UpdateView):

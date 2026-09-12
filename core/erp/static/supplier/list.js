@@ -56,9 +56,18 @@ function getData() {
       { data: 'address' },
       { data: 'phone' },
       { data: 'email' },
+      { data: 'default_discount_percentage' },
       { data: 'id' }
     ],
     columnDefs: [
+      {
+        targets: [-2],
+        class: 'text-center',
+        render: function (data, type, row) {
+          var v = parseFloat(data) || 0;
+          return v > 0 ? '<span class="badge bg-info">' + v + '%</span>' : '<span class="text-muted">-</span>';
+        }
+      },
       {
         targets: [-1],
         class: 'text-center',
@@ -109,6 +118,7 @@ $(function () {
       $('input[name="address"]').val(data.address || '');
       $('input[name="phone"]').val(data.phone || '');
       $('input[name="email"]').val(data.email || '');
+      $('input[name="default_discount_percentage"]').val(data.default_discount_percentage || 0);
 
       // Si el form muestra company para superusuario, prefijarlo
       if ($('select[name="company"]').length) {

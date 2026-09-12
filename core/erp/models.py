@@ -258,6 +258,7 @@ class Product(models.Model):
     last_synced_stock = models.DecimalField(default=0.00, max_digits=12, decimal_places=2, null=True, blank=True, verbose_name='Stock al último sync')
     stock_modified_locally = models.DateTimeField(blank=True, null=True, verbose_name='Última modificación local de stock')
     track_stock = models.BooleanField(default=True, verbose_name='Controlar stock')
+    supplier_discount = models.DecimalField(default=0.00, max_digits=5, decimal_places=2, verbose_name='Descuento de proveedor (%)', help_text='Descuento sobre el precio de costo. Si es 0, usa el descuento general del proveedor.')
 
     def clean(self):
         from django.core.exceptions import ValidationError
@@ -292,6 +293,14 @@ class Product(models.Model):
 
     def __str__(self):
         return self.name
+
+    def get_supplier_discount(self):
+        """Devuelve el descuento efectivo: el del producto si > 0, sino el del proveedor."""
+        if self.supplier_discount and self.supplier_discount > 0:
+            return self.supplier_discount
+        if self.supplier_id and self.supplier.default_discount_percentage and self.supplier.default_discount_percentage > 0:
+            return self.supplier.default_discount_percentage
+        return Decimal('0.00')
 
     def save(self, *args, **kwargs):
         # Setear empresa por defecto SOLO si no tiene y es creación
@@ -584,6 +593,7 @@ class Supplier(models.Model):
     address = models.CharField(max_length=200, verbose_name='Dirección', blank=True, null=True)
     phone = models.CharField(max_length=30, verbose_name='Teléfono', blank=True, null=True)
     email = models.EmailField(verbose_name='Email', blank=True, null=True)
+    default_discount_percentage = models.DecimalField(default=0.00, max_digits=5, decimal_places=2, verbose_name='Descuento de compra (%)', help_text='Descuento general que aplica el proveedor sobre el precio de costo.')
     synced_to_server = models.BooleanField(default=False, verbose_name='Sincronizado con servidor')
     is_active = models.BooleanField(default=True, verbose_name='Activo')
 

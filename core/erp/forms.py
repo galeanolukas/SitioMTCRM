@@ -126,6 +126,7 @@ class ProductForm(ModelForm):
             'supplier',
             'image',
             'cost_price',
+            'supplier_discount',
             'freight_percentage',
             'pvp',
             'iva_rate',
@@ -331,7 +332,7 @@ class SupplierForm(ModelForm):
 
     class Meta:
         model = Supplier
-        fields = ['company', 'code', 'name', 'cuit', 'address', 'phone', 'email']
+        fields = ['company', 'code', 'name', 'cuit', 'address', 'phone', 'email', 'default_discount_percentage']
         widgets = {
             'name': TextInput(attrs={'placeholder': 'Nombre proveedor'}),
             'cuit': TextInput(attrs={'placeholder': 'CUIT'}),

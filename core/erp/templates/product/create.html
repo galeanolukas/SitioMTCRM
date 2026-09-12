@@ -127,16 +127,19 @@
         }
       }
       
-      // Calcular automáticamente pvp cuando cambia cost_price, freight_percentage o margin_percentage
+      // Calcular automáticamente pvp cuando cambia cost_price, supplier_discount, freight_percentage o margin_percentage
       function calcularPVPDesdeCosto() {
         const costPrice = parseFloat($('#id_cost_price').val()) || 0;
+        const supplierDiscount = parseFloat($('#id_supplier_discount').val()) || 0;
         const freightPct = parseFloat($('#id_freight_percentage').val()) || 0;
         const marginPercentage = parseFloat($('#id_margin_percentage').val()) || 0;
 
         // Solo calcular si hay valores válidos
         if (costPrice > 0 && marginPercentage >= 0) {
-          // Costo + Flete: Costo * (1 + Flete%)
-          const costWithFreight = costPrice * (1 + freightPct / 100);
+          // Aplicar descuento de proveedor: Costo * (1 - Descuento%)
+          const costAfterDiscount = costPrice * (1 - supplierDiscount / 100);
+          // Costo + Flete: Costo con descuento * (1 + Flete%)
+          const costWithFreight = costAfterDiscount * (1 + freightPct / 100);
           // PVP = Costo total * (1 + Margen)
           const marginRate = marginPercentage / 100;
           let calculatedPVP = costWithFreight * (1 + marginRate);
@@ -167,9 +170,29 @@
         calcularPVPDesdeCosto();
       });
       
+      // Event listener: descuento de proveedor también dispara el cálculo
+      $('#id_supplier_discount').on('input change', function() {
+        calcularPVPDesdeCosto();
+      });
+      
       // Event listener: flete también dispara el cálculo
       $('#id_freight_percentage').on('input change', function() {
         calcularPVPDesdeCosto();
+      });
+      
+      // Event listener: al cambiar proveedor, sugerir su descuento general si el producto no tiene uno
+      $('#id_supplier').on('change', function() {
+        const supplierId = $(this).val();
+        const currentDiscount = parseFloat($('#id_supplier_discount').val()) || 0;
+        if (supplierId && currentDiscount === 0) {
+          // AJAX para obtener el descuento del proveedor
+          $.get('/erp/supplier/' + supplierId + '/discount/', function(data) {
+            if (data.discount && data.discount > 0) {
+              $('#id_supplier_discount').val(data.discount);
+              calcularPVPDesdeCosto();
+            }
+          }).fail(function() {});
+        }
       });
       
       // Si el usuario modifica pvp_final manualmente, no volver a calcular automáticamente

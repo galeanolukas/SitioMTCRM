@@ -141,6 +141,7 @@ class Command(BaseCommand):
                             local_supplier.address = remote_supplier.address
                             local_supplier.phone = remote_supplier.phone
                             local_supplier.email = remote_supplier.email
+                            local_supplier.default_discount_percentage = remote_supplier.default_discount_percentage
                             local_supplier.is_active = remote_supplier.is_active
                             local_supplier.save(using='default')
                             updated += 1
@@ -154,6 +155,7 @@ class Command(BaseCommand):
                                 address=remote_supplier.address,
                                 phone=remote_supplier.phone,
                                 email=remote_supplier.email,
+                                default_discount_percentage=remote_supplier.default_discount_percentage,
                                 is_active=remote_supplier.is_active,
                             )
                             synced += 1

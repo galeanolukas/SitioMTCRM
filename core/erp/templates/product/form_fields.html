@@ -26,7 +26,14 @@
       {% if field.name == 'cost_price' %}
         <small class="form-text text-muted">
           <i class="fas fa-info-circle"></i> 
-          Precio de costo sin IVA. Al modificar este campo, se recalculará el PVP según el flete y margen establecidos.
+          Precio de costo sin IVA. Al modificar este campo, se recalculará el PVP según el descuento de proveedor, flete y margen establecidos.
+        </small>
+      {% endif %}
+      
+      {% if field.name == 'supplier_discount' %}
+        <small class="form-text text-muted">
+          <i class="fas fa-info-circle"></i> 
+          Descuento del proveedor sobre el precio de costo (%). Si es 0, usa el descuento general del proveedor seleccionado.
         </small>
       {% endif %}
       

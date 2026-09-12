@@ -2228,8 +2228,9 @@
       text += '*Subtotal c/desc.: $' + d.subtotal.toFixed(2) + '*\n';
     }
     if (d.planInfo) {
-      text += '*Plan: ' + d.planInfo.name + '*\n';
-      text += '*CFT: $' + d.planInfo.surcharge.toFixed(2) + ' (' + ((d.planInfo.multiplier - 1) * 100).toFixed(1) + '%)*\n';
+      // Limpiar el nombre del plan: quitar el multiplicador (ej: "(1,1400x)")
+      const cleanPlanName = d.planInfo.name.replace(/\s*\([\d.,]+x\)\s*/g, '').trim();
+      text += '*Plan: ' + cleanPlanName + '*\n';
       text += '*Total: $' + d.planInfo.total_with_surcharge.toFixed(2) + '*\n';
       text += d.planInfo.installments + ' cuotas de $' + d.planInfo.installment_amount.toFixed(2) + '\n';
     } else {

@@ -156,8 +156,10 @@ class ProductListView(ValidatePermissionRequiredMixin, LoginRequiredMixin, ListV
                                 # Sumar el porcentaje al margen existente
                                 prod.margin_percentage = (prod.margin_percentage or Decimal('0')) + percentage
 
-                                # Recalcular PVP: costo * (1 + flete%) * (1 + margen%)
-                                cost_with_freight = prod.cost_price * (1 + (prod.freight_percentage or Decimal('0')) / 100)
+                                # Recalcular PVP: costo * (1 - descuento%) * (1 + flete%) * (1 + margen%)
+                                discount = prod.get_supplier_discount()
+                                cost_after_discount = prod.cost_price * (1 - discount / 100)
+                                cost_with_freight = cost_after_discount * (1 + (prod.freight_percentage or Decimal('0')) / 100)
                                 margin_rate = prod.margin_percentage / 100
                                 new_pvp = (cost_with_freight * (1 + margin_rate)).quantize(Decimal('0.01'))
                                 # Redondear hacia arriba al entero

@@ -46,6 +46,7 @@ class Command(BaseCommand):
                             address=sup.address,
                             phone=sup.phone,
                             email=sup.email,
+                            default_discount_percentage=sup.default_discount_percentage,
                             is_active=sup.is_active,
                         )
                     else:
@@ -56,6 +57,7 @@ class Command(BaseCommand):
                         remote_sup.address = sup.address
                         remote_sup.phone = sup.phone
                         remote_sup.email = sup.email
+                        remote_sup.default_discount_percentage = sup.default_discount_percentage
                         remote_sup.is_active = sup.is_active
                         remote_sup.save(using='remote')
 

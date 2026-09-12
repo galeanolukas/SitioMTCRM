@@ -19,6 +19,7 @@ from core.erp.views.dashboard.views import (
     CompanyView,
     LauncherView,
     SupplierView,
+    supplier_discount_api,
     ReportsHomeView,
     UpdatesView,
     report_inventory_export,
@@ -189,6 +190,7 @@ urlpatterns = [
     path('sync/config/', AutoSyncConfigUpdateView.as_view(), name='sync_config'),
     # supplier
     path('supplier/list/', SupplierView.as_view(), name='supplier_list'),
+    path('supplier/<int:pk>/discount/', supplier_discount_api, name='supplier_discount_api'),
     # expenses
     path('expense/list/', ExpenseListView.as_view(), name='expense_list'),
     path('expense/add/', ExpenseCreateView.as_view(), name='expense_create'),
