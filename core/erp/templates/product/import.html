@@ -59,6 +59,7 @@
             <option value="client">Clientes</option>
             <option value="supplier">Proveedores</option>
             <option value="category">Categorías/Marcas</option>
+            <option value="stock">Conteo de Stock</option>
           </select>
         </div>
         <div class="mb-3">
@@ -84,6 +85,12 @@
         <div class="mb-3" id="hintCategory" style="display:none;">
           <small class="text-muted">
             <strong>Columnas:</strong> name, category_type, external_code, desc
+          </small>
+        </div>
+        <div class="mb-3" id="hintStock" style="display:none;">
+          <small class="text-muted">
+            <strong>Columnas mínimas:</strong> codigo, cantidad<br>
+            <strong>Opcional:</strong> nombre (solo referencia/match por nombre)
           </small>
         </div>
         <div class="mb-3">
@@ -147,6 +154,18 @@
         <li><strong>Tipo</strong>: Si no se mapea, se asigna "category" por defecto. Valores: category o brand</li>
         <li><strong>Duplicados</strong>: Si ya existe una categoría con el mismo nombre, se actualiza</li>
         <li><strong>Campos opcionales</strong>: Tipo, Código externo, Descripción</li>
+      </ul>
+    </div>
+
+    <!-- Info Conteo de Stock -->
+    <div class="alert alert-warning" id="infoStock" style="display:none;">
+      <h6><i class="fas fa-exclamation-triangle"></i> Conteo de Stock:</h6>
+      <ul class="mb-0">
+        <li><strong>Campos obligatorios (*)</strong>: Código del producto y Cantidad contada</li>
+        <li><strong>Match</strong>: se busca el producto por código de barras, código externo, código de proveedor o nombre exacto</li>
+        <li><strong>Solo modifica el stock</strong>: no toca precios, categorías ni otros datos del producto</li>
+        <li><strong>No crea productos</strong>: los códigos no encontrados se listan al final para revisar</li>
+        <li>Los cambios quedan marcados para sincronizar con el servidor</li>
       </ul>
     </div>
 
@@ -487,6 +506,39 @@
         </div>
       </div>
 
+      <!-- Campos Conteo de Stock -->
+      <div id="fieldsStock" class="row" style="display:none;">
+        <div class="col-md-4">
+          <label>Código del producto <span class="text-danger">*</span></label>
+          <select name="map_stock_code" class="form-control" required>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+          <small class="text-muted">Busca en código de barras, código externo o código de proveedor</small>
+        </div>
+        <div class="col-md-4">
+          <label>Cantidad contada <span class="text-danger">*</span></label>
+          <select name="map_stock_qty" class="form-control" required>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+          <small class="text-muted">Stock físico contado del producto</small>
+        </div>
+        <div class="col-md-4">
+          <label>Nombre (referencia) - opcional</label>
+          <select name="map_stock_name" class="form-control">
+            <option value="">-- Ninguna --</option>
+            {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+          <small class="text-muted">Se muestra en resultados y sirve de match alternativo</small>
+        </div>
+        <div class="col-md-4 mt-2">
+          <label>Modo de aplicación</label>
+          <select name="stock_mode" class="form-control">
+            <option value="replace">Reemplazar stock (conteo físico)</option>
+            <option value="add">Sumar al stock actual (ingreso de mercadería)</option>
+          </select>
+        </div>
+      </div>
+
       <div class="mt-3">
         <button class="btn btn-success btn-flat" id="importBtn"><i class="fas fa-upload"></i> Importar</button>
         <small class="text-muted ml-2" id="importHint">Se crearán nuevos productos o actualizarán los existentes según el código</small>
@@ -573,6 +625,14 @@
         <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
           <table class="table table-sm table-striped">
             <thead class="table-warning">
+              {% if entity_type == 'stock' %}
+              <tr>
+                <th>Código</th>
+                <th>Nombre</th>
+                <th>Stock anterior</th>
+                <th>Stock nuevo</th>
+              </tr>
+              {% else %}
               <tr>
                 <th>Código</th>
                 <th>Nombre</th>
@@ -581,16 +641,49 @@
                 <th>IVA</th>
                 <th>Stock</th>
               </tr>
+              {% endif %}
             </thead>
             <tbody>
               {% for item in updated_items %}
               <tr>
                 <td><strong>{{ item.code }}</strong></td>
                 <td>{{ item.name }}</td>
+                {% if entity_type == 'stock' %}
+                <td>{{ item.old_stock }}</td>
+                <td><strong>{{ item.stock }}</strong></td>
+                {% else %}
                 <td>{{ item.cat }}</td>
                 <td>${{ item.pvp|floatformat:2 }}</td>
                 <td>{{ item.iva }}</td>
                 <td>{{ item.stock }}</td>
+                {% endif %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Códigos no encontrados (conteo de stock) -->
+      {% if not_found_items %}
+      <div class="mt-4">
+        <h6 class="text-danger"><i class="fas fa-search"></i> Códigos no encontrados ({{ not_found_items|length }})</h6>
+        <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+          <table class="table table-sm table-striped">
+            <thead class="table-danger">
+              <tr>
+                <th>Código</th>
+                <th>Nombre</th>
+                <th>Cantidad</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in not_found_items %}
+              <tr>
+                <td><strong>{{ item.code }}</strong></td>
+                <td>{{ item.name }}</td>
+                <td>{{ item.qty }}</td>
               </tr>
               {% endfor %}
             </tbody>
@@ -617,9 +710,14 @@
       <div class="mt-3">
         <small class="text-muted">
           <i class="fas fa-info-circle"></i>
-          Los productos se identifican por su <strong>código</strong>.
-          Si el código ya existía, el producto fue <strong>actualizado</strong>.
-          Si no existía, fue <strong>creado</strong> como nuevo.
+          {% if entity_type == 'stock' %}
+            Solo se modificó el <strong>stock</strong> de los productos encontrados por código o nombre.
+            Los códigos no encontrados no generaron cambios.
+          {% else %}
+            Los productos se identifican por su <strong>código</strong>.
+            Si el código ya existía, el producto fue <strong>actualizado</strong>.
+            Si no existía, fue <strong>creado</strong> como nuevo.
+          {% endif %}
         </small>
       </div>
     </div>
@@ -669,12 +767,12 @@ function toggleEntityFields() {
   var typeEl = document.getElementById('entityType');
   if (!typeEl) return;
   var type = typeEl.value;
-  var hints = ['hintProduct', 'hintClient', 'hintSupplier', 'hintCategory'];
-  var infos = ['infoProduct', 'infoClient', 'infoSupplier', 'infoCategory'];
-  var fields = ['fieldsProduct', 'fieldsClient', 'fieldsSupplier', 'fieldsCategory'];
-  var labels = {product: 'Productos', client: 'Clientes', supplier: 'Proveedores', category: 'Categorías/Marcas'};
-  var hintsMap = {product: 'hintProduct', client: 'hintClient', supplier: 'hintSupplier', category: 'hintCategory'};
-  var fieldsMap = {product: 'fieldsProduct', client: 'fieldsClient', supplier: 'fieldsSupplier', category: 'fieldsCategory'};
+  var hints = ['hintProduct', 'hintClient', 'hintSupplier', 'hintCategory', 'hintStock'];
+  var infos = ['infoProduct', 'infoClient', 'infoSupplier', 'infoCategory', 'infoStock'];
+  var fields = ['fieldsProduct', 'fieldsClient', 'fieldsSupplier', 'fieldsCategory', 'fieldsStock'];
+  var labels = {product: 'Productos', client: 'Clientes', supplier: 'Proveedores', category: 'Categorías/Marcas', stock: 'Conteo de Stock'};
+  var hintsMap = {product: 'hintProduct', client: 'hintClient', supplier: 'hintSupplier', category: 'hintCategory', stock: 'hintStock'};
+  var fieldsMap = {product: 'fieldsProduct', client: 'fieldsClient', supplier: 'fieldsSupplier', category: 'fieldsCategory', stock: 'fieldsStock'};
 
   hints.forEach(function(id) { var el = document.getElementById(id); if (el) el.style.display = 'none'; });
   infos.forEach(function(id) { var el = document.getElementById(id); if (el) el.style.display = 'none'; });
@@ -711,6 +809,7 @@ function toggleEntityFields() {
     else if (type === 'client') hint.textContent = 'Se crearán nuevos clientes o actualizarán los existentes según el DNI';
     else if (type === 'supplier') hint.textContent = 'Se crearán nuevos proveedores o actualizarán los existentes según el CUIT';
     else if (type === 'category') hint.textContent = 'Se crearán nuevas categorías/marcas o actualizarán las existentes según el nombre';
+    else if (type === 'stock') hint.textContent = 'Solo se actualizará el stock de los productos encontrados; los no encontrados se listan al final';
   }
 }
 

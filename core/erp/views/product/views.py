@@ -1559,6 +1559,133 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                     request.session.pop(k, None)
                 return self.render_to_response(ctx)
 
+            # --- Conteo/actualización masiva de stock ---
+            if entity_type == 'stock':
+                from django.db.models import Q
+
+                map_stock_code = request.POST.get('map_stock_code')
+                map_stock_qty = request.POST.get('map_stock_qty')
+                map_stock_name = request.POST.get('map_stock_name')
+                stock_mode = request.POST.get('stock_mode', 'replace')
+
+                if not map_stock_code or not map_stock_qty:
+                    messages.error(request, 'Debe mapear el código del producto y la cantidad contada.')
+                    return self.get(request, *args, **kwargs)
+
+                active_cid = get_active_company_id(request)
+
+                def norm_code(val):
+                    if pd.isna(val):
+                        return ''
+                    s = str(val).strip()
+                    if s.endswith('.0'):
+                        s = s[:-2]
+                    return s
+
+                # Precargar códigos presentes en el archivo
+                codes_in_file = set()
+                names_in_file = set()
+                for _, row in df.iterrows():
+                    c = norm_code(row.get(map_stock_code))
+                    if c:
+                        codes_in_file.add(c)
+                    if map_stock_name and not pd.isna(row.get(map_stock_name)):
+                        n = str(row.get(map_stock_name)).strip()
+                        if n:
+                            names_in_file.add(n.upper())
+
+                prods = Product.objects.filter(
+                    Q(code__in=codes_in_file) |
+                    Q(external_code__in=codes_in_file) |
+                    Q(codigo_proveedor__in=codes_in_file) |
+                    Q(name__in=names_in_file)
+                )
+                if active_cid:
+                    prods = prods.filter(company_id=active_cid)
+
+                by_code = {}
+                by_ext = {}
+                by_prov = {}
+                by_name = {}
+                for p in prods:
+                    if p.code:
+                        by_code.setdefault(str(p.code).strip(), p)
+                    if p.external_code:
+                        by_ext.setdefault(str(p.external_code).strip(), p)
+                    if p.codigo_proveedor:
+                        by_prov.setdefault(str(p.codigo_proveedor).strip(), p)
+                    if p.name:
+                        by_name.setdefault(p.name.strip().upper(), p)
+
+                updated = 0
+                errors = []
+                updated_items = []
+                not_found_items = []
+                now = timezone.now()
+
+                for idx, row in df.iterrows():
+                    try:
+                        if row.isna().all():
+                            continue
+                        code = norm_code(row.get(map_stock_code))
+                        if not code:
+                            continue
+
+                        qty = parse_number(row.get(map_stock_qty))
+                        if qty is None:
+                            errors.append(f'Fila {idx+1}: cantidad inválida ({row.get(map_stock_qty)}).')
+                            continue
+
+                        name_disp = ''
+                        if map_stock_name and not pd.isna(row.get(map_stock_name)):
+                            name_disp = str(row.get(map_stock_name)).strip()
+
+                        # Match: código barras -> external_code -> codigo_proveedor -> nombre
+                        prod = by_code.get(code) or by_ext.get(code) or by_prov.get(code)
+                        if prod is None and name_disp:
+                            prod = by_name.get(name_disp.upper())
+                        if prod is None:
+                            not_found_items.append({'code': code, 'name': name_disp, 'qty': qty})
+                            continue
+
+                        old_stock = float(prod.stock or 0)
+                        new_stock = qty if stock_mode == 'replace' else old_stock + qty
+                        if new_stock < 0:
+                            errors.append(f'Fila {idx+1}: stock resultante negativo para {code} ({new_stock}).')
+                            continue
+
+                        prod.stock = new_stock
+                        prod.stock_modified_locally = now
+                        prod.synced_to_server = False
+                        prod.save()
+                        updated += 1
+                        updated_items.append({
+                            'code': code,
+                            'name': prod.name,
+                            'old_stock': old_stock,
+                            'stock': new_stock,
+                        })
+                    except Exception as e:
+                        errors.append(f'Fila {idx+1}: {e}')
+                        import_logger.error(f"Error procesando stock fila {idx+1}: {e}")
+
+                import_logger.info(f"Conteo de stock finalizado - Usuario: {request.user.username}")
+                import_logger.info(f"Resultados - Actualizados: {updated}, No encontrados: {len(not_found_items)}, Errores: {len(errors)}")
+
+                ctx = {
+                    'result': True,
+                    'entity_type': 'stock',
+                    'created': 0,
+                    'updated': updated,
+                    'errors': errors,
+                    'updated_items': updated_items,
+                    'not_found_items': not_found_items,
+                    'stock_mode': stock_mode,
+                }
+                for k in ('import_cols', 'import_df'):
+                    request.session.pop(k, None)
+                return self.render_to_response(ctx)
+
             # --- Importar productos (default) ---
             # Mapeo desde POST
             map_name = request.POST.get('map_name')
