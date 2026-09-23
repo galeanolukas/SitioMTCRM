@@ -322,9 +322,14 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     qs = qs.filter(company_id=active_cid)
                 else:
                     qs = qs.none()
-                # Búsqueda simple por nombre o código
+                # Búsqueda por nombre, código, código externo, código de proveedor o marca
                 if term:
-                    qs = qs.filter(Q(name__icontains=term) | Q(code__icontains=term))
+                    qs = qs.filter(
+                        Q(name__icontains=term) | Q(code__icontains=term) |
+                        Q(external_code__icontains=term) |
+                        Q(codigo_proveedor__icontains=term) |
+                        Q(brand__name__icontains=term)
+                    )
                 qs = qs[:10]
                 data = []
                 for p in qs:
@@ -1194,7 +1199,7 @@ class SaleCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Create
             if action == 'search_products':
                 data = []
                 active_cid = get_active_company_id(request)
-                prods = Product.objects.filter(name__icontains=request.POST['term'][0:10])
+                prods = Product.objects.filter(Q(name__icontains=request.POST['term'][0:10]) | Q(code__icontains=request.POST['term'][0:10]) | Q(external_code__icontains=request.POST['term'][0:10]) | Q(codigo_proveedor__icontains=request.POST['term'][0:10]) | Q(brand__name__icontains=request.POST['term'][0:10]))
                 if active_cid:
                     prods = prods.filter(company_id=active_cid)
                 for i in prods:
@@ -1368,7 +1373,7 @@ class SaleUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Update
             if action == 'search_products':
                 data = []
                 active_cid = get_active_company_id(request)
-                prods = Product.objects.filter(name__icontains=request.POST['term'][0:10])
+                prods = Product.objects.filter(Q(name__icontains=request.POST['term'][0:10]) | Q(code__icontains=request.POST['term'][0:10]) | Q(external_code__icontains=request.POST['term'][0:10]) | Q(codigo_proveedor__icontains=request.POST['term'][0:10]) | Q(brand__name__icontains=request.POST['term'][0:10]))
                 if active_cid:
                     prods = prods.filter(company_id=active_cid)
                 for i in prods:
@@ -1842,7 +1847,7 @@ class InvoiceCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Cre
             if action == 'search_products':
                 data = []
                 active_cid = get_active_company_id(request)
-                prods = Product.objects.filter(name__icontains=request.POST['term'][0:10])
+                prods = Product.objects.filter(Q(name__icontains=request.POST['term'][0:10]) | Q(code__icontains=request.POST['term'][0:10]) | Q(external_code__icontains=request.POST['term'][0:10]) | Q(codigo_proveedor__icontains=request.POST['term'][0:10]) | Q(brand__name__icontains=request.POST['term'][0:10]))
                 if active_cid:
                     prods = prods.filter(company_id=active_cid)
                 for i in prods:
