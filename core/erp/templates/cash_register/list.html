@@ -2,6 +2,36 @@
 {% load static %}
 {% load currency_filters %}
 
+{# Advertencia de cajas abiertas #}
+{% block alerts %}
+    {% if open_registers %}
+        <div class="alert alert-warning alert-dismissible fade show" role="alert">
+            <i class="fas fa-exclamation-triangle"></i>
+            <strong>Atención:</strong>
+            {% if open_registers|length == 1 %}
+                hay una caja abierta pendiente de cierre:
+            {% else %}
+                hay {{ open_registers|length }} cajas abiertas pendientes de cierre:
+            {% endif %}
+            <ul class="mb-0">
+                {% for reg in open_registers %}
+                    <li>
+                        Caja del {{ reg.date|date:"d/m/Y" }} — {{ reg.user.get_full_name|default:reg.user.username }}
+                        {% if reg.days_open > 0 %}
+                            <span class="badge badge-danger">abierta hace {{ reg.days_open }} día{{ reg.days_open|pluralize:"s" }}</span>
+                        {% else %}
+                            <span class="badge badge-warning">abierta hoy</span>
+                        {% endif %}
+                        {% if request.user.is_superuser or perms.erp.close_cash_register %}
+                            <a href="{% url 'erp:cash_register_close' reg.pk %}" class="alert-link">Cerrar ahora</a>
+                        {% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+{% endblock %}
+
 {# Columnas de la tabla #}
 {% block columns %}
     <tr>
@@ -31,6 +61,9 @@
                     <span class="badge badge-success">Cerrada</span>
                 {% else %}
                     <span class="badge badge-warning">Abierta</span>
+                    {% if register.days_open > 0 %}
+                        <span class="badge badge-danger">hace {{ register.days_open }} día{{ register.days_open|pluralize:"s" }}</span>
+                    {% endif %}
                 {% endif %}
             </td>
             <td>
@@ -111,9 +144,16 @@
 
 {# Botones de pie: Nueva Apertura + Actualizar #}
 {% block buttons_list %}
-    <a href="{{ create_url }}" class="btn btn-primary btn-flat">
-        <i class="fas fa-plus"></i> Nueva Apertura
-    </a>
+    {% if user_has_open_register %}
+        <button type="button" class="btn btn-primary btn-flat" disabled
+                title="Debe cerrar su caja abierta antes de crear una nueva apertura">
+            <i class="fas fa-plus"></i> Nueva Apertura
+        </button>
+    {% else %}
+        <a href="{{ create_url }}" class="btn btn-primary btn-flat">
+            <i class="fas fa-plus"></i> Nueva Apertura
+        </a>
+    {% endif %}
     <a href="{{ list_url }}" class="btn btn-success btn-flat">
         <i class="fas fa-sync"></i> Actualizar
     </a>
