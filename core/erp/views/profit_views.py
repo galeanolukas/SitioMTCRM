@@ -151,7 +151,8 @@ class GenerateProfitReportView(LoginRequiredMixin, TemplateView):
         # Obtener ventas del período
         sales = Sale.objects.filter(
             company=company,
-            date_joined__date__range=[date_from, date_to]
+            date_joined__date__range=[date_from, date_to],
+            is_budget=False,
         )
         
         # Calcular totales generales
@@ -265,7 +266,8 @@ class GenerateProfitReportView(LoginRequiredMixin, TemplateView):
             # Obtener ventas del mes
             sales = Sale.objects.filter(
                 company=company,
-                date_joined__date__range=[first_day, last_day]
+                date_joined__date__range=[first_day, last_day],
+                is_budget=False,
             )
             
             # Calcular totales

@@ -84,15 +84,15 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                         start_date = (end_date - timedelta(days=30)).strftime('%Y-%m-%d')
                 
                 # Build filters
-                filters = {}
+                filters = {'is_budget': False}
                 if active_cid:
                     filters['company_id'] = active_cid
                 if start_date and end_date:
                     filters['date_joined__date__range'] = [start_date, end_date]
-                
+
                 # Get sales data
                 sales = Sale.objects.filter(**filters).order_by('-date_joined')
-                
+
                 # Filtro por categoría: solo ventas que tienen productos de la categoría
                 if category_id:
                     sales = sales.filter(detsale__prod__cat_id=category_id).distinct()
@@ -366,15 +366,15 @@ def operator_sales_export(request):
                 start_date = (end_date - timedelta(days=30)).strftime('%Y-%m-%d')
         
         # Build filters
-        filters = {}
+        filters = {'is_budget': False}
         if active_cid:
             filters['company_id'] = active_cid
         if start_date and end_date:
             filters['date_joined__date__range'] = [start_date, end_date]
-        
+
         # Get sales data
         sales = Sale.objects.filter(**filters).order_by('-date_joined')
-        
+
         # Filtro por categoría
         if category_id:
             sales = sales.filter(detsale__prod__cat_id=category_id).distinct()

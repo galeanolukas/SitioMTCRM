@@ -1686,7 +1686,8 @@ class ProfitReport(models.Model):
         # Obtener ventas del período
         sales = Sale.objects.filter(
             company=self.company,
-            date_joined__date__range=[self.date_from, self.date_to]
+            date_joined__date__range=[self.date_from, self.date_to],
+            is_budget=False,
         )
         
         # Calcular totales

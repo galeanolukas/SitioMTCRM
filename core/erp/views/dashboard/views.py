@@ -225,7 +225,7 @@ class DashboardView(TemplateView):
         context['users_count'] = user_qs.count()
         context['companies_count'] = Company.objects.count()
         prod_qs = Product.objects.all()
-        sale_qs = Sale.objects.filter(date_joined__date__gte=start_date, date_joined__date__lte=end_date)
+        sale_qs = Sale.objects.filter(date_joined__date__gte=start_date, date_joined__date__lte=end_date, is_budget=False)
         expense_qs = Expense.objects.filter(date__gte=start_date, date__lte=end_date, is_active=True)
         if active_cid:
             prod_qs = prod_qs.filter(company_id=active_cid)
@@ -350,7 +350,7 @@ class DashboardView(TemplateView):
         
         if self.request.user.is_superuser:
             # Ganancias generales (todas las empresas)
-            all_sales = Sale.objects.all()
+            all_sales = Sale.objects.filter(is_budget=False)
             all_expenses = Expense.objects.filter(is_active=True)
             
             # Calcular costo total de ventas
@@ -373,7 +373,7 @@ class DashboardView(TemplateView):
             # Ganancias por empresa
             company_profits = []
             for company in Company.objects.filter(is_active=True):
-                company_sales = Sale.objects.filter(company=company)
+                company_sales = Sale.objects.filter(company=company, is_budget=False)
                 company_expenses = Expense.objects.filter(company=company, is_active=True)
                 
                 # Calcular costo de ventas de la empresa
@@ -401,7 +401,7 @@ class DashboardView(TemplateView):
             if active_cid:
                 active_company = Company.objects.filter(id=active_cid).first()
                 if active_company:
-                    active_sales = Sale.objects.filter(company=active_company)
+                    active_sales = Sale.objects.filter(company=active_company, is_budget=False)
                     active_expenses = Expense.objects.filter(company=active_company, is_active=True)
                     
                     # Calcular costo de ventas de la empresa activa
@@ -1336,7 +1336,7 @@ def report_sales_export(request):
     if not request.user.is_superuser:
         return HttpResponse(status=403)
     fmt = (request.GET.get('format') or 'csv').lower()
-    qs = Sale.objects.all()
+    qs = Sale.objects.filter(is_budget=False)
     qs = _filter_company_qs(request, qs)
     pm_map = dict(payment_method_choices)
     rows = []

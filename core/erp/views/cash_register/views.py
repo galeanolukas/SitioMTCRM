@@ -54,6 +54,7 @@ class CashRegisterListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
 
             sales_agg = Sale.objects.filter(
                 company_id=cr.company_id,
+                is_budget=False,
                 **sales_filter,
             ).aggregate(
                 live_cash=Sum('total', filter=Q(payment_method='cash')),
@@ -202,17 +203,19 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
         context = super().get_context_data(**kwargs)
         cash_register = self.object
 
-        # Totales "en vivo" para la fecha y empresa de esta caja
+        # Totales "en vivo" para la fecha y empresa de esta caja (sin presupuestos)
         if cash_register.is_closed:
             sales_qs = Sale.objects.filter(
                 date_joined__date=cash_register.date,
                 company_id=cash_register.company_id,
+                is_budget=False,
             )
         else:
             # Caja abierta: acumular ventas desde la apertura hasta hoy
             sales_qs = Sale.objects.filter(
                 date_joined__date__range=(cash_register.date, date.today()),
                 company_id=cash_register.company_id,
+                is_budget=False,
             )
 
         dynamic_cash = sales_qs.filter(payment_method='cash').aggregate(total=Sum('total'))['total'] or 0
@@ -323,11 +326,12 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
 
         # Base de ventas para la empresa de la caja (si está abierta, desde la apertura hasta hoy)
         if cash_register.is_closed:
-            sales_qs = Sale.objects.filter(date_joined__date=cash_register_date, company_id=company_id)
+            sales_qs = Sale.objects.filter(date_joined__date=cash_register_date, company_id=company_id, is_budget=False)
         else:
             sales_qs = Sale.objects.filter(
                 date_joined__date__range=(cash_register_date, date.today()),
                 company_id=company_id,
+                is_budget=False,
             )
 
         # Calcular totales de ventas por forma de pago
@@ -433,12 +437,14 @@ class CashRegisterDetailView(LoginRequiredMixin, ValidatePermissionRequiredMixin
             sales_qs = Sale.objects.filter(
                 date_joined__date=cash_register.date,
                 company_id=cash_register.company_id,
+                is_budget=False,
             )
         else:
             # Si está abierta, acumular ventas desde la apertura hasta hoy (fecha local)
             sales_qs = Sale.objects.filter(
                 date_joined__date__range=(cash_register.date, date.today()),
                 company_id=cash_register.company_id,
+                is_budget=False,
             )
 
         # Ventas por métodos simples

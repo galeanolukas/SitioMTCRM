@@ -1620,7 +1620,7 @@ class SaleListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView
                 print(f"[DEBUG] SaleListView searchdata: user={request.user.username}, is_superuser={request.user.is_superuser}, active_cid={active_cid}")
                 
                 try:
-                    qs = Sale.objects.all().order_by('-date_joined')
+                    qs = Sale.objects.filter(is_budget=False).order_by('-date_joined')
                     print(f"[DEBUG] Total ventas sin filtro: {qs.count()}")
                     
                     if active_cid:

@@ -124,14 +124,15 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         start_datetime = timezone.make_aware(datetime.strptime(start_date, '%Y-%m-%d'))
         end_datetime = timezone.make_aware(datetime.strptime(end_date, '%Y-%m-%d')) + timedelta(days=1, seconds=-1)
         
-        # Filtros base
+        # Filtros base (sin presupuestos)
         filters = {
             'date_joined__range': [start_datetime, end_datetime],
+            'is_budget': False,
         }
-        
+
         if company_id:
             filters['company_id'] = company_id
-        
+
         sales_queryset = Sale.objects.filter(**filters).select_related('cli', 'company').order_by('-date_joined')
         
         # Si se filtra por método de pago, incluir ventas combinadas que contengan ese método
@@ -386,11 +387,12 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         
         filters = {
             'date_joined__range': [start_datetime, end_datetime],
+            'is_budget': False,
         }
-        
+
         if company_id:
             filters['company_id'] = company_id
-        
+
         # Ventas
         sales = Sale.objects.filter(**filters)
         total_sales = sales.aggregate(total=Sum('total'))['total'] or 0
@@ -427,14 +429,15 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         start_datetime = timezone.make_aware(datetime.strptime(start_date, '%Y-%m-%d'))
         end_datetime = timezone.make_aware(datetime.strptime(end_date, '%Y-%m-%d')) + timedelta(days=1, seconds=-1)
         
-        # Filtros base
+        # Filtros base (sin presupuestos)
         filters = {
             'sale__date_joined__range': [start_datetime, end_datetime],
+            'sale__is_budget': False,
         }
-        
+
         if company_id:
             filters['sale__company_id'] = company_id
-        
+
         # Consulta principal de productos más vendidos
         queryset = DetSale.objects.filter(**filters)
         
@@ -501,6 +504,7 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         filters = {
             'date_joined__range': [start_datetime, end_datetime],
             'is_invoiced': True,
+            'is_budget': False,
         }
         if company_id:
             filters['company_id'] = company_id
@@ -602,14 +606,15 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         else:
             end_datetime = timezone.now()
         
-        # Filtros base
+        # Filtros base (sin presupuestos)
         filters = {
             'date_joined__range': [start_datetime, end_datetime],
+            'is_budget': False,
         }
-        
+
         if company_id:
             filters['company_id'] = company_id
-        
+
         # Determinar función de truncado según período
         if period_type == 'daily':
             trunc_func = TruncDay('date_joined')
@@ -669,9 +674,10 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
             percentage=Count('id') * 100.0 / Count('id', filter=Q(company_id=company_id))
         ).order_by('-amount')
         
-        # Top productos del período
+        # Top productos del período (sin presupuestos)
         top_products = DetSale.objects.filter(
-            sale__date_joined__range=[start_datetime, end_datetime]
+            sale__date_joined__range=[start_datetime, end_datetime],
+            sale__is_budget=False,
         )
         if company_id:
             top_products = top_products.filter(sale__company_id=company_id)
@@ -755,14 +761,15 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         else:
             end_datetime = timezone.now()
         
-        # Filtros base
+        # Filtros base (sin presupuestos)
         filters = {
             'sale__date_joined__range': [start_datetime, end_datetime],
+            'sale__is_budget': False,
         }
-        
+
         if company_id:
             filters['sale__company_id'] = company_id
-        
+
         # Base de datos de detalles de ventas
         queryset = DetSale.objects.filter(**filters).select_related('prod', 'sale')
         
@@ -959,24 +966,25 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
         
         filters = {
             'date_joined__range': [start_datetime, end_datetime],
+            'is_budget': False,
         }
-        
+
         if company_id:
             filters['company_id'] = company_id
-        
+
         sales_queryset = Sale.objects.filter(**filters).select_related('cli', 'company')
-        
+
         # Si se filtra por método de pago, incluir ventas combinadas que contengan ese método
         if payment_method:
             from core.erp.choices import payment_method_choices
             pm_map = dict(payment_method_choices)
             method_name = pm_map.get(payment_method, payment_method)
-            
+
             # Filtrar ventas que tengan el método exacto o que contengan el nombre en métodos combinados
             sales_queryset = sales_queryset.filter(
                 Q(payment_method=payment_method) | Q(payment_method__icontains=method_name)
             )
-        
+
         return sales_queryset
     
     def get_inventory_export_data(self, company_id):
