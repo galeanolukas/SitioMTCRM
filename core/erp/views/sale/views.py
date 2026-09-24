@@ -400,6 +400,21 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 prod.save()
                 data = prod.toJSON()
                 
+            elif action == 'quick_add_stock':
+                # Sumar stock rápido a un producto para poder venderlo (por defecto +1)
+                prod_id = request.POST.get('product_id')
+                try:
+                    qty = Decimal(str(request.POST.get('qty') or '1'))
+                except Exception:
+                    qty = Decimal('1')
+                prod = Product.objects.filter(pk=prod_id).first()
+                if not prod:
+                    return JsonResponse({'error': 'Producto no encontrado'}, status=404)
+                prod.stock = (prod.stock or Decimal('0')) + qty
+                prod.stock_modified_locally = timezone.now()
+                prod.synced_to_server = False
+                prod.save()
+                data = {'id': prod.id, 'name': prod.name, 'stock': float(prod.stock)}
             elif action == 'list_categories':
                 # Obtener categorías existentes
                 categories = Category.objects.all().order_by('name')

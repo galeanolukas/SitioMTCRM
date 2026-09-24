@@ -287,6 +287,13 @@
     });
   }
 
+  // Sumar stock rápido a un producto (ej: +1 para poder venderlo)
+  function quickAddStock(productId, qty) {
+    return ajaxAction('quick_add_stock', { product_id: productId, qty: qty })
+      .done(r => showToast('success', `Stock actualizado: ${r.name} → ${r.stock}`))
+      .fail(() => showToast('error', 'No se pudo actualizar el stock'));
+  }
+
   // Debounce helper
   function debounce(fn, wait) {
     let t; return function(...args){ clearTimeout(t); t=setTimeout(()=>fn.apply(this,args), wait); };
@@ -318,7 +325,11 @@
         }
 
         list.forEach(p => {
-          const item = $(`<button type="button" class="list-group-item list-group-item-action">${p.name} <span class='text-muted small'>${p.code || ''}</span> <span class='float-end'>$${parseFloat(p.pvp).toFixed(2)}</span></button>`);
+          const stock = parseFloat(p.stock) || 0;
+          const badge = stock <= 0
+            ? "<span class='badge bg-danger ms-1'>SIN STOCK</span>"
+            : `<span class='badge bg-secondary ms-1'>stock ${stock}</span>`;
+          const item = $(`<button type="button" class="list-group-item list-group-item-action">${p.name} <span class='text-muted small'>${p.code || ''}</span> ${badge} <span class='float-end'>$${parseFloat(p.pvp).toFixed(2)}</span></button>`);
           item.on('click', function(e) {
             e.preventDefault();
             if (p.unit === 'kg') {
@@ -329,6 +340,24 @@
             $suggest.hide().empty();
             $input.val('').focus();
           });
+          if (stock <= 0) {
+            const btnStock = $(`<span class='btn btn-sm btn-success ms-2' title='Sumar 1 de stock y agregar a la venta'>+1</span>`);
+            btnStock.on('click', function(e) {
+              e.preventDefault();
+              e.stopPropagation();
+              quickAddStock(p.id, 1).done(r => {
+                p.stock = r.stock;
+                if (p.unit === 'kg') {
+                  showWeightModal(p);
+                } else {
+                  addOrInc(p);
+                }
+              });
+              $suggest.hide().empty();
+              $input.val('').focus();
+            });
+            item.append(btnStock);
+          }
           $suggest.append(item);
         });
         $suggest.show();
@@ -349,10 +378,19 @@
       $suggest.hide().empty();
       ajaxAction('product_by_code', { code })
         .done(resp => {
-          if (resp.unit === 'kg') {
-            showWeightModal(resp);
+          const add = () => {
+            if (resp.unit === 'kg') {
+              showWeightModal(resp);
+            } else {
+              addOrInc(resp);
+            }
+          };
+          if ((parseFloat(resp.stock) || 0) <= 0) {
+            if (confirm(`"${resp.name}" no tiene stock. ¿Sumar 1 unidad al stock para venderla?`)) {
+              quickAddStock(resp.id, 1).done(r => { resp.stock = r.stock; add(); });
+            }
           } else {
-            addOrInc(resp);
+            add();
           }
           $input.val('').focus();
         })
