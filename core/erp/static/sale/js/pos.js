@@ -126,8 +126,17 @@
   function clearItems() {
     items = [];
     selectedIndex = -1;
+    // Resetear también la lista de precios aplicada para que el
+    // descuento no persista en el resumen ni en la próxima venta
+    originalPrices = {};
+    currentPriceList = null;
+    $('#selectedPriceListId').val('');
+    $('#selectedPriceListName').text('-');
     recalc();
     $input.val('').focus();
+    // Si hay un cliente seleccionado con lista propia, re-aplicarla
+    const clientId = $('#selectedClientId').val();
+    if (clientId) applyClientPriceList(clientId, true);
   }
 
   function render() {
@@ -1035,7 +1044,7 @@
   // Guardar precios originales para poder restaurar al limpiar cliente
   // (declarados arriba junto a items)
 
-  function applyClientPriceList(clientId) {
+  function applyClientPriceList(clientId, silent) {
     if (!clientId) return;
     $.ajax({
       url: window.location.pathname,
@@ -1067,7 +1076,7 @@
               success: function(resp2) {
                 if (resp2.has_price_list) {
                   items.forEach(it => {
-                    if (!originalPrices[it.id]) {
+                    if (originalPrices[it.id] === undefined) {
                       originalPrices[it.id] = it.price;
                     }
                     const adjusted = resp2.prices[String(it.id)];
@@ -1078,12 +1087,14 @@
                     }
                   });
                   recalc();
-                  const interestText = resp.interest_percentage > 0 ? ' + ' + resp.interest_percentage + '% int' : '';
-                  showToast('info', 'Lista de precios aplicada: ' + resp.list_name + ' (' + resp.discount_percentage + '% desc' + interestText + ')');
+                  if (!silent) {
+                    const interestText = resp.interest_percentage > 0 ? ' + ' + resp.interest_percentage + '% int' : '';
+                    showToast('info', 'Lista de precios aplicada: ' + resp.list_name + ' (' + resp.discount_percentage + '% desc' + interestText + ')');
+                  }
                 }
               }
             });
-          } else {
+          } else if (!silent) {
             const interestText = resp.interest_percentage > 0 ? ' + ' + resp.interest_percentage + '% int' : '';
             showToast('info', 'Lista de precios activa: ' + resp.list_name + ' (' + resp.discount_percentage + '% desc' + interestText + ')');
           }
@@ -1098,16 +1109,18 @@
   }
 
   function restoreOriginalPrices() {
-    if (Object.keys(originalPrices).length === 0) return;
-    items.forEach(it => {
-      if (originalPrices[it.id] !== undefined) {
-        const orig = originalPrices[it.id];
-        const ratio = orig / (it.price || orig);
-        it.price = orig;
-        it.pvp_final = (it.pvp_final || 0) * ratio;
-      }
-    });
-    originalPrices = {};
+    if (Object.keys(originalPrices).length > 0) {
+      items.forEach(it => {
+        if (originalPrices[it.id] !== undefined) {
+          const orig = originalPrices[it.id];
+          const ratio = orig / (it.price || orig);
+          it.price = orig;
+          it.pvp_final = (it.pvp_final || 0) * ratio;
+        }
+      });
+      originalPrices = {};
+    }
+    // Siempre limpiar la lista activa, aunque no haya precios guardados
     currentPriceList = null;
     recalc();
   }
@@ -1190,12 +1203,12 @@
     $('#selectedPriceListId').val(priceListId);
     $('#selectedPriceListName').text(priceListName);
     
-    // Guardar precios originales si no están guardados
-    if (Object.keys(originalPrices).length === 0) {
-      items.forEach(it => {
+    // Guardar precios originales de los items que aún no los tienen
+    items.forEach(it => {
+      if (originalPrices[it.id] === undefined) {
         originalPrices[it.id] = it.price;
-      });
-    }
+      }
+    });
     
     // Aplicar lista de precios
     currentPriceList = {
