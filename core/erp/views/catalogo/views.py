@@ -26,6 +26,116 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 logger = logging.getLogger(__name__)
 
 
+def _sync_productos_a_catalogo(catalogo_config):
+    """
+    Envía los productos de la empresa de la config a su catálogo.
+    Retorna (status_code, dict) con la respuesta para el cliente.
+    """
+    catalogo_url = catalogo_config.catalogo_url.rstrip('/')
+    catalogo_api_key = catalogo_config.api_key
+    logger.info(f"URL del catálogo: {catalogo_url}")
+
+    # Obtener productos del modelo Product en SitioMTCRM
+    # Filtrar por la empresa de la CONFIG (no la del usuario), así el
+    # superuser puede sincronizar el catálogo de cualquier empresa
+    productos_db = Product.objects.all()
+    if catalogo_config.company:
+        productos_db = productos_db.filter(company=catalogo_config.company)
+
+    logger.info(f"Total de productos a sincronizar: {productos_db.count()}")
+
+    productos = []
+    for prod in productos_db:
+        productos.append({
+            'codigo': prod.code if prod.code else '',
+            'nombre': prod.name,
+            'descripcion': '',  # Product model doesn't have description field
+            'precio': float(prod.pvp_final),
+            'stock': int(prod.stock),
+            'marca': '',  # Product model doesn't have marca field
+            'imagen_url': prod.image.url if prod.image else '',
+            'fecha_actualizacion': prod.last_server_sync.isoformat() if prod.last_server_sync else ''
+        })
+
+    logger.info(f"Payload JSON preparado con {len(productos)} productos")
+
+    # Enviar productos al catálogo
+    sync_url = f"{catalogo_url}/api/sincronizar-productos-crm/"
+    logger.info(f"Enviando a URL: {sync_url}")
+
+    payload = {
+        'api_key': catalogo_api_key,
+        'productos': productos
+    }
+
+    # allow_redirects=False: si el catálogo responde 301/302 (ej: dominio
+    # sin www → con www), requests seguiría el redirect convirtiendo el
+    # POST en GET y el catálogo devuelve 405. Seguimos el Location
+    # manualmente preservando el método y el body.
+    current_url = sync_url
+    response = None
+    for _ in range(4):
+        response = requests.post(
+            current_url,
+            headers={
+                'Content-Type': 'application/json'
+            },
+            json=payload,
+            timeout=60,
+            verify=False,  # Deshabilitar verificación SSL temporalmente
+            allow_redirects=False
+        )
+        if response.is_redirect:
+            redirect_url = response.headers.get('Location')
+            if not redirect_url:
+                break
+            logger.info(f"Redirect {response.status_code} a {redirect_url}, reintentando POST")
+            current_url = redirect_url
+            continue
+        break
+
+    logger.info(f"Respuesta del catálogo - Status: {response.status_code}, Content: {response.text[:500]}")
+
+    if response.status_code == 200:
+        # Actualizar last_sync
+        catalogo_config.last_sync = timezone.now()
+        catalogo_config.save()
+
+        logger.info(f"Sincronización exitosa. {len(productos)} productos enviados")
+
+        return 200, {
+            'success': True,
+            'message': f'{len(productos)} productos enviados correctamente',
+            'response': response.json()
+        }
+
+    error_msg = f'Error al enviar productos: {response.status_code}'
+    if response.status_code == 302:
+        error_msg += f' - Redirigido a: {response.headers.get("Location", "desconocido")}'
+
+    # Intentar parsear la respuesta del servidor para obtener más detalles
+    try:
+        response_data = response.json()
+        if 'error' in response_data:
+            error_msg = f'Error del servidor: {response_data["error"]}'
+        elif 'detail' in response_data:
+            error_msg = f'Error del servidor: {response_data["detail"]}'
+        elif 'message' in response_data:
+            error_msg = f'Error del servidor: {response_data["message"]}'
+    except:
+        # Si no es JSON, usar el texto de la respuesta
+        if response.text:
+            error_msg += f' - Detalles: {response.text[:200]}'
+
+    logger.error(f"Error en sincronización: {error_msg}")
+    return 500, {
+        'success': False,
+        'error': error_msg,
+        'status_code': response.status_code,
+        'response': response.text[:500]
+    }
+
+
 @csrf_exempt
 @require_http_methods(["POST"])
 @login_required
@@ -33,141 +143,96 @@ def enviar_productos_catalogo(request):
     """
     Vista para enviar productos desde el CRM al catálogo en el VPS
     Método: POST
+    Body opcional: {"catalogo_id": N} para sincronizar una config puntual.
+    Sin catalogo_id: superuser sincroniza TODAS las configs activas;
+    el resto, la config de su empresa (o la global).
     """
     try:
         logger.info(f"Iniciando sincronización de productos. Usuario: {request.user.username}, Empresa: {request.user.company.name if request.user.company else 'N/A'}")
-        
-        # Obtener configuración de sincronización desde la DB
-        # Primero buscar configuración específica de la empresa del usuario
-        catalogo_config = None
-        
-        if hasattr(request.user, 'company') and request.user.company:
-            catalogo_config = CatalogoConfig.objects.filter(
-                company=request.user.company,
-                is_active=True
-            ).first()
-            logger.info(f"Config específica de empresa encontrada: {catalogo_config is not None}")
-        
-        # Si no hay config específica, buscar global
-        if not catalogo_config:
-            catalogo_config = CatalogoConfig.objects.filter(
-                company__isnull=True,
-                is_active=True
-            ).first()
-            logger.info(f"Config global encontrada: {catalogo_config is not None}")
-        
-        if not catalogo_config:
+
+        # Leer catalogo_id del body (el botón de sync por fila lo envía)
+        catalogo_id = None
+        try:
+            body = json.loads(request.body) if request.body else {}
+            catalogo_id = body.get('catalogo_id')
+        except json.JSONDecodeError:
+            pass
+
+        # Obtener configuraciones de sincronización desde la DB
+        configs = []
+
+        if catalogo_id:
+            # Sync de una config específica (botón por fila del listado)
+            qs = CatalogoConfig.objects.filter(id=catalogo_id, is_active=True)
+            # No superuser: solo configs de su empresa o globales
+            if not request.user.is_superuser:
+                if hasattr(request.user, 'company') and request.user.company:
+                    qs = qs.filter(
+                        models.Q(company=request.user.company) |
+                        models.Q(company__isnull=True)
+                    )
+                else:
+                    qs = qs.none()
+            catalogo_config = qs.first()
+            logger.info(f"Config por ID {catalogo_id} encontrada: {catalogo_config is not None}")
+            if catalogo_config:
+                configs = [catalogo_config]
+        elif request.user.is_superuser:
+            # "Sincronizar Inventario": el superuser sincroniza todas las
+            # configs activas (cada catálogo recibe los productos de su empresa)
+            configs = list(CatalogoConfig.objects.filter(is_active=True))
+            logger.info(f"Superuser: {len(configs)} configs activas a sincronizar")
+        else:
+            # Sin ID: buscar config de la empresa del usuario, sino global
+            catalogo_config = None
+            if hasattr(request.user, 'company') and request.user.company:
+                catalogo_config = CatalogoConfig.objects.filter(
+                    company=request.user.company,
+                    is_active=True
+                ).first()
+                logger.info(f"Config específica de empresa encontrada: {catalogo_config is not None}")
+
+            if not catalogo_config:
+                catalogo_config = CatalogoConfig.objects.filter(
+                    company__isnull=True,
+                    is_active=True
+                ).first()
+                logger.info(f"Config global encontrada: {catalogo_config is not None}")
+
+            if catalogo_config:
+                configs = [catalogo_config]
+
+        if not configs:
             logger.error("No hay configuración de catálogo activa")
             return JsonResponse({
                 'success': False,
                 'error': 'No hay configuración de catálogo activa para esta empresa'
             }, status=500)
-        
-        catalogo_url = catalogo_config.catalogo_url
-        catalogo_api_key = catalogo_config.api_key
-        logger.info(f"URL del catálogo: {catalogo_url}")
-        
-        # Asegurar que la URL no tenga barra al final
-        catalogo_url = catalogo_url.rstrip('/')
-        
-        # Obtener productos del modelo Product en SitioMTCRM
-        # Filtrar por empresa si el usuario tiene company
-        productos_db = Product.objects.all()
-        if hasattr(request.user, 'company') and request.user.company:
-            productos_db = productos_db.filter(company=request.user.company)
-        
-        logger.info(f"Total de productos a sincronizar: {productos_db.count()}")
-        
-        productos = []
-        for prod in productos_db:
-            productos.append({
-                'codigo': prod.code if prod.code else '',
-                'nombre': prod.name,
-                'descripcion': '',  # Product model doesn't have description field
-                'precio': float(prod.pvp_final),
-                'stock': int(prod.stock),
-                'marca': '',  # Product model doesn't have marca field
-                'imagen_url': prod.image.url if prod.image else '',
-                'fecha_actualizacion': prod.last_server_sync.isoformat() if prod.last_server_sync else ''
-            })
-        
-        logger.info(f"Payload JSON preparado con {len(productos)} productos")
-        
-        # Enviar productos al catálogo
-        sync_url = f"{catalogo_url}/api/sincronizar-productos-crm/"
-        logger.info(f"Enviando a URL: {sync_url}")
-        
-        payload = {
-            'api_key': catalogo_api_key,
-            'productos': productos
-        }
-        
-        # allow_redirects=False: si el catálogo responde 301/302 (ej: dominio
-        # sin www → con www), requests seguiría el redirect convirtiendo el
-        # POST en GET y el catálogo devuelve 405. Seguimos el Location
-        # manualmente preservando el método y el body.
-        current_url = sync_url
-        for _ in range(4):
-            response = requests.post(
-                current_url,
-                headers={
-                    'Content-Type': 'application/json'
-                },
-                json=payload,
-                timeout=60,
-                verify=False,  # Deshabilitar verificación SSL temporalmente
-                allow_redirects=False
-            )
-            if response.is_redirect:
-                redirect_url = response.headers.get('Location')
-                if not redirect_url:
-                    break
-                logger.info(f"Redirect {response.status_code} a {redirect_url}, reintentando POST")
-                current_url = redirect_url
-                continue
-            break
-        
-        logger.info(f"Respuesta del catálogo - Status: {response.status_code}, Content: {response.text[:500]}")
-        
-        if response.status_code == 200:
-            # Actualizar last_sync
-            catalogo_config.last_sync = timezone.now()
-            catalogo_config.save()
-            
-            logger.info(f"Sincronización exitosa. {len(productos)} productos enviados")
-            
-            return JsonResponse({
-                'success': True,
-                'message': f'{len(productos)} productos enviados correctamente',
-                'response': response.json()
-            })
-        else:
-            error_msg = f'Error al enviar productos: {response.status_code}'
-            if response.status_code == 302:
-                error_msg += f' - Redirigido a: {response.headers.get("Location", "desconocido")}'
-            
-            # Intentar parsear la respuesta del servidor para obtener más detalles
+
+        if len(configs) == 1:
+            status, data = _sync_productos_a_catalogo(configs[0])
+            return JsonResponse(data, status=status)
+
+        # Múltiples configs: agregar un resultado por catálogo
+        resultados = []
+        all_ok = True
+        for cfg in configs:
+            label = cfg.company.name if cfg.company else 'Global'
             try:
-                response_data = response.json()
-                if 'error' in response_data:
-                    error_msg = f'Error del servidor: {response_data["error"]}'
-                elif 'detail' in response_data:
-                    error_msg = f'Error del servidor: {response_data["detail"]}'
-                elif 'message' in response_data:
-                    error_msg = f'Error del servidor: {response_data["message"]}'
-            except:
-                # Si no es JSON, usar el texto de la respuesta
-                if response.text:
-                    error_msg += f' - Detalles: {response.text[:200]}'
-            
-            logger.error(f"Error en sincronización: {error_msg}")
-            return JsonResponse({
-                'success': False,
-                'error': error_msg,
-                'status_code': response.status_code,
-                'response': response.text[:500]
-            }, status=500)
-            
+                status, data = _sync_productos_a_catalogo(cfg)
+            except Exception as e:
+                status, data = 500, {'success': False, 'error': str(e)}
+            if data.get('success'):
+                resultados.append(f"{label}: {data['message']}")
+            else:
+                all_ok = False
+                resultados.append(f"{label}: {data.get('error', 'Error desconocido')}")
+
+        msg = ' | '.join(resultados)
+        if all_ok:
+            return JsonResponse({'success': True, 'message': msg})
+        return JsonResponse({'success': False, 'error': msg}, status=500)
+
     except requests.Timeout:
         return JsonResponse({'error': 'Timeout al conectar con el catálogo'}, status=504)
     except requests.RequestException as e:

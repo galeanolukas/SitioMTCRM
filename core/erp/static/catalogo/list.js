@@ -18,7 +18,7 @@ function syncCatalogo(button) {
             'X-CSRFToken': getCookie('csrftoken'),
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify({})
+        body: JSON.stringify({ catalogo_id: catalogoId })
     })
     .then(response => {
         console.log('Respuesta recibida, status:', response.status);
