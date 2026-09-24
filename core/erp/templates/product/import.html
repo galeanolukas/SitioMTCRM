@@ -14,7 +14,7 @@
             <h5 class="card-title text-primary">
               <i class="fas fa-file-excel"></i> Importar desde Archivo
             </h5>
-            <p class="card-text">Importa productos desde un archivo Excel o CSV</p>
+            <p class="card-text">Importa datos desde un archivo Excel o CSV</p>
             <button type="button" class="btn btn-primary btn-flat" onclick="showFileImport()">
               <i class="fas fa-upload"></i> Importar Archivo
             </button>
@@ -176,20 +176,20 @@
 
       <!-- Campos Productos -->
       <div id="fieldsProduct" class="row">
-        <div class="col-md-4">
+        <div class="col-md-4 mb-3">
           <label>Código Barras (code) <span class="text-danger">*</span></label>
           <select name="map_code" class="form-control" required>
             {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
           </select>
           <small class="text-muted">Usado como identificador único</small>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-4 mb-3">
           <label>Nombre (name) <span class="text-danger">*</span></label>
           <select name="map_name" class="form-control" required>
             {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
           </select>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-4 mb-3">
           <label>Categoría (cat)</label>
           <select name="map_cat" class="form-control">
             <option value="">-- Ninguna --</option>
@@ -197,7 +197,7 @@
           </select>
           <small class="text-muted">Si no existe, se creará automáticamente</small>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-4 mb-3">
           <label>Precio neto (pvp) <span class="text-danger">*</span></label>
           <select name="map_pvp" class="form-control" required>
             <option value="">-- Ninguna --</option>
@@ -205,7 +205,7 @@
           </select>
           <small class="text-muted">Precio sin IVA</small>
         </div>
-        <div class="col-md-4 mt-2">
+        <div class="col-md-4 mb-3">
           <label>IVA (%)</label>
           <select name="map_iva_rate" class="form-control">
             <option value="">-- Ninguna --</option>
@@ -213,7 +213,7 @@
           </select>
           <small class="text-muted">Ej: 0.21 o 21 para 21%</small>
         </div>
-        <div class="col-md-4 mt-2">
+        <div class="col-md-4 mb-3">
           <label>Precio final con IVA</label>
           <select name="map_pvp_final" class="form-control">
             <option value="">-- Ninguna --</option>
@@ -221,7 +221,7 @@
           </select>
           <small class="text-muted">Opcional. Si se omite, se calcula automáticamente</small>
         </div>
-        <div class="col-md-4 mt-2">
+        <div class="col-md-4 mb-3">
           <label>Unidad (unit)</label>
           <select name="map_unit" class="form-control">
             <option value="">-- Ninguna --</option>
@@ -229,7 +229,7 @@
           </select>
           <small class="text-muted">Valores válidos: {{ unit_choices|join:', ' }}</small>
         </div>
-        <div class="col-md-4 mt-2">
+        <div class="col-md-4 mb-3">
           <label>Stock - opcional</label>
           <select name="map_stock" class="form-control">
             <option value="">-- Ninguna --</option>
@@ -237,7 +237,7 @@
           </select>
           <small class="text-muted">Si se deja vacío, se asigna 0</small>
         </div>
-        <div class="col-md-4 mt-2">
+        <div class="col-md-4 mb-3">
           <label>Empresa (company) - opcional</label>
           <select name="map_company" class="form-control">
             <option value="">-- Ninguna --</option>
@@ -245,7 +245,7 @@
           </select>
           <small class="text-muted">Solo para superusuarios</small>
         </div>
-        <div class="col-md-4 mt-2">
+        <div class="col-md-4 mb-3">
           <label>Proveedor (supplier) - opcional</label>
           <select name="map_supplier" class="form-control">
             <option value="">-- Ninguna --</option>
@@ -253,7 +253,7 @@
           </select>
           <small class="text-muted">Nombre del proveedor. Si no existe, se ignora.</small>
         </div>
-        <div class="col-md-4 mt-2">
+        <div class="col-md-4 mb-3">
           <label>Código Proveedor (codigo_proveedor) - opcional</label>
           <select name="map_codigo_proveedor" class="form-control">
             <option value="">-- Ninguna --</option>
@@ -261,7 +261,7 @@
           </select>
           <small class="text-muted">Código del producto en el proveedor</small>
         </div>
-        <div class="col-md-4 mt-2">
+        <div class="col-md-4 mb-3">
           <label>Margen de ganancia (%) - opcional</label>
           <select name="map_margin" class="form-control">
             <option value="">-- Ninguna --</option>
@@ -269,7 +269,7 @@
           </select>
           <small class="text-muted">Ej: 30 para 30%. Default: 0</small>
         </div>
-        <div class="col-md-4 mt-2">
+        <div class="col-md-4 mb-3">
           <label>Precio de costo (cost_price) - opcional</label>
           <select name="map_cost_price" class="form-control">
             <option value="">-- Ninguna --</option>
@@ -277,7 +277,7 @@
           </select>
           <small class="text-muted">Precio de compra/costo del producto</small>
         </div>
-        <div class="col-md-4 mt-2">
+        <div class="col-md-4 mb-3">
           <label>Flete (%) - opcional</label>
           <select name="map_freight_percentage" class="form-control">
             <option value="">-- Ninguna --</option>
@@ -285,7 +285,7 @@
           </select>
           <small class="text-muted">Ej: 5 para 5%. Se suma al costo antes de calcular PVP</small>
         </div>
-        <div class="col-md-4 mt-2">
+        <div class="col-md-4 mb-3">
           <label>Marca (brand) - opcional</label>
           <select name="map_brand" class="form-control">
             <option value="">-- Ninguna --</option>
@@ -293,7 +293,7 @@
           </select>
           <small class="text-muted">Nombre de la marca. Si no existe, se creará como categoría tipo brand.</small>
         </div>
-        <div class="col-md-4 mt-2">
+        <div class="col-md-4 mb-3">
           <label>Descuento de proveedor (%) - opcional</label>
           <select name="map_supplier_discount" class="form-control">
             <option value="">-- Ninguna --</option>
@@ -301,7 +301,7 @@
           </select>
           <small class="text-muted">Ej: 10 para 10%. Se aplica sobre el costo.</small>
         </div>
-        <div class="col-md-4 mt-2">
+        <div class="col-md-4 mb-3">
           <label>Código externo/SKU (external_code) - opcional</label>
           <select name="map_external_code" class="form-control">
             <option value="">-- Ninguna --</option>
@@ -313,20 +313,20 @@
 
       <!-- Campos Clientes -->
       <div id="fieldsClient" class="row" style="display:none;">
-        <div class="col-md-4">
+        <div class="col-md-4 mb-3">
           <label>Nombres (names) <span class="text-danger">*</span></label>
           <select name="map_names" class="form-control" required>
             {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
           </select>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-4 mb-3">
           <label>Apellidos (surnames)</label>
           <select name="map_surnames" class="form-control">
             <option value="">-- Ninguna --</option>
             {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
           </select>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-4 mb-3">
           <label>DNI <span class="text-danger">*</span></label>
           <select name="map_dni" class="form-control" required>
             <option value="">-- Ninguna --</option>
@@ -334,49 +334,49 @@
           </select>
           <small class="text-muted">Usado como identificador único</small>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-4 mb-3">
           <label>CUIT/CUIL</label>
           <select name="map_cuit_cuil" class="form-control">
             <option value="">-- Ninguna --</option>
             {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
           </select>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-4 mb-3">
           <label>Email</label>
           <select name="map_email" class="form-control">
             <option value="">-- Ninguna --</option>
             {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
           </select>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-4 mb-3">
           <label>Teléfono</label>
           <select name="map_telefono" class="form-control">
             <option value="">-- Ninguna --</option>
             {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
           </select>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-4 mb-3">
           <label>Dirección</label>
           <select name="map_address" class="form-control">
             <option value="">-- Ninguna --</option>
             {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
           </select>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-4 mb-3">
           <label>Ciudad</label>
           <select name="map_ciudad" class="form-control">
             <option value="">-- Ninguna --</option>
             {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
           </select>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-4 mb-3">
           <label>Provincia</label>
           <select name="map_provincia" class="form-control">
             <option value="">-- Ninguna --</option>
             {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
           </select>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-4 mb-3">
           <label>Condición IVA</label>
           <select name="map_condicion_iva" class="form-control">
             <option value="">-- Ninguna --</option>
@@ -384,7 +384,7 @@
           </select>
           <small class="text-muted">RI, M, CF, EX, NC</small>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-4 mb-3">
           <label>Código externo (external_code) - opcional</label>
           <select name="map_external_code" class="form-control">
             <option value="">-- Ninguna --</option>
@@ -392,7 +392,7 @@
           </select>
           <small class="text-muted">Código del cliente en sistema externo</small>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-4 mb-3">
           <label>Tipo de Cliente</label>
           <select name="default_tipo_cliente" class="form-control">
             <option value="">-- Usar archivo --</option>
@@ -400,7 +400,7 @@
           </select>
           <small class="text-muted">Se asigna a todos los clientes importados</small>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-4 mb-3">
           <label>Lista de Precios</label>
           <select name="default_precio_lista" class="form-control">
             <option value="">-- Ninguna --</option>
@@ -412,13 +412,13 @@
 
       <!-- Campos Proveedores -->
       <div id="fieldsSupplier" class="row" style="display:none;">
-        <div class="col-md-4">
+        <div class="col-md-4 mb-3">
           <label>Nombre (name) <span class="text-danger">*</span></label>
           <select name="map_supplier_name" class="form-control" required>
             {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
           </select>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-4 mb-3">
           <label>Código (code)</label>
           <select name="map_supplier_code" class="form-control">
             <option value="">-- Ninguna --</option>
@@ -426,7 +426,7 @@
           </select>
           <small class="text-muted">Código único del proveedor</small>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-4 mb-3">
           <label>CUIT</label>
           <select name="map_supplier_cuit" class="form-control">
             <option value="">-- Ninguna --</option>
@@ -434,28 +434,28 @@
           </select>
           <small class="text-muted">Usado como identificador único si existe</small>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-4 mb-3">
           <label>Dirección</label>
           <select name="map_supplier_address" class="form-control">
             <option value="">-- Ninguna --</option>
             {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
           </select>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-4 mb-3">
           <label>Teléfono</label>
           <select name="map_supplier_phone" class="form-control">
             <option value="">-- Ninguna --</option>
             {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
           </select>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-4 mb-3">
           <label>Email</label>
           <select name="map_supplier_email" class="form-control">
             <option value="">-- Ninguna --</option>
             {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
           </select>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-4 mb-3">
           <label>Código externo (external_code) - opcional</label>
           <select name="map_supplier_external_code" class="form-control">
             <option value="">-- Ninguna --</option>
@@ -463,7 +463,7 @@
           </select>
           <small class="text-muted">Código del proveedor en sistema externo</small>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-4 mb-3">
           <label>Descuento de compra (%) - opcional</label>
           <select name="map_supplier_discount" class="form-control">
             <option value="">-- Ninguna --</option>
@@ -475,13 +475,13 @@
 
       <!-- Campos Categorías/Marcas -->
       <div id="fieldsCategory" class="row" style="display:none;">
-        <div class="col-md-4">
+        <div class="col-md-4 mb-3">
           <label>Nombre (name) <span class="text-danger">*</span></label>
           <select name="map_cat_name" class="form-control" required>
             {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
           </select>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-4 mb-3">
           <label>Tipo (category_type)</label>
           <select name="map_cat_type_fixed" class="form-control">
             <option value="category" selected>Categoría</option>
@@ -493,7 +493,7 @@
             {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
           </select>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-4 mb-3">
           <label>Código externo (external_code) - opcional</label>
           <select name="map_cat_external_code" class="form-control">
             <option value="">-- Ninguna --</option>
@@ -501,7 +501,7 @@
           </select>
           <small class="text-muted">Código en sistema externo</small>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-4 mb-3">
           <label>Descripción (desc) - opcional</label>
           <select name="map_cat_desc" class="form-control">
             <option value="">-- Ninguna --</option>
@@ -512,21 +512,21 @@
 
       <!-- Campos Conteo de Stock -->
       <div id="fieldsStock" class="row" style="display:none;">
-        <div class="col-md-4">
+        <div class="col-md-4 mb-3">
           <label>Código del producto <span class="text-danger">*</span></label>
           <select name="map_stock_code" class="form-control" required>
             {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
           </select>
           <small class="text-muted">Busca en código de barras, código externo o código de proveedor</small>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-4 mb-3">
           <label>Cantidad contada <span class="text-danger">*</span></label>
           <select name="map_stock_qty" class="form-control" required>
             {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
           </select>
           <small class="text-muted">Stock físico contado del producto</small>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-4 mb-3">
           <label>Nombre (referencia) - opcional</label>
           <select name="map_stock_name" class="form-control">
             <option value="">-- Ninguna --</option>
@@ -534,7 +534,7 @@
           </select>
           <small class="text-muted">Se muestra en resultados y sirve de match alternativo</small>
         </div>
-        <div class="col-md-4 mt-2">
+        <div class="col-md-4 mb-3">
           <label>Modo de aplicación</label>
           <select name="stock_mode" class="form-control">
             <option value="replace">Reemplazar stock (conteo físico)</option>
