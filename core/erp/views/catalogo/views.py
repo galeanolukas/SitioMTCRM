@@ -86,7 +86,6 @@ def enviar_productos_catalogo(request):
                 'descripcion': '',  # Product model doesn't have description field
                 'precio': float(prod.pvp_final),
                 'stock': int(prod.stock),
-                'categoria': prod.cat.name if prod.cat else '',
                 'marca': '',  # Product model doesn't have marca field
                 'imagen_url': prod.image.url if prod.image else '',
                 'fecha_actualizacion': prod.last_server_sync.isoformat() if prod.last_server_sync else ''
