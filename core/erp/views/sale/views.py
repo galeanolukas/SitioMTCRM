@@ -272,12 +272,16 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     qs = qs.none()
                 
                 # Priorizar búsqueda por código exacto primero
-                prod = qs.filter(code__iexact=code).first()
-                
+                prod = qs.filter(
+                    Q(code__iexact=code) |
+                    Q(external_code__iexact=code) |
+                    Q(codigo_proveedor__iexact=code)
+                ).first()
+
                 # Si no encuentra por código, buscar por nombre exacto
                 if not prod:
                     prod = qs.filter(name__iexact=code).first()
-                
+
                 # Si aún no encuentra, buscar por nombre que contenga el término
                 if not prod:
                     prod = qs.filter(name__icontains=code).first()
@@ -321,15 +325,45 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     qs = qs.filter(company_id=active_cid)
                 else:
                     qs = qs.none()
-                # Búsqueda por nombre, código, código externo, código de proveedor o marca
+                # Búsqueda por nombre, código, código externo, código de
+                # proveedor, marca o categoría. El nombre también acepta
+                # todas las palabras del término en cualquier orden.
                 if term:
-                    qs = qs.filter(
+                    base_q = (
                         Q(name__icontains=term) | Q(code__icontains=term) |
                         Q(external_code__icontains=term) |
                         Q(codigo_proveedor__icontains=term) |
-                        Q(brand__name__icontains=term)
+                        Q(brand__name__icontains=term) |
+                        Q(cat__name__icontains=term)
                     )
-                qs = qs[:10]
+                    name_words_q = Q()
+                    for word in term.split():
+                        name_words_q &= Q(name__icontains=word)
+                    qs = qs.filter(base_q | name_words_q)
+
+                # Ordenar por relevancia: código exacto primero, luego
+                # nombre exacto, empieza con, contiene y todas las palabras
+                term_l = term.lower()
+                words_l = term_l.split()
+
+                def _score(p):
+                    codes_l = [(p.code or '').lower(),
+                               (p.external_code or '').lower(),
+                               (p.codigo_proveedor or '').lower()]
+                    if term_l in codes_l:
+                        return 0
+                    name_l = (p.name or '').lower()
+                    if name_l == term_l:
+                        return 1
+                    if name_l.startswith(term_l):
+                        return 2
+                    if term_l in name_l:
+                        return 3
+                    if all(w in name_l for w in words_l):
+                        return 4
+                    return 5  # match por marca, categoría u otro código parcial
+
+                qs = sorted(qs[:50], key=lambda p: (_score(p), (p.name or '').lower()))[:10]
                 data = []
                 for p in qs:
                     item = {
