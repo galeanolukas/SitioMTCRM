@@ -289,9 +289,16 @@
 
   // Sumar stock rápido a un producto (ej: +1 para poder venderlo)
   function quickAddStock(productId, qty) {
-    return ajaxAction('quick_add_stock', { product_id: productId, qty: qty })
-      .done(r => showToast('success', `Stock actualizado: ${r.name} → ${r.stock}`))
-      .fail(() => showToast('error', 'No se pudo actualizar el stock'));
+    const req = ajaxAction('quick_add_stock', { product_id: productId, qty: qty });
+    req.done(r => {
+      if (r && r.error) {
+        showToast('error', r.error);
+      } else {
+        showToast('success', `Stock actualizado: ${r.name} → ${r.stock}`);
+      }
+    });
+    req.fail(() => showToast('error', 'No se pudo actualizar el stock'));
+    return req;
   }
 
   // Debounce helper
@@ -329,7 +336,7 @@
           const badge = stock <= 0
             ? "<span class='badge bg-danger ms-1'>SIN STOCK</span>"
             : `<span class='badge bg-secondary ms-1'>stock ${stock}</span>`;
-          const item = $(`<button type="button" class="list-group-item list-group-item-action">${p.name} <span class='text-muted small'>${p.code || ''}</span> ${badge} <span class='float-end'>$${parseFloat(p.pvp).toFixed(2)}</span></button>`);
+          const item = $(`<div class="list-group-item list-group-item-action" role="button" style="cursor:pointer;">${p.name} <span class='text-muted small'>${p.code || ''}</span> ${badge} <span class='float-end'>$${parseFloat(p.pvp).toFixed(2)}</span></div>`);
           item.on('click', function(e) {
             e.preventDefault();
             if (p.unit === 'kg') {
@@ -346,6 +353,7 @@
               e.preventDefault();
               e.stopPropagation();
               quickAddStock(p.id, 1).done(r => {
+                if (r.error) return;
                 p.stock = r.stock;
                 if (p.unit === 'kg') {
                   showWeightModal(p);
@@ -387,7 +395,11 @@
           };
           if ((parseFloat(resp.stock) || 0) <= 0) {
             if (confirm(`"${resp.name}" no tiene stock. ¿Sumar 1 unidad al stock para venderla?`)) {
-              quickAddStock(resp.id, 1).done(r => { resp.stock = r.stock; add(); });
+              quickAddStock(resp.id, 1).done(r => {
+                if (r.error) return;
+                resp.stock = r.stock;
+                add();
+              });
             }
           } else {
             add();
