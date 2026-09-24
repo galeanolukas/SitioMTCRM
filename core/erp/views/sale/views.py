@@ -144,7 +144,6 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
 
     def create_vat_breakdown_from_payload(self, sale, vat_breakdown):
         """Crear apertura de alícuotas de IVA desde el payload del POS"""
-        from decimal import Decimal
         
         # Mapeo de tasas de IVA a códigos AFIP
         vat_code_mapping = {
@@ -347,7 +346,6 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     data.append(item)
                 return JsonResponse(data, safe=False)
             elif action == 'quick_create_product':
-                from decimal import Decimal
                 name = (request.POST.get('name') or 'PRODUCTO GENERICO').strip()
                 raw_price = request.POST.get('price') or '0'
                 raw_iva = request.POST.get('iva_rate') or '0'
@@ -577,7 +575,6 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 category.save()
                 data = {'id': category.id, 'name': category.name, 'desc': category.desc or ''}
             elif action == 'create_sale':
-                from decimal import Decimal
                 # Prevenir duplicación con token de sesión
                 sale_token = request.POST.get('sale_token')
                 if not sale_token:
@@ -749,7 +746,6 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         'afip_error': sale.afip_error or '',
                     }
             elif action == 'invoice':
-                from decimal import Decimal
                 # Prevenir duplicación con token de sesión
                 sale_token = request.POST.get('sale_token')
                 if not sale_token:
@@ -968,7 +964,6 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     qo.save(update_fields=['status'])
                     data = {'id': sale.id}
             elif action == 'create_employee_account_sale':
-                from decimal import Decimal
                 # Prevenir duplicación con token de sesión
                 sale_token = request.POST.get('sale_token')
                 if not sale_token:
@@ -1396,7 +1391,6 @@ class SaleUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Update
                     item['text'] = i.name
                     data.append(item)
             elif action == 'edit':
-                from decimal import Decimal
                 with transaction.atomic():
                     vents = json.loads(request.POST['vents'])
 
@@ -2077,7 +2071,6 @@ def sync_sales_api(request):
                 sale.save()
 
                 items = s.get('items', []) or []
-                from decimal import Decimal
                 for it in items:
                     prod_id = it.get('prod_id') or it.get('id')
                     if not prod_id:
