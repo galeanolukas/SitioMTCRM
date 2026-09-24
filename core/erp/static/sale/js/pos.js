@@ -117,6 +117,8 @@
       $tSavings.text('-' + fmt(savings));
     } else {
       $('#priceListSavingsRow').hide();
+      $('#priceListName').text('');
+      $tSavings.text('$0.00');
     }
     
     // Renderizar items
@@ -134,9 +136,6 @@
     $('#selectedPriceListName').text('-');
     recalc();
     $input.val('').focus();
-    // Si hay un cliente seleccionado con lista propia, re-aplicarla
-    const clientId = $('#selectedClientId').val();
-    if (clientId) applyClientPriceList(clientId, true);
   }
 
   function render() {
