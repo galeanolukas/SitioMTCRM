@@ -777,9 +777,10 @@
       const final = it.pvp_final && !isNaN(parseFloat(it.pvp_final))
         ? parseFloat(it.pvp_final)
         : net * (1 + rate);
-      const cant = parseInt(it.cant) || 0;
+      const cant = parseFloat(it.cant) || 0;
       return {
         id: it.id,
+        name: it.name || 'Producto',
         cant,
         price: final,
         subtotal: final * cant,
@@ -1458,9 +1459,10 @@
   }
 
   function doCreateBudget() {
-    const calc = buildPayload(false); // Usar precios netos (sin IVA)
-    const subtotal = calc.subtotal_neto; // Usar subtotal neto (con descuento aplicado, sin IVA)
-    const iva = 0; // Presupuestos no tienen IVA
+    const calc = buildPayload(false);
+    // Usar precios finales (con IVA) para que coincidan con los del carrito
+    const subtotal = calc.subtotal_con_iva;
+    const iva = 0; // El IVA ya viene incluido en el precio del ítem
     let total = subtotal;
     const payMethod = ($('#payMethod').val() || 'cash');
     const budgetNotes = $('#budgetNotes').val() || '';
@@ -1501,24 +1503,23 @@
     const tbody = $('#budgetConfirmItems');
     tbody.empty();
     
-    calc.items_net.forEach(item => {
+    calc.items_final.forEach(item => {
       const row = `
         <tr>
           <td>${item.name}</td>
           <td class="text-center">${item.cant}</td>
-          <td class="text-end">${fmt(item.pvp)}</td>
-          <td class="text-end">${fmt(item.cant * item.pvp)}</td>
+          <td class="text-end">${fmt(item.price)}</td>
+          <td class="text-end">${fmt(item.subtotal)}</td>
         </tr>
       `;
       tbody.append(row);
     });
-    
+
     // Llenar totales
-    $('#budgetConfirmItemsCount').text(calc.items_net.length);
+    $('#budgetConfirmItemsCount').text(calc.items_final.length);
     // Si hay descuento, mostrar subtotal original + descuento + total con descuento
     if (priceListName && discountAmount > 0.01) {
-      const subtotalOriginal = subtotal + discountAmount;
-      $('#budgetConfirmSubtotal').text(fmt(subtotalOriginal));
+      $('#budgetConfirmSubtotal').text(fmt(calc.subtotal_original));
       $('#budgetConfirmDiscount').text('-' + fmt(discountAmount));
       $('#budgetConfirmSubtotalDiscounted').text(fmt(subtotal));
       $('#budgetDiscountFooterRow').show();
@@ -1526,7 +1527,7 @@
       $('#budgetConfirmSubtotal').text(fmt(subtotal));
       $('#budgetDiscountFooterRow').hide();
     }
-    $('#budgetConfirmIva').text('$0.00');
+    $('#budgetConfirmIva').text(fmt(calc.iva_total));
     $('#budgetConfirmTotal').text(fmt(total));
 
     // Mostrar info de plan de cuotas si hay recargo
@@ -1561,13 +1562,13 @@
     const dateStr = now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate()) + ' ' + pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());
     window.budgetPayload = {
       cli: calc.client_id,
-      products: calc.items_net.map(it => ({ id: it.id, cant: it.cant, price: it.price, subtotal: it.subtotal })),
+      products: calc.items_final.map(it => ({ id: it.id, cant: it.cant, price: it.price, subtotal: it.subtotal })),
       subtotal, iva, total,
       payment_method: payMethod,
       is_budget: true,
       budget_notes: budgetNotes,
       date_joined: dateStr,
-      subtotal_original: (priceListName && discountAmount > 0.01) ? (subtotal + discountAmount) : 0,
+      subtotal_original: (priceListName && discountAmount > 0.01) ? calc.subtotal_original : 0,
       discount_amount: discountAmount,
       price_list_id: priceListId || null,
       sale_token: 'budget_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
@@ -1589,7 +1590,7 @@
     // Guardar info para WhatsApp
     window.budgetWhatsAppData = {
       client_name: calc.client_name || 'Cliente no seleccionado',
-      items: calc.items_net.map(it => ({ name: it.name, cant: it.cant, pvp: it.pvp })),
+      items: calc.items_final.map(it => ({ name: it.name, cant: it.cant, pvp: it.price })),
       subtotal: subtotal,
       total: total,
       planInfo: planInfo,
