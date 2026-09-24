@@ -778,11 +778,16 @@
         ? parseFloat(it.pvp_final)
         : net * (1 + rate);
       const cant = parseFloat(it.cant) || 0;
+      // Precio original (sin descuento de lista) con IVA, igual al de subtotal_original
+      const rate_decimal = rate > 1 ? rate / 100 : rate;
+      const origNet = originalPrices[it.id] !== undefined ? originalPrices[it.id] : net;
+      const price_original = origNet * (1 + rate_decimal);
       return {
         id: it.id,
         name: it.name || 'Producto',
         cant,
         price: final,
+        price_original,
         subtotal: final * cant,
       };
     });
@@ -1504,12 +1509,13 @@
     tbody.empty();
     
     calc.items_final.forEach(item => {
+      // Mostrar precio original; el descuento se detalla en los totales
       const row = `
         <tr>
           <td>${item.name}</td>
           <td class="text-center">${item.cant}</td>
-          <td class="text-end">${fmt(item.price)}</td>
-          <td class="text-end">${fmt(item.subtotal)}</td>
+          <td class="text-end">${fmt(item.price_original)}</td>
+          <td class="text-end">${fmt(item.cant * item.price_original)}</td>
         </tr>
       `;
       tbody.append(row);
@@ -1590,7 +1596,7 @@
     // Guardar info para WhatsApp
     window.budgetWhatsAppData = {
       client_name: calc.client_name || 'Cliente no seleccionado',
-      items: calc.items_final.map(it => ({ name: it.name, cant: it.cant, pvp: it.price })),
+      items: calc.items_final.map(it => ({ name: it.name, cant: it.cant, pvp: it.price_original })),
       subtotal: subtotal,
       total: total,
       planInfo: planInfo,
@@ -2278,31 +2284,31 @@
     text += 'Fecha: ' + new Date().toLocaleDateString() + '\n';
     text += '\n*Detalle:*\n';
     d.items.forEach(function(item) {
-      text += '• ' + item.name + ' x' + item.cant + ' - $' + item.pvp.toFixed(2) + '\n';
+      text += '• ' + item.name + ' x' + item.cant + ' - ' + fmt(item.pvp) + '\n';
     });
-    text += '\n*Subtotal: $' + (d.subtotal + (d.discountAmount || 0)).toFixed(2) + '*\n';
+    text += '\n*Subtotal: ' + fmt(d.subtotal + (d.discountAmount || 0)) + '*\n';
     if (d.priceListName) {
       text += '*Lista: ' + d.priceListName + '*\n';
       if (d.discountAmount && d.discountAmount > 0.01) {
-        text += '*Descuento: -$' + d.discountAmount.toFixed(2) + '*\n';
+        text += '*Descuento: -' + fmt(d.discountAmount) + '*\n';
       }
     }
     if (d.discountAmount && d.discountAmount > 0.01) {
-      text += '*Subtotal c/desc.: $' + d.subtotal.toFixed(2) + '*\n';
+      text += '*Subtotal c/desc.: ' + fmt(d.subtotal) + '*\n';
     }
     if (d.planInfo) {
       // Limpiar el nombre del plan: quitar el multiplicador (ej: "(1,1400x)")
       const cleanPlanName = d.planInfo.name.replace(/\s*\([\d.,]+x\)\s*/g, '').trim();
       text += '*Plan: ' + cleanPlanName + '*\n';
-      text += '*Total: $' + d.planInfo.total_with_surcharge.toFixed(2) + '*\n';
-      text += d.planInfo.installments + ' cuotas de $' + d.planInfo.installment_amount.toFixed(2) + '\n';
+      text += '*Total: ' + fmt(d.planInfo.total_with_surcharge) + '*\n';
+      text += d.planInfo.installments + ' cuotas de ' + fmt(d.planInfo.installment_amount) + '\n';
     } else {
-      text += '*Total: $' + d.total.toFixed(2) + '*\n';
+      text += '*Total: ' + fmt(d.total) + '*\n';
     }
     if (d.combinedPaymentData) {
       text += '\nPago combinado: ' + d.combinedPaymentData.description + '\n';
-      text += '  - $' + d.combinedPaymentData.first_amount.toFixed(2) + ' (' + d.combinedPaymentData.first_method + ')\n';
-      text += '  - $' + d.combinedPaymentData.second_amount.toFixed(2) + ' (' + d.combinedPaymentData.second_method + ')\n';
+      text += '  - ' + fmt(d.combinedPaymentData.first_amount) + ' (' + d.combinedPaymentData.first_method + ')\n';
+      text += '  - ' + fmt(d.combinedPaymentData.second_amount) + ' (' + d.combinedPaymentData.second_method + ')\n';
     }
     if (d.notes) {
       text += '\nNotas: ' + d.notes + '\n';
