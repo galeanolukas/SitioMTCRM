@@ -120,7 +120,6 @@ $(function() {
 
     function toggleSyncInterval() {
         var enabled = autoSyncCheckbox.is(':checked');
-        syncIntervalField.prop('disabled', !enabled);
         syncIntervalGroup.toggle(enabled);
     }
 
@@ -130,6 +129,7 @@ $(function() {
     // Submit via AJAX
     $('#catalogo-form').on('submit', function(e) {
         e.preventDefault();
+        syncIntervalField.prop('disabled', false);
         var parameters = new FormData(this);
         submit_with_ajax(window.location.pathname, 'Alerta!', '¿Está seguro de guardar esta configuración?', parameters, function() {
             location.href = '{{ list_url }}';
