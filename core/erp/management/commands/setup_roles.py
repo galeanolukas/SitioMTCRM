@@ -115,6 +115,8 @@ class Command(BaseCommand):
                 ('erp', 'employeeaccountsale', ['view', 'add', 'change', 'delete']),
                 # Listas de precios
                 ('erp', 'pricelist', ['view', 'add', 'change', 'delete']),
+                # Catálogo: CRUD completo (config de sync por empresa)
+                ('erp', 'catalogoconfig', ['view', 'add', 'change', 'delete']),
             ],
             'servidor_local': [
                 # Todo lo de admin_empresa más config global:

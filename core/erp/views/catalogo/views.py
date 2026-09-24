@@ -59,80 +59,98 @@ def _sync_productos_a_catalogo(catalogo_config):
 
     logger.info(f"Payload JSON preparado con {len(productos)} productos")
 
-    # Enviar productos al catálogo
-    sync_url = f"{catalogo_url}/api/sincronizar-productos-crm/"
-    logger.info(f"Enviando a URL: {sync_url}")
-
-    payload = {
-        'api_key': catalogo_api_key,
-        'productos': productos
-    }
-
-    # allow_redirects=False: si el catálogo responde 301/302 (ej: dominio
-    # sin www → con www), requests seguiría el redirect convirtiendo el
-    # POST en GET y el catálogo devuelve 405. Seguimos el Location
-    # manualmente preservando el método y el body.
-    current_url = sync_url
-    response = None
-    for _ in range(4):
-        response = requests.post(
-            current_url,
-            headers={
-                'Content-Type': 'application/json'
-            },
-            json=payload,
-            timeout=60,
-            verify=False,  # Deshabilitar verificación SSL temporalmente
-            allow_redirects=False
-        )
-        if response.is_redirect:
-            redirect_url = response.headers.get('Location')
-            if not redirect_url:
-                break
-            logger.info(f"Redirect {response.status_code} a {redirect_url}, reintentando POST")
-            current_url = redirect_url
-            continue
-        break
-
-    logger.info(f"Respuesta del catálogo - Status: {response.status_code}, Content: {response.text[:500]}")
-
-    if response.status_code == 200:
-        # Actualizar last_sync
-        catalogo_config.last_sync = timezone.now()
-        catalogo_config.save()
-
-        logger.info(f"Sincronización exitosa. {len(productos)} productos enviados")
-
+    if not productos:
         return 200, {
             'success': True,
-            'message': f'{len(productos)} productos enviados correctamente',
-            'response': response.json()
+            'message': 'No hay productos para sincronizar',
+            'response': {}
         }
 
-    error_msg = f'Error al enviar productos: {response.status_code}'
-    if response.status_code == 302:
-        error_msg += f' - Redirigido a: {response.headers.get("Location", "desconocido")}'
+    # Enviar productos al catálogo en lotes para evitar timeouts con
+    # catálogos grandes (un solo POST con miles de productos puede cortar)
+    sync_url = f"{catalogo_url}/api/sincronizar-productos-crm/"
+    batch_size = 200
+    total_lotes = (len(productos) + batch_size - 1) // batch_size
+    enviados = 0
+    ultima_respuesta = None
 
-    # Intentar parsear la respuesta del servidor para obtener más detalles
-    try:
-        response_data = response.json()
-        if 'error' in response_data:
-            error_msg = f'Error del servidor: {response_data["error"]}'
-        elif 'detail' in response_data:
-            error_msg = f'Error del servidor: {response_data["detail"]}'
-        elif 'message' in response_data:
-            error_msg = f'Error del servidor: {response_data["message"]}'
-    except:
-        # Si no es JSON, usar el texto de la respuesta
-        if response.text:
-            error_msg += f' - Detalles: {response.text[:200]}'
+    for i in range(0, len(productos), batch_size):
+        lote = productos[i:i + batch_size]
+        num_lote = i // batch_size + 1
+        payload = {
+            'api_key': catalogo_api_key,
+            'productos': lote
+        }
+        logger.info(f"Enviando lote {num_lote}/{total_lotes} ({len(lote)} productos) a {sync_url}")
 
-    logger.error(f"Error en sincronización: {error_msg}")
-    return 500, {
-        'success': False,
-        'error': error_msg,
-        'status_code': response.status_code,
-        'response': response.text[:500]
+        # allow_redirects=False: si el catálogo responde 301/302 (ej: dominio
+        # sin www → con www), requests seguiría el redirect convirtiendo el
+        # POST en GET y el catálogo devuelve 405. Seguimos el Location
+        # manualmente preservando el método y el body.
+        current_url = sync_url
+        response = None
+        for _ in range(4):
+            response = requests.post(
+                current_url,
+                headers={
+                    'Content-Type': 'application/json'
+                },
+                json=payload,
+                timeout=60,
+                verify=False,  # Deshabilitar verificación SSL temporalmente
+                allow_redirects=False
+            )
+            if response.is_redirect:
+                redirect_url = response.headers.get('Location')
+                if not redirect_url:
+                    break
+                logger.info(f"Redirect {response.status_code} a {redirect_url}, reintentando POST")
+                current_url = redirect_url
+                continue
+            break
+
+        logger.info(f"Lote {num_lote}/{total_lotes} - Status: {response.status_code}, Content: {response.text[:500]}")
+
+        if response.status_code != 200:
+            error_msg = f'Error al enviar productos (lote {num_lote}/{total_lotes}): HTTP {response.status_code}'
+            if response.status_code == 302:
+                error_msg += f' - Redirigido a: {response.headers.get("Location", "desconocido")}'
+
+            # Intentar parsear la respuesta del servidor para más detalles
+            try:
+                response_data = response.json()
+                detalle = response_data.get('error') or response_data.get('detail') or response_data.get('message')
+                if detalle:
+                    error_msg = f'Error del servidor (lote {num_lote}/{total_lotes}): {detalle}'
+            except:
+                if response.text:
+                    error_msg += f' - Detalles: {response.text[:200]}'
+
+            logger.error(f"Error en sincronización: {error_msg}")
+            return 500, {
+                'success': False,
+                'error': error_msg,
+                'status_code': response.status_code,
+                'response': response.text[:500],
+                'enviados': enviados
+            }
+
+        enviados += len(lote)
+        try:
+            ultima_respuesta = response.json()
+        except:
+            pass
+
+    # Actualizar last_sync solo si se enviaron todos los lotes
+    catalogo_config.last_sync = timezone.now()
+    catalogo_config.save()
+
+    logger.info(f"Sincronización exitosa. {enviados} productos enviados en {total_lotes} lotes")
+
+    return 200, {
+        'success': True,
+        'message': f'{enviados} productos enviados correctamente',
+        'response': ultima_respuesta
     }
 
 
