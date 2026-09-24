@@ -97,18 +97,35 @@ def enviar_productos_catalogo(request):
         sync_url = f"{catalogo_url}/api/sincronizar-productos-crm/"
         logger.info(f"Enviando a URL: {sync_url}")
         
-        response = requests.post(
-            sync_url,
-            headers={
-                'Content-Type': 'application/json'
-            },
-            json={
-                'api_key': catalogo_api_key,
-                'productos': productos
-            },
-            timeout=60,
-            verify=False  # Deshabilitar verificación SSL temporalmente
-        )
+        payload = {
+            'api_key': catalogo_api_key,
+            'productos': productos
+        }
+        
+        # allow_redirects=False: si el catálogo responde 301/302 (ej: dominio
+        # sin www → con www), requests seguiría el redirect convirtiendo el
+        # POST en GET y el catálogo devuelve 405. Seguimos el Location
+        # manualmente preservando el método y el body.
+        current_url = sync_url
+        for _ in range(4):
+            response = requests.post(
+                current_url,
+                headers={
+                    'Content-Type': 'application/json'
+                },
+                json=payload,
+                timeout=60,
+                verify=False,  # Deshabilitar verificación SSL temporalmente
+                allow_redirects=False
+            )
+            if response.is_redirect:
+                redirect_url = response.headers.get('Location')
+                if not redirect_url:
+                    break
+                logger.info(f"Redirect {response.status_code} a {redirect_url}, reintentando POST")
+                current_url = redirect_url
+                continue
+            break
         
         logger.info(f"Respuesta del catálogo - Status: {response.status_code}, Content: {response.text[:500]}")
         
