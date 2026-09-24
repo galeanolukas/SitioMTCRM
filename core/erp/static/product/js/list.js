@@ -15,7 +15,59 @@ $(function () {
         return cookieValue;
     }
 
-    $('#data').DataTable({
+    // ---------- Búsqueda custom ----------
+    // Filtra por código/barcode EXACTO (code, external_code, codigo_proveedor)
+    // o por NOMBRE similar: todas las palabras del término deben aparecer.
+    // Además ordena los resultados por relevancia (más parecidos primero).
+    var productTable = null;
+    var lastSearchTerm = '';
+    var codeExactNames = {};
+
+    function getSearchTerm() {
+        var t = productTable ? productTable.search() : '';
+        return (t || '').trim().toLowerCase();
+    }
+
+    // Score del nombre: menor = más parecido
+    function nameScore(term, name) {
+        name = String(name || '').toLowerCase();
+        if (!term) return 0;
+        if (name === term) return 0;                 // exacto
+        if (name.indexOf(term) === 0) return 1;      // empieza con el término
+        if (name.indexOf(term) > 0) return 2;        // contiene el término completo
+        var words = term.split(/\s+/).filter(Boolean);
+        if (words.length && words.every(function (w) { return name.indexOf(w) !== -1; })) return 3;
+        return 9;                                    // no coincide
+    }
+
+    function rowMatches(term, rowData) {
+        if (!term) return true;
+        // Match exacto por código / código de barras / códigos alternativos
+        var code = String(rowData.code || '').toLowerCase();
+        var ext = String(rowData.external_code || '').toLowerCase();
+        var prov = String(rowData.codigo_proveedor || '').toLowerCase();
+        if (code === term || ext === term || prov === term) return true;
+        // Nombre similar
+        return nameScore(term, rowData.name) <= 3;
+    }
+
+    $.fn.dataTable.ext.search.push(function (settings, searchData, index, rowData, counter) {
+        if (settings.nTable && settings.nTable.id !== 'data') return true;
+        return rowMatches(getSearchTerm(), rowData || {});
+    });
+
+    // Ordenamiento por relevancia del nombre según el término buscado
+    $.fn.dataTable.ext.type.order['relevance-asc'] = function (a, b) {
+        var sa = codeExactNames[a] ? -1 : nameScore(lastSearchTerm, a);
+        var sb = codeExactNames[b] ? -1 : nameScore(lastSearchTerm, b);
+        if (sa !== sb) return sa - sb;
+        return String(a || '').localeCompare(String(b || ''));
+    };
+    $.fn.dataTable.ext.type.order['relevance-desc'] = function (a, b) {
+        return -1 * $.fn.dataTable.ext.type.order['relevance-asc'](a, b);
+    };
+
+    productTable = $('#data').DataTable({
         responsive: true,
         autoWidth: false,
         destroy: true,
@@ -75,6 +127,10 @@ $(function () {
             {"data": "id"},
         ],
         columnDefs: [
+            {
+                targets: 1, // columna 'name' - orden por relevancia al buscar
+                type: 'relevance'
+            },
             {
                 targets: 2, // columna 'code'
                 class: 'text-center',
@@ -145,5 +201,25 @@ $(function () {
             var badge = document.getElementById('totalCountBadge');
             if (badge) badge.textContent = count;
         }
+    });
+
+    // Al buscar, ordenar por relevancia del nombre; al limpiar, volver al orden por Nro
+    productTable.on('search.dt', function () {
+        var term = getSearchTerm();
+        if (term === lastSearchTerm) return;
+        lastSearchTerm = term;
+        // Productos con match exacto de código van primero en el orden
+        codeExactNames = {};
+        if (term) {
+            productTable.rows().every(function () {
+                var d = this.data() || {};
+                var codes = [d.code, d.external_code, d.codigo_proveedor];
+                var exact = codes.some(function (c) {
+                    return String(c || '').toLowerCase() === term;
+                });
+                if (exact) codeExactNames[String(d.name || '')] = true;
+            });
+        }
+        productTable.order(term ? [[1, 'asc']] : [[0, 'asc']]).draw(false);
     });
 });
