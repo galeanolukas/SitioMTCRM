@@ -163,6 +163,7 @@ def _run_full_sync_impl(company_id=None):
         'proveedores': {'before': 0, 'after': 0, 'synced': 0},
         'gastos': {'before': 0, 'after': 0, 'synced': 0},
         'cierres': {'before': 0, 'after': 0, 'synced': 0},
+        'catalogo_configs': {'before': 0, 'after': 0, 'synced': 0},
         'pedidos_catalogo': {'before': 0, 'after': 0, 'synced': 0}
     }
     
@@ -231,6 +232,26 @@ def _run_full_sync_impl(company_id=None):
     else:
         logger.warning(f"Sin conexión para destino '{sync_destination}' - omitiendo sincronización de configuraciones AFIP")
         errors.append(f"Sin conexión para destino '{sync_destination}' - omitiendo sincronización de configuraciones AFIP")
+
+    # 2.c) Sincronizar configuraciones de catálogo (dependen de empresas)
+    logger.info("🛒 PASO 2.c/10: Sincronizando configuraciones de catálogo (remoto -> local)...")
+    if sync_destination in ['cloud', 'both'] and _can_reach_remote_db():
+        try:
+            from core.erp.models import CatalogoConfig
+            sync_stats['catalogo_configs']['before'] = CatalogoConfig.objects.count()
+
+            call_command("sync_catalogo_configs_from_remote_to_local")
+
+            sync_stats['catalogo_configs']['after'] = CatalogoConfig.objects.count()
+            sync_stats['catalogo_configs']['synced'] = sync_stats['catalogo_configs']['after'] - sync_stats['catalogo_configs']['before']
+
+            logger.info(f"✅ Configs de catálogo sincronizadas: {sync_stats['catalogo_configs']['synced']} nuevas (total: {sync_stats['catalogo_configs']['after']})")
+        except Exception as e:
+            logger.error(f"Error en sincronización de configs de catálogo: {e}")
+            errors.append(f"sync_catalogo_configs_from_remote_to_local: {e}")
+    else:
+        logger.warning(f"Sin conexión para destino '{sync_destination}' - omitiendo sincronización de configs de catálogo")
+        errors.append(f"Sin conexión para destino '{sync_destination}' - omitiendo sincronización de configs de catálogo")
 
     # 3) TERCERO: Sincronizar el resto de datos (productos, categorías, ventas, etc.)
     logger.info("📦 PASO 3/10: Sincronizando resto de datos...")
@@ -463,6 +484,7 @@ def _run_full_sync_impl(company_id=None):
     logger.info(f"🏭 PROVEEDORES: {sync_stats['proveedores']['synced']} nuevos ({sync_stats['proveedores']['before']} → {sync_stats['proveedores']['after']})")
     logger.info(f"💸 GASTOS: {sync_stats['gastos']['synced']} nuevos ({sync_stats['gastos']['before']} → {sync_stats['gastos']['after']})")
     logger.info(f"💰 CIERRES: {sync_stats['cierres']['synced']} pendientes ({sync_stats['cierres']['before']} → {sync_stats['cierres']['after']})")
+    logger.info(f"🛒 CONFIGS CATÁLOGO: {sync_stats['catalogo_configs']['synced']} nuevas ({sync_stats['catalogo_configs']['before']} → {sync_stats['catalogo_configs']['after']})")
     logger.info(f"🛒 PEDIDOS CATÁLOGO: {sync_stats['pedidos_catalogo']['synced']} nuevos ({sync_stats['pedidos_catalogo']['before']} → {sync_stats['pedidos_catalogo']['after']})")
     logger.info("=" * 80)
     logger.info(f"📈 TOTALES: {total_synced} cambios en {len([k for k in sync_stats.keys() if sync_stats[k]['synced'] > 0])} categorías")
