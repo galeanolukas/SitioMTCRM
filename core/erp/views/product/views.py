@@ -1488,6 +1488,9 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
             if entity_type == 'category':
                 map_name = request.POST.get('map_cat_name')
                 map_type = request.POST.get('map_cat_type')
+                map_type_fixed = (request.POST.get('map_cat_type_fixed') or 'category').strip()
+                if map_type_fixed not in ('category', 'brand'):
+                    map_type_fixed = 'category'
                 map_external_code = request.POST.get('map_cat_external_code')
                 map_desc = request.POST.get('map_cat_desc')
 
@@ -1506,7 +1509,7 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                             errors.append(f'Fila {idx+1}: Nombre vacío.')
                             continue
 
-                        cat_type = 'category'
+                        cat_type = map_type_fixed
                         if map_type and not pd.isna(row.get(map_type)):
                             tval = str(row.get(map_type)).strip().lower()
                             if tval in ('brand', 'marca'):

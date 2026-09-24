@@ -482,12 +482,16 @@
           </select>
         </div>
         <div class="col-md-4">
-          <label>Tipo (category_type) - opcional</label>
-          <select name="map_cat_type" class="form-control">
-            <option value="">-- Ninguna --</option>
+          <label>Tipo (category_type)</label>
+          <select name="map_cat_type_fixed" class="form-control">
+            <option value="category" selected>Categoría</option>
+            <option value="brand">Marca</option>
+          </select>
+          <small class="text-muted">Se aplica a todas las filas. Opcional: columna con tipo por fila</small>
+          <select name="map_cat_type" class="form-control mt-1">
+            <option value="">-- Ninguna columna --</option>
             {% for c in columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
           </select>
-          <small class="text-muted">Valores: category o brand. Default: category</small>
         </div>
         <div class="col-md-4">
           <label>Código externo (external_code) - opcional</label>
