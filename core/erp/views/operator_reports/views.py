@@ -31,6 +31,19 @@ except ImportError:
     OPENPYXL_AVAILABLE = False
 
 
+def _products_summary(det_sales):
+    """Productos de una venta, uno por línea, con cantidad (x2, x0.5, etc)."""
+    parts = []
+    for det in det_sales:
+        try:
+            cant = float(det.cant)
+        except (TypeError, ValueError):
+            cant = 0
+        cant_str = str(int(cant)) if cant == int(cant) else f'{cant:g}'
+        parts.append(f"{det.prod.name} x{cant_str}")
+    return '\n'.join(parts)
+
+
 class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView):
     template_name = 'operator_reports/sales_report.html'
     permission_required = 'erp.view_sale'
@@ -156,7 +169,7 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                     fiscal_sales = []
                     for sale in sales.select_related('cli', 'company').prefetch_related('detsale_set__prod'):
                         det_sales = sale.detsale_set.all()
-                        products_str = ', '.join([f"{det.prod.name}" for det in det_sales])
+                        products_str = _products_summary(det_sales)
                         date_joined = timezone.localtime(sale.date_joined)
 
                         # Número de comprobante
@@ -246,7 +259,7 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                     for sale in sales:
                         # Obtener todos los productos de esta venta
                         det_sales = DetSale.objects.filter(sale=sale).select_related('prod')
-                        products_str = ', '.join([f"{det.prod.name}" for det in det_sales])
+                        products_str = _products_summary(det_sales)
                         
                         # Distribuir el total según método de pago
                         sale_total = float(sale.total)
@@ -487,7 +500,7 @@ def operator_sales_export(request):
             writer.writerow([f"Fecha de generación: {timezone.now().strftime('%d/%m/%Y %H:%M')}"])
             writer.writerow([])
             
-            writer.writerow(['Fecha', 'Ticket/Factura', 'Cliente', 'Efectivo', 'Mercado Pago', 'Transferencias', 'Tarjeta', 'Cheque', 'Forma de Pago', 'Empresa'])
+            writer.writerow(['Fecha', 'Ticket/Factura', 'Cliente', 'Productos', 'Efectivo', 'Mercado Pago', 'Transferencias', 'Tarjeta', 'Cheque', 'Forma de Pago', 'Empresa'])
             
             cash_total = 0
             mp_total = 0
@@ -508,6 +521,7 @@ def operator_sales_export(request):
                         ticket_number = f"TK-{sale.id:06d}"
                 
                 sale_subtotal = float(sale.subtotal)  # Usar PVP puro sin IVA
+                products_str = _products_summary(DetSale.objects.filter(sale=sale).select_related('prod'))
                 
                 # Distribute amount by payment method
                 cash_amount = 0
@@ -578,6 +592,7 @@ def operator_sales_export(request):
                     timezone.localtime(sale.date_joined).strftime('%d/%m/%Y %H:%M'),
                     ticket_number,
                     sale.cli.names if sale.cli else 'Anónimo',
+                    products_str,
                     cash_amount,
                     mp_amount,
                     transfer_amount,
@@ -650,12 +665,12 @@ def operator_sales_export(request):
             
             # Add header information
             ws.append(['REPORTE DE VENTAS'])
-            ws.merge_cells('A1:J1')
+            ws.merge_cells('A1:K1')
             ws['A1'].font = Font(bold=True, size=16)
             ws['A1'].alignment = Alignment(horizontal='center')
             
             ws.append([company_name])
-            ws.merge_cells('A2:J2')
+            ws.merge_cells('A2:K2')
             ws['A2'].font = Font(bold=True, size=14)
             ws['A2'].alignment = Alignment(horizontal='center')
             
@@ -666,7 +681,7 @@ def operator_sales_export(request):
             ws.append([''])
             
             # Headers
-            headers = ['Fecha', 'Ticket/Factura', 'Cliente', 'Efectivo', 'Mercado Pago', 'Transferencias', 'Tarjeta', 'Cheque', 'Forma de Pago', 'Empresa']
+            headers = ['Fecha', 'Ticket/Factura', 'Cliente', 'Productos', 'Efectivo', 'Mercado Pago', 'Transferencias', 'Tarjeta', 'Cheque', 'Forma de Pago', 'Empresa']
             ws.append(headers)
             
             # Style headers
@@ -710,6 +725,7 @@ def operator_sales_export(request):
                         ticket_number = f"TK-{sale.id:06d}"
                 
                 sale_subtotal = float(sale.subtotal)  # Usar PVP puro sin IVA
+                products_str = _products_summary(DetSale.objects.filter(sale=sale).select_related('prod'))
                 
                 # Distribute amount by payment method
                 cash_amount = 0
@@ -780,6 +796,7 @@ def operator_sales_export(request):
                     timezone.localtime(sale.date_joined).strftime('%d/%m/%Y %H:%M'),
                     ticket_number,
                     sale.cli.names if sale.cli else 'Anónimo',
+                    products_str,
                     cash_amount,
                     mp_amount,
                     transfer_amount,
@@ -790,18 +807,20 @@ def operator_sales_export(request):
                 ])
                 
                 # Style data rows
-                for col_num in range(1, 11):
+                for col_num in range(1, 12):
                     cell = ws.cell(row=row_num, column=col_num)
                     cell.border = thin_border
-                    if col_num in [4, 5, 6, 7, 8]:  # Efectivo, MP, Transfer, Tarjeta, Cheque columns
+                    if col_num in [5, 6, 7, 8, 9]:  # Efectivo, MP, Transfer, Tarjeta, Cheque columns
                         cell.alignment = Alignment(horizontal='right')
+                    elif col_num == 4:  # Productos: un producto por línea
+                        cell.alignment = Alignment(wrap_text=True, vertical='top')
                 
                 row_num += 1
             
             # Summary section
             row_num += 2
             ws.append(['RESUMEN'])
-            ws.merge_cells(f'A{row_num}:J{row_num}')
+            ws.merge_cells(f'A{row_num}:K{row_num}')
             ws.cell(row=row_num, column=1).font = Font(bold=True, size=12)
             ws.cell(row=row_num, column=1).alignment = Alignment(horizontal='center')
             ws.cell(row=row_num, column=1).fill = PatternFill(start_color='E2EFDA', end_color='E2EFDA', fill_type='solid')
@@ -856,7 +875,7 @@ def operator_sales_export(request):
             # Payment method breakdown
             row_num += 2
             ws.append(['DESGLOSE POR MÉTODO DE PAGO'])
-            ws.merge_cells(f'A{row_num}:J{row_num}')
+            ws.merge_cells(f'A{row_num}:K{row_num}')
             ws.cell(row=row_num, column=1).font = Font(bold=True, size=12)
             ws.cell(row=row_num, column=1).alignment = Alignment(horizontal='center')
             ws.cell(row=row_num, column=1).fill = PatternFill(start_color='E2EFDA', end_color='E2EFDA', fill_type='solid')
@@ -883,7 +902,7 @@ def operator_sales_export(request):
                     row_num += 1
             
             # Adjust column widths
-            column_widths = [20, 15, 25, 12, 15, 15, 12, 12, 15, 20]
+            column_widths = [20, 15, 20, 35, 12, 15, 15, 12, 12, 15, 20]
             for col_num, width in enumerate(column_widths, 1):
                 ws.column_dimensions[openpyxl.utils.get_column_letter(col_num)].width = width
             
@@ -1055,7 +1074,7 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
     for sale in sales:
         # Obtener todos los productos de esta venta
         det_sales = DetSale.objects.filter(sale=sale).select_related('prod')
-        products_str = ', '.join([f"{det.prod.name}" for det in det_sales])
+        products_str = _products_summary(det_sales)
         
         # Distribuir el total según método de pago
         sale_total = float(sale.total)
@@ -1133,7 +1152,7 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
         other_total += sale['other']
         
         # Usar Paragraph para los productos y fecha con word wrapping
-        products_paragraph = Paragraph(sale['products'], normal_style)
+        products_paragraph = Paragraph(sale['products'].replace('\n', '<br/>'), normal_style)
         date_paragraph = Paragraph(sale['date'], normal_style)
         
         table_data.append([

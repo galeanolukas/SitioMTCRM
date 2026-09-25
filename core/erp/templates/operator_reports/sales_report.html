@@ -370,7 +370,7 @@ function displayFiscalReport(data) {
                 <td><small>${sale.invoice_type}</small></td>
                 <td><small>${sale.client}</small></td>
                 <td><small>${sale.client_cuit}</small></td>
-                <td><small>${sale.products}</small></td>
+                <td style="white-space: pre-line;"><small>${sale.products}</small></td>
                 <td class="text-right">$${subtotal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                 <td class="text-right">$${iva.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                 <td class="text-right font-weight-bold">$${total.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
@@ -515,7 +515,7 @@ function displayPaymentReport(data) {
             const row = `
                 <tr>
                     <td><small>${sale.date}</small></td>
-                    <td><small>${sale.products}</small></td>
+                    <td style="white-space: pre-line;"><small>${sale.products}</small></td>
                     <td class="text-right">$${cashAmount.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                     <td class="text-right">$${mpAmount.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                     <td class="text-right">$${transferAmount.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
