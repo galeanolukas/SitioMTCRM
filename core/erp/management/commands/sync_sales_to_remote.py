@@ -21,6 +21,11 @@ class Command(BaseCommand):
             help='Eliminar ventas en servidor que fueron eliminadas localmente',
         )
         parser.add_argument(
+            '--force',
+            action='store_true',
+            help='Forzar cleanup aunque supere la guarda de seguridad',
+        )
+        parser.add_argument(
             '--dry-run',
             action='store_true',
             help='Mostrar qué se haría sin ejecutar cambios',
@@ -28,10 +33,8 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         cleanup_mode = options.get('cleanup', False)
+        force = options.get('force', False)
         dry_run = options.get('dry_run', False)
-
-        if cleanup_mode:
-            return self.cleanup_deleted_sales(dry_run)
 
         # Prevenir ejecución concurrente
         if not _sync_lock.acquire(blocking=False):
@@ -41,8 +44,12 @@ class Command(BaseCommand):
             return
 
         try:
-            # Ejecutar cleanup de eliminaciones antes de sync normal
-            self.cleanup_deleted_sales(dry_run)
+            # El cleanup solo corre con --cleanup explícito: inferir borrados por
+            # ausencia en la base local es inseguro (una base local vacía o nueva
+            # borraría el historial completo del servidor).
+            if cleanup_mode:
+                self.cleanup_deleted_sales(dry_run, force=force)
+                return
 
             self._run_sync(dry_run)
         finally:
@@ -301,7 +308,12 @@ class Command(BaseCommand):
             f"errores: {errors}. Total procesado: {total}."
         ))
 
-    def cleanup_deleted_sales(self, dry_run=False):
+    # Máximo de ventas remotas que el cleanup puede borrar cuando la base local
+    # es chica. Si los "huérfanos" superan esto, casi seguro la base local fue
+    # borrada/reinstalada y no son eliminaciones reales.
+    MAX_ORPHANS_WITHOUT_FORCE = 20
+
+    def cleanup_deleted_sales(self, dry_run=False, force=False):
         """Eliminar en servidor las ventas que fueron eliminadas localmente"""
         self.stdout.write(self.style.NOTICE("Verificando ventas eliminadas localmente..."))
 
@@ -356,6 +368,21 @@ class Command(BaseCommand):
 
                 if not orphaned:
                     self.stdout.write(self.style.SUCCESS("No se encontraron ventas eliminadas localmente pendientes de cleanup."))
+                    return
+
+                # Guarda de seguridad: si los huérfanos superan a las ventas
+                # locales (o un umbral mínimo), la base local probablemente fue
+                # borrada/reinstalada y no son eliminaciones reales.
+                local_sales_count = Sale.objects.using('default').count()
+                safety_limit = max(local_sales_count, self.MAX_ORPHANS_WITHOUT_FORCE)
+                if len(orphaned) > safety_limit and not force:
+                    self.stderr.write(self.style.ERROR(
+                        f"CLEANUP ABORTADO: se encontraron {len(orphaned)} ventas remotas "
+                        f"sin correspondencia local, pero la base local solo tiene "
+                        f"{local_sales_count} ventas. Esto sugiere una base local vacía "
+                        f"o incompleta, no eliminaciones reales. "
+                        f"Revisá con --dry-run y, si estás seguro, forzá con --force."
+                    ))
                     return
 
                 self.stdout.write(self.style.WARNING(
