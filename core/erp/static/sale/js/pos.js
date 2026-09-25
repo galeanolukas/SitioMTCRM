@@ -2314,20 +2314,35 @@
       text += '\nNotas: ' + d.notes + '\n';
     }
     var waText = encodeURIComponent(text);
-    // Intentar abrir la app de WhatsApp (whatsapp://); si no hay app
-    // instalada, caer a WhatsApp Web en una pestaña nueva
-    var appOpened = false;
-    var markAppOpened = function() { appOpened = true; };
-    document.addEventListener('visibilitychange', markAppOpened);
-    window.addEventListener('pagehide', markAppOpened);
-    window.addEventListener('blur', markAppOpened);
-    setTimeout(function() {
-      document.removeEventListener('visibilitychange', markAppOpened);
-      window.removeEventListener('pagehide', markAppOpened);
-      window.removeEventListener('blur', markAppOpened);
-      if (!appOpened) window.open('https://wa.me/?text=' + waText, '_blank');
-    }, 1500);
-    window.location.href = 'whatsapp://send?text=' + waText;
+    // 'whatsapp_web' reutiliza siempre la misma pestaña de WhatsApp Web
+    var openWeb = function() {
+      window.open('https://web.whatsapp.com/send?text=' + waText, 'whatsapp_web');
+    };
+    if (localStorage.getItem('pos_wa_prefer') === 'web') {
+      // Ya se detectó que no hay app: ir directo a WhatsApp Web
+      openWeb();
+    } else {
+      // Intentar abrir la app (whatsapp://); si no hay app instalada,
+      // caer a WhatsApp Web y recordar la preferencia
+      var appOpened = false;
+      var markAppOpened = function() {
+        appOpened = true;
+        localStorage.setItem('pos_wa_prefer', 'app');
+      };
+      document.addEventListener('visibilitychange', markAppOpened);
+      window.addEventListener('pagehide', markAppOpened);
+      window.addEventListener('blur', markAppOpened);
+      setTimeout(function() {
+        document.removeEventListener('visibilitychange', markAppOpened);
+        window.removeEventListener('pagehide', markAppOpened);
+        window.removeEventListener('blur', markAppOpened);
+        if (!appOpened) {
+          localStorage.setItem('pos_wa_prefer', 'web');
+          openWeb();
+        }
+      }, 1500);
+      window.location.href = 'whatsapp://send?text=' + waText;
+    }
   });
 
   // Botón para confirmar creación de presupuesto
