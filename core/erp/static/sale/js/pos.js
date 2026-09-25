@@ -2313,8 +2313,21 @@
     if (d.notes) {
       text += '\nNotas: ' + d.notes + '\n';
     }
-    var url = 'https://wa.me/?text=' + encodeURIComponent(text);
-    window.open(url, '_blank');
+    var waText = encodeURIComponent(text);
+    // Intentar abrir la app de WhatsApp (whatsapp://); si no hay app
+    // instalada, caer a WhatsApp Web en una pestaña nueva
+    var appOpened = false;
+    var markAppOpened = function() { appOpened = true; };
+    document.addEventListener('visibilitychange', markAppOpened);
+    window.addEventListener('pagehide', markAppOpened);
+    window.addEventListener('blur', markAppOpened);
+    setTimeout(function() {
+      document.removeEventListener('visibilitychange', markAppOpened);
+      window.removeEventListener('pagehide', markAppOpened);
+      window.removeEventListener('blur', markAppOpened);
+      if (!appOpened) window.open('https://wa.me/?text=' + waText, '_blank');
+    }, 1500);
+    window.location.href = 'whatsapp://send?text=' + waText;
   });
 
   // Botón para confirmar creación de presupuesto
