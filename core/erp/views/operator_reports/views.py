@@ -256,6 +256,8 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                         cash_amount = 0.0
                         mp_amount = 0.0
                         transfer_amount = 0.0
+                        card_amount = 0.0
+                        check_amount = 0.0
                         other_amount = 0.0
                         
                         if payment_method == 'cash':
@@ -264,8 +266,10 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                             mp_amount = sale_total
                         elif payment_method == 'transfer':
                             transfer_amount = sale_total
-                        elif payment_method in ['card', 'check']:
-                            other_amount = sale_total
+                        elif payment_method == 'card':
+                            card_amount = sale_total
+                        elif payment_method == 'check':
+                            check_amount = sale_total
                         elif payment_method == 'combined' or (payment_method and '+' in payment_method):
                             # Pagos combinados - usar los detalles de pago
                             if payment_details and isinstance(payment_details, list):
@@ -280,8 +284,10 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                                             mp_amount += amount
                                         elif method == 'transfer':
                                             transfer_amount += amount
-                                        elif method in ['card', 'check']:
-                                            other_amount += amount
+                                        elif method == 'card':
+                                            card_amount += amount
+                                        elif method == 'check':
+                                            check_amount += amount
                                         else:
                                             other_amount += amount
                             else:
@@ -300,6 +306,8 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                             'cash': cash_amount,
                             'mp': mp_amount,
                             'transfer': transfer_amount,
+                            'card': card_amount,
+                            'check': check_amount,
                             'other': other_amount,
                             'total': sale_total
                         })
@@ -479,11 +487,13 @@ def operator_sales_export(request):
             writer.writerow([f"Fecha de generación: {timezone.now().strftime('%d/%m/%Y %H:%M')}"])
             writer.writerow([])
             
-            writer.writerow(['Fecha', 'Ticket/Factura', 'Cliente', 'Efectivo', 'Mercado Pago', 'Transferencias', 'Otros', 'Forma de Pago', 'Empresa'])
+            writer.writerow(['Fecha', 'Ticket/Factura', 'Cliente', 'Efectivo', 'Mercado Pago', 'Transferencias', 'Tarjeta', 'Cheque', 'Forma de Pago', 'Empresa'])
             
             cash_total = 0
             mp_total = 0
             transfer_total = 0
+            card_total = 0
+            check_total = 0
             other_total = 0
             
             for sale in sales:
@@ -503,6 +513,8 @@ def operator_sales_export(request):
                 cash_amount = 0
                 mp_amount = 0
                 transfer_amount = 0
+                card_amount = 0
+                check_amount = 0
                 other_amount = 0
                 
                 if sale.payment_method == 'cash':
@@ -514,10 +526,13 @@ def operator_sales_export(request):
                 elif sale.payment_method == 'transfer':
                     transfer_amount = sale_subtotal
                     transfer_total += transfer_amount
-                elif sale.payment_method in ['card', 'check']:
-                    other_amount = sale_subtotal
-                    other_total += other_amount
-                elif sale.payment_method and '+' in sale.payment_method:
+                elif sale.payment_method == 'card':
+                    card_amount = sale_subtotal
+                    card_total += card_amount
+                elif sale.payment_method == 'check':
+                    check_amount = sale_subtotal
+                    check_total += check_amount
+                elif sale.payment_method == 'combined' or (sale.payment_method and '+' in sale.payment_method):
                     # Combined payments - distribuir proporcionalmente
                     payment_details = getattr(sale, 'payment_details', [])
                     sale_total = float(sale.total)
@@ -540,19 +555,22 @@ def operator_sales_export(request):
                                 elif method == 'transfer':
                                     transfer_amount += detail_amount
                                     transfer_total += detail_amount
-                                elif method in ['card', 'check']:
-                                    other_amount += detail_amount
-                                    other_total += detail_amount
+                                elif method == 'card':
+                                    card_amount += detail_amount
+                                    card_total += detail_amount
+                                elif method == 'check':
+                                    check_amount += detail_amount
+                                    check_total += detail_amount
                                 else:
-                                    # Método no reconocido, agregar a otros
+                                    # Método no reconocido
                                     other_amount += detail_amount
                                     other_total += detail_amount
                     else:
-                        # If no details or invalid format, put in others
+                        # If no details or invalid format
                         other_amount = sale_subtotal
                         other_total += other_amount
                 else:
-                    # Unrecognized method, put in others
+                    # Unrecognized method
                     other_amount = sale_subtotal
                     other_total += other_amount
                 
@@ -563,7 +581,8 @@ def operator_sales_export(request):
                     cash_amount,
                     mp_amount,
                     transfer_amount,
-                    other_amount,
+                    card_amount,
+                    check_amount,
                     sale.get_payment_method_display(),
                     sale.company.name if sale.company else 'N/A'
                 ])
@@ -574,8 +593,9 @@ def operator_sales_export(request):
             writer.writerow(['Efectivo', cash_total])
             writer.writerow(['Mercado Pago', mp_total])
             writer.writerow(['Transferencias', transfer_total])
-            writer.writerow(['Otros', other_total])
-            grand_total = cash_total + mp_total + transfer_total + other_total
+            writer.writerow(['Tarjeta', card_total])
+            writer.writerow(['Cheque', check_total])
+            grand_total = cash_total + mp_total + transfer_total + card_total + check_total + other_total
             writer.writerow(['Total General', grand_total])
             writer.writerow(['Cantidad de Ventas', len(sales)])
             writer.writerow(['Promedio por Venta', grand_total / len(sales) if sales else 0])
@@ -630,12 +650,12 @@ def operator_sales_export(request):
             
             # Add header information
             ws.append(['REPORTE DE VENTAS'])
-            ws.merge_cells('A1:F1')
+            ws.merge_cells('A1:J1')
             ws['A1'].font = Font(bold=True, size=16)
             ws['A1'].alignment = Alignment(horizontal='center')
             
             ws.append([company_name])
-            ws.merge_cells('A2:F2')
+            ws.merge_cells('A2:J2')
             ws['A2'].font = Font(bold=True, size=14)
             ws['A2'].alignment = Alignment(horizontal='center')
             
@@ -646,7 +666,7 @@ def operator_sales_export(request):
             ws.append([''])
             
             # Headers
-            headers = ['Fecha', 'Ticket/Factura', 'Cliente', 'Efectivo', 'Mercado Pago', 'Transferencias', 'Otros', 'Forma de Pago', 'Empresa']
+            headers = ['Fecha', 'Ticket/Factura', 'Cliente', 'Efectivo', 'Mercado Pago', 'Transferencias', 'Tarjeta', 'Cheque', 'Forma de Pago', 'Empresa']
             ws.append(headers)
             
             # Style headers
@@ -674,6 +694,8 @@ def operator_sales_export(request):
             cash_total = 0
             mp_total = 0
             transfer_total = 0
+            card_total = 0
+            check_total = 0
             other_total = 0
             row_num = 10
             for sale in sales:
@@ -693,6 +715,8 @@ def operator_sales_export(request):
                 cash_amount = 0
                 mp_amount = 0
                 transfer_amount = 0
+                card_amount = 0
+                check_amount = 0
                 other_amount = 0
                 
                 if sale.payment_method == 'cash':
@@ -704,10 +728,13 @@ def operator_sales_export(request):
                 elif sale.payment_method == 'transfer':
                     transfer_amount = sale_subtotal
                     transfer_total += transfer_amount
-                elif sale.payment_method in ['card', 'check']:
-                    other_amount = sale_subtotal
-                    other_total += other_amount
-                elif sale.payment_method and '+' in sale.payment_method:
+                elif sale.payment_method == 'card':
+                    card_amount = sale_subtotal
+                    card_total += card_amount
+                elif sale.payment_method == 'check':
+                    check_amount = sale_subtotal
+                    check_total += check_amount
+                elif sale.payment_method == 'combined' or (sale.payment_method and '+' in sale.payment_method):
                     # Combined payments - distribuir proporcionalmente
                     payment_details = getattr(sale, 'payment_details', [])
                     sale_total = float(sale.total)
@@ -730,19 +757,22 @@ def operator_sales_export(request):
                                 elif method == 'transfer':
                                     transfer_amount += detail_amount
                                     transfer_total += detail_amount
-                                elif method in ['card', 'check']:
-                                    other_amount += detail_amount
-                                    other_total += detail_amount
+                                elif method == 'card':
+                                    card_amount += detail_amount
+                                    card_total += detail_amount
+                                elif method == 'check':
+                                    check_amount += detail_amount
+                                    check_total += detail_amount
                                 else:
-                                    # Método no reconocido, agregar a otros
+                                    # Método no reconocido
                                     other_amount += detail_amount
                                     other_total += detail_amount
                     else:
-                        # If no details or invalid format, put in others
+                        # If no details or invalid format
                         other_amount = sale_subtotal
                         other_total += other_amount
                 else:
-                    # Unrecognized method, put in others
+                    # Unrecognized method
                     other_amount = sale_subtotal
                     other_total += other_amount
                 
@@ -753,16 +783,17 @@ def operator_sales_export(request):
                     cash_amount,
                     mp_amount,
                     transfer_amount,
-                    other_amount,
+                    card_amount,
+                    check_amount,
                     sale.get_payment_method_display(),
                     sale.company.name if sale.company else 'N/A'
                 ])
                 
                 # Style data rows
-                for col_num in range(1, 10):
+                for col_num in range(1, 11):
                     cell = ws.cell(row=row_num, column=col_num)
                     cell.border = thin_border
-                    if col_num in [4, 5, 6, 7]:  # Efectivo, MP, Transfer, Otros columns
+                    if col_num in [4, 5, 6, 7, 8]:  # Efectivo, MP, Transfer, Tarjeta, Cheque columns
                         cell.alignment = Alignment(horizontal='right')
                 
                 row_num += 1
@@ -770,7 +801,7 @@ def operator_sales_export(request):
             # Summary section
             row_num += 2
             ws.append(['RESUMEN'])
-            ws.merge_cells(f'A{row_num}:I{row_num}')
+            ws.merge_cells(f'A{row_num}:J{row_num}')
             ws.cell(row=row_num, column=1).font = Font(bold=True, size=12)
             ws.cell(row=row_num, column=1).alignment = Alignment(horizontal='center')
             ws.cell(row=row_num, column=1).fill = PatternFill(start_color='E2EFDA', end_color='E2EFDA', fill_type='solid')
@@ -794,13 +825,19 @@ def operator_sales_export(request):
             ws.cell(row=row_num, column=2).alignment = Alignment(horizontal='right')
             
             row_num += 1
-            ws.append(['Otros', other_total])
+            ws.append(['Tarjeta', card_total])
             ws.cell(row=row_num, column=1).font = Font(bold=True)
             ws.cell(row=row_num, column=2).font = Font(bold=True)
             ws.cell(row=row_num, column=2).alignment = Alignment(horizontal='right')
             
             row_num += 1
-            grand_total = cash_total + mp_total + transfer_total + other_total
+            ws.append(['Cheque', check_total])
+            ws.cell(row=row_num, column=1).font = Font(bold=True)
+            ws.cell(row=row_num, column=2).font = Font(bold=True)
+            ws.cell(row=row_num, column=2).alignment = Alignment(horizontal='right')
+            
+            row_num += 1
+            grand_total = cash_total + mp_total + transfer_total + card_total + check_total + other_total
             ws.append(['Total General', grand_total])
             ws.cell(row=row_num, column=1).font = Font(bold=True)
             ws.cell(row=row_num, column=2).font = Font(bold=True)
@@ -819,7 +856,7 @@ def operator_sales_export(request):
             # Payment method breakdown
             row_num += 2
             ws.append(['DESGLOSE POR MÉTODO DE PAGO'])
-            ws.merge_cells(f'A{row_num}:H{row_num}')
+            ws.merge_cells(f'A{row_num}:J{row_num}')
             ws.cell(row=row_num, column=1).font = Font(bold=True, size=12)
             ws.cell(row=row_num, column=1).alignment = Alignment(horizontal='center')
             ws.cell(row=row_num, column=1).fill = PatternFill(start_color='E2EFDA', end_color='E2EFDA', fill_type='solid')
@@ -846,7 +883,7 @@ def operator_sales_export(request):
                     row_num += 1
             
             # Adjust column widths
-            column_widths = [20, 15, 25, 12, 15, 15, 12, 15, 20]
+            column_widths = [20, 15, 25, 12, 15, 15, 12, 12, 15, 20]
             for col_num, width in enumerate(column_widths, 1):
                 ws.column_dimensions[openpyxl.utils.get_column_letter(col_num)].width = width
             
@@ -1000,7 +1037,7 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
         return f"${amount:,.2f}"
     
     # Sales table with payment method columns grouped by sale - títulos abreviados
-    headers = ['Fecha/Hora', 'Productos', 'Efectivo', 'MP', 'Transf.', 'Otros', 'Total']
+    headers = ['Fecha/Hora', 'Productos', 'Efectivo', 'MP', 'Transf.', 'Tarjeta', 'Cheque', 'Total']
     
     # Table data with payment distribution grouped by product
     table_data = [headers]
@@ -1009,6 +1046,8 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
     cash_total = 0
     mp_total = 0
     transfer_total = 0
+    card_total = 0
+    check_total = 0
     other_total = 0
     
     # Agrupar datos por venta (misma lógica que en el backend HTML)
@@ -1026,6 +1065,8 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
         cash_amount = 0.0
         mp_amount = 0.0
         transfer_amount = 0.0
+        card_amount = 0.0
+        check_amount = 0.0
         other_amount = 0.0
         
         if payment_method == 'cash':
@@ -1034,8 +1075,10 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
             mp_amount = sale_total
         elif payment_method == 'transfer':
             transfer_amount = sale_total
-        elif payment_method in ['card', 'check']:
-            other_amount = sale_total
+        elif payment_method == 'card':
+            card_amount = sale_total
+        elif payment_method == 'check':
+            check_amount = sale_total
         elif payment_method == 'combined' or (payment_method and '+' in payment_method):
             # Pagos combinados - usar los detalles de pago
             if payment_details and isinstance(payment_details, list):
@@ -1050,8 +1093,10 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
                             mp_amount += amount
                         elif method == 'transfer':
                             transfer_amount += amount
-                        elif method in ['card', 'check']:
-                            other_amount += amount
+                        elif method == 'card':
+                            card_amount += amount
+                        elif method == 'check':
+                            check_amount += amount
                         else:
                             other_amount += amount
             else:
@@ -1069,6 +1114,8 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
             'cash': cash_amount,
             'mp': mp_amount,
             'transfer': transfer_amount,
+            'card': card_amount,
+            'check': check_amount,
             'other': other_amount,
             'total': sale_total
         })
@@ -1081,6 +1128,8 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
         cash_total += sale['cash']
         mp_total += sale['mp']
         transfer_total += sale['transfer']
+        card_total += sale['card']
+        check_total += sale['check']
         other_total += sale['other']
         
         # Usar Paragraph para los productos y fecha con word wrapping
@@ -1093,7 +1142,8 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
             format_currency(sale['cash']),
             format_currency(sale['mp']),
             format_currency(sale['transfer']),
-            format_currency(sale['other']),
+            format_currency(sale['card']),
+            format_currency(sale['check']),
             format_currency(sale['total'])
         ])
     
@@ -1104,13 +1154,15 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
         format_currency(cash_total),
         format_currency(mp_total),
         format_currency(transfer_total),
-        format_currency(other_total),
-        format_currency(cash_total + mp_total + transfer_total + other_total)
+        format_currency(card_total),
+        format_currency(check_total),
+        format_currency(cash_total + mp_total + transfer_total + card_total + check_total + other_total)
     ])
     
     # Add grand total row (white background) - last row
-    grand_total = cash_total + mp_total + transfer_total + other_total
+    grand_total = cash_total + mp_total + transfer_total + card_total + check_total + other_total
     table_data.append([
+        '',
         '',
         '',
         '',
@@ -1120,9 +1172,9 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
         format_currency(grand_total)
     ])
     
-    # Create table with optimized column widths for A4 (7 columnas: Fecha/Hora, Productos, Efectivo, MP, Transfer, Otros, Total)
+    # Create table with optimized column widths for A4 (8 columnas: Fecha/Hora, Productos, Efectivo, MP, Transfer, Tarjeta, Cheque, Total)
     # Reducidos anchos para agregar más margen lateral
-    sales_table = Table(table_data, colWidths=[1.0*inch, 1.8*inch, 0.8*inch, 0.8*inch, 0.8*inch, 0.8*inch, 0.9*inch])
+    sales_table = Table(table_data, colWidths=[0.9*inch, 1.6*inch, 0.75*inch, 0.7*inch, 0.7*inch, 0.7*inch, 0.7*inch, 0.85*inch])
     sales_table.setStyle(TableStyle([
         # Header styling
         ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
