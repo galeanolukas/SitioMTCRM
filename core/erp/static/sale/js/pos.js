@@ -1861,47 +1861,12 @@
 
   function updateCombinedTotals() {
     const wantsInvoice = $('#combinedInvoice').is(':checked');
+    // Usar la misma lógica de buildPayload() para que el total coincida con el resumen
+    const calc = buildPayload(wantsInvoice);
     
-    console.log('updateCombinedTotals - items:', items);
-    console.log('updateCombinedTotals - items.length:', items.length);
-    
-    if (wantsInvoice) {
-      // Para facturas, recalcular con IVA al 21%
-      let subtotal = 0;
-      let iva = 0;
-      
-      items.forEach(it => {
-        const price = parseFloat(it.price) || 0;
-        const cant = parseFloat(it.cant) || 0;
-        const itemSubtotal = price * cant;
-        subtotal += itemSubtotal;
-        // Usar 21% para facturas
-        const ivaRate = 0.21;
-        iva += itemSubtotal * ivaRate;
-      });
-      
-      const total = subtotal + iva;
-      
-      console.log('Factura - subtotal:', subtotal, 'iva:', iva, 'total:', total);
-      
-      $('#combinedSubtotalAmount').text(fmt(subtotal));
-      $('#combinedIvaAmount').text(fmt(iva));
-      $('#combinedTotalAmount').text(fmt(total));
-    } else {
-      // Para tickets, calcular desde los items (sin IVA)
-      let subtotal = 0;
-      items.forEach(it => {
-        const price = parseFloat(it.price) || 0;
-        const cant = parseFloat(it.cant) || 0;
-        subtotal += price * cant;
-      });
-      
-      console.log('Ticket - subtotal:', subtotal);
-      
-      $('#combinedSubtotalAmount').text(fmt(subtotal));
-      $('#combinedIvaAmount').text(fmt(0));
-      $('#combinedTotalAmount').text(fmt(subtotal));
-    }
+    $('#combinedSubtotalAmount').text(fmt(calc.subtotal_neto));
+    $('#combinedIvaAmount').text(fmt(calc.iva_total));
+    $('#combinedTotalAmount').text(fmt(calc.subtotal_con_iva));
     
     // Actualizar restante
     const firstAmountText = $('#firstPaymentAmount').val();
@@ -2044,8 +2009,8 @@
     
     // Usar items con IVA si es factura, sin IVA si es ticket
     const items = wantsInvoice ? calc.items_final : calc.items_net;
-    const subtotal = wantsInvoice ? calc.subtotal_neto : calc.subtotal_neto;
-    const iva = wantsInvoice ? calc.iva_total : 0;
+    const subtotal = calc.subtotal_neto;
+    const iva = calc.iva_total;
     
     const payload = {
       items: items,
