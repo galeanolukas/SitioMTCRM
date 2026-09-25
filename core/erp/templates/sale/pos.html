@@ -192,6 +192,9 @@
                 </td>
                 <td>
                   <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-xs btn-outline-info" title="Ver detalle" onclick="viewSaleDetail({{ s.id }})">
+                      <i class="fas fa-eye"></i>
+                    </button>
                     {% if s.is_ticket_x %}
                     <a href="{% url 'erp:sale_ticket_x_print' s.id %}" target="_blank" class="btn btn-xs btn-outline-warning" title="Imprimir Ticket X">
                       <i class="fas fa-file-alt"></i>
@@ -618,6 +621,60 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" id="btnCombinedPaymentBack">Volver</button>
         <button type="button" class="btn btn-primary" id="btnCombinedPaymentConfirm">Confirmar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal para ver detalle de venta -->
+<div class="modal fade" id="saleDetailModal" tabindex="-1" aria-labelledby="saleDetailLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="saleDetailLabel"><i class="fas fa-receipt"></i> Detalle de Venta</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <div class="row">
+            <div class="col-6"><strong>Fecha:</strong> <span id="detailDate"></span></div>
+            <div class="col-6"><strong>Cliente:</strong> <span id="detailClient"></span></div>
+          </div>
+          <div class="row mt-1">
+            <div class="col-6"><strong>Pago:</strong> <span id="detailPayment"></span></div>
+            <div class="col-6 text-end"><strong>Total:</strong> <span id="detailTotal" class="text-success fw-bold"></span></div>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm table-bordered">
+            <thead class="table-dark">
+              <tr>
+                <th>Producto</th>
+                <th class="text-center">Cant.</th>
+                <th class="text-end">PVP</th>
+                <th class="text-end">Subtotal</th>
+              </tr>
+            </thead>
+            <tbody id="detailItemsBody"></tbody>
+            <tfoot>
+              <tr class="table-light">
+                <th colspan="3" class="text-end">Subtotal:</th>
+                <td class="text-end" id="detailSubtotal"></td>
+              </tr>
+              <tr class="table-light">
+                <th colspan="3" class="text-end">IVA:</th>
+                <td class="text-end" id="detailIva"></td>
+              </tr>
+              <tr class="table-active">
+                <th colspan="3" class="text-end">Total:</th>
+                <td class="text-end fw-bold" id="detailTotalFoot"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
       </div>
     </div>
   </div>

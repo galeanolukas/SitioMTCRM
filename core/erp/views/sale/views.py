@@ -1137,6 +1137,30 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     }
                 except Exception as e:
                     data['error'] = f'Error al crear empleado: {str(e)}'
+            elif action == 'get_sale_detail':
+                sale_id = request.POST.get('sale_id')
+                if not sale_id:
+                    return JsonResponse({'error': 'ID de venta requerido'}, status=400)
+                sale = Sale.objects.select_related('cli').get(pk=sale_id)
+                dets = DetSale.objects.filter(sale=sale).select_related('prod')
+                items = []
+                for det in dets:
+                    items.append({
+                        'product': det.prod.name,
+                        'quantity': float(det.cant),
+                        'price': float(det.price),
+                        'subtotal': float(det.subtotal),
+                    })
+                data = {
+                    'sale_id': sale.id,
+                    'date': timezone.localtime(sale.date_joined).strftime('%d/%m/%Y %H:%M'),
+                    'client': sale.cli.names if sale.cli else 'Anónimo',
+                    'payment_method': sale.get_payment_method_display(),
+                    'total': float(sale.total),
+                    'subtotal': float(sale.subtotal),
+                    'iva': float(sale.iva),
+                    'items': items
+                }
         except Exception as e:
             logger.error(f"Error en POST de POS: {str(e)}", exc_info=True)
             data['error'] = str(e)

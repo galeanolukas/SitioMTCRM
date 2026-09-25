@@ -2597,6 +2597,37 @@
     });
   });
 
+  // Exponer función global para ver detalle de venta
+  window.viewSaleDetail = function(saleId) {
+    ajaxAction('get_sale_detail', { sale_id: saleId })
+      .done(function(res) {
+        if (res.error) {
+          showToast('error', res.error);
+          return;
+        }
+        $('#detailDate').text(res.date);
+        $('#detailClient').text(res.client);
+        $('#detailPayment').text(res.payment_method);
+        $('#detailTotal').text(fmt(res.total));
+        $('#detailSubtotal').text(fmt(res.subtotal));
+        $('#detailIva').text(fmt(res.iva));
+        $('#detailTotalFoot').text(fmt(res.total));
+        var body = '';
+        res.items.forEach(function(item) {
+          body += '<tr><td>' + item.product + '</td>';
+          body += '<td class="text-center">' + item.quantity + '</td>';
+          body += '<td class="text-end">' + fmt(item.price) + '</td>';
+          body += '<td class="text-end">' + fmt(item.subtotal) + '</td></tr>';
+        });
+        $('#detailItemsBody').html(body);
+        var modal = new bootstrap.Modal(document.getElementById('saleDetailModal'));
+        modal.show();
+      })
+      .fail(function() {
+        showToast('error', 'No se pudo obtener el detalle de la venta');
+      });
+  };
+
   // Inicializar
   recalc();
   $input.focus();
