@@ -48,6 +48,7 @@
                     <div class="card-body py-3">
                         <h6 class="card-title mb-2 text-uppercase" style="letter-spacing: 1px; font-size: 0.75rem;">Saldo Inicial</h6>
                         <h3 class="mb-0" style="font-size: 1.6rem;">${{ object.opening_balance|floatformat:2 }}</h3>
+                        <small class="text-white-50" style="font-size: 0.65rem;">Efectivo con el que se abrió la caja</small>
                     </div>
                 </div>
             </div>
@@ -62,6 +63,7 @@
                                 ${{ dynamic_total_sales|floatformat:2 }}
                             {% endif %}
                         </h3>
+                        <small class="text-white-50" style="font-size: 0.65rem;">Suma de ventas por todos los medios de pago</small>
                     </div>
                 </div>
             </div>
@@ -76,6 +78,7 @@
                                 ${{ dynamic_expenses|floatformat:2 }}
                             {% endif %}
                         </h3>
+                        <small class="text-white-50" style="font-size: 0.65rem;">Egresos pagados en efectivo</small>
                     </div>
                 </div>
             </div>
@@ -92,8 +95,11 @@
                                 ${{ dynamic_calculated_balance|floatformat:2 }}
                             {% endif %}
                         </h3>
+                        <small class="text-white-50" style="font-size: 0.65rem;">
+                            {% if object.is_closed %}Efectivo declarado al cierre{% else %}Inicial + ventas en efectivo − gastos + movimientos{% endif %}
+                        </small>
                         {% if object.is_closed and object.difference != 0 %}
-                        <small>Diferencia: ${{ object.difference|floatformat:2 }}</small>
+                        <br><small>Diferencia: ${{ object.difference|floatformat:2 }}</small>
                         {% endif %}
                     </div>
                 </div>
@@ -125,6 +131,7 @@
                                                         ${{ dynamic_cash_sales|floatformat:2 }}
                                                     {% endif %}
                                                 </h4>
+                                                <small class="text-muted" style="font-size: 0.65rem;">Ventas cobradas en efectivo</small>
                                             </div>
                                         </div>
                                     </div>
@@ -146,6 +153,7 @@
                                                         ${{ dynamic_card_sales|floatformat:2 }}
                                                     {% endif %}
                                                 </h4>
+                                                <small class="text-muted" style="font-size: 0.65rem;">Ventas cobradas con tarjeta</small>
                                             </div>
                                         </div>
                                     </div>
@@ -167,6 +175,7 @@
                                                         ${{ dynamic_transfer_sales|floatformat:2 }}
                                                     {% endif %}
                                                 </h4>
+                                                <small class="text-muted" style="font-size: 0.65rem;">Ventas cobradas por transferencia</small>
                                             </div>
                                         </div>
                                     </div>
@@ -188,6 +197,7 @@
                                                         ${{ dynamic_mp_sales|floatformat:2 }}
                                                     {% endif %}
                                                 </h4>
+                                                <small class="text-muted" style="font-size: 0.65rem;">Ventas cobradas por Mercado Pago</small>
                                             </div>
                                         </div>
                                     </div>
@@ -209,6 +219,7 @@
                                                         ${{ dynamic_check_sales|floatformat:2 }}
                                                     {% endif %}
                                                 </h4>
+                                                <small class="text-muted" style="font-size: 0.65rem;">Ventas cobradas con cheque</small>
                                             </div>
                                         </div>
                                     </div>
