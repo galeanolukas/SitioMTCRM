@@ -2754,6 +2754,8 @@ class BudgetConvertView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Vie
                 # Convertir presupuesto en venta real
                 budget.status = 'confirmed'
                 budget.is_budget = False  # Ya no es presupuesto
+                # La venta se cobra hoy: actualizar fecha para que entre en la caja actual
+                budget.date_joined = timezone.now()
                 budget.save()
                 
                 # Descontar stock de los productos
