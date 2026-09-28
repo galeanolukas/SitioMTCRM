@@ -513,7 +513,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 # Obtener listas de precios disponibles (filtradas por empresa activa)
                 from core.erp.models import PriceList
                 active_cid = get_active_company_id(request)
-                qs = PriceList.objects.filter(is_active=True)
+                qs = PriceList.objects.filter(is_active=True, list_type='sale')
                 if active_cid:
                     qs = qs.filter(company_id=active_cid)
                 price_lists = qs.order_by('name')

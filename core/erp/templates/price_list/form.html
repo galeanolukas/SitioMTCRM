@@ -26,14 +26,65 @@
         <input type="text" name="name" class="form-control" value="{{ form.name.value|default:'' }}" required>
       </div>
       <div class="mb-3">
+        <label class="form-label fw-bold">Tipo de lista</label>
+        <select name="list_type" id="id_list_type" class="form-select">
+          <option value="sale" {% if object.list_type != 'cost_update' %}selected{% endif %}>Lista de venta (descuento/interés en el POS)</option>
+          <option value="cost_update" {% if object.list_type == 'cost_update' %}selected{% endif %}>Actualización de costos (aumento de proveedor)</option>
+        </select>
+        <div class="form-text">Las listas de venta modifican el precio al vender. Las de costos actualizan el costo y recalculan los precios de los productos.</div>
+      </div>
+      <div id="saleFields">
+      <div class="mb-3">
         <label class="form-label fw-bold">Descuento general (%)</label>
-        <input type="number" name="discount_percentage" class="form-control" step="0.01" min="0" max="100" value="{{ form.discount_percentage.value|default:'0' }}" required>
+        <input type="number" name="discount_percentage" class="form-control" step="0.01" min="0" max="100" value="{{ form.discount_percentage.value|default:'0' }}">
         <div class="form-text">Se aplica a todos los productos salvo excepciones.</div>
       </div>
       <div class="mb-3">
         <label class="form-label fw-bold">Interés general (%)</label>
-        <input type="number" name="interest_percentage" class="form-control" step="0.01" min="0" max="100" value="{{ form.interest_percentage.value|default:'0' }}" required>
+        <input type="number" name="interest_percentage" class="form-control" step="0.01" min="0" max="100" value="{{ form.interest_percentage.value|default:'0' }}">
         <div class="form-text">Recargo que se aplica sobre el precio base.</div>
+      </div>
+      </div>
+      <div id="costFields" style="display:none;">
+      <div class="mb-3">
+        <label class="form-label fw-bold">Proveedor</label>
+        <select name="supplier" class="form-select">
+          <option value="">--- Solo productos seleccionados ---</option>
+          {% for s in suppliers %}
+          <option value="{{ s.id }}" {% if object.supplier_id == s.id %}selected{% endif %}>{{ s.name }}</option>
+          {% endfor %}
+        </select>
+        <div class="form-text">Si elegís un proveedor, la actualización aplica a <strong>todos</strong> sus productos. Si no, solo a los productos que agregues a la lista.</div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label fw-bold">Aumento de costo (%)</label>
+        <input type="number" name="cost_increase" class="form-control" step="0.01" min="0" value="{{ form.cost_increase.value|default:'0' }}">
+        <div class="form-text">Porcentaje que sube el precio de costo. El PVP se recalcula manteniendo el margen actual de cada producto.</div>
+      </div>
+      {% if action == 'edit' %}
+      <div class="alert alert-secondary py-2" id="costApplyStatus">
+        {% if object.applied_at and not object.undone %}
+          <i class="fas fa-check-circle text-success"></i>
+          Aplicada el {{ object.applied_at|date:'d/m/Y H:i' }}{% if object.applied_by %} por {{ object.applied_by.username }}{% endif %}
+          a {{ object.snapshot|length }} productos.
+        {% elif object.applied_at and object.undone %}
+          <i class="fas fa-undo text-warning"></i> Aplicada y luego deshecha.
+        {% else %}
+          <i class="fas fa-clock"></i> Pendiente de aplicar — afecta a {{ cost_update_count }} productos.
+        {% endif %}
+      </div>
+      <div class="mb-3">
+        {% if not object.applied_at or object.undone %}
+        <button type="button" class="btn btn-success btn-flat" id="btnApplyCostUpdate">
+          <i class="fas fa-bolt"></i> Aplicar actualización de costos
+        </button>
+        {% else %}
+        <button type="button" class="btn btn-warning btn-flat" id="btnUndoCostUpdate">
+          <i class="fas fa-undo"></i> Deshacer actualización
+        </button>
+        {% endif %}
+      </div>
+      {% endif %}
       </div>
       <div class="mb-3">
         <div class="form-check form-switch">
@@ -45,7 +96,8 @@
         <div>
           {% if action == 'edit' %}
           <button type="button" class="btn btn-info btn-flat" data-bs-toggle="modal" data-bs-target="#overridesModal">
-            <i class="fas fa-list"></i> Gestionar Precios Especiales
+            <i class="fas fa-list"></i>
+            {% if object.list_type == 'cost_update' %}Gestionar Productos{% else %}Gestionar Precios Especiales{% endif %}
           </button>
           {% endif %}
         </div>
@@ -168,10 +220,50 @@
 {% endblock %}
 
 {% block javascript %}
+<script>
+// Toggle secciones según tipo de lista
+(function() {
+  const sel = document.getElementById('id_list_type');
+  function toggleSections() {
+    const isCost = sel.value === 'cost_update';
+    document.getElementById('saleFields').style.display = isCost ? 'none' : '';
+    document.getElementById('costFields').style.display = isCost ? '' : 'none';
+  }
+  if (sel) {
+    sel.addEventListener('change', toggleSections);
+    toggleSections();
+  }
+})();
+</script>
 {% if action == 'edit' %}
 <script>
 const manageUrl = "{% url 'erp:pricelist_manage' object.pk %}";
 const csrfToken = "{{ csrf_token }}";
+
+// Aplicar / deshacer actualización de costos
+function postCostAction(action, confirmMsg) {
+  if (!confirm(confirmMsg)) return;
+  fetch(manageUrl, {
+    method: 'POST',
+    headers: {'X-CSRFToken': csrfToken, 'Content-Type': 'application/x-www-form-urlencoded'},
+    body: new URLSearchParams({action: action})
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) {
+      alert(data.message);
+      location.reload();
+    } else {
+      alert(data.error || 'Error');
+    }
+  });
+}
+document.getElementById('btnApplyCostUpdate')?.addEventListener('click', function() {
+  postCostAction('apply_cost_update', '¿Aplicar el aumento de costo a los productos? Se recalcularán los precios de venta.');
+});
+document.getElementById('btnUndoCostUpdate')?.addEventListener('click', function() {
+  postCostAction('undo_cost_update', '¿Deshacer la actualización? Se restaurarán costos y precios anteriores.');
+});
 
 document.getElementById('btnSearchProduct')?.addEventListener('click', function() {
   const q = document.getElementById('productSearch').value.trim();

@@ -9,7 +9,7 @@ from decimal import Decimal
 import json
 
 from core.erp.mixins import ValidatePermissionRequiredMixin, get_active_company_id
-from core.erp.models import PriceList, PriceListProduct, Product
+from core.erp.models import PriceList, PriceListProduct, Product, Supplier
 
 
 class PriceListListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView):
@@ -36,7 +36,8 @@ class PriceListListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Lis
 class PriceListCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, CreateView):
     model = PriceList
     template_name = 'price_list/form.html'
-    fields = ['name', 'discount_percentage', 'interest_percentage', 'is_active']
+    fields = ['name', 'list_type', 'discount_percentage', 'interest_percentage',
+              'supplier', 'cost_increase', 'is_active']
     success_url = reverse_lazy('erp:pricelist_list')
     permission_required = 'erp.add_pricelist'
 
@@ -46,6 +47,11 @@ class PriceListCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, C
         ctx['entity'] = 'Listas de Precios'
         ctx['list_url'] = reverse_lazy('erp:pricelist_list')
         ctx['action'] = 'add'
+        active_cid = get_active_company_id(self.request)
+        suppliers = Supplier.objects.filter(is_active=True)
+        if active_cid:
+            suppliers = suppliers.filter(company_id=active_cid)
+        ctx['suppliers'] = suppliers.order_by('name')
         return ctx
 
     def form_valid(self, form):
@@ -59,7 +65,8 @@ class PriceListCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, C
 class PriceListUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, UpdateView):
     model = PriceList
     template_name = 'price_list/form.html'
-    fields = ['name', 'discount_percentage', 'interest_percentage', 'is_active']
+    fields = ['name', 'list_type', 'discount_percentage', 'interest_percentage',
+              'supplier', 'cost_increase', 'is_active']
     success_url = reverse_lazy('erp:pricelist_list')
     permission_required = 'erp.change_pricelist'
 
@@ -71,6 +78,12 @@ class PriceListUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, U
         ctx['action'] = 'edit'
         # Productos con override en esta lista
         ctx['overrides'] = self.object.products.select_related('product').all()
+        active_cid = get_active_company_id(self.request)
+        suppliers = Supplier.objects.filter(is_active=True)
+        if active_cid:
+            suppliers = suppliers.filter(company_id=active_cid)
+        ctx['suppliers'] = suppliers.order_by('name')
+        ctx['cost_update_count'] = self.object.cost_update_products().count()
         return ctx
 
     def form_valid(self, form):
@@ -153,8 +166,26 @@ class PriceListProductManageView(LoginRequiredMixin, View):
         elif action == 'search_products':
             query = request.POST.get('q', '')
             existing_ids = set(price_list.products.values_list('product_id', flat=True))
-            products = Product.objects.filter(name__icontains=query).exclude(id__in=existing_ids)[:20]
+            products = Product.objects.filter(name__icontains=query).exclude(id__in=existing_ids)
+            active_cid = get_active_company_id(request)
+            if active_cid:
+                products = products.filter(company_id=active_cid)
+            products = products[:20]
             results = [{'id': p.id, 'name': p.name, 'pvp': str(p.pvp)} for p in products]
             return JsonResponse({'results': results})
+
+        elif action == 'apply_cost_update':
+            try:
+                count = price_list.apply_cost_update(user=request.user)
+                return JsonResponse({'success': True, 'message': f'Actualización aplicada a {count} productos.'})
+            except ValueError as e:
+                return JsonResponse({'error': str(e)}, status=400)
+
+        elif action == 'undo_cost_update':
+            try:
+                count = price_list.undo_cost_update()
+                return JsonResponse({'success': True, 'message': f'Se revirtieron los precios de {count} productos.'})
+            except ValueError as e:
+                return JsonResponse({'error': str(e)}, status=400)
 
         return JsonResponse({'error': 'Acción no válida'}, status=400)

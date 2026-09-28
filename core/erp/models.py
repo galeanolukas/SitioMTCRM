@@ -527,10 +527,23 @@ class Client(models.Model):
 
 
 class PriceList(models.Model):
+    LIST_TYPE_CHOICES = (
+        ('sale', 'Lista de venta'),
+        ('cost_update', 'Actualización de costos'),
+    )
     company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa', null=True, blank=True)
     name = models.CharField(max_length=100, verbose_name='Nombre')
+    list_type = models.CharField(max_length=20, choices=LIST_TYPE_CHOICES, default='sale', verbose_name='Tipo de lista')
     discount_percentage = models.DecimalField(default=0, max_digits=5, decimal_places=2, verbose_name='Descuento (%)')
     interest_percentage = models.DecimalField(default=0, max_digits=5, decimal_places=2, verbose_name='Interés (%)')
+    # Campos para listas de tipo 'cost_update' (aumento de costos por proveedor/selección)
+    supplier = models.ForeignKey('Supplier', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Proveedor',
+                                 help_text='Si se indica, la actualización aplica a todos los productos del proveedor. Si no, aplica a los productos agregados a la lista.')
+    cost_increase = models.DecimalField(default=0, max_digits=5, decimal_places=2, verbose_name='Aumento de costo (%)')
+    applied_at = models.DateTimeField(null=True, blank=True, verbose_name='Aplicada el')
+    applied_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Aplicada por')
+    snapshot = models.JSONField(null=True, blank=True, verbose_name='Snapshot de precios anteriores')
+    undone = models.BooleanField(default=False, verbose_name='Deshecha')
     is_active = models.BooleanField(default=True, verbose_name='Activa')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de creación')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Fecha de actualización')
@@ -569,6 +582,90 @@ class PriceList(models.Model):
         except PriceListProduct.DoesNotExist:
             # No hay override: aplicar descuento/interés general
             return self._adjust_base_price(product.pvp, self.discount_percentage, self.interest_percentage)
+
+    def cost_update_products(self):
+        """Productos a los que aplica la actualización de costos:
+        todos los del proveedor, o los agregados manualmente a la lista."""
+        if self.supplier_id:
+            qs = Product.objects.filter(supplier_id=self.supplier_id)
+            if self.company_id:
+                qs = qs.filter(company_id=self.company_id)
+            return qs
+        return Product.objects.filter(
+            pk__in=self.products.values_list('product_id', flat=True)
+        )
+
+    def apply_cost_update(self, user=None):
+        """Aplica el % de aumento a cost_price y recalcula pvp/pvp_final
+        manteniendo el margen actual. Guarda snapshot para poder deshacer."""
+        import math
+        from django.db import transaction
+
+        if self.list_type != 'cost_update':
+            raise ValueError('La lista no es de tipo actualización de costos')
+        if self.applied_at and not self.undone:
+            raise ValueError('La actualización ya fue aplicada')
+
+        pct = Decimal(self.cost_increase or 0)
+        factor = Decimal('1') + pct / Decimal('100')
+        snapshot = []
+
+        with transaction.atomic():
+            for prod in self.cost_update_products().select_for_update():
+                snapshot.append({
+                    'id': prod.id,
+                    'cost_price': str(prod.cost_price or 0),
+                    'margin_percentage': str(prod.margin_percentage or 0),
+                    'pvp': str(prod.pvp or 0),
+                    'pvp_final': str(prod.pvp_final or 0),
+                })
+                prod.cost_price = (Decimal(prod.cost_price or 0) * factor).quantize(Decimal('0.01'))
+                # Recalcular PVP: costo * (1 - descuento%) * (1 + flete%) * (1 + margen%)
+                discount = prod.get_supplier_discount()
+                cost_after_discount = prod.cost_price * (1 - discount / 100)
+                cost_with_freight = cost_after_discount * (1 + (prod.freight_percentage or Decimal('0')) / 100)
+                margin_rate = (prod.margin_percentage or Decimal('0')) / 100
+                prod.pvp = Decimal(math.ceil(float(cost_with_freight * (1 + margin_rate))))
+                rate = prod.iva_rate or Decimal('0.21')
+                if rate > Decimal('1'):
+                    rate = rate / 100
+                prod.pvp_final = (prod.pvp * (1 + rate)).quantize(Decimal('0.01'))
+                prod.synced_to_server = False
+                prod.save()
+
+            self.snapshot = snapshot
+            self.applied_at = timezone.now()
+            self.applied_by = user
+            self.undone = False
+            self.save()
+
+        return len(snapshot)
+
+    def undo_cost_update(self):
+        """Restaura costos y precios desde el snapshot."""
+        from django.db import transaction
+
+        if not self.applied_at or self.undone:
+            raise ValueError('No hay una actualización aplicada para deshacer')
+
+        restored = 0
+        with transaction.atomic():
+            for item in self.snapshot or []:
+                prod = Product.objects.filter(pk=item['id']).first()
+                if not prod:
+                    continue
+                prod.cost_price = Decimal(item['cost_price'])
+                prod.margin_percentage = Decimal(item['margin_percentage'])
+                prod.pvp = Decimal(item['pvp'])
+                prod.pvp_final = Decimal(item['pvp_final'])
+                prod.synced_to_server = False
+                prod.save()
+                restored += 1
+
+            self.undone = True
+            self.save()
+
+        return restored
 
     class Meta:
         verbose_name = 'Lista de Precios'

@@ -12,9 +12,11 @@
 {% block columns %}
 <tr>
     <th>Nombre</th>
+    <th>Tipo</th>
     <th>Descuento (%)</th>
     <th>Interés (%)</th>
-    <th>Productos con override</th>
+    <th>Proveedor</th>
+    <th>Productos</th>
     <th>Estado</th>
     <th>Acciones</th>
 </tr>
@@ -24,11 +26,27 @@
 {% for pl in object_list %}
 <tr>
     <td>{{ pl.name }}</td>
-    <td>{{ pl.discount_percentage }}%</td>
-    <td>{{ pl.interest_percentage }}%</td>
-    <td>{{ pl.products.count }}</td>
     <td>
-        {% if pl.is_active %}
+        {% if pl.list_type == 'cost_update' %}
+            <span class="badge bg-warning text-dark">Costos</span>
+        {% else %}
+            <span class="badge bg-info">Venta</span>
+        {% endif %}
+    </td>
+    <td>{% if pl.list_type == 'cost_update' %}+{{ pl.cost_increase }}%{% else %}{{ pl.discount_percentage }}%{% endif %}</td>
+    <td>{{ pl.interest_percentage }}%</td>
+    <td>{{ pl.supplier.name|default:'-' }}</td>
+    <td>{% if pl.list_type == 'cost_update' %}{{ pl.cost_update_products.count }}{% else %}{{ pl.products.count }}{% endif %}</td>
+    <td>
+        {% if pl.list_type == 'cost_update' %}
+            {% if pl.applied_at and not pl.undone %}
+                <span class="badge bg-success">Aplicada {{ pl.applied_at|date:'d/m/Y' }}</span>
+            {% elif pl.applied_at and pl.undone %}
+                <span class="badge bg-secondary">Deshecha</span>
+            {% else %}
+                <span class="badge bg-warning text-dark">Pendiente</span>
+            {% endif %}
+        {% elif pl.is_active %}
             <span class="badge bg-success">Activa</span>
         {% else %}
             <span class="badge bg-secondary">Inactiva</span>
@@ -45,7 +63,7 @@
 </tr>
 {% empty %}
 <tr>
-    <td colspan="6" class="text-center">No hay listas de precios creadas</td>
+    <td colspan="8" class="text-center">No hay listas de precios creadas</td>
 </tr>
 {% endfor %}
 {% endblock %}
