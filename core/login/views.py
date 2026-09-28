@@ -64,11 +64,13 @@ class LogoutRedirectView(RedirectView):
 
     def dispatch(self, request, *args, **kwargs):
         # Antes de cerrar sesión, intentar una sincronización general del POS.
-        try:
-            run_full_sync()
-        except Exception:
-            # No impedir el cierre de sesión si la sync falla.
-            pass
+        # Los superusers (admin) pueden trabajar en local sin disparar sync.
+        if not request.user.is_superuser:
+            try:
+                run_full_sync()
+            except Exception:
+                # No impedir el cierre de sesión si la sync falla.
+                pass
         logout(request)
         return super().dispatch(request, *args, **kwargs)
 

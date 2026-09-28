@@ -69,18 +69,29 @@ class Command(BaseCommand):
                     if Supplier.objects.using('remote').filter(pk=prod.supplier_id).exists():
                         remote_supplier = Supplier.objects.using('remote').get(pk=prod.supplier_id)
 
-                # Buscar producto existente: por code, luego por nombre exacto, iexact, icontains
+                # Buscar producto existente: por code, luego por nombre exacto, iexact, icontains.
+                # Siempre dentro de la misma empresa remota para no sobreescribir
+                # productos de otras empresas que coincidan por nombre/codigo.
+                remote_company_id = remote_company.id if remote_company else None
                 remote_prod = None
                 if prod.code:
-                    remote_prod = Product.objects.using('remote').filter(code=prod.code).first()
+                    remote_prod = Product.objects.using('remote').filter(
+                        code=prod.code, company_id=remote_company_id
+                    ).first()
                 if not remote_prod:
-                    remote_prod = Product.objects.using('remote').filter(name=prod.name).first()
+                    remote_prod = Product.objects.using('remote').filter(
+                        name=prod.name, company_id=remote_company_id
+                    ).first()
                 if not remote_prod:
-                    remote_prod = Product.objects.using('remote').filter(name__iexact=prod.name).first()
+                    remote_prod = Product.objects.using('remote').filter(
+                        name__iexact=prod.name, company_id=remote_company_id
+                    ).first()
                 if not remote_prod:
                     # Busqueda mas amplia por si hay diferencias de espacios
                     clean_name = prod.name.strip()
-                    remote_prod = Product.objects.using('remote').filter(name__icontains=clean_name).first()
+                    remote_prod = Product.objects.using('remote').filter(
+                        name__icontains=clean_name, company_id=remote_company_id
+                    ).first()
 
                 if remote_prod:
                     # Actualizar producto existente
@@ -132,7 +143,9 @@ class Command(BaseCommand):
                     except Exception as create_err:
                         if 'duplicate key' in str(create_err).lower() or 'unique constraint' in str(create_err).lower():
                             # Buscar de nuevo mas ampliamente y actualizar
-                            remote_prod = Product.objects.using('remote').filter(name__icontains=prod.name.strip()).first()
+                            remote_prod = Product.objects.using('remote').filter(
+                                name__icontains=prod.name.strip(), company_id=remote_company_id
+                            ).first()
                             if remote_prod:
                                 if remote_company:
                                     remote_prod.company_id = remote_company.id

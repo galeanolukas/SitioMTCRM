@@ -118,6 +118,13 @@ def _run_full_sync_impl(company_id=None):
     if getattr(settings, 'ENVIRONMENT', 'development') == 'production':
         return True, []
 
+    # Respetar el flag global también aquí: el hilo de fondo lo chequea, pero
+    # run_full_sync se invoca además desde logout y otras vistas.
+    from core.erp.models import GlobalSyncStatus
+    if not GlobalSyncStatus.is_sync_enabled():
+        logger.info("Sincronización desactivada globalmente - omitiendo run_full_sync")
+        return True, []
+
     # Determinar destino de sincronización
     sync_destination = _get_sync_destination()
     logger.info(f"Destino de sincronización: {sync_destination}")
