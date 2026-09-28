@@ -102,7 +102,19 @@ class ProductListView(ValidatePermissionRequiredMixin, LoginRequiredMixin, ListV
                 # Filtro opcional por término de búsqueda
                 term = request.POST.get('term', '').strip()
                 if term:
-                    qs = qs.filter(name__icontains=term)
+                    from django.db.models import Q
+                    q = (
+                        Q(name__icontains=term) |
+                        Q(code__icontains=term) |
+                        Q(external_code__icontains=term) |
+                        Q(codigo_proveedor__icontains=term)
+                    )
+                    # Código de sistema "X-<id>" visible en la grilla (ej: F-5657),
+                    # solo para productos sin code real
+                    sys_id = term.split('-')[-1]
+                    if sys_id.isdigit():
+                        q |= Q(pk=int(sys_id)) & (Q(code__isnull=True) | Q(code=''))
+                    qs = qs.filter(q)
                 print(f"DEBUG Product: Found {qs.count()} products")
                 for i in qs:
                     product_data = i.toJSON()

@@ -37,6 +37,20 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+
+def _product_sys_code(prod):
+    """Código de sistema visible en las grillas: inicial de la categoría + id
+    (ej: "F-5657"). Solo aplica a productos sin code real."""
+    cat_name = ''
+    try:
+        if prod.cat_id and prod.cat and prod.cat.name:
+            cat_name = prod.cat.name
+    except Exception:
+        cat_name = ''
+    initial = cat_name[0].upper() if cat_name else 'X'
+    return f"{initial}-{prod.id}"
+
+
 @method_decorator(csrf_exempt, name='dispatch')
 class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView):
     template_name = 'sale/pos.html'
@@ -278,6 +292,14 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     Q(codigo_proveedor__iexact=code)
                 ).first()
 
+                # Código de sistema "X-<id>" (ej: F-5657) para productos sin code real
+                if not prod:
+                    sys_id = code.split('-')[-1]
+                    if sys_id.isdigit():
+                        prod = qs.filter(pk=int(sys_id)).filter(
+                            Q(code__isnull=True) | Q(code='')
+                        ).first()
+
                 # Si no encuentra por código, buscar por nombre exacto
                 if not prod:
                     prod = qs.filter(name__iexact=code).first()
@@ -296,6 +318,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     'pvp_final': float(prod.pvp_final),
                     'stock': float(prod.stock),
                     'code': prod.code,
+                    'sys_code': _product_sys_code(prod),
                     'iva_rate': float(prod.iva_rate) if prod.iva_rate else 0.0,
                     'track_stock': prod.track_stock,
                     'is_out_of_stock': prod.is_out_of_stock(),
@@ -336,6 +359,10 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         Q(brand__name__icontains=term) |
                         Q(cat__name__icontains=term)
                     )
+                    # Código de sistema "X-<id>" mostrado en la grilla (ej: F-5657)
+                    sys_id = term.split('-')[-1]
+                    if sys_id.isdigit():
+                        base_q |= Q(pk=int(sys_id)) & (Q(code__isnull=True) | Q(code=''))
                     name_words_q = Q()
                     for word in term.split():
                         name_words_q &= Q(name__icontains=word)
@@ -351,6 +378,9 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                                (p.external_code or '').lower(),
                                (p.codigo_proveedor or '').lower()]
                     if term_l in codes_l:
+                        return 0
+                    # Código de sistema también tiene máxima prioridad
+                    if term_l == _product_sys_code(p).lower() or term_l == str(p.id):
                         return 0
                     name_l = (p.name or '').lower()
                     if name_l == term_l:
@@ -373,6 +403,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         'pvp_final': float(p.pvp_final),
                         'stock': float(p.stock),
                         'code': p.code or '',
+                        'sys_code': _product_sys_code(p),
                         'iva_rate': float(getattr(p, 'iva_rate', 0) or 0),
                         'unit': p.unit,
                         'unit_display': p.get_unit_display()

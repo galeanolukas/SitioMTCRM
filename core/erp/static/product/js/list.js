@@ -40,6 +40,14 @@ $(function () {
         return 9;                                    // no coincide
     }
 
+    // Código de sistema mostrado en la columna "Código" cuando el producto
+    // no tiene code real: inicial de la categoría + id (ej: "F-5657")
+    function systemCode(rowData) {
+        var catName = (rowData.cat && rowData.cat.name) ? rowData.cat.name : '';
+        var initial = catName ? catName.charAt(0).toUpperCase() : 'X';
+        return initial + '-' + rowData.id;
+    }
+
     function rowMatches(term, rowData) {
         if (!term) return true;
         // Match exacto por código / código de barras / códigos alternativos
@@ -47,6 +55,12 @@ $(function () {
         var ext = String(rowData.external_code || '').toLowerCase();
         var prov = String(rowData.codigo_proveedor || '').toLowerCase();
         if (code === term || ext === term || prov === term) return true;
+        // Código de sistema visible en la grilla (solo cuando no hay code real)
+        if (!code) {
+            var sys = systemCode(rowData).toLowerCase();
+            // "F-5657" exacto, o solo el número "5657"
+            if (sys === term || term === String(rowData.id).toLowerCase()) return true;
+        }
         // Nombre similar
         return nameScore(term, rowData.name) <= 3;
     }
@@ -214,10 +228,13 @@ $(function () {
             productTable.rows().every(function () {
                 var d = this.data() || {};
                 var codes = [d.code, d.external_code, d.codigo_proveedor];
+                if (!d.code) codes.push(systemCode(d));
                 var exact = codes.some(function (c) {
                     return String(c || '').toLowerCase() === term;
                 });
-                if (exact) codeExactNames[String(d.name || '')] = true;
+                if (exact || (!d.code && term === String(d.id).toLowerCase())) {
+                    codeExactNames[String(d.name || '')] = true;
+                }
             });
         }
         productTable.order(term ? [[1, 'asc']] : [[0, 'asc']]).draw(false);

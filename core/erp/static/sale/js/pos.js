@@ -327,7 +327,8 @@
         // Si hay un único producto cuyo código coincide exactamente con el término, agregarlo directo
         if (list.length === 1) {
           const p = list[0];
-          if ((p.code || '').toLowerCase() === term.toLowerCase()) {
+          const effectiveCode = (p.code || p.sys_code || '').toLowerCase();
+          if (effectiveCode && effectiveCode === term.toLowerCase()) {
             if (p.unit === 'kg') {
               showWeightModal(p);
             } else {
@@ -344,7 +345,7 @@
           const badge = stock <= 0
             ? "<span class='badge bg-danger ms-1'>SIN STOCK</span>"
             : `<span class='badge bg-secondary ms-1'>stock ${stock}</span>`;
-          const item = $(`<div class="list-group-item list-group-item-action" role="button" style="cursor:pointer;">${p.name} <span class='text-muted small'>${p.code || ''}</span> ${badge} <span class='float-end'>$${parseFloat(p.pvp).toFixed(2)}</span></div>`);
+          const item = $(`<div class="list-group-item list-group-item-action" role="button" style="cursor:pointer;">${p.name} <span class='text-muted small'>${p.code || p.sys_code || ''}</span> ${badge} <span class='float-end'>$${parseFloat(p.pvp).toFixed(2)}</span></div>`);
           item.on('click', function(e) {
             e.preventDefault();
             if (p.unit === 'kg') {
