@@ -377,7 +377,10 @@
     const supplierId = $('#id_supplier').val();
     const supplierName = $('#id_supplier option:selected').text();
     if (supplierId) {
-      document.getElementById('nuevoProductoSupplier').value = supplierId;
+      // El select está oculto: hay que agregar la opción para que el value "pegue"
+      const supSelect = document.getElementById('nuevoProductoSupplier');
+      supSelect.innerHTML = '';
+      supSelect.appendChild(new Option(supplierName, supplierId, true, true));
       document.getElementById('nuevoProductoSupplierLabel').textContent = supplierName;
       document.getElementById('nuevoProductoSupplierGroup').style.display = 'none';
     } else {
