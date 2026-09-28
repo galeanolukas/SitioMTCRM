@@ -385,19 +385,19 @@
       document.getElementById('nuevoProductoSupplierLabel').textContent = 'Sin proveedor';
       document.getElementById('nuevoProductoSupplierGroup').style.display = 'block';
       // Cargar proveedores en el select del modal
+      const supData = new FormData();
+      supData.append('action', 'searchdata');
+      supData.append('term', '');
       fetch('/erp/supplier/list/', {
         method: 'POST',
-        headers: {
-          'X-CSRFToken': getCookie('csrftoken'),
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ action: 'searchdata', term: '' })
+        headers: { 'X-CSRFToken': getCookie('csrftoken') },
+        body: supData
       })
       .then(response => response.json())
       .then(data => {
         const select = document.getElementById('nuevoProductoSupplier');
         select.innerHTML = '<option value="">--- Sin proveedor ---</option>';
-        data.forEach(sup => {
+        (Array.isArray(data) ? data : []).forEach(sup => {
           const option = document.createElement('option');
           option.value = sup.id;
           option.textContent = sup.name;
@@ -405,49 +405,69 @@
         });
       });
     }
-    
-    // Cargar categorías
+
+    // Cargar categorías (solo tipo 'category', filtradas por empresa en el servidor)
+    const catData = new FormData();
+    catData.append('action', 'searchdata');
+    catData.append('term', '');
     fetch('/erp/category/list/', {
       method: 'POST',
-      headers: {
-        'X-CSRFToken': getCookie('csrftoken'),
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ action: 'searchdata', term: '' })
+      headers: { 'X-CSRFToken': getCookie('csrftoken') },
+      body: catData
     })
     .then(response => response.json())
     .then(data => {
       const select = document.getElementById('nuevoProductoCategoria');
       select.innerHTML = '<option value="">Seleccione categoría...</option>';
-      data.forEach(cat => {
+      (Array.isArray(data) ? data : []).forEach(cat => {
+        if (cat.category_type && cat.category_type !== 'category') return;
         const option = document.createElement('option');
         option.value = cat.id;
         option.textContent = cat.name;
         select.appendChild(option);
       });
     });
-    
+
+    recalcNuevoProductoPvp();
     $('#modalNuevoProducto').modal('show');
+  }
+
+  function recalcNuevoProductoPvp() {
+    const costo = parseFloat(document.getElementById('nuevoProductoPrecioCosto').value) || 0;
+    const margen = parseFloat(document.getElementById('nuevoProductoMargen').value) || 0;
+    const iva = parseFloat(document.getElementById('nuevoProductoIva').value) || 0;
+    const pvp = costo * (1 + margen / 100);
+    const pvpFinal = pvp * (1 + iva / 100);
+    document.getElementById('nuevoProductoPvpLabel').textContent =
+      'Precio neto: $' + pvp.toFixed(2) + ' — Precio final (con IVA): $' + pvpFinal.toFixed(2);
+    return { pvp: pvp, pvpFinal: pvpFinal };
   }
 
   function crearNuevoProducto() {
     const nombre = document.getElementById('nuevoProductoNombre').value;
     const categoria = document.getElementById('nuevoProductoCategoria').value;
     const precioCosto = document.getElementById('nuevoProductoPrecioCosto').value;
+    const margen = document.getElementById('nuevoProductoMargen').value;
+    const iva = document.getElementById('nuevoProductoIva').value;
+    const unidad = document.getElementById('nuevoProductoUnidad').value;
     const supplierId = document.getElementById('nuevoProductoSupplier').value;
-    
+
     if (!nombre || !categoria || !precioCosto) {
-      alert('Complete todos los campos');
+      alert('Complete nombre, categoría y precio de costo');
       return;
     }
-    
+
+    const precios = recalcNuevoProductoPvp();
     const formData = new FormData();
     formData.append('action', 'add');
     formData.append('name', nombre);
     formData.append('cat', categoria);
     formData.append('cost_price', precioCosto);
-    formData.append('pvp', (parseFloat(precioCosto) * 1.3).toFixed(2));
-    formData.append('pvp_final', (parseFloat(precioCosto) * 1.3).toFixed(2));
+    formData.append('margin_percentage', margen || 0);
+    formData.append('iva_rate', iva || 0);
+    formData.append('pvp', precios.pvp.toFixed(2));
+    formData.append('pvp_final', precios.pvpFinal.toFixed(2));
+    formData.append('unit', unidad || 'unit');
     formData.append('stock', 0);
     if (supplierId) {
       formData.append('supplier', supplierId);
@@ -473,7 +493,8 @@
         document.getElementById('nuevoProductoPrecioCosto').value = '';
         showToast('success', 'Producto creado correctamente');
       } else {
-        alert('Error al crear producto: ' + (data.error || 'Error desconocido'));
+        const detalle = data.errors ? JSON.stringify(data.errors) : (data.error || 'Error desconocido');
+        alert('Error al crear producto: ' + detalle);
       }
     })
     .catch(error => alert('Error: ' + error));
@@ -506,8 +527,38 @@
           </select>
         </div>
         <div class="form-group mb-3">
-          <label>Precio de Costo</label>
-          <input type="number" id="nuevoProductoPrecioCosto" class="form-control" placeholder="0.00" step="0.01" min="0">
+          <label>Precio de Costo (sin IVA)</label>
+          <input type="number" id="nuevoProductoPrecioCosto" class="form-control" placeholder="0.00" step="0.01" min="0" oninput="recalcNuevoProductoPvp()">
+        </div>
+        <div class="row">
+          <div class="col-md-6 form-group mb-3">
+            <label>Margen de ganancia (%)</label>
+            <input type="number" id="nuevoProductoMargen" class="form-control" value="30" step="0.01" min="0" oninput="recalcNuevoProductoPvp()">
+          </div>
+          <div class="col-md-6 form-group mb-3">
+            <label>IVA (%)</label>
+            <select id="nuevoProductoIva" class="form-select" onchange="recalcNuevoProductoPvp()">
+              <option value="21" selected>21%</option>
+              <option value="10.5">10.5%</option>
+              <option value="27">27%</option>
+              <option value="2.5">2.5%</option>
+              <option value="5">5%</option>
+              <option value="0">0% (Exento)</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group mb-2">
+          <label>Unidad de medida</label>
+          <select id="nuevoProductoUnidad" class="form-select">
+            <option value="unit" selected>Unidad</option>
+            <option value="kg">Kilogramo</option>
+            <option value="mt">Metro</option>
+            <option value="lt">Litro</option>
+            <option value="bx">Caja</option>
+          </select>
+        </div>
+        <div class="alert alert-secondary py-2 mb-0 small">
+          <i class="fas fa-tag"></i> <span id="nuevoProductoPvpLabel">Precio neto: $0.00 — Precio final (con IVA): $0.00</span>
         </div>
       </div>
       <div class="modal-footer">
