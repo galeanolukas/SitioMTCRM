@@ -2631,11 +2631,17 @@ class Remito(models.Model):
     estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='pending', verbose_name='Estado')
     observaciones = models.TextField(blank=True, null=True, verbose_name='Observaciones')
     iva_porcentaje = models.DecimalField(max_digits=5, decimal_places=2, default=0, verbose_name='Porcentaje de IVA incluido')
+    IVA_MODO_CHOICES = [
+        ('incluido', 'IVA incluido en los precios'),
+        ('agregado', 'IVA adicional sobre el neto'),
+    ]
+    iva_modo = models.CharField(max_length=10, choices=IVA_MODO_CHOICES, default='incluido', verbose_name='Modo de IVA',
+                                help_text='"Incluido": los precios cargados ya traen IVA (se extrae). "Agregado": los precios son netos y el IVA se suma al total.')
     synced_to_server = models.BooleanField(default=False, verbose_name='Sincronizado con servidor')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de creación')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Fecha de actualización')
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, verbose_name='Creado por')
-    
+
     def __str__(self):
         tipo_str = self.get_tipo_display()
         if self.supplier:

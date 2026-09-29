@@ -63,9 +63,18 @@
           </div>
           <div class="col-md-4">
             <div class="form-group">
-              <label>IVA incluido (%)</label>
+              <label>IVA (%)</label>
               {{ form.iva_porcentaje }}
-              <small class="text-muted">Ej: 21, 10.5, 27. Dejar 0 si no incluye IVA.</small>
+              <small class="text-muted">Ej: 21, 10.5, 27. Dejar 0 si no lleva IVA.</small>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-md-4">
+            <div class="form-group">
+              <label>{{ form.iva_modo.label }}</label>
+              {{ form.iva_modo }}
+              <small class="text-muted">"Incluido": los precios ya traen IVA. "Agregado": precios netos, el IVA se suma al total (facturas A/B típicas).</small>
             </div>
           </div>
         </div>
@@ -153,6 +162,11 @@
       return val / 100;
     }
 
+    function getIvaModo() {
+      const el = document.getElementById('id_iva_modo');
+      return el ? el.value : 'incluido';
+    }
+
     function toggleIvaColumns() {
       const ivaRate = getIvaRate();
       const showIva = ivaRate > 0;
@@ -168,6 +182,8 @@
     }
 
     document.getElementById('id_iva_porcentaje').addEventListener('input', toggleIvaColumns);
+    const ivaModoEl = document.getElementById('id_iva_modo');
+    if (ivaModoEl) ivaModoEl.addEventListener('change', toggleIvaColumns);
 
     $('form').on('submit', function (e) {
       if (detalles.length === 0) {
@@ -323,16 +339,23 @@
     const ivaRate = getIvaRate();
     const hasIva = ivaRate > 0;
 
+    const ivaModo = getIvaModo();
+
     detalles.forEach((det, index) => {
-      total += det.subtotal;
       let neto = det.subtotal;
       let iva = 0;
       if (hasIva) {
-        neto = det.subtotal / (1 + ivaRate);
-        iva = det.subtotal - neto;
+        if (ivaModo === 'agregado') {
+          neto = det.subtotal;
+          iva = det.subtotal * ivaRate;
+        } else {
+          neto = det.subtotal / (1 + ivaRate);
+          iva = det.subtotal - neto;
+        }
         totalNeto += neto;
         totalIva += iva;
       }
+      total += neto + iva;
       const ivaCols = hasIva ? `
         <td>$${iva.toFixed(2)}</td>
         <td>$${neto.toFixed(2)}</td>

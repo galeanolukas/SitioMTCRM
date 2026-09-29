@@ -136,15 +136,32 @@ class RemitoDetailView(LoginRequiredMixin, PermissionRequiredMixin, DetailView):
         context['title'] = f'Detalle Remito {self.object.numero}'
         context['entity'] = 'Remito'
         detalles = list(self.object.detalleremito_set.select_related('prod'))
-        total = sum(d.subtotal for d in detalles)
-        context['total'] = total
+        subtotal_lineas = sum(d.subtotal for d in detalles)
+        context['total'] = subtotal_lineas
         if self.object.iva_porcentaje and self.object.iva_porcentaje > 0:
-            iva_divisor = Decimal('1') + (self.object.iva_porcentaje / Decimal('100'))
-            for d in detalles:
-                d.neto = (d.subtotal / iva_divisor).quantize(Decimal('0.01'))
-                d.iva_monto = d.subtotal - d.neto
-            context['total_neto'] = sum(d.neto for d in detalles)
-            context['total_iva'] = sum(d.iva_monto for d in detalles)
+            if getattr(self.object, 'iva_modo', 'incluido') == 'agregado':
+                # Precios netos: el IVA se suma sobre el subtotal
+                iva_rate = self.object.iva_porcentaje / Decimal('100')
+                for d in detalles:
+                    d.neto = d.subtotal
+                    d.iva_monto = (d.subtotal * iva_rate).quantize(Decimal('0.01'))
+                # Liquidar IVA sobre el neto total (como AFIP) y repartir
+                # la diferencia de redondeo en la última línea
+                total_iva = (subtotal_lineas * iva_rate).quantize(Decimal('0.01'))
+                diff = total_iva - sum(d.iva_monto for d in detalles)
+                if detalles and diff:
+                    detalles[-1].iva_monto += diff
+                context['total_neto'] = subtotal_lineas
+                context['total_iva'] = total_iva
+                context['total'] = context['total_neto'] + context['total_iva']
+            else:
+                # Precios con IVA incluido: se extrae del subtotal
+                iva_divisor = Decimal('1') + (self.object.iva_porcentaje / Decimal('100'))
+                for d in detalles:
+                    d.neto = (d.subtotal / iva_divisor).quantize(Decimal('0.01'))
+                    d.iva_monto = d.subtotal - d.neto
+                context['total_neto'] = sum(d.neto for d in detalles)
+                context['total_iva'] = sum(d.iva_monto for d in detalles)
         context['detalles'] = detalles
         return context
 
@@ -375,12 +392,13 @@ def facturar_remito(request, pk):
         return JsonResponse({'error': 'Solo se pueden facturar remitos de entrada'}, status=400)
 
     detalles = list(remito.detalleremito_set.select_related('prod').all())
-    if remito.iva_porcentaje and remito.iva_porcentaje > 0:
+    if remito.iva_porcentaje and remito.iva_porcentaje > 0 and getattr(remito, 'iva_modo', 'incluido') != 'agregado':
         iva_divisor = Decimal('1') + (remito.iva_porcentaje / Decimal('100'))
         neto_remito = sum(d.subtotal / iva_divisor for d in detalles)
         for d in detalles:
             d.neto = (d.subtotal / iva_divisor).quantize(Decimal('0.01'))
     else:
+        # Sin IVA o modo 'agregado': los precios ya son netos
         neto_remito = sum(d.subtotal for d in detalles)
 
     if request.method == 'POST':
