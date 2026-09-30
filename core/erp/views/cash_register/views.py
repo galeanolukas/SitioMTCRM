@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal
 
 from django.views.generic import ListView, CreateView, UpdateView, DetailView, DeleteView
 from django.urls import reverse_lazy
@@ -234,7 +235,7 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
                     for payment in payment_breakdown:
                         if isinstance(payment, dict):
                             method = payment.get('method', '')
-                            amount = float(payment.get('amount', 0))
+                            amount = Decimal(str(payment.get('amount', 0)))
                             if method == 'cash':
                                 dynamic_cash += amount
                             elif method == 'card':
@@ -246,11 +247,11 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
                             elif method == 'check':
                                 dynamic_check += amount
                 elif isinstance(payment_breakdown, dict):
-                    dynamic_cash += payment_breakdown.get('cash', 0)
-                    dynamic_card += payment_breakdown.get('card', 0)
-                    dynamic_transfer += payment_breakdown.get('transfer', 0)
-                    dynamic_mp += payment_breakdown.get('mp', 0)
-                    dynamic_check += payment_breakdown.get('check', 0)
+                    dynamic_cash += Decimal(str(payment_breakdown.get('cash', 0)))
+                    dynamic_card += Decimal(str(payment_breakdown.get('card', 0)))
+                    dynamic_transfer += Decimal(str(payment_breakdown.get('transfer', 0)))
+                    dynamic_mp += Decimal(str(payment_breakdown.get('mp', 0)))
+                    dynamic_check += Decimal(str(payment_breakdown.get('check', 0)))
 
         if cash_register.is_closed:
             expenses_qs = Expense.objects.filter(
@@ -351,7 +352,7 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
                     for payment in payment_breakdown:
                         if isinstance(payment, dict):
                             method = payment.get('method', '')
-                            amount = float(payment.get('amount', 0))
+                            amount = Decimal(str(payment.get('amount', 0)))
                             if method == 'cash':
                                 cash_total += amount
                             elif method == 'card':
@@ -363,11 +364,11 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
                             elif method == 'check':
                                 check_total += amount
                 elif isinstance(payment_breakdown, dict):
-                    cash_total += payment_breakdown.get('cash', 0)
-                    card_total += payment_breakdown.get('card', 0)
-                    transfer_total += payment_breakdown.get('transfer', 0)
-                    mp_total += payment_breakdown.get('mp', 0)
-                    check_total += payment_breakdown.get('check', 0)
+                    cash_total += Decimal(str(payment_breakdown.get('cash', 0)))
+                    card_total += Decimal(str(payment_breakdown.get('card', 0)))
+                    transfer_total += Decimal(str(payment_breakdown.get('transfer', 0)))
+                    mp_total += Decimal(str(payment_breakdown.get('mp', 0)))
+                    check_total += Decimal(str(payment_breakdown.get('check', 0)))
 
         # Calcular gastos por método de pago (si está abierta, desde la apertura hasta hoy)
         if cash_register.is_closed:
@@ -463,7 +464,7 @@ class CashRegisterDetailView(LoginRequiredMixin, ValidatePermissionRequiredMixin
                     for payment in payment_breakdown:
                         if isinstance(payment, dict):
                             method = payment.get('method', '')
-                            amount = float(payment.get('amount', 0))
+                            amount = Decimal(str(payment.get('amount', 0)))
                             if method == 'cash':
                                 dynamic_cash += amount
                             elif method == 'card':
@@ -475,11 +476,11 @@ class CashRegisterDetailView(LoginRequiredMixin, ValidatePermissionRequiredMixin
                             elif method == 'check':
                                 dynamic_check += amount
                 elif isinstance(payment_breakdown, dict):
-                    dynamic_cash += payment_breakdown.get('cash', 0)
-                    dynamic_card += payment_breakdown.get('card', 0)
-                    dynamic_transfer += payment_breakdown.get('transfer', 0)
-                    dynamic_mp += payment_breakdown.get('mp', 0)
-                    dynamic_check += payment_breakdown.get('check', 0)
+                    dynamic_cash += Decimal(str(payment_breakdown.get('cash', 0)))
+                    dynamic_card += Decimal(str(payment_breakdown.get('card', 0)))
+                    dynamic_transfer += Decimal(str(payment_breakdown.get('transfer', 0)))
+                    dynamic_mp += Decimal(str(payment_breakdown.get('mp', 0)))
+                    dynamic_check += Decimal(str(payment_breakdown.get('check', 0)))
 
         # Para cajas abiertas, incluir gastos desde la fecha de apertura hasta ahora
         if cash_register.is_closed:
