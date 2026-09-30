@@ -25,6 +25,9 @@
     <button type="button" class="btn btn-warning btn-flat" data-bs-toggle="modal" data-bs-target="#modalAdjustMargin">
         <i class="fas fa-percentage"></i> Ajustar Margen
     </button>
+    <button type="button" class="btn btn-danger btn-flat" data-bs-toggle="modal" data-bs-target="#modalCostIncrease">
+        <i class="fas fa-dollar-sign"></i> Aumento de Costos
+    </button>
     <button type="button" class="btn btn-info btn-flat" id="btnUndoMargin" data-bs-toggle="modal" data-bs-target="#modalUndoMargin" style="display:none;">
         <i class="fas fa-undo"></i> Deshacer Último Ajuste
     </button>
@@ -137,6 +140,122 @@ $(function () {
         });
     });
 
+    // ===== Aumento de costos (proveedor / selección) =====
+    var costSelectedProducts = [];
+    var suppliersLoaded = false;
+
+    $('input[name="costMode"]').on('change', function () {
+        var mode = $(this).val();
+        $('#costSupplierGroup').toggle(mode === 'supplier');
+        $('#costProductsGroup').toggle(mode === 'selected');
+        if (mode === 'supplier' && !suppliersLoaded) {
+            $.ajax({
+                url: '/erp/supplier/list/',
+                type: 'POST',
+                data: {'action': 'searchdata', 'term': '', 'csrfmiddlewaretoken': getCookie('csrftoken')},
+                dataType: 'json'
+            }).done(function (resp) {
+                var sel = $('#costSupplier');
+                sel.empty().append('<option value="">--- Seleccione proveedor ---</option>');
+                (Array.isArray(resp) ? resp : []).forEach(function (s) {
+                    sel.append('<option value="' + s.id + '">' + s.name + '</option>');
+                });
+                suppliersLoaded = true;
+            });
+        }
+    });
+
+    $('#btnCostSearchProd').on('click', function () {
+        var term = $('#costProdSearch').val().trim();
+        if (!term) { alert('Ingrese un término de búsqueda'); return; }
+        $.ajax({
+            url: window.location.pathname,
+            type: 'POST',
+            data: {'action': 'searchdata', 'term': term, 'csrfmiddlewaretoken': getCookie('csrftoken')},
+            dataType: 'json'
+        }).done(function (resp) {
+            var box = $('#costProdResults');
+            box.empty();
+            (Array.isArray(resp) ? resp : []).slice(0, 20).forEach(function (p) {
+                var item = $('<a href="#" class="list-group-item list-group-item-action list-group-item-sm py-1"></a>');
+                item.text(p.name + ' — $' + parseFloat(p.cost_price || 0).toFixed(2));
+                item.on('click', function (e) {
+                    e.preventDefault();
+                    if (costSelectedProducts.indexOf(p.id) === -1) {
+                        costSelectedProducts.push(p.id);
+                        if (costSelectedProducts.length === 1) $('#costProdSelected').empty();
+                        var chip = $('<span class="badge bg-primary me-1 mb-1" data-id="' + p.id + '"></span>');
+                        chip.text(p.name + ' ');
+                        var x = $('<a href="#" class="text-white">&times;</a>');
+                        x.on('click', function (ev) {
+                            ev.preventDefault();
+                            costSelectedProducts = costSelectedProducts.filter(function (id) { return id !== p.id; });
+                            chip.remove();
+                        });
+                        chip.append(x);
+                        $('#costProdSelected').append(chip);
+                    }
+                });
+                box.append(item);
+            });
+            if (resp.length === 0) box.append('<div class="list-group-item text-muted">Sin resultados</div>');
+        });
+    });
+
+    $(document).on('click', '#btnConfirmCostIncrease', function () {
+        var btn = $(this);
+        var percentage = $('#costPercentage').val();
+        var mode = $('input[name="costMode"]:checked').val();
+        if (!percentage || parseFloat(percentage) <= 0) {
+            alert('Ingrese un porcentaje válido mayor a 0');
+            return;
+        }
+        var payload = {
+            'action': 'increase_cost',
+            'percentage': percentage,
+            'mode': mode,
+            'csrfmiddlewaretoken': getCookie('csrftoken')
+        };
+        if (mode === 'supplier') {
+            var sup = $('#costSupplier').val();
+            if (!sup) { alert('Seleccione un proveedor'); return; }
+            payload['supplier_id'] = sup;
+        } else if (mode === 'selected') {
+            if (costSelectedProducts.length === 0) { alert('Agregue al menos un producto'); return; }
+            payload['product_ids'] = costSelectedProducts;
+        }
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Aplicando...');
+        $.ajax({
+            url: window.location.pathname,
+            type: 'POST',
+            data: payload,
+            dataType: 'json'
+        }).done(function (resp) {
+            $('#modalCostIncrease').modal('hide');
+            if (resp.success) {
+                $('#data').DataTable().ajax.reload(null, false);
+                alert(resp.message);
+                checkLastAdjustment();
+            } else {
+                alert(resp.error || 'Error al aumentar costos');
+            }
+        }).fail(function (jqXHR, textStatus, errorThrown) {
+            alert('Error: ' + (jqXHR.responseJSON ? jqXHR.responseJSON.error : textStatus));
+        }).always(function () {
+            btn.prop('disabled', false).html('<i class="fas fa-check"></i> Aplicar Aumento');
+        });
+    });
+
+    // Reset modal al abrir
+    $('#modalCostIncrease').on('show.bs.modal', function () {
+        costSelectedProducts = [];
+        $('#costProdSelected').empty();
+        $('#costProdResults').empty();
+        $('#costProdSearch').val('');
+        $('#costPercentage').val('');
+        $('input[name="costMode"][value="supplier"]').prop('checked', true).trigger('change');
+    });
+
     // Deshacer último ajuste
     $(document).on('click', '#btnConfirmUndoMargin', function () {
         var btn = $(this);
@@ -214,6 +333,64 @@ $(function () {
         <button type="button" class="btn btn-secondary btn-flat" data-bs-dismiss="modal">Cancelar</button>
         <button type="button" class="btn btn-warning btn-flat" id="btnConfirmAdjustMargin">
           <i class="fas fa-check"></i> Aplicar Ajuste
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal aumento de costos -->
+<div class="modal fade" id="modalCostIncrease" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-danger">
+        <h5 class="modal-title text-white"><i class="fas fa-dollar-sign"></i> Aumento de Costos</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p>Aumenta el <strong>precio de costo</strong> de los productos en el porcentaje indicado.
+           Descuento, flete, IVA y margen se mantienen; el PVP se recalcula automáticamente.</p>
+        <div class="alert alert-info small">
+          <i class="fas fa-info-circle"></i> Ej: costo $1.000.000 + 8% → $1.080.000. Esta acción se puede deshacer.
+        </div>
+        <div class="form-group mb-2">
+          <label>Porcentaje de aumento de costo (%)</label>
+          <input type="number" id="costPercentage" class="form-control" placeholder="Ej: 8" step="0.5" min="0.1">
+        </div>
+        <div class="form-group mb-2">
+          <label class="d-block">Aplicar a:</label>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="costMode" id="costModeSupplier" value="supplier" checked>
+            <label class="form-check-label" for="costModeSupplier">Por proveedor</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="costMode" id="costModeSelected" value="selected">
+            <label class="form-check-label" for="costModeSelected">Productos seleccionados</label>
+          </div>
+        </div>
+        <div class="form-group mb-2" id="costSupplierGroup">
+          <label>Proveedor</label>
+          <select id="costSupplier" class="form-control"></select>
+        </div>
+        <div id="costProductsGroup" style="display:none;">
+          <div class="form-group mb-2">
+            <label>Buscar producto</label>
+            <div class="input-group">
+              <input type="text" id="costProdSearch" class="form-control" placeholder="Nombre o código del producto">
+              <button type="button" class="btn btn-outline-secondary" id="btnCostSearchProd"><i class="fas fa-search"></i></button>
+            </div>
+          </div>
+          <div class="list-group mb-2" id="costProdResults" style="max-height: 200px; overflow-y: auto;"></div>
+          <div class="form-group">
+            <label>Seleccionados:</label>
+            <div id="costProdSelected"><span class="text-muted small">Ninguno</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-flat" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-danger btn-flat" id="btnConfirmCostIncrease">
+          <i class="fas fa-check"></i> Aplicar Aumento
         </button>
       </div>
     </div>

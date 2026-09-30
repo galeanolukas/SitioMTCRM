@@ -197,6 +197,82 @@ class ProductListView(ValidatePermissionRequiredMixin, LoginRequiredMixin, ListV
                         )
 
                     data = {'success': True, 'count': count, 'message': f'Se ajustó el margen de {count} productos en +{percentage}%'}
+            elif action == 'increase_cost':
+                # Aumento de costo directo por proveedor o productos seleccionados
+                from core.erp.models import MarginAdjustmentHistory
+                import math
+
+                percentage = Decimal(request.POST.get('percentage', '0'))
+                mode = request.POST.get('mode', '')
+                if not percentage or percentage <= 0:
+                    data = {'error': 'Debe ingresar un porcentaje válido'}
+                elif mode not in ('supplier', 'selected'):
+                    data = {'error': 'Debe elegir un modo de aplicación'}
+                else:
+                    active_cid = get_active_company_id(request)
+                    qs = Product.objects.all()
+                    if active_cid:
+                        qs = qs.filter(company_id=active_cid)
+                    else:
+                        qs = qs.none()
+
+                    if mode == 'supplier':
+                        supplier_id = request.POST.get('supplier_id')
+                        if not supplier_id:
+                            data = {'error': 'Debe seleccionar un proveedor'}
+                            return JsonResponse(data)
+                        qs = qs.filter(supplier_id=supplier_id)
+                    else:
+                        product_ids = request.POST.getlist('product_ids[]') or request.POST.getlist('product_ids')
+                        if not product_ids:
+                            data = {'error': 'Debe seleccionar al menos un producto'}
+                            return JsonResponse(data)
+                        qs = qs.filter(pk__in=product_ids)
+
+                    factor = Decimal('1') + percentage / Decimal('100')
+                    snapshot = []
+                    count = 0
+                    with transaction.atomic():
+                        for prod in qs:
+                            if prod.cost_price and prod.cost_price > 0:
+                                snapshot.append({
+                                    'id': prod.id,
+                                    'cost_price': str(prod.cost_price),
+                                    'margin_percentage': str(prod.margin_percentage),
+                                    'pvp': str(prod.pvp),
+                                    'pvp_final': str(prod.pvp_final),
+                                })
+
+                                # Aumentar el costo directamente
+                                prod.cost_price = (prod.cost_price * factor).quantize(Decimal('0.01'))
+
+                                # Recalcular PVP manteniendo descuento, flete y margen
+                                discount = prod.get_supplier_discount()
+                                cost_after_discount = prod.cost_price * (1 - discount / 100)
+                                cost_with_freight = cost_after_discount * (1 + (prod.freight_percentage or Decimal('0')) / 100)
+                                margin_rate = (prod.margin_percentage or Decimal('0')) / 100
+                                new_pvp = (cost_with_freight * (1 + margin_rate)).quantize(Decimal('0.01'))
+                                prod.pvp = Decimal(math.ceil(float(new_pvp)))
+                                rate = prod.iva_rate or Decimal('0.21')
+                                if rate > Decimal('1'):
+                                    rate = rate / 100
+                                prod.pvp_final = (prod.pvp * (1 + rate)).quantize(Decimal('0.01'))
+
+                                prod.synced_to_server = False
+                                prod.save()
+                                count += 1
+
+                        if count == 0:
+                            data = {'error': 'No se encontraron productos con costo para actualizar'}
+                        else:
+                            MarginAdjustmentHistory.objects.create(
+                                company_id=active_cid,
+                                percentage=percentage,
+                                product_count=count,
+                                snapshot=snapshot,
+                                created_by=request.user,
+                            )
+                            data = {'success': True, 'count': count, 'message': f'Se aumentó el costo de {count} productos en +{percentage}%'}
             elif action == 'undo_margin':
                 from core.erp.models import MarginAdjustmentHistory
 
@@ -222,6 +298,8 @@ class ProductListView(ValidatePermissionRequiredMixin, LoginRequiredMixin, ListV
                                 prod.margin_percentage = Decimal(item['margin_percentage'])
                                 prod.pvp = Decimal(item['pvp'])
                                 prod.pvp_final = Decimal(item['pvp_final'])
+                                if 'cost_price' in item:
+                                    prod.cost_price = Decimal(item['cost_price'])
                                 prod.synced_to_server = False
                                 prod.save()
                                 count += 1
