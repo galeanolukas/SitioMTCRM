@@ -12,6 +12,7 @@ from core.erp.mixins import get_active_company_id
 from decimal import Decimal
 import json
 import logging
+import math
 
 logger = logging.getLogger(__name__)
 
@@ -163,6 +164,29 @@ class RemitoDetailView(LoginRequiredMixin, PermissionRequiredMixin, DetailView):
                 context['total_neto'] = sum(d.neto for d in detalles)
                 context['total_iva'] = sum(d.iva_monto for d in detalles)
         context['detalles'] = detalles
+        # Datos para el modal de ajuste de margen/precio de venta
+        productos_margen = []
+        for d in detalles:
+            p = d.prod
+            if not p:
+                continue
+            discount = p.get_supplier_discount()
+            cost_after_discount = p.cost_price * (Decimal('1') - discount / Decimal('100'))
+            cost_efectivo = cost_after_discount * (Decimal('1') + (p.freight_percentage or Decimal('0')) / Decimal('100'))
+            iva_rate = p.iva_rate or Decimal('0.21')
+            if iva_rate > Decimal('1'):
+                iva_rate = iva_rate / 100
+            productos_margen.append({
+                'prod_id': p.id,
+                'name': p.name,
+                'cantidad': str(d.cantidad),
+                'cost_efectivo': str(cost_efectivo.quantize(Decimal('0.01'))),
+                'margin': str(p.margin_percentage or Decimal('0')),
+                'iva_rate': str(iva_rate),
+                'pvp': str(p.pvp or Decimal('0')),
+                'pvp_final': str(p.pvp_final or Decimal('0')),
+            })
+        context['productos_margen'] = productos_margen
         return context
 
 
@@ -225,12 +249,32 @@ def procesar_remito(request, pk):
 
     try:
         with transaction.atomic():
+            iva_divisor = Decimal('1')
+            if remito.iva_porcentaje and remito.iva_porcentaje > 0 and getattr(remito, 'iva_modo', 'incluido') != 'agregado':
+                iva_divisor = Decimal('1') + (remito.iva_porcentaje / Decimal('100'))
             for detalle in remito.detalleremito_set.all():
                 # Usar select_for_update para evitar race conditions
                 producto = Product.objects.select_for_update().get(pk=detalle.prod_id)
                 if remito.tipo == 'entrada':
                     # Entrada: sumar stock
                     producto.stock += detalle.cantidad
+                    # Actualizar costo con el precio neto del remito (sin IVA)
+                    # y recalcular precio de venta segun el margen del producto
+                    if detalle.precio_unitario and detalle.precio_unitario > 0:
+                        nuevo_costo = (detalle.precio_unitario / iva_divisor).quantize(Decimal('0.01'))
+                        if nuevo_costo != producto.cost_price:
+                            producto.cost_price = nuevo_costo
+                        margin = producto.margin_percentage or Decimal('0')
+                        discount = producto.get_supplier_discount()
+                        cost_after_discount = producto.cost_price * (Decimal('1') - discount / Decimal('100'))
+                        cost_with_freight = cost_after_discount * (Decimal('1') + (producto.freight_percentage or Decimal('0')) / Decimal('100'))
+                        new_pvp = (cost_with_freight * (Decimal('1') + margin / Decimal('100'))).quantize(Decimal('0.01'))
+                        producto.pvp = Decimal(math.ceil(float(new_pvp)))
+                        rate = producto.iva_rate or Decimal('0.21')
+                        if rate > Decimal('1'):
+                            rate = rate / Decimal('100')
+                        producto.pvp_final = (producto.pvp * (Decimal('1') + rate)).quantize(Decimal('0.01'))
+                        producto.synced_to_server = False
                 else:
                     # Salida: restar stock
                     producto.stock -= detalle.cantidad
@@ -317,6 +361,81 @@ def anular_remito(request, pk):
         return JsonResponse({'success': True, 'message': 'Remito anulado exitosamente'})
     except Exception as e:
         logger.error("remito_anular_error", extra={
+            'remito_id': pk,
+            'user': request.user.username,
+            'error': str(e)
+        })
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+def actualizar_margen_remito(request, pk):
+    """Actualizar el margen de ganancia de los productos cargados en un remito"""
+    from core.erp.models import MarginAdjustmentHistory
+
+    if not request.user.has_perm('erp.manage_remitos'):
+        return JsonResponse({'error': 'No tiene permisos'}, status=403)
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+
+    remito = get_object_or_404(Remito, pk=pk)
+    try:
+        data = json.loads(request.body)
+        margins = data.get('margins', {})
+        prod_ids = {pid for pid in remito.detalleremito_set.values_list('prod_id', flat=True) if pid}
+
+        snapshot = []
+        count = 0
+        with transaction.atomic():
+            for prod_id, margin in margins.items():
+                try:
+                    pid = int(prod_id)
+                    new_margin = Decimal(str(margin))
+                except (ValueError, TypeError):
+                    continue
+                if pid not in prod_ids or new_margin < 0:
+                    continue
+                prod = Product.objects.filter(pk=pid).first()
+                if not prod:
+                    continue
+                if remito.company_id and prod.company_id and prod.company_id != remito.company_id:
+                    continue
+
+                snapshot.append({
+                    'id': prod.id,
+                    'margin_percentage': str(prod.margin_percentage),
+                    'pvp': str(prod.pvp),
+                    'pvp_final': str(prod.pvp_final),
+                })
+
+                prod.margin_percentage = new_margin
+                if prod.cost_price and prod.cost_price > 0:
+                    # Misma fórmula que adjust_margin: costo - descuento prov. + flete, x margen, redondeo
+                    discount = prod.get_supplier_discount()
+                    cost_after_discount = prod.cost_price * (Decimal('1') - discount / Decimal('100'))
+                    cost_with_freight = cost_after_discount * (Decimal('1') + (prod.freight_percentage or Decimal('0')) / Decimal('100'))
+                    new_pvp = (cost_with_freight * (Decimal('1') + new_margin / Decimal('100'))).quantize(Decimal('0.01'))
+                    prod.pvp = Decimal(math.ceil(float(new_pvp)))
+                    rate = prod.iva_rate or Decimal('0.21')
+                    if rate > Decimal('1'):
+                        rate = rate / Decimal('100')
+                    prod.pvp_final = (prod.pvp * (Decimal('1') + rate)).quantize(Decimal('0.01'))
+                prod.synced_to_server = False
+                prod.save()
+                count += 1
+
+            if snapshot:
+                MarginAdjustmentHistory.objects.create(
+                    company_id=remito.company_id,
+                    percentage=Decimal('0'),
+                    product_count=count,
+                    snapshot=snapshot,
+                    created_by=request.user,
+                )
+
+        return JsonResponse({'success': True, 'count': count, 'message': f'Se actualizaron los precios de {count} productos'})
+    except Exception as e:
+        logger.error("remito_margin_update_error", extra={
             'remito_id': pk,
             'user': request.user.username,
             'error': str(e)
@@ -454,8 +573,12 @@ def facturar_remito(request, pk):
                 # Ajustar cost_price de los productos si el neto de la factura difiere del remito
                 # Distribuir el neto_gravado proporcionalmente entre los productos del remito
                 ajustes = []
-                # Calcular neto_remito: si tiene iva_porcentaje, el precio ya tiene IVA, hay que sacarlo
-                if remito.iva_porcentaje and remito.iva_porcentaje > 0:
+                # Calcular neto_remito: 'incluido' saca el IVA, 'agregado' ya es neto
+                iva_incluido = (
+                    remito.iva_porcentaje and remito.iva_porcentaje > 0
+                    and getattr(remito, 'iva_modo', 'incluido') != 'agregado'
+                )
+                if iva_incluido:
                     iva_divisor = Decimal('1') + (remito.iva_porcentaje / Decimal('100'))
                     neto_remito = sum(d.subtotal / iva_divisor for d in detalles)
                 else:
@@ -464,9 +587,7 @@ def facturar_remito(request, pk):
                     factor = neto_gravado / neto_remito
                     for detalle in detalles:
                         if detalle.prod:
-                            # Si tiene iva_porcentaje, el precio_unitario incluye IVA, calcular neto
-                            if remito.iva_porcentaje and remito.iva_porcentaje > 0:
-                                iva_divisor = Decimal('1') + (remito.iva_porcentaje / Decimal('100'))
+                            if iva_incluido:
                                 precio_neto = detalle.precio_unitario / iva_divisor
                             else:
                                 precio_neto = detalle.precio_unitario
