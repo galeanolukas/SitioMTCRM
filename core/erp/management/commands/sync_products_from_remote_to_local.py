@@ -33,6 +33,10 @@ def retry_on_database_lock(max_retries=3, base_delay=0.1):
 class Command(BaseCommand):
     help = "Sincroniza productos desde la BD remota (remote) hacia la BD local (default). El servidor es la fuente de verdad."
 
+    def add_arguments(self, parser):
+        parser.add_argument('--company-id', type=int, default=None,
+                            help='ID de la empresa local a sincronizar (opcional)')
+
     def handle(self, *args, **options):
         self.stdout.write(self.style.NOTICE("Iniciando sincronización de productos desde servidor remoto hacia POS local..."))
 
@@ -40,12 +44,17 @@ class Command(BaseCommand):
         try:
             User = get_user_model()
             active_company = None
+            company_id = options.get('company_id')
+            if company_id:
+                active_company = Company.objects.using('default').filter(pk=company_id).first()
+                if active_company:
+                    self.stdout.write(f"Empresa especificada: {active_company.name} (ID: {active_company.id})")
             current_user = get_current_user()
-            
-            if current_user and not current_user.is_anonymous and hasattr(current_user, 'company') and current_user.company:
+
+            if not active_company and current_user and not current_user.is_anonymous and hasattr(current_user, 'company') and current_user.company:
                 active_company = current_user.company
                 self.stdout.write(f"Empresa del usuario logueado: {active_company.name} (ID: {active_company.id})")
-            else:
+            elif not active_company:
                 # Si no hay usuario logueado, buscar usuario con último login más reciente
                 try:
                     user_with_last_login = User.objects.exclude(company__isnull=True).exclude(last_login__isnull=True).order_by('-last_login').first()
@@ -82,7 +91,11 @@ class Command(BaseCommand):
 
         # Obtener productos remotos de la empresa activa
         try:
-            remote_qs = Product.objects.using('remote').filter(company_id=active_company.id).order_by('id')
+            # Resolver empresa remota por CUIT/nombre (los IDs no siempre coinciden)
+            from core.erp.management.commands._restore_common import resolve_remote_company
+            remote_company = resolve_remote_company(active_company, self.stdout)
+            remote_company_id = remote_company.id if remote_company else active_company.id
+            remote_qs = Product.objects.using('remote').filter(company_id=remote_company_id).order_by('id')
             total = remote_qs.count()
             if not total:
                 self.stdout.write(self.style.WARNING(f"No hay productos para la empresa {active_company.name} en la BD remota."))

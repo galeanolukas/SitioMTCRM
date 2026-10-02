@@ -37,10 +37,17 @@ class RestoreFromServerView(LoginRequiredMixin, UserPassesTestMixin, View):
         return redirect('/')
 
     def get(self, request):
+        from core.erp.models import Company
         entities = []
         for key, label, command in self.RESTORE_ENTITIES:
             entities.append({'key': key, 'label': label, 'command': command})
-        return render(request, 'sync/restore.html', {'entities': entities, 'title': 'Restaurar datos desde el servidor'})
+        companies = Company.objects.filter(is_active=True).order_by('name')
+        return render(request, 'sync/restore.html', {
+            'entities': entities,
+            'companies': companies,
+            'active_company_id': request.session.get('company_id') or getattr(request.user, 'company_id', None),
+            'title': 'Restaurar datos desde el servidor',
+        })
 
     def post(self, request):
         try:
@@ -63,14 +70,11 @@ class RestoreFromServerView(LoginRequiredMixin, UserPassesTestMixin, View):
                 continue
             out = StringIO()
             kwargs = {'stdout': out}
-            if command.endswith('_from_remote_to_local') and command != 'sync_categories_from_remote_to_local':
-                # los comandos nuevos aceptan --company-id / --dry-run
-                if command in ('sync_sales_from_remote_to_local', 'sync_remitos_from_remote_to_local',
-                               'sync_price_lists_from_remote_to_local', 'sync_card_plans_from_remote_to_local'):
-                    if company_id:
-                        kwargs['company_id'] = company_id
-                    if dry_run:
-                        kwargs['dry_run'] = True
+            if company_id:
+                kwargs['company_id'] = company_id
+            if dry_run and command in ('sync_sales_from_remote_to_local', 'sync_remitos_from_remote_to_local',
+                                       'sync_price_lists_from_remote_to_local', 'sync_card_plans_from_remote_to_local'):
+                kwargs['dry_run'] = True
             try:
                 call_command(command, **kwargs)
                 results.append({'entity': key, 'success': True, 'output': out.getvalue()})

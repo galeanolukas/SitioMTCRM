@@ -44,7 +44,11 @@ class Command(BaseCommand):
             return
 
         try:
-            remote_qs = Category.objects.using('remote').filter(company_id=active_company.id).order_by('id')
+            # Resolver empresa remota por CUIT/nombre (los IDs no siempre coinciden)
+            from core.erp.management.commands._restore_common import resolve_remote_company
+            remote_company = resolve_remote_company(active_company, self.stdout)
+            remote_company_id = remote_company.id if remote_company else active_company.id
+            remote_qs = Category.objects.using('remote').filter(company_id=remote_company_id).order_by('id')
             total = remote_qs.count()
             if not total:
                 self.stdout.write(self.style.WARNING(f"No hay categorias para la empresa {active_company.name} en la BD remota."))
