@@ -3,9 +3,84 @@ from django.views.generic import View
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.http import JsonResponse
 from django.contrib import messages
+from django.core.management import call_command
+from io import StringIO
 import json
 
 from core.erp.services.server_sync_service import ServerSyncService
+
+
+class RestoreFromServerView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """Restaurar datos desde el servidor central hacia el POS local.
+    El servidor funciona como backup: trae entidades de la empresa activa
+    que no existan localmente. Solo superusuarios."""
+
+    RESTORE_ENTITIES = [
+        # (key, etiqueta, comando)
+        ('categories', 'Categorías y marcas', 'sync_categories_from_remote_to_local'),
+        ('suppliers', 'Proveedores', 'sync_suppliers_from_remote_to_local'),
+        ('clients', 'Clientes', 'sync_clients_from_remote_to_local'),
+        ('products', 'Productos', 'sync_products_from_remote_to_local'),
+        ('sales', 'Ventas', 'sync_sales_from_remote_to_local'),
+        ('remitos', 'Remitos', 'sync_remitos_from_remote_to_local'),
+        ('price_lists', 'Listas de precios', 'sync_price_lists_from_remote_to_local'),
+        ('card_plans', 'Planes de tarjeta', 'sync_card_plans_from_remote_to_local'),
+    ]
+
+    def test_func(self):
+        return self.request.user.is_superuser
+
+    def handle_no_permission(self):
+        if self.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'error': 'Permisos insuficientes'}, status=403)
+        messages.error(self.request, 'No tienes permisos para realizar esta acción')
+        return redirect('/')
+
+    def get(self, request):
+        entities = []
+        for key, label, command in self.RESTORE_ENTITIES:
+            entities.append({'key': key, 'label': label, 'command': command})
+        return render(request, 'sync/restore.html', {'entities': entities, 'title': 'Restaurar datos desde el servidor'})
+
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+            selected = data.get('entities', [])
+            dry_run = bool(data.get('dry_run'))
+            company_id = data.get('company_id')  # opcional; si no, la empresa activa del usuario
+        except Exception:
+            return JsonResponse({'success': False, 'error': 'JSON inválido'}, status=400)
+
+        commands = {key: cmd for key, _, cmd in self.RESTORE_ENTITIES}
+        if not selected:
+            return JsonResponse({'success': False, 'error': 'Seleccione al menos una entidad'})
+
+        results = []
+        for key in selected:
+            command = commands.get(key)
+            if not command:
+                results.append({'entity': key, 'success': False, 'output': 'Entidad desconocida'})
+                continue
+            out = StringIO()
+            kwargs = {'stdout': out}
+            if command.endswith('_from_remote_to_local') and command != 'sync_categories_from_remote_to_local':
+                # los comandos nuevos aceptan --company-id / --dry-run
+                if command in ('sync_sales_from_remote_to_local', 'sync_remitos_from_remote_to_local',
+                               'sync_price_lists_from_remote_to_local', 'sync_card_plans_from_remote_to_local'):
+                    if company_id:
+                        kwargs['company_id'] = company_id
+                    if dry_run:
+                        kwargs['dry_run'] = True
+            try:
+                call_command(command, **kwargs)
+                results.append({'entity': key, 'success': True, 'output': out.getvalue()})
+            except Exception as e:
+                results.append({'entity': key, 'success': False, 'output': f'{e}\n{out.getvalue()}'})
+            finally:
+                out.close()
+
+        ok = all(r['success'] for r in results)
+        return JsonResponse({'success': ok, 'results': results})
 
 
 class SyncToggleView(LoginRequiredMixin, UserPassesTestMixin, View):

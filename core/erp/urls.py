@@ -5,7 +5,7 @@ from core.erp.views.client.views import ClientListView, ClientCreateView, Client
 from core.erp.views.sale.views import SaleListView, SaleCreateView, SaleUpdateView, SaleDeleteView, ticket_print, ticket_x_print, ticket_budget_print, POSView, InvoiceListView, InvoiceCreateView, invoice_pdf, sync_sales_api, EmployeeAccountListView, employee_account_pdf_export, BudgetListView, BudgetConvertView, BudgetDetailView, BudgetSendLocalView, CardPlanListView, CardPlanCreateView, CardPlanUpdateView, CardPlanDeleteView, CardPlanExportView, CardPlanImportView
 from core.erp.views.transfer.views import TransferListView, TransferCreateView, TransferDetailView, TransferReceiveView, TransferSearchView, TransferProductSearchView
 from core.erp.views.operator_reports.views import OperatorSalesReportView, operator_sales_export
-from core.erp.views.sync.views import SyncToggleView, SyncStatusView, ProductSyncView
+from core.erp.views.sync.views import SyncToggleView, SyncStatusView, ProductSyncView, RestoreFromServerView
 from core.erp.views.tests.views import *
 from core.erp.views.activity_log import ActivityLogView, ActivityLogDashboardView
 from core.erp.views.scanner.views import ScannerMobileView, ScanSubmitView, ScanPollView
@@ -224,6 +224,8 @@ urlpatterns = [
     path('sync/status/', SyncStatusView.as_view(), name='sync_status'),
     # product sync (solo superusuarios)
     path('sync/products/', ProductSyncView.as_view(), name='sync_products'),
+    # restaurar datos del servidor hacia el local (solo superusuarios)
+    path('sync/restore/', RestoreFromServerView.as_view(), name='sync_restore'),
     # activity log (solo superusuarios)
     path('activity/log/', ActivityLogView.as_view(), name='activity_log'),
     path('activity/dashboard/', ActivityLogDashboardView.as_view(), name='activity_dashboard'),

@@ -1,0 +1,103 @@
+{% extends 'base/base.html' %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-cloud-download-alt"></i> {{ title }}</h3>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        Trae al POS local los datos de <strong>tu empresa</strong> que existen en el servidor
+                        central y no están cargados acá. No borra ni pisa datos locales: lo que ya existe
+                        se omite (o se actualiza en listas/planes). Las ventas y remitos restaurados
+                        <strong>no modifican el stock</strong>.
+                    </div>
+
+                    <div class="form-group">
+                        <label>Entidades a restaurar:</label>
+                        <div class="row">
+                            {% for e in entities %}
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input restore-check" type="checkbox"
+                                           id="ent_{{ e.key }}" value="{{ e.key }}" {% if e.key != 'sales' %}checked{% endif %}>
+                                    <label class="form-check-label" for="ent_{{ e.key }}">{{ e.label }}</label>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="dryRun">
+                        <label class="form-check-label" for="dryRun">
+                            Solo simular (mostrar qué se restauraría sin escribir nada)
+                        </label>
+                    </div>
+
+                    <button type="button" class="btn btn-primary" id="btnRestore">
+                        <i class="fas fa-cloud-download-alt"></i> Restaurar desde el servidor
+                    </button>
+
+                    <div id="restore-alert" class="alert mt-3" style="display:none;"></div>
+                    <div id="restore-output" style="display:none;">
+                        <h5>Resultado</h5>
+                        <pre id="restore-log" class="bg-dark text-light p-3" style="max-height:400px; overflow:auto;"></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    $('#btnRestore').click(function() {
+        var entities = $('.restore-check:checked').map(function() { return this.value; }).get();
+        if (!entities.length) { alert('Seleccione al menos una entidad'); return; }
+        if (!$('#dryRun').is(':checked') &&
+            !confirm('Se traerán datos del servidor al POS local. ¿Continuar?')) {
+            return;
+        }
+        var btn = $(this);
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Restaurando...');
+        $.ajax({
+            url: '{% url "erp:sync_restore" %}',
+            method: 'POST',
+            data: JSON.stringify({entities: entities, dry_run: $('#dryRun').is(':checked')}),
+            contentType: 'application/json',
+            beforeSend: function(xhr) { xhr.setRequestHeader('X-CSRFToken', '{{ csrf_token }}'); },
+            success: function(resp) {
+                var log = '';
+                (resp.results || []).forEach(function(r) {
+                    log += '=== ' + r.entity + ' ===\n' + (r.output || '') + '\n\n';
+                });
+                $('#restore-log').text(log);
+                $('#restore-output').show();
+                var alert = $('#restore-alert');
+                alert.removeClass('alert-success alert-danger')
+                     .addClass(resp.success ? 'alert-success' : 'alert-danger')
+                     .html(resp.success ? 'Restauración completada' : ('Error: ' + (resp.error || 'ver log')))
+                     .show();
+            },
+            error: function(xhr) {
+                var msg = xhr.responseJSON && xhr.responseJSON.error ? xhr.responseJSON.error : 'Error de conexión';
+                $('#restore-alert').removeClass('alert-success').addClass('alert-danger').text('Error: ' + msg).show();
+            },
+            complete: function() {
+                btn.prop('disabled', false).html('<i class="fas fa-cloud-download-alt"></i> Restaurar desde el servidor');
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
