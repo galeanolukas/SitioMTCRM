@@ -22,6 +22,7 @@ $(function () {
     var productTable = null;
     var lastSearchTerm = '';
     var codeExactNames = {};
+    var selectedSupplierId = '';
 
     function getSearchTerm() {
         var t = productTable ? productTable.search() : '';
@@ -61,13 +62,18 @@ $(function () {
             // "F-5657" exacto, o solo el número "5657"
             if (sys === term || term === String(rowData.id).toLowerCase()) return true;
         }
-        // Nombre similar
-        return nameScore(term, rowData.name) <= 3;
+        // Nombre similar (producto) o nombre del proveedor relacionado
+        return nameScore(term, rowData.name) <= 3 || nameScore(term, rowData.supplier) <= 3;
     }
 
     $.fn.dataTable.ext.search.push(function (settings, searchData, index, rowData, counter) {
         if (settings.nTable && settings.nTable.id !== 'data') return true;
-        return rowMatches(getSearchTerm(), rowData || {});
+        rowData = rowData || {};
+        // Filtro por proveedor seleccionado
+        if (selectedSupplierId && String(rowData.supplier_id || '') !== selectedSupplierId) {
+            return false;
+        }
+        return rowMatches(getSearchTerm(), rowData);
     });
 
     // Ordenamiento por relevancia del nombre según el término buscado
@@ -214,6 +220,27 @@ $(function () {
             var count = $('#data').DataTable().data().count();
             var badge = document.getElementById('totalCountBadge');
             if (badge) badge.textContent = count;
+
+            // Filtro por proveedor junto al buscador
+            var $filterBox = $('#data_filter');
+            if ($filterBox.length && $('#supplierFilter').length === 0) {
+                var $sel = $('<select id="supplierFilter" class="form-control form-control-sm" style="display:inline-block; width:auto; margin-left:8px;"><option value="">Todos los proveedores</option></select>');
+                $filterBox.append($sel);
+                $.ajax({
+                    url: '/erp/supplier/list/',
+                    type: 'POST',
+                    data: {'action': 'searchdata', 'term': '', 'csrfmiddlewaretoken': getCookie('csrftoken')},
+                    dataType: 'json'
+                }).done(function (resp) {
+                    (Array.isArray(resp) ? resp : []).forEach(function (s) {
+                        $sel.append('<option value="' + s.id + '">' + s.name + '</option>');
+                    });
+                });
+                $sel.on('change', function () {
+                    selectedSupplierId = this.value;
+                    productTable.draw(false);
+                });
+            }
         }
     });
 
