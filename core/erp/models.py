@@ -2637,6 +2637,8 @@ class Remito(models.Model):
     ]
     iva_modo = models.CharField(max_length=10, choices=IVA_MODO_CHOICES, default='incluido', verbose_name='Modo de IVA',
                                 help_text='"Incluido": los precios cargados ya traen IVA (se extrae). "Agregado": los precios son netos y el IVA se suma al total.')
+    stock_applied = models.BooleanField(default=False, verbose_name='Stock aplicado',
+                                        help_text='True si el remito ya movió stock (al procesarse). Se usa para revertir solo si corresponde.')
     synced_to_server = models.BooleanField(default=False, verbose_name='Sincronizado con servidor')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de creación')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Fecha de actualización')

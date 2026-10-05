@@ -290,6 +290,7 @@ def procesar_remito(request, pk):
                 producto.save()
 
             remito.estado = 'processed'
+            remito.stock_applied = True
             remito.save()
 
             logger.info("remito_process_success", extra={
@@ -327,8 +328,8 @@ def anular_remito(request, pk):
 
     try:
         with transaction.atomic():
-            # Solo revertir stock si estaba procesado o facturado
-            if remito.estado in ('processed', 'facturado'):
+            # Solo revertir stock si el remito realmente lo aplico al procesarse
+            if remito.stock_applied and remito.estado in ('processed', 'facturado'):
                 for detalle in remito.detalleremito_set.all():
                     # Usar select_for_update para evitar race conditions
                     producto = Product.objects.select_for_update().get(pk=detalle.prod_id)
@@ -350,6 +351,7 @@ def anular_remito(request, pk):
                     producto.save()
 
             remito.estado = 'cancelled'
+            remito.stock_applied = False
             remito.save()
 
             logger.info("remito_anular_success", extra={
