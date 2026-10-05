@@ -425,11 +425,21 @@
                     if (response.success) {
                         location.reload();
                     } else {
-                        alert('Error al guardar el movimiento');
+                        alert('Error al guardar el movimiento: ' + (response.error || ''));
                     }
                 },
-                error: function() {
-                    alert('Error al conectar con el servidor');
+                error: function(xhr) {
+                    var msg = 'Error al guardar el movimiento';
+                    if (xhr.responseJSON) {
+                        if (xhr.responseJSON.error) {
+                            msg = xhr.responseJSON.error;
+                        } else if (xhr.responseJSON.errors) {
+                            msg = Object.values(xhr.responseJSON.errors)
+                                .map(function(e) { return e.map(function(x) { return x.message; }).join(', '); })
+                                .join(' | ');
+                        }
+                    }
+                    alert(msg);
                 }
             });
         });

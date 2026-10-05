@@ -544,22 +544,37 @@ class CashMovementCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin
     fields = ['movement_type', 'amount', 'description', 'payment_type']
     permission_required = 'erp.add_cashmovement'
 
+    def _is_ajax(self):
+        return self.request.headers.get('x-requested-with') == 'XMLHttpRequest'
+
     def form_valid(self, form):
         cash_register = get_object_or_404(
             CashRegister,
             pk=self.kwargs['cash_register_id'],
             company=self.request.user.company
         )
+        if cash_register.is_closed:
+            if self._is_ajax():
+                return JsonResponse({'success': False, 'error': 'La caja está cerrada'}, status=400)
+            messages.error(self.request, 'No se pueden agregar movimientos a una caja cerrada')
+            return redirect('erp:cash_register_detail', pk=cash_register.pk)
         form.instance.cash_register = cash_register
         form.instance.created_by = self.request.user
-        response = super().form_valid(form)
-        messages.success(self.request, 'Movimiento registrado correctamente')
+        self.object = form.save()
         # Sincronizar el movimiento con el servidor remoto
         try:
             sync_cash_register_immediately(cash_register.id)
         except Exception as sync_e:
             logger.warning(f'Error al sincronizar movimiento de caja: {sync_e}')
-        return response
+        if self._is_ajax():
+            return JsonResponse({'success': True})
+        messages.success(self.request, 'Movimiento registrado correctamente')
+        return redirect('erp:cash_register_detail', pk=cash_register.pk)
+
+    def form_invalid(self, form):
+        if self._is_ajax():
+            return JsonResponse({'success': False, 'errors': form.errors.get_json_data()}, status=400)
+        return super().form_invalid(form)
 
     def get_success_url(self):
         return reverse_lazy('erp:cash_register_detail', kwargs={'pk': self.kwargs['cash_register_id']})
@@ -636,24 +651,8 @@ class CashMovementDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin
             messages.error(request, 'No se pueden eliminar movimientos de una caja cerrada')
             return redirect('erp:cash_register_detail', pk=cash_register.pk)
         
-        # Actualizar totales del cash register
-        if movement.movement_type == 'in':
-            # Restar ingreso
-            if movement.payment_type == 'cash':
-                cash_register.cash_sales -= movement.amount
-            elif movement.payment_type == 'card':
-                cash_register.card_sales -= movement.amount
-            elif movement.payment_type == 'transfer':
-                cash_register.transfer_sales -= movement.amount
-            elif movement.payment_type == 'mp':
-                cash_register.mp_sales -= movement.amount
-        else:
-            # Sumar egreso (restar de gastos)
-            cash_register.expenses -= movement.amount
-        
-        cash_register.save()
-        
-        # Eliminar movimiento
+        # Eliminar movimiento (los totales de la caja se calculan de forma dinamica,
+        # no hace falta ajustar campos almacenados)
         movement.delete()
         
         messages.success(request, f'Movimiento de {movement.amount} eliminado correctamente')
