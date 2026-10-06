@@ -275,7 +275,6 @@ class DashboardView(TemplateView):
         revenue = context['revenue_total'] or 0
         expenses = context['expenses_total'] or 0
         try:
-            from decimal import Decimal
             context['balance'] = float(Decimal(str(revenue)) - Decimal(str(expenses)))
         except Exception:
             context['balance'] = 0.0
