@@ -3,7 +3,42 @@
 {% load currency_filters %}
 
 {% block head_list %}
-    <script src="{% static 'expense/js/list.js' %}?v=20260821"></script>
+    <script src="{% static 'expense/js/list.js' %}?v=20261005"></script>
+{% endblock %}
+
+{% block alerts %}
+<div class="card mb-3">
+    <div class="card-body py-2">
+        <form method="get" action="{% url 'erp:expense_list' %}" class="row align-items-end" id="filterForm">
+            <div class="col-md-2 col-sm-6 mb-2 mb-md-0">
+                <label class="mb-1"><strong>Período</strong></label>
+                <select id="period" name="period" class="form-control" onchange="handlePeriodChange()">
+                    <option value="">Todo / Personalizado</option>
+                    <option value="today" {% if request.GET.period == 'today' %}selected{% endif %}>Hoy</option>
+                    <option value="week" {% if request.GET.period == 'week' %}selected{% endif %}>Esta semana</option>
+                    <option value="month" {% if request.GET.period == 'month' %}selected{% endif %}>Este mes</option>
+                    <option value="year" {% if request.GET.period == 'year' %}selected{% endif %}>Este año</option>
+                </select>
+            </div>
+            <div class="col-md-3 col-sm-6 mb-2 mb-md-0">
+                <label class="mb-1"><strong>Desde</strong></label>
+                <input type="date" id="start_date" name="start_date" class="form-control" value="{{ request.GET.start_date|default:'' }}">
+            </div>
+            <div class="col-md-3 col-sm-6 mb-2 mb-md-0">
+                <label class="mb-1"><strong>Hasta</strong></label>
+                <input type="date" id="end_date" name="end_date" class="form-control" value="{{ request.GET.end_date|default:'' }}">
+            </div>
+            <div class="col-md-4 col-sm-6">
+                <button type="submit" class="btn btn-primary btn-flat">
+                    <i class="fas fa-filter"></i> Filtrar
+                </button>
+                <a href="{% url 'erp:expense_list' %}" class="btn btn-secondary btn-flat">
+                    <i class="fas fa-times"></i> Limpiar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
 {% endblock %}
 
 {% block buttons_list %}
@@ -90,8 +125,22 @@ function handlePeriodChange() {
         const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
         startDateInput.value = formatDate(startOfMonth);
         endDateInput.value = formatDate(endOfMonth);
+    } else if (period === 'year') {
+        startDateInput.value = today.getFullYear() + '-01-01';
+        endDateInput.value = today.getFullYear() + '-12-31';
+    } else {
+        startDateInput.value = '';
+        endDateInput.value = '';
     }
 }
+
+// Si se editan las fechas a mano, pasar a modo personalizado
+document.getElementById('start_date').addEventListener('change', function() {
+    document.getElementById('period').value = '';
+});
+document.getElementById('end_date').addEventListener('change', function() {
+    document.getElementById('period').value = '';
+});
 
 function formatDate(date) {
     const year = date.getFullYear();
@@ -100,14 +149,7 @@ function formatDate(date) {
     return `${year}-${month}-${day}`;
 }
 
-// Establecer período por defecto como hoy al cargar
-document.addEventListener('DOMContentLoaded', function() {
-    const periodSelect = document.getElementById('period');
-    if (!periodSelect.value) {
-        periodSelect.value = 'today';
-        handlePeriodChange();
-    }
-});
+
 
 function deleteDuplicateExpenses() {
     if (!confirm('¿Está seguro que desea eliminar los gastos duplicados de la base de datos remota?\n\nEsta acción marcará los duplicados como inactivos y no se eliminarán físicamente.')) {

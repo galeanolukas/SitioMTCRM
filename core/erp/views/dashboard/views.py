@@ -593,15 +593,6 @@ class ExpenseListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListV
     template_name = 'expense/list.html'
     permission_required = 'erp.view_expense'
 
-    def get_queryset(self):
-        qs = super().get_queryset()
-        active_cid = get_active_company_id(self.request)
-        if active_cid:
-            qs = qs.filter(company_id=active_cid)
-        else:
-            qs = qs.none()
-        return qs
-
     @method_decorator(csrf_exempt)
     def dispatch(self, request, *args, **kwargs):
         return super().dispatch(request, *args, **kwargs)
@@ -740,15 +731,17 @@ class ExpenseListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListV
             qs = qs.filter(date__gte=start_date)
         if end_date:
             qs = qs.filter(date__lte=end_date)
-        
-        if not self.request.user.is_superuser:
-            active_cid = get_active_company_id(self.request)
-            if active_cid:
-                qs = qs.filter(company_id=active_cid)
-        
+
+        # Filtrar siempre por la empresa activa (tambien superusuarios)
+        active_cid = get_active_company_id(self.request)
+        if active_cid:
+            qs = qs.filter(company_id=active_cid)
+        else:
+            qs = qs.none()
+
         # Ordenar para mostrar los más recientes primero
         qs = qs.order_by('-date', '-id')
-        
+
         return qs
 
     def get_context_data(self, **kwargs):
@@ -1390,21 +1383,10 @@ def report_sales_export(request):
 
 def expense_export(request):
     """Export expense report with daily summary and total sum"""
-    # Debug: Log user and permissions
-    print(f"DEBUG: User {request.user.username}, is_superuser: {request.user.is_superuser}")
-    print(f"DEBUG: User permissions: {[p.codename for p in request.user.user_permissions.all()]}")
-    print(f"DEBUG: Has erp.view_expense: {request.user.has_perm('erp.view_expense')}")
-    print(f"DEBUG: Is authenticated: {request.user.is_authenticated}")
-    
-    # Allow all authenticated users for testing
     if not request.user.is_authenticated:
-        print("DEBUG: User not authenticated, returning 403")
         return HttpResponse(status=403)
-    
-    print("DEBUG: User authenticated, proceeding with export")
-    
+
     fmt = (request.GET.get('format') or 'csv').lower()
-    print(f"DEBUG: Export format: {fmt}")
     
     # Get today's date or use date range if provided
     from django.utils import timezone
