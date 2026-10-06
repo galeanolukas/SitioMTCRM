@@ -69,6 +69,31 @@
       </a>
     </div>
     <div class="{{ box_class }}">
+      <a href="{% url 'erp:remito_list' %}" class="small-box bg-purple text-decoration-none" style="background-color: #6f42c1 !important;">
+        <div class="inner text-white">
+          <h3>${{ compras_total|floatformat:2 }}</h3>
+          <p>Compras (remitos)
+            <small class="d-block text-white-50">
+              {{ compras_count }} remito{{ compras_count|pluralize }} procesado{{ compras_count|pluralize }}
+              {% if remitos_pending %}· <i class="fas fa-exclamation-circle"></i> {{ remitos_pending }} pendiente{{ remitos_pending|pluralize }}{% endif %}
+            </small>
+          </p>
+        </div>
+        <div class="icon"><i class="fas fa-dolly"></i></div>
+      </a>
+    </div>
+    <div class="{{ box_class }}">
+      <a href="{% url 'erp:product_list' %}" class="small-box bg-teal text-decoration-none" style="background-color: #20c997 !important;">
+        <div class="inner text-white">
+          <h3>${{ stock_value|floatformat:2 }}</h3>
+          <p>Valor del stock
+            <small class="d-block text-white-50">Inventario a precio de costo</small>
+          </p>
+        </div>
+        <div class="icon"><i class="fas fa-warehouse"></i></div>
+      </a>
+    </div>
+    <div class="{{ box_class }}">
       <div class="small-box bg-{{ balance_class }}">
         <div class="inner">
           <h3>${{ balance|floatformat:2 }}</h3>

@@ -22,7 +22,7 @@ from core.erp.sync_utils import run_full_sync
 from core.erp.services.server_sync_service import ServerSyncService
 from core.erp.forms import CompanyForm, SupplierForm, ExpenseForm, MercadoPagoConfigForm, AutoSyncConfigForm
 from core.utils.version_utils import get_version_info, format_version_display
-from core.erp.models import Company, Product, Sale, DetSale, Supplier, Expense, MercadoPagoConfig, SyncLog, AutoSyncConfig
+from core.erp.models import Company, Product, Sale, DetSale, Supplier, Expense, MercadoPagoConfig, SyncLog, AutoSyncConfig, Remito
 from core.erp.choices import payment_method_choices
 from datetime import timedelta, date, datetime
 import csv
@@ -235,6 +235,41 @@ class DashboardView(TemplateView):
         context['sales_count'] = sale_qs.count()
         context['revenue_total'] = sale_qs.aggregate(total=Sum('total'))['total'] or 0
         context['expenses_total'] = expense_qs.aggregate(total=Sum('amount'))['total'] or 0
+
+        # Compras de mercaderia via remitos de entrada en el periodo
+        # (solo processed/facturado: los que efectivamente ingresaron stock)
+        remito_qs = Remito.objects.filter(
+            tipo='entrada',
+            fecha__gte=start_date,
+            fecha__lte=end_date,
+            estado__in=['processed', 'facturado'],
+        ).prefetch_related('detalleremito_set')
+        if active_cid:
+            remito_qs = remito_qs.filter(company_id=active_cid)
+        compras_total = Decimal('0')
+        compras_count = 0
+        for remito in remito_qs:
+            neto = sum(d.subtotal or 0 for d in remito.detalleremito_set.all())
+            if remito.iva_modo == 'agregado':
+                compras_total += Decimal(str(neto)) * (Decimal('1') + (remito.iva_porcentaje or Decimal('0')) / Decimal('100'))
+            else:
+                compras_total += Decimal(str(neto))
+            compras_count += 1
+        context['compras_total'] = compras_total
+        context['compras_count'] = compras_count
+
+        # Remitos pendientes de procesar (alerta operativa, sin filtro de fecha)
+        pending_qs = Remito.objects.filter(estado='pending')
+        if active_cid:
+            pending_qs = pending_qs.filter(company_id=active_cid)
+        context['remitos_pending'] = pending_qs.count()
+
+        # Valor del inventario a costo (stock * cost_price)
+        stock_value = Decimal('0')
+        for p in prod_qs.only('stock', 'cost_price'):
+            if p.stock and p.cost_price:
+                stock_value += Decimal(str(p.cost_price)) * Decimal(str(p.stock))
+        context['stock_value'] = stock_value
 
         # Balance simple del período
         revenue = context['revenue_total'] or 0
