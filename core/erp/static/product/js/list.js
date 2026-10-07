@@ -140,7 +140,7 @@ $(function () {
             {"data": "name"},
             {"data": "code"},
             {"data": "cat.name"},
-            {"data": "image"},
+            {"data": "codigo_proveedor"},
             {"data": "stock"},       // Stock disponible
             {"data": "pvp"},         // Precio neto (sin IVA)
             {"data": "pvp_final"},   // Precio final (con IVA)
@@ -173,11 +173,11 @@ $(function () {
                 }
             },
             {
-                targets: 4, // imagen
+                targets: 4, // codigo del proveedor
                 class: 'text-center',
-                orderable: false,
+                orderable: true,
                 render: function (data, type, row) {
-                    return '<img src="'+data+'" class="img-fluid d-block mx-auto" style="width: 20px; height: 20px;">';
+                    return data ? data : '—';
                 }
             },
             {
