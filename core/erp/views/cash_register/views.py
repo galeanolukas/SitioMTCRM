@@ -73,6 +73,7 @@ class CashRegisterListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
             # Una sola query para gastos por método de pago
             expenses_agg = Expense.objects.filter(
                 company_id=cr.company_id,
+                is_active=True,
                 **expenses_filter,
             ).aggregate(
                 live_cash_exp=Sum('amount', filter=Q(payment_method='efectivo')),
@@ -163,6 +164,11 @@ class CashRegisterCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin
 
                     if existing:
                         data['error'] = f'Ya existe una caja abierta para {existing.user.get_full_name() or existing.user.username} con fecha {existing.date.strftime("%d/%m/%Y")}. Debe cerrarla antes de abrir una nueva.'
+                    elif CashRegister.objects.filter(
+                        company=cash_register.company,
+                        date=today_local,
+                    ).exists():
+                        data['error'] = f'Ya existe una caja registrada con fecha {today_local.strftime("%d/%m/%Y")}. Una segunda caja en la misma fecha sumaría dos veces las ventas y los gastos del día.'
                     else:
                         # Establecer la fecha local del sistema, no UTC
                         cash_register.date = today_local
@@ -257,12 +263,14 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
             expenses_qs = Expense.objects.filter(
                 date=cash_register.date,
                 company_id=cash_register.company_id,
+                is_active=True,
             )
         else:
             # Caja abierta: acumular gastos desde la apertura hasta hoy
             expenses_qs = Expense.objects.filter(
                 date__range=(cash_register.date, date.today()),
                 company_id=cash_register.company_id,
+                is_active=True,
             )
         dynamic_cash_expenses = expenses_qs.filter(payment_method='efectivo').aggregate(total=Sum('amount'))['total'] or 0
         dynamic_transfer_expenses = expenses_qs.filter(payment_method='transferencia').aggregate(total=Sum('amount'))['total'] or 0
@@ -372,11 +380,12 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
 
         # Calcular gastos por método de pago (si está abierta, desde la apertura hasta hoy)
         if cash_register.is_closed:
-            expenses_qs = Expense.objects.filter(date=cash_register_date, company_id=company_id)
+            expenses_qs = Expense.objects.filter(date=cash_register_date, company_id=company_id, is_active=True)
         else:
             expenses_qs = Expense.objects.filter(
                 date__range=(cash_register_date, date.today()),
                 company_id=company_id,
+                is_active=True,
             )
         cash_expenses_total = expenses_qs.filter(payment_method='efectivo').aggregate(total=Sum('amount'))['total'] or 0
         transfer_expenses_total = expenses_qs.filter(payment_method='transferencia').aggregate(total=Sum('amount'))['total'] or 0
@@ -488,12 +497,14 @@ class CashRegisterDetailView(LoginRequiredMixin, ValidatePermissionRequiredMixin
             expenses_qs = Expense.objects.filter(
                 date=cash_register.date,
                 company_id=cash_register.company_id,
+                is_active=True,
             )
         else:
             # Si está abierta, acumular gastos desde la apertura hasta hoy (fecha local)
             expenses_qs = Expense.objects.filter(
                 date__range=(cash_register.date, date.today()),
                 company_id=cash_register.company_id,
+                is_active=True,
             )
         dynamic_cash_expenses = expenses_qs.filter(payment_method='efectivo').aggregate(total=Sum('amount'))['total'] or 0
         dynamic_transfer_expenses = expenses_qs.filter(payment_method='transferencia').aggregate(total=Sum('amount'))['total'] or 0

@@ -727,7 +727,7 @@ class ExpenseListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListV
             return {'error': f'Error al eliminar duplicados: {str(e)}'}
 
     def get_queryset(self):
-        qs = super().get_queryset()
+        qs = super().get_queryset().filter(is_active=True)
         
         # Handle period parameter
         period = self.request.GET.get('period')
@@ -1305,7 +1305,7 @@ def report_expenses_export(request):
     if not request.user.is_superuser:
         return HttpResponse(status=403)
     fmt = (request.GET.get('format') or 'csv').lower()
-    qs = Expense.objects.all().select_related('supplier')
+    qs = Expense.objects.filter(is_active=True).select_related('supplier')
     qs = _filter_company_qs(request, qs)
     rows = []
     for e in qs:
@@ -1432,7 +1432,7 @@ def expense_export(request):
     end_date = request.GET.get('end_date', today.strftime('%Y-%m-%d'))
     
     # Filter expenses for the date range
-    qs = Expense.objects.filter(date__range=[start_date, end_date]).select_related('supplier', 'company')
+    qs = Expense.objects.filter(date__range=[start_date, end_date], is_active=True).select_related('supplier', 'company')
     qs = _filter_company_qs(request, qs).order_by('date')
     
     # Get daily summary

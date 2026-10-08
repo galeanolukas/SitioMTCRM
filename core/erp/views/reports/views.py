@@ -335,6 +335,7 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
     def get_expenses_data(self, company_id, start_date, end_date, page=1):
         filters = {
             'date__range': [start_date, end_date],
+            'is_active': True,
         }
         
         if company_id:
@@ -406,6 +407,7 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         # Gastos
         expenses = Expense.objects.filter(
             date__range=[start_date, end_date],
+            is_active=True,
             **({'company_id': company_id} if company_id else {})
         )
         total_expenses = expenses.aggregate(total=Sum('amount'))['total'] or 0
@@ -997,6 +999,7 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
     def get_expenses_export_data(self, company_id, start_date, end_date):
         filters = {
             'date__range': [start_date, end_date],
+            'is_active': True,
         }
         
         if company_id:
