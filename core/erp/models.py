@@ -807,6 +807,7 @@ class Sale(models.Model):
     # Campos para lista de precios y descuento
     subtotal_original = models.DecimalField(default=0.00, max_digits=9, decimal_places=2, verbose_name='Subtotal Original (sin descuento)')
     discount_amount = models.DecimalField(default=0.00, max_digits=9, decimal_places=2, verbose_name='Monto de Descuento')
+    rounding_amount = models.DecimalField(default=0.00, max_digits=9, decimal_places=2, verbose_name='Ajuste por redondeo', help_text='Positivo = recargo al cliente, negativo = descuento. El total ya lo incluye.')
     price_list = models.ForeignKey('erp.PriceList', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Lista de Precios')
 
     def __str__(self):

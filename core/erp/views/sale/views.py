@@ -695,6 +695,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     sale.subtotal = float(payload.get('subtotal', 0))
                     sale.iva = float(payload.get('iva', 0))
                     sale.total = float(payload.get('total', 0))
+                    sale.rounding_amount = float(payload.get('rounding_amount') or 0)
                     sale.payment_method = payload.get('payment_method') or 'cash'
                     
                     # Guardar datos de tarjeta si corresponde
@@ -850,6 +851,7 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     sale.subtotal = float(payload.get('subtotal', 0))
                     sale.iva = float(payload.get('iva', 0))
                     sale.total = float(payload.get('total', 0))
+                    sale.rounding_amount = float(payload.get('rounding_amount') or 0)
                     sale.payment_method = payload.get('payment_method') or 'cash'
                     
                     # Guardar datos de tarjeta si corresponde

@@ -16,6 +16,9 @@
   let pendingWeightProduct = null; // Producto pendiente de ingresar peso
   let originalPrices = {}; // Precios originales para restaurar al cambiar cliente
   let currentPriceList = null; // Lista de precios activa del cliente seleccionado
+  let roundingAdj = 0;       // Ajuste de redondeo del total (- descuento / + recargo)
+  let roundingBase = null;   // Total base al que se aplicó el ajuste
+  let lastBaseTotal = 0;     // Último total calculado sin ajuste
 
   function csrftoken() {
     const name = 'csrftoken';
@@ -104,11 +107,29 @@
     });
     
     const savings = subtotal - total;
-    
+
+    // Si el carrito cambió desde que se aplicó el redondeo, resetearlo
+    if (roundingAdj !== 0 && roundingBase !== null && Math.abs(total - roundingBase) > 0.005) {
+      roundingAdj = 0;
+      roundingBase = null;
+      showToast('info', 'El ajuste de redondeo se quitó porque cambió el carrito.');
+    }
+    lastBaseTotal = total;
+    const totalFinal = total + roundingAdj;
+
     // Actualizar totales
     $tItems.text(items.length);
     $tSubtotal.text(fmt(subtotal));
-    $tTotal.text(fmt(total));
+    $tTotal.text(fmt(totalFinal));
+
+    // Fila de redondeo
+    if (Math.abs(roundingAdj) > 0.005) {
+      $('#roundingRow').show();
+      $('#tRounding').text((roundingAdj < 0 ? '-' : '+') + fmt(Math.abs(roundingAdj)));
+    } else {
+      $('#roundingRow').hide();
+      $('#tRounding').text('$0.00');
+    }
     
     // Mostrar/ocultar ahorro por lista
     if (currentPriceList && savings > 0.01) {
@@ -132,6 +153,8 @@
     // descuento no persista en el resumen ni en la próxima venta
     originalPrices = {};
     currentPriceList = null;
+    roundingAdj = 0;
+    roundingBase = null;
     $('#selectedPriceListId').val('');
     $('#selectedPriceListName').text('-');
     recalc();
@@ -1304,7 +1327,8 @@
     const calc = buildPayload(false); // Ticket
     const subtotal = calc.subtotal_neto; // Subtotal = PVP sin IVA (neto)
     const iva = calc.iva_total; // IVA total
-    const total = calc.subtotal_con_iva; // Total a Pagar = Subtotal + IVA
+    const baseTotal = calc.subtotal_con_iva; // Total sin ajuste
+    const total = baseTotal + roundingAdj; // Total a Pagar (incluye redondeo)
     const payMethod = ($('#payMethod').val() || 'cash');
     const invoiceType = ($('#invoiceType').val() || 'B'); // Tipo de factura seleccionado
 
@@ -1323,6 +1347,7 @@
       cli: calc.client_id,
       items: calc.items_net,     // Detalle con precio neto
       subtotal, iva, total,
+      rounding_amount: roundingAdj, // Ajuste de redondeo aplicado
       vat_breakdown: calc.vat_breakdown,  // Desglose de IVA por alícuota
       payment_method: payMethod,
       invoice_type: invoiceLetter, // Letra de factura (A, B, C)
@@ -1347,7 +1372,8 @@
         if (effMultiplier !== 1) {
           payload.subtotal = (subtotal * effMultiplier).toFixed(2);
           payload.iva = (iva * effMultiplier).toFixed(2);
-          payload.total = (total * effMultiplier).toFixed(2);
+          // El redondeo se aplica después del recargo por tarjeta
+          payload.total = (baseTotal * effMultiplier + roundingAdj).toFixed(2);
           console.log('[DEBUG] Totales con recargo - Subtotal:', payload.subtotal, 'IVA:', payload.iva, 'Total:', payload.total);
         } else {
           console.log('[DEBUG] Multiplicador 1 o 0, sin recargo');
@@ -1386,7 +1412,8 @@
     const calc = buildPayload(true); // Factura con IVA
     const subtotal = calc.subtotal_neto; // Subtotal = PVP sin IVA (neto)
     const iva = calc.iva_total;
-    const total = calc.subtotal_con_iva; // Total a Pagar = Subtotal + IVA
+    const baseTotal = calc.subtotal_con_iva; // Total sin ajuste
+    const total = baseTotal + roundingAdj; // Total a Pagar (incluye redondeo)
     const payMethod = ($('#payMethod').val() || 'cash');
     const invoiceType = ($('#invoiceType').val() || 'B'); // Tipo de factura seleccionado
 
@@ -1405,6 +1432,7 @@
       cli: calc.client_id,
       items: calc.items_final,   // Detalle con IVA incluido
       subtotal, iva, total,
+      rounding_amount: roundingAdj, // Ajuste de redondeo aplicado
       vat_breakdown: calc.vat_breakdown,  // Desglose de IVA por alícuota
       payment_method: payMethod,
       invoice_type: invoiceLetter, // Letra de factura (A, B, C)
@@ -1429,7 +1457,8 @@
         if (effMultiplier !== 1) {
           payload.subtotal = (subtotal * effMultiplier).toFixed(2);
           payload.iva = (iva * effMultiplier).toFixed(2);
-          payload.total = (total * effMultiplier).toFixed(2);
+          // El redondeo se aplica después del recargo por tarjeta
+          payload.total = (baseTotal * effMultiplier + roundingAdj).toFixed(2);
           console.log('[DEBUG] Totales con recargo - Subtotal:', payload.subtotal, 'IVA:', payload.iva, 'Total:', payload.total);
         } else {
           console.log('[DEBUG] Multiplicador 1 o 0, sin recargo');
@@ -1501,6 +1530,9 @@
       }
     }
 
+    // Aplicar ajuste de redondeo al total final
+    total = total + roundingAdj;
+
     // Llenar modal de confirmación
     $('#budgetConfirmClient').text(calc.client_name || 'Cliente no seleccionado');
     $('#budgetConfirmNotes').text(budgetNotes || 'Sin notas');
@@ -1571,6 +1603,7 @@
       cli: calc.client_id,
       products: calc.items_final.map(it => ({ id: it.id, cant: it.cant, price: it.price, subtotal: it.subtotal })),
       subtotal, iva, total,
+      rounding_amount: roundingAdj,
       payment_method: payMethod,
       is_budget: true,
       budget_notes: budgetNotes,
@@ -1767,10 +1800,10 @@
     }
     
     if (installments && !isNaN(installments) && installments > 0) {
-      // Obtener el total real del carrito desde el DOM
-      const originalTotal = parseFormattedAmount($('#tTotal').text());
+      // Obtener el total base del carrito (sin el ajuste de redondeo)
+      const originalTotal = lastBaseTotal || parseFormattedAmount($('#tTotal').text());
       
-      const newTotal = originalTotal * multiplier;
+      const newTotal = originalTotal * multiplier + roundingAdj;
       const installmentAmount = newTotal / installments;
       const surchargeAmount = newTotal - originalTotal;
       const surchargePercent = ((multiplier - 1) * 100).toFixed(1);
@@ -1867,7 +1900,7 @@
     
     $('#combinedSubtotalAmount').text(fmt(calc.subtotal_neto));
     $('#combinedIvaAmount').text(fmt(calc.iva_total));
-    $('#combinedTotalAmount').text(fmt(calc.subtotal_con_iva));
+    $('#combinedTotalAmount').text(fmt(calc.subtotal_con_iva + roundingAdj));
     
     // Actualizar restante
     const firstAmountText = $('#firstPaymentAmount').val();
@@ -2018,6 +2051,7 @@
       subtotal: subtotal,
       iva: iva,
       total: total,
+      rounding_amount: roundingAdj,
       payment_method: 'combined',
       payment_method_desc: paymentDescription,
       combined_payments: [
@@ -2700,5 +2734,75 @@
         btnBudget.click();
       }
     }
+  });
+
+  // --- Ajuste de redondeo del total ---
+  function updateRoundingPreview() {
+    const newTotal = parseFloat($('#roundingNewTotal').val());
+    const el = $('#roundingPreview');
+    if (isNaN(newTotal) || newTotal <= 0) {
+      el.text('');
+      return;
+    }
+    const diff = newTotal - lastBaseTotal;
+    if (Math.abs(diff) < 0.005) {
+      el.text('Sin ajuste.');
+    } else if (diff < 0) {
+      el.text('Ajuste: ' + fmt(diff) + ' (a favor del cliente)');
+    } else {
+      el.text('Ajuste: +' + fmt(diff) + ' (a favor del vendedor)');
+    }
+  }
+
+  $(document).on('click', '#btnRounding', function () {
+    if (!items.length) {
+      showToast('info', 'Agregue productos antes de ajustar el total.');
+      return;
+    }
+    $('#roundingBaseTotal').text(fmt(lastBaseTotal));
+    $('#roundingNewTotal').val((lastBaseTotal + roundingAdj).toFixed(2));
+
+    // Chips de redondeo a $100, $500 y $1.000 (abajo y arriba)
+    const chips = [];
+    [100, 500, 1000].forEach(step => {
+      const down = Math.floor((lastBaseTotal - 0.001) / step) * step;
+      const up = Math.ceil((lastBaseTotal + 0.001) / step) * step;
+      if (down < lastBaseTotal) chips.push({ label: '↓ ' + fmt(down), val: down, cls: 'btn-outline-danger' });
+      if (up > lastBaseTotal) chips.push({ label: '↑ ' + fmt(up), val: up, cls: 'btn-outline-success' });
+    });
+    const $chips = $('#roundingChips').empty();
+    chips.forEach(c => {
+      $('<button type="button">')
+        .addClass('btn btn-sm ' + c.cls)
+        .text(c.label)
+        .on('click', () => { $('#roundingNewTotal').val(c.val.toFixed(2)); updateRoundingPreview(); })
+        .appendTo($chips);
+    });
+
+    updateRoundingPreview();
+    new bootstrap.Modal(document.getElementById('roundingModal')).show();
+  });
+
+  $(document).on('input', '#roundingNewTotal', updateRoundingPreview);
+
+  $(document).on('click', '#btnRoundingApply', function () {
+    const newTotal = parseFloat($('#roundingNewTotal').val());
+    if (isNaN(newTotal) || newTotal <= 0) {
+      showToast('error', 'Ingrese un total válido.');
+      return;
+    }
+    roundingBase = lastBaseTotal;
+    roundingAdj = Math.round((newTotal - lastBaseTotal) * 100) / 100;
+    recalc();
+    calculateChange();
+    bootstrap.Modal.getInstance(document.getElementById('roundingModal')).hide();
+  });
+
+  $(document).on('click', '#btnRoundingClear', function () {
+    roundingAdj = 0;
+    roundingBase = null;
+    recalc();
+    calculateChange();
+    bootstrap.Modal.getInstance(document.getElementById('roundingModal')).hide();
   });
 })();
