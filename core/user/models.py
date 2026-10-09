@@ -6,6 +6,7 @@ from config.settings import MEDIA_URL, STATIC_URL
 
 class User(AbstractUser):
     company = models.ForeignKey('erp.Company', null=True, blank=True, on_delete=models.SET_NULL, related_name='users')
+    remote_checked_at = models.DateTimeField(null=True, blank=True, verbose_name='Última verificación remota', help_text='Última vez que se verificó el estado del usuario contra el servidor central')
     image = models.ImageField(upload_to='users/%Y/%m/%d', null=True, blank=True)
     image_remote_url = models.CharField(max_length=500, blank=True, null=True, verbose_name='URL Remota de Imagen', help_text='URL remota de la imagen para usar en servidores locales')
     phone = models.CharField(max_length=30, null=True, blank=True, verbose_name='Teléfono')

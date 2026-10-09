@@ -92,6 +92,86 @@ def _can_reach_local_server() -> bool:
         return False
 
 
+def verify_remote_user_access(user):
+    """Verifica contra el servidor central si el usuario puede ingresar.
+
+    Devuelve (allowed: bool, message: str|None).
+    - Si el servidor dice que el usuario está inactivo -> bloquea y replica
+      el estado localmente.
+    - Si el servidor no responde -> aplica el período de gracia
+      REMOTE_ACCESS_GRACE_DAYS desde la última verificación exitosa.
+    """
+    from django.utils import timezone
+    from datetime import timedelta
+
+    # En el servidor central no aplica (él ES el servidor)
+    if getattr(settings, 'ENVIRONMENT', 'development') == 'production':
+        return True, None
+
+    # Superusuarios nunca se bloquean (acceso administrativo de rescate)
+    if getattr(user, 'is_superuser', False):
+        return True, None
+
+    now = timezone.now()
+
+    if not _can_reach_remote_db():
+        grace_days = getattr(settings, 'REMOTE_ACCESS_GRACE_DAYS', 7)
+        last_check = getattr(user, 'remote_checked_at', None)
+        if last_check is None or last_check < now - timedelta(days=grace_days):
+            return False, (
+                f'No hay conexión con el servidor central desde hace más de '
+                f'{grace_days} días. Conecte el equipo a internet para verificar '
+                f'su usuario o contacte al administrador.'
+            )
+        # Dentro del período de gracia: usar el estado local
+        if not user.is_active:
+            return False, 'Este usuario está bloqueado. Contacte al administrador.'
+        return True, None
+
+    # Consultar estado del usuario en el servidor
+    try:
+        with connections['remote'].cursor() as cursor:
+            cursor.execute(
+                'SELECT is_active FROM user_user WHERE username = %s ORDER BY id',
+                [user.username]
+            )
+            rows = cursor.fetchall()
+    except Exception as e:
+        logger.warning(f'Error verificando usuario remoto {user.username}: {e}')
+        rows = None
+
+    if rows is None:
+        # Fallo de consulta: mismo criterio que "sin conexión"
+        grace_days = getattr(settings, 'REMOTE_ACCESS_GRACE_DAYS', 7)
+        last_check = getattr(user, 'remote_checked_at', None)
+        if last_check is None or last_check < now - timedelta(days=grace_days):
+            return False, (
+                f'No se pudo verificar el usuario contra el servidor central. '
+                f'Reintente con conexión a internet.'
+            )
+        return (user.is_active, None if user.is_active else
+                'Este usuario está bloqueado. Contacte al administrador.')
+
+    if not rows:
+        # El usuario no existe en el servidor: permitir (puede ser local)
+        type(user).objects.filter(pk=user.pk).update(remote_checked_at=now)
+        return True, None
+
+    remote_active = bool(rows[0][0])
+
+    # Replicar estado remoto localmente + marcar verificación
+    type(user).objects.filter(pk=user.pk).update(
+        is_active=remote_active,
+        remote_checked_at=now,
+    )
+    user.is_active = remote_active
+    user.remote_checked_at = now
+
+    if not remote_active:
+        return False, 'Este usuario fue bloqueado por el administrador. Contacte a soporte para regularizar su cuenta.'
+    return True, None
+
+
 def run_full_sync(company_id=None):
     """Ejecuta sincronizacion de usuarios y ventas.
 

@@ -36,6 +36,17 @@ class ActivityLogMiddleware:
         ]
     
     def __call__(self, request):
+        # Expulsar sesiones de usuarios desactivados (ej. bloqueados desde el
+        # servidor central y replicados por la sincronización)
+        user = getattr(request, 'user', None)
+        if (user is not None and user.is_authenticated
+                and not user.is_superuser and not user.is_active
+                and not request.path.startswith('/login')):
+            from django.contrib.auth import logout
+            from django.shortcuts import redirect
+            logout(request)
+            return redirect('/login/?blocked=1')
+
         response = self.get_response(request)
 
         # Ignorar paths que no queremos monitorear

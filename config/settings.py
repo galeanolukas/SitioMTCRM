@@ -311,6 +311,10 @@ def get_remote_server_url():
 
 REMOTE_SERVER_URL = get_remote_server_url()
 
+# Días de gracia para el login si el POS no puede verificar al usuario contra
+# el servidor central. Pasado ese plazo sin contacto, el login se bloquea.
+REMOTE_ACCESS_GRACE_DAYS = int(os.getenv('REMOTE_ACCESS_GRACE_DAYS', '7'))
+
 AUTH_USER_MODEL = 'user.User'
 
 # Configuración de sesiones
