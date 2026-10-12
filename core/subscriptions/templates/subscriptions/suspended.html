@@ -1,0 +1,28 @@
+{% extends 'base/home.html' %}
+{% load static %}
+
+{% block body %}
+<div class="d-flex align-items-center justify-content-center" style="min-height: 100vh; background: #f4f6f9;">
+  <div class="card card-danger" style="max-width: 520px; width: 100%;">
+    <div class="card-header text-center">
+      <h3 class="card-title w-100"><i class="fas fa-ban"></i> Suscripción suspendida</h3>
+    </div>
+    <div class="card-body text-center">
+      <p class="mb-3">
+        {% if company %}<strong>{{ company.name }}</strong><br>{% endif %}
+        El acceso al sistema está suspendido por falta de pago de la suscripción.
+      </p>
+      {% if days_overdue %}
+      <p class="text-danger mb-3">Vencida hace {{ days_overdue }} día(s).</p>
+      {% endif %}
+      <p class="text-muted mb-4">
+        Contacte al administrador del servicio para regularizar la cuota y
+        reactivar el acceso.
+      </p>
+      <a href="/logout/" class="btn btn-outline-secondary">
+        <i class="fas fa-sign-out-alt"></i> Cerrar sesión
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}

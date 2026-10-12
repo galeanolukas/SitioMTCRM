@@ -1,0 +1,143 @@
+{% extends 'base/layout.html' %}
+{% load currency_filters %}
+
+{% block content %}
+<div class="card card-primary">
+  <div class="card-header">
+    <h3 class="card-title"><i class="fas fa-id-card"></i> {{ title }}</h3>
+  </div>
+  <div class="card-body">
+    <div class="row">
+      <!-- Estado actual -->
+      <div class="col-md-4">
+        <div class="card">
+          <div class="card-header"><h5 class="card-title mb-0">Estado actual</h5></div>
+          <div class="card-body">
+            {% if subscription %}
+              <p><strong>Plan:</strong> {{ subscription.plan.name }} — {{ subscription.plan.price|currency }} / {{ subscription.plan.duration_days }}d</p>
+              <p><strong>Inicio:</strong> {{ subscription.start_date|date:"d/m/Y" }}</p>
+              <p><strong>Vencimiento:</strong> {{ subscription.end_date|date:"d/m/Y" }}</p>
+              <p><strong>Gracia:</strong> {{ subscription.grace_days }} día(s)</p>
+              <p><strong>Estado:</strong>
+                {% if info.state == 'active' %}<span class="badge badge-success">Activa ({{ info.days_left }}d restantes)</span>
+                {% elif info.state == 'grace' %}<span class="badge badge-warning">En gracia ({{ info.grace_left }}d restantes)</span>
+                {% elif info.state == 'suspended' %}<span class="badge badge-danger">Suspendida</span>
+                {% else %}<span class="badge badge-dark">Cancelada</span>{% endif %}
+              </p>
+              {% if subscription.notes %}<p><strong>Notas:</strong> {{ subscription.notes }}</p>{% endif %}
+            {% else %}
+              <p class="text-muted">La empresa no tiene suscripción cargada.</p>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Acciones de estado -->
+        {% if subscription %}
+        <div class="card">
+          <div class="card-header"><h5 class="card-title mb-0">Acciones</h5></div>
+          <div class="card-body">
+            <form method="post" class="d-inline">
+              {% csrf_token %}
+              {% if info.state == 'suspended' or subscription.status == 'suspended' %}
+                <button name="action" value="reactivate" class="btn btn-success btn-sm mb-1">
+                  <i class="fas fa-play"></i> Reactivar
+                </button>
+              {% else %}
+                <button name="action" value="suspend" class="btn btn-warning btn-sm mb-1">
+                  <i class="fas fa-pause"></i> Suspender manualmente
+                </button>
+              {% endif %}
+              {% if subscription.status != 'cancelled' %}
+                <button name="action" value="cancel" class="btn btn-danger btn-sm mb-1"
+                        onclick="return confirm('¿Cancelar la suscripción definitivamente?')">
+                  <i class="fas fa-times"></i> Cancelar
+                </button>
+              {% endif %}
+            </form>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Registrar pago -->
+      <div class="col-md-4">
+        {% if subscription %}
+        <div class="card card-success">
+          <div class="card-header"><h5 class="card-title mb-0"><i class="fas fa-dollar-sign"></i> Registrar pago</h5></div>
+          <div class="card-body">
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="register_payment">
+              {% for field in payment_form %}
+                <div class="form-group mb-2">
+                  <label>{{ field.label }}</label>
+                  {{ field }}
+                </div>
+              {% endfor %}
+              <p class="text-muted small">El pago extiende el vencimiento {{ subscription.plan.duration_days }} día(s) desde hoy o desde el vencimiento actual (lo mayor).</p>
+              <button type="submit" class="btn btn-success btn-block">
+                <i class="fas fa-check"></i> Registrar pago y renovar
+              </button>
+            </form>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Editar suscripción -->
+      <div class="col-md-4">
+        <div class="card">
+          <div class="card-header">
+            <h5 class="card-title mb-0">
+              {% if subscription %}Editar suscripción{% else %}Crear suscripción{% endif %}
+            </h5>
+          </div>
+          <div class="card-body">
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="{% if subscription %}update{% else %}create{% endif %}">
+              {% for field in edit_form %}
+                <div class="form-group mb-2">
+                  <label>{{ field.label }}</label>
+                  {{ field }}
+                </div>
+              {% endfor %}
+              <button type="submit" class="btn btn-primary btn-block">
+                <i class="fas fa-save"></i> {% if subscription %}Guardar{% else %}Crear{% endif %}
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Historial de pagos -->
+    {% if payments %}
+    <div class="card mt-3">
+      <div class="card-header"><h5 class="card-title mb-0"><i class="fas fa-history"></i> Últimos pagos</h5></div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Fecha</th><th>Monto</th><th>Método</th><th>Notas</th><th>Registrado por</th></tr></thead>
+          <tbody>
+            {% for p in payments %}
+            <tr>
+              <td>{{ p.paid_at|date:"d/m/Y" }}</td>
+              <td>{{ p.amount|currency }}</td>
+              <td>{{ p.get_method_display }}</td>
+              <td>{{ p.notes|default:"—"|truncatechars:60 }}</td>
+              <td>{{ p.created_by.username|default:"—" }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  <div class="card-footer">
+    <a href="{% url 'subscriptions:list' %}" class="btn btn-secondary btn-flat">
+      <i class="fas fa-arrow-left"></i> Volver al listado
+    </a>
+  </div>
+</div>
+{% endblock %}

@@ -169,6 +169,89 @@ def verify_remote_user_access(user):
 
     if not remote_active:
         return False, 'Este usuario fue bloqueado por el administrador. Contacte a soporte para regularizar su cuenta.'
+
+    # --- Verificación de suscripción de la empresa en el servidor ---
+    # El servidor es la fuente de verdad: baja el estado al POS local
+    # (para que el middleware lo aplique también) y bloquea el login si
+    # la suscripción está suspendida/cancelada y el enforcement está activo.
+    try:
+        allowed, reason = _verify_remote_subscription(user)
+        if not allowed:
+            return False, reason
+    except Exception as e:
+        logger.warning(f'No se pudo verificar suscripción remota: {e}')
+    return True, None
+
+
+def _verify_remote_subscription(user):
+    """Consulta la suscripción de la empresa en el servidor central.
+
+    Replica el estado en la tabla local `subscriptions_subscription` para
+    que SubscriptionMiddleware lo aplique. Devuelve (allowed, message).
+    """
+    from django.utils import timezone
+    from core.erp.models import Company
+
+    # Empresa local del usuario (o la única activa del POS)
+    company = getattr(user, 'company', None) or Company.objects.filter(is_active=True).first()
+    if not company or not company.cuit:
+        return True, None
+
+    try:
+        with connections['remote'].cursor() as cursor:
+            cursor.execute(
+                'SELECT s.plan_id, s.start_date, s.end_date, s.grace_days, s.status, '
+                '       s.notes, p.name, p.price, p.duration_days '
+                'FROM subscriptions_subscription s '
+                'JOIN erp_company c ON c.id = s.company_id '
+                'JOIN subscriptions_subscriptionplan p ON p.id = s.plan_id '
+                'WHERE c.cuit = %s ORDER BY s.id DESC LIMIT 1',
+                [company.cuit]
+            )
+            row = cursor.fetchone()
+    except Exception:
+        # Servidor viejo sin la app de suscripciones: no bloquear
+        return True, None
+
+    if not row:
+        return True, None
+
+    (_plan_id, start_date, end_date, grace_days, status, notes,
+     plan_name, plan_price, plan_duration) = row
+
+    # Bajar el estado a la tabla local (misma lógica que el sync)
+    try:
+        from core.subscriptions.services import upsert_local_subscription
+        upsert_local_subscription(
+            company=company,
+            plan_name=plan_name, plan_price=plan_price,
+            plan_duration_days=plan_duration,
+            start_date=start_date, end_date=end_date,
+            grace_days=grace_days, status=status, notes=notes,
+        )
+    except Exception as e:
+        logger.warning(f'No se pudo replicar suscripción local: {e}')
+
+    # Calcular estado efectivo con fechas + gracia
+    today = timezone.localdate()
+    if status == 'cancelled':
+        state = 'cancelled'
+    elif status == 'suspended':
+        state = 'suspended'
+    elif today <= end_date:
+        state = 'active'
+    elif today <= end_date + timezone.timedelta(days=grace_days or 0):
+        state = 'grace'
+    else:
+        state = 'suspended'
+
+    if state in ('suspended', 'cancelled'):
+        if getattr(settings, 'SUBSCRIPTION_ENFORCEMENT', 'warn') == 'enforce':
+            return False, (
+                'La suscripción de la empresa está suspendida por falta de pago. '
+                'Contacte al administrador del servicio para regularizar la cuota.'
+            )
+        # enforcement 'warn': permitir el login (el middleware solo avisa)
     return True, None
 
 
@@ -273,6 +356,15 @@ def _run_full_sync_impl(company_id=None):
     else:
         logger.warning(f"Sin conexión para destino '{sync_destination}' - omitiendo sincronización de empresas")
         errors.append(f"Sin conexión para destino '{sync_destination}' - omitiendo sincronización de empresas")
+
+    # 1.b) Suscripciones: bajar estado de suscripción de la empresa (bloqueo por cuota)
+    if sync_destination in ['cloud', 'both'] and _can_reach_remote_db():
+        try:
+            call_command("sync_subscriptions_from_remote_to_local")
+            logger.info("✅ Suscripción sincronizada desde el servidor")
+        except Exception as e:
+            logger.error(f"Error en sincronización de suscripciones: {e}")
+            errors.append(f"sync_subscriptions_from_remote_to_local: {e}")
     
     # 2) SEGUNDO: Sincronizar usuarios (dependen de empresas)
     logger.info("👥 PASO 2/10: Sincronizando usuarios (dependen de empresas)...")

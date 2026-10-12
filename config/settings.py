@@ -95,7 +95,8 @@ INSTALLED_APPS = [
     'core.erp',
     'core.homepage',
     'core.login',
-    'core.user'
+    'core.user',
+    'core.subscriptions'
 ]
 
 MIDDLEWARE = [
@@ -108,6 +109,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     # 'crum.CurrentRequestUserMiddleware'  # Temporalmente deshabilitado para pruebas
+    'core.subscriptions.middleware.SubscriptionMiddleware',  # Control de acceso por suscripción
     'core.erp.middleware.ActivityLogMiddleware',  # Registro de actividades (solo en producción)
     
 ]
@@ -314,6 +316,12 @@ REMOTE_SERVER_URL = get_remote_server_url()
 # Días de gracia para el login si el POS no puede verificar al usuario contra
 # el servidor central. Pasado ese plazo sin contacto, el login se bloquea.
 REMOTE_ACCESS_GRACE_DAYS = int(os.getenv('REMOTE_ACCESS_GRACE_DAYS', '7'))
+
+# Control de acceso por suscripción (app core.subscriptions)
+# 'off' = desactivado | 'warn' = solo avisos | 'enforce' = bloquea acceso
+SUBSCRIPTION_ENFORCEMENT = os.getenv('SUBSCRIPTION_ENFORCEMENT', 'warn')
+# Días de gracia por defecto para suscripciones nuevas
+SUBSCRIPTION_GRACE_DAYS = int(os.getenv('SUBSCRIPTION_GRACE_DAYS', '7'))
 
 AUTH_USER_MODEL = 'user.User'
 

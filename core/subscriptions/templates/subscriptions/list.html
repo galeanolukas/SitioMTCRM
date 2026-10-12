@@ -1,0 +1,68 @@
+{% extends 'base/list.html' %}
+{% load currency_filters %}
+
+{% block columns %}
+  <tr>
+    <th>Empresa</th>
+    <th>Plan</th>
+    <th>Vencimiento</th>
+    <th>Días restantes</th>
+    <th>Estado</th>
+    <th style="width: 15%;">Acciones</th>
+  </tr>
+{% endblock %}
+
+{% block rows %}
+  {% for row in rows %}
+  <tr>
+    <td>{{ row.company.name }}</td>
+    <td>
+      {% if row.subscription %}
+        {{ row.subscription.plan.name }} ({{ row.subscription.plan.price|currency }})
+      {% else %}
+        <span class="text-muted">Sin suscripción</span>
+      {% endif %}
+    </td>
+    <td>
+      {% if row.subscription %}
+        {{ row.subscription.end_date|date:"d/m/Y" }}
+      {% else %}—{% endif %}
+    </td>
+    <td>
+      {% if row.subscription %}
+        {% if row.info.state == 'active' %}
+          {{ row.info.days_left }}
+        {% elif row.info.state == 'grace' %}
+          <span class="text-warning">Vencida — gracia: {{ row.info.grace_left }}d</span>
+        {% else %}
+          <span class="text-danger">Vencida hace {{ row.info.days_overdue }}d</span>
+        {% endif %}
+      {% else %}—{% endif %}
+    </td>
+    <td>
+      {% if row.info.state == 'active' %}
+        <span class="badge badge-success">Activa</span>
+      {% elif row.info.state == 'grace' %}
+        <span class="badge badge-warning">En gracia</span>
+      {% elif row.info.state == 'suspended' %}
+        <span class="badge badge-danger">Suspendida</span>
+      {% elif row.info.state == 'cancelled' %}
+        <span class="badge badge-dark">Cancelada</span>
+      {% else %}
+        <span class="badge badge-secondary">Sin suscripción</span>
+      {% endif %}
+    </td>
+    <td>
+      <a href="{% url 'subscriptions:detail' row.company.id %}" class="btn btn-sm btn-primary">
+        <i class="fas fa-edit"></i> Gestionar
+      </a>
+    </td>
+  </tr>
+  {% endfor %}
+{% endblock %}
+
+{% block buttons_list %}
+  <a href="{% url 'subscriptions:plans' %}" class="btn btn-primary btn-flat">
+    <i class="fas fa-tags"></i> Gestionar planes
+  </a>
+{% endblock %}
