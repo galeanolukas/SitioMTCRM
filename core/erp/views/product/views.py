@@ -371,6 +371,12 @@ class ProductCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Com
                  with transaction.atomic():
                      form = self.get_form()
                      if form.is_valid():
+                         from core.subscriptions.services import check_product_limit
+                         from core.erp.mixins import get_active_company_id
+                         limit_error = check_product_limit(get_active_company_id(request))
+                         if limit_error:
+                             data['error'] = limit_error
+                             return JsonResponse(data)
                          product = form.save()
                          data = {
                              'id': product.id,
@@ -570,6 +576,14 @@ def quick_cart_mp_checkout(request):
     mp_config = getattr(company, 'mp_config', None) if company else None
     if not (mp_config and mp_config.enabled and mp_config.access_token):
         return JsonResponse({'error': 'Mercado Pago no está configurado para esta empresa'}, status=400)
+
+    # Cobro por QR habilitado según el plan de suscripción
+    from core.subscriptions.services import get_company_limits
+    limits = get_company_limits(company.id if company else None)
+    if not limits.get('allow_mp_qr', True):
+        return JsonResponse({
+            'error': f"El cobro por QR de Mercado Pago no está incluido en su plan ({limits.get('plan_name')})."
+        }, status=403)
 
     if mercadopago is None:
         return JsonResponse({'error': 'SDK de Mercado Pago no está instalado en el servidor'}, status=500)
@@ -1359,6 +1373,23 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
 
             # Dispatch por tipo de entidad
             entity_type = request.POST.get('entity_type', 'product')
+
+            # Límite de productos según el plan de suscripción
+            if entity_type == 'product':
+                from core.subscriptions.services import get_company_limits
+                from core.erp.mixins import get_active_company_id
+                active_cid = get_active_company_id(request)
+                limits = get_company_limits(active_cid)
+                max_products = limits.get('max_products')
+                if max_products:
+                    current = Product.objects.filter(company_id=active_cid).count()
+                    remaining = max_products - current
+                    if remaining <= 0:
+                        messages.error(request, f"Llegó al límite de {max_products} productos de su plan ({limits.get('plan_name')}). Amplíe su suscripción para cargar más.")
+                        return self.get(request, *args, **kwargs)
+                    if len(df) > remaining:
+                        messages.error(request, f"La importación tiene {len(df)} productos pero su plan ({limits.get('plan_name')}) solo permite {remaining} más (máx. {max_products}).")
+                        return self.get(request, *args, **kwargs)
 
             # --- Importar clientes ---
             if entity_type == 'client':

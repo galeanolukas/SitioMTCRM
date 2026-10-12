@@ -59,19 +59,90 @@ def get_company_access_state(company_id, today=None):
     return info
 
 
+UNLIMITED_LIMITS = {
+    'plan_name': None,
+    'max_products': None,      # None = ilimitado
+    'max_users': None,         # None = ilimitado
+    'allow_mp_qr': True,
+    'allow_invoicing': True,
+    'allow_catalog': True,
+}
+
+
+def get_company_limits(company_id):
+    """Límites efectivos de la empresa según el plan de su suscripción.
+
+    Empresa sin suscripción → todos los límites abiertos (instalaciones
+    existentes sin plan no se ven afectadas).
+    """
+    limits = dict(UNLIMITED_LIMITS)
+    if not company_id:
+        return limits
+    try:
+        sub = (Subscription.objects
+               .filter(company_id=company_id)
+               .select_related('plan')
+               .first())
+    except Exception as e:
+        logger.warning(f'get_company_limits falló para company {company_id}: {e}')
+        return limits
+    if not sub or not sub.plan:
+        return limits
+
+    plan = sub.plan
+    limits.update({
+        'plan_name': plan.name,
+        'max_products': plan.max_products,
+        'max_users': plan.max_users,
+        'allow_mp_qr': plan.allow_mp_qr,
+        'allow_invoicing': plan.allow_invoicing,
+        'allow_catalog': plan.allow_catalog,
+    })
+    return limits
+
+
+def check_product_limit(company_id):
+    """Devuelve un mensaje de error si la empresa llegó al límite de
+    productos de su plan, o None si puede seguir cargando."""
+    limits = get_company_limits(company_id)
+    max_products = limits.get('max_products')
+    if not max_products:
+        return None
+    from core.erp.models import Product
+    count = Product.objects.filter(company_id=company_id).count()
+    if count >= max_products:
+        return (
+            f'Llegó al límite de {max_products} productos de su plan '
+            f'({limits.get("plan_name")}). Amplíe su suscripción para cargar más.'
+        )
+    return None
+
+
 def upsert_local_subscription(company, plan_name, plan_price, plan_duration_days,
-                              start_date, end_date, grace_days, status, notes=''):
-    """Crea/actualiza la suscripción local de una empresa (usado por sync remoto→local)."""
+                              start_date, end_date, grace_days, status, notes='',
+                              plan_limits=None):
+    """Crea/actualiza la suscripción local de una empresa (usado por sync remoto→local).
+
+    plan_limits: dict opcional con los campos de límite del plan remoto
+    (max_products, max_users, allow_mp_qr, allow_invoicing, allow_catalog).
+    """
     from .models import SubscriptionPlan
+    plan_fields = {'price': plan_price, 'duration_days': plan_duration_days}
+    if plan_limits:
+        plan_fields.update({k: v for k, v in plan_limits.items() if v is not None or k.startswith('max_')})
     plan, _ = SubscriptionPlan.objects.get_or_create(
         name=plan_name,
-        defaults={'price': plan_price, 'duration_days': plan_duration_days},
+        defaults=plan_fields,
     )
     changed = False
-    if plan.price != plan_price or plan.duration_days != plan_duration_days:
-        plan.price = plan_price
-        plan.duration_days = plan_duration_days
-        plan.save(update_fields=['price', 'duration_days'])
+    updates = {}
+    for field, value in plan_fields.items():
+        if getattr(plan, field) != value:
+            updates[field] = value
+    if updates:
+        for field, value in updates.items():
+            setattr(plan, field, value)
+        plan.save(update_fields=list(updates))
         changed = True
     sub, created = Subscription.objects.update_or_create(
         company=company,

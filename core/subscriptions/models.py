@@ -14,6 +14,18 @@ class SubscriptionPlan(models.Model):
     )
     is_featured = models.BooleanField(default=False, verbose_name='Destacado')
     sort_order = models.PositiveIntegerField(default=0, verbose_name='Orden')
+    # Límites del plan (null/blank = sin límite / permitido)
+    max_products = models.PositiveIntegerField(
+        null=True, blank=True, verbose_name='Máx. productos',
+        help_text='Vacío = productos ilimitados'
+    )
+    max_users = models.PositiveIntegerField(
+        null=True, blank=True, verbose_name='Máx. usuarios',
+        help_text='Vacío = usuarios ilimitados (informativo)'
+    )
+    allow_mp_qr = models.BooleanField(default=True, verbose_name='Cobro QR Mercado Pago')
+    allow_invoicing = models.BooleanField(default=True, verbose_name='Facturación electrónica (AFIP)')
+    allow_catalog = models.BooleanField(default=True, verbose_name='Catálogo online')
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

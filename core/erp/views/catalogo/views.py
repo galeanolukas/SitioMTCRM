@@ -166,6 +166,15 @@ def enviar_productos_catalogo(request):
     el resto, la config de su empresa (o la global).
     """
     try:
+        # Catálogo online habilitado según el plan de suscripción
+        from core.subscriptions.services import get_company_limits
+        _cid = getattr(request.user, 'company_id', None)
+        _limits = get_company_limits(_cid)
+        if not _limits.get('allow_catalog', True):
+            return JsonResponse({
+                'error': f"El catálogo online no está incluido en su plan ({_limits.get('plan_name')})."
+            }, status=403)
+
         logger.info(f"Iniciando sincronización de productos. Usuario: {request.user.username}, Empresa: {request.user.company.name if request.user.company else 'N/A'}")
 
         # Leer catalogo_id del body (el botón de sync por fila lo envía)

@@ -7,7 +7,8 @@ class PlanForm(forms.ModelForm):
     class Meta:
         model = SubscriptionPlan
         fields = ['name', 'price', 'duration_days', 'description', 'features',
-                  'is_featured', 'sort_order', 'is_active']
+                  'max_products', 'max_users', 'allow_mp_qr', 'allow_invoicing',
+                  'allow_catalog', 'is_featured', 'sort_order', 'is_active']
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control'}),
             'price': forms.NumberInput(attrs={'class': 'form-control', 'min': '0', 'step': '0.01'}),
@@ -15,6 +16,13 @@ class PlanForm(forms.ModelForm):
             'description': forms.TextInput(attrs={'class': 'form-control'}),
             'features': forms.Textarea(attrs={'class': 'form-control', 'rows': 4,
                                              'placeholder': 'Una característica por línea'}),
+            'max_products': forms.NumberInput(attrs={'class': 'form-control', 'min': '0',
+                                                    'placeholder': 'Vacío = ilimitado'}),
+            'max_users': forms.NumberInput(attrs={'class': 'form-control', 'min': '0',
+                                                 'placeholder': 'Vacío = ilimitado'}),
+            'allow_mp_qr': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'allow_invoicing': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'allow_catalog': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'is_featured': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'sort_order': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
             'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),

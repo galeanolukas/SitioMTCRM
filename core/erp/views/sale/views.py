@@ -824,6 +824,13 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 # Bloquear facturación para operadores sin caja abierta
                 is_operator = request.user.groups.filter(name__in=['operadores', 'vendedor']).exists()
                 active_cid = get_active_company_id(request)
+                # Facturación electrónica habilitada según el plan de suscripción
+                from core.subscriptions.services import get_company_limits
+                _limits = get_company_limits(active_cid)
+                if not _limits.get('allow_invoicing', True):
+                    return JsonResponse({
+                        'error': f"La facturación electrónica no está incluida en su plan ({_limits.get('plan_name')}). Emita Ticket X o amplíe la suscripción."
+                    }, status=403)
                 cr_qs = CashRegister.objects.filter(user=request.user, is_closed=False)
                 if active_cid:
                     cr_qs = cr_qs.filter(company_id=active_cid)
@@ -1803,28 +1810,34 @@ class SaleListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView
                     if not sale_id:
                         response_data = {'error': 'ID de venta no proporcionado'}
                     else:
-                        sale = Sale.objects.get(pk=sale_id)
-                        if not sale.is_invoiced:
-                            company = Company.objects.first()
-                            pos = request.POST.get('pos') or (company.pos if company else None) or getattr(sale, 'invoice_pos', '0001')
-                            tipo = request.POST.get('tipo') or getattr(sale, 'invoice_type', 'B')
-                            
-                            sale.invoice_pos = pos
-                            sale.invoice_type = tipo
-                            sale.invoice_number = sale.next_sequential_for_pos_type()
-                            sale.is_invoiced = True
-                            sale.save()
-                            
-                            response_data = {
-                                'id': sale.id,
-                                'invoice_number': sale.invoice_number,
-                            }
+                        from core.subscriptions.services import get_company_limits
+                        from core.erp.mixins import get_active_company_id
+                        _limits = get_company_limits(get_active_company_id(request))
+                        if not _limits.get('allow_invoicing', True):
+                            response_data = {'error': f"La facturación electrónica no está incluida en su plan ({_limits.get('plan_name')})."}
                         else:
-                            response_data = {
-                                'id': sale.id,
-                                'invoice_number': sale.invoice_number,
-                                'message': 'La venta ya estaba facturada'
-                            }
+                            sale = Sale.objects.get(pk=sale_id)
+                            if not sale.is_invoiced:
+                                company = Company.objects.first()
+                                pos = request.POST.get('pos') or (company.pos if company else None) or getattr(sale, 'invoice_pos', '0001')
+                                tipo = request.POST.get('tipo') or getattr(sale, 'invoice_type', 'B')
+
+                                sale.invoice_pos = pos
+                                sale.invoice_type = tipo
+                                sale.invoice_number = sale.next_sequential_for_pos_type()
+                                sale.is_invoiced = True
+                                sale.save()
+
+                                response_data = {
+                                    'id': sale.id,
+                                    'invoice_number': sale.invoice_number,
+                                }
+                            else:
+                                response_data = {
+                                    'id': sale.id,
+                                    'invoice_number': sale.invoice_number,
+                                    'message': 'La venta ya estaba facturada'
+                                }
                 except Sale.DoesNotExist:
                     response_data = {'error': 'Venta no encontrada'}
                 except Exception as e:

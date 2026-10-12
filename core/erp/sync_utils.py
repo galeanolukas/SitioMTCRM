@@ -197,17 +197,32 @@ def _verify_remote_subscription(user):
     if not company or not company.cuit:
         return True, None
 
+    row = None
     try:
         with connections['remote'].cursor() as cursor:
-            cursor.execute(
-                'SELECT s.plan_id, s.start_date, s.end_date, s.grace_days, s.status, '
-                '       s.notes, p.name, p.price, p.duration_days '
-                'FROM subscriptions_subscription s '
-                'JOIN erp_company c ON c.id = s.company_id '
-                'JOIN subscriptions_subscriptionplan p ON p.id = s.plan_id '
-                'WHERE c.cuit = %s ORDER BY s.id DESC LIMIT 1',
-                [company.cuit]
-            )
+            try:
+                cursor.execute(
+                    'SELECT s.plan_id, s.start_date, s.end_date, s.grace_days, s.status, '
+                    '       s.notes, p.name, p.price, p.duration_days, '
+                    '       p.max_products, p.max_users, p.allow_mp_qr, '
+                    '       p.allow_invoicing, p.allow_catalog '
+                    'FROM subscriptions_subscription s '
+                    'JOIN erp_company c ON c.id = s.company_id '
+                    'JOIN subscriptions_subscriptionplan p ON p.id = s.plan_id '
+                    'WHERE c.cuit = %s ORDER BY s.id DESC LIMIT 1',
+                    [company.cuit]
+                )
+            except Exception:
+                # Servidor sin los campos de límites todavía: consulta básica
+                cursor.execute(
+                    'SELECT s.plan_id, s.start_date, s.end_date, s.grace_days, s.status, '
+                    '       s.notes, p.name, p.price, p.duration_days '
+                    'FROM subscriptions_subscription s '
+                    'JOIN erp_company c ON c.id = s.company_id '
+                    'JOIN subscriptions_subscriptionplan p ON p.id = s.plan_id '
+                    'WHERE c.cuit = %s ORDER BY s.id DESC LIMIT 1',
+                    [company.cuit]
+                )
             row = cursor.fetchone()
     except Exception:
         # Servidor viejo sin la app de suscripciones: no bloquear
@@ -217,7 +232,17 @@ def _verify_remote_subscription(user):
         return True, None
 
     (_plan_id, start_date, end_date, grace_days, status, notes,
-     plan_name, plan_price, plan_duration) = row
+     plan_name, plan_price, plan_duration, *limit_cols) = row
+
+    plan_limits = None
+    if len(limit_cols) == 5:
+        plan_limits = {
+            'max_products': limit_cols[0],
+            'max_users': limit_cols[1],
+            'allow_mp_qr': bool(limit_cols[2]),
+            'allow_invoicing': bool(limit_cols[3]),
+            'allow_catalog': bool(limit_cols[4]),
+        }
 
     # Bajar el estado a la tabla local (misma lógica que el sync)
     try:
@@ -228,6 +253,7 @@ def _verify_remote_subscription(user):
             plan_duration_days=plan_duration,
             start_date=start_date, end_date=end_date,
             grace_days=grace_days, status=status, notes=notes,
+            plan_limits=plan_limits,
         )
     except Exception as e:
         logger.warning(f'No se pudo replicar suscripción local: {e}')

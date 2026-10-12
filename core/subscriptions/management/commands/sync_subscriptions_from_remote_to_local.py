@@ -54,6 +54,11 @@ class Command(BaseCommand):
             defaults={
                 'price': remote_plan.price,
                 'duration_days': remote_plan.duration_days,
+                'max_products': getattr(remote_plan, 'max_products', None),
+                'max_users': getattr(remote_plan, 'max_users', None),
+                'allow_mp_qr': getattr(remote_plan, 'allow_mp_qr', True),
+                'allow_invoicing': getattr(remote_plan, 'allow_invoicing', True),
+                'allow_catalog': getattr(remote_plan, 'allow_catalog', True),
             },
         )
 
