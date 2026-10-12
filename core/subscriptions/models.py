@@ -7,12 +7,22 @@ class SubscriptionPlan(models.Model):
     price = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Precio')
     duration_days = models.PositiveIntegerField(default=30, verbose_name='Duración (días)')
     is_active = models.BooleanField(default=True, verbose_name='Activo')
+    description = models.CharField(max_length=200, blank=True, verbose_name='Descripción corta')
+    features = models.TextField(
+        blank=True, verbose_name='Características',
+        help_text='Una característica por línea (se muestran en la página pública de planes)'
+    )
+    is_featured = models.BooleanField(default=False, verbose_name='Destacado')
+    sort_order = models.PositiveIntegerField(default=0, verbose_name='Orden')
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         verbose_name = 'Plan de suscripción'
         verbose_name_plural = 'Planes de suscripción'
-        ordering = ['name']
+        ordering = ['sort_order', 'name']
+
+    def feature_list(self):
+        return [f.strip() for f in self.features.splitlines() if f.strip()]
 
     def __str__(self):
         return f'{self.name} (${self.price} / {self.duration_days} días)'

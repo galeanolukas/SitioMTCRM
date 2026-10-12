@@ -162,3 +162,17 @@ class SuspendedView(TemplateView):
         ctx = super().get_context_data(**kwargs)
         ctx['title'] = 'Suscripción suspendida'
         return ctx
+
+
+class PublicPlansView(ListView):
+    """Página pública de planes disponibles (sin login)."""
+    template_name = 'subscriptions/public_plans.html'
+    context_object_name = 'plans'
+
+    def get_queryset(self):
+        return SubscriptionPlan.objects.filter(is_active=True)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['title'] = 'Planes y suscripciones'
+        return ctx

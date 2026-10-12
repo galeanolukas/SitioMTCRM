@@ -6,11 +6,17 @@ from .models import Subscription, SubscriptionPayment, SubscriptionPlan
 class PlanForm(forms.ModelForm):
     class Meta:
         model = SubscriptionPlan
-        fields = ['name', 'price', 'duration_days', 'is_active']
+        fields = ['name', 'price', 'duration_days', 'description', 'features',
+                  'is_featured', 'sort_order', 'is_active']
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control'}),
             'price': forms.NumberInput(attrs={'class': 'form-control', 'min': '0', 'step': '0.01'}),
             'duration_days': forms.NumberInput(attrs={'class': 'form-control', 'min': '1'}),
+            'description': forms.TextInput(attrs={'class': 'form-control'}),
+            'features': forms.Textarea(attrs={'class': 'form-control', 'rows': 4,
+                                             'placeholder': 'Una característica por línea'}),
+            'is_featured': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'sort_order': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
             'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
 

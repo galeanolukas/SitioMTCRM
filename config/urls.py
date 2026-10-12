@@ -18,6 +18,7 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from core.login.views import *
+from core.subscriptions.views import PublicPlansView
 
 from django.conf import settings
 from django.conf.urls.static import static
@@ -26,6 +27,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('erp/', include('core.erp.urls')),
     path('subscriptions/', include('core.subscriptions.urls')),
+    path('planes/', PublicPlansView.as_view(), name='public_plans'),
     path('login/', include('core.login.urls')),
     path('user/', include('core.user.urls')),
     path('', include('core.homepage.urls')),
