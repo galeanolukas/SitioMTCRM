@@ -1818,6 +1818,10 @@
       $('#installmentCount').text(installments);
       $('#installmentAmount').text(fmt(installmentAmount));
       $('#installmentInfo').show();
+      // Total a cobrar ajustable: el redondeo se aplica sobre el total CON recargo
+      $('#cardFinalTotal').val(newTotal.toFixed(2));
+      buildCardRoundingChips(originalTotal * multiplier);
+      updateCardFinalDerived();
       if (surchargeAmount > 0.01) {
         $('#cardInfoText').text('Plan seleccionado: ' + installments + ' cuotas con recargo del ' + surchargePercent + '%');
       } else {
@@ -1828,7 +1832,52 @@
       $('#cardInfoText').text('Seleccione un plan de cuotas');
     }
   });
-  
+
+  // Multiplicador del plan de cuotas seleccionado (1 si no hay / invalido)
+  function cardPlanMultiplier() {
+    const opt = $('#cardPlan').find(':selected');
+    const m = parseFloat(opt.data('multiplier'));
+    return (!isNaN(m) && m > 0) ? m : 1;
+  }
+
+  // Chips de redondeo sobre el total CON recargo por tarjeta
+  function buildCardRoundingChips(surchargedTotal) {
+    const chips = [];
+    [100, 500, 1000].forEach(step => {
+      const down = Math.floor((surchargedTotal - 0.001) / step) * step;
+      const up = Math.ceil((surchargedTotal + 0.001) / step) * step;
+      if (down < surchargedTotal) chips.push({ label: '↓ ' + fmt(down), val: down, cls: 'btn-outline-danger' });
+      if (up > surchargedTotal) chips.push({ label: '↑ ' + fmt(up), val: up, cls: 'btn-outline-success' });
+    });
+    const $chips = $('#cardRoundingChips').empty();
+    chips.forEach(c => {
+      $('<button type="button">')
+        .addClass('btn btn-sm ' + c.cls)
+        .text(c.label)
+        .on('click', () => { $('#cardFinalTotal').val(c.val.toFixed(2)); updateCardFinalDerived(); })
+        .appendTo($chips);
+    });
+  }
+
+  // Recalcula cuota e info del ajuste cuando se edita el total a cobrar
+  function updateCardFinalDerived() {
+    const installments = parseFloat($('#cardPlan').find(':selected').data('installments')) || 0;
+    const surchargedBase = lastBaseTotal * cardPlanMultiplier();
+    const finalVal = parseFloat($('#cardFinalTotal').val());
+    if (installments > 0 && !isNaN(finalVal) && finalVal > 0) {
+      $('#installmentAmount').text(fmt(finalVal / installments));
+      const diff = Math.round((finalVal - surchargedBase) * 100) / 100;
+      if (Math.abs(diff) > 0.005) {
+        $('#cardRoundingInfo').text('Ajuste: ' + (diff < 0 ? '-' : '+') + fmt(Math.abs(diff)) +
+          (diff < 0 ? ' (a favor del cliente)' : ' (a favor del vendedor)'));
+      } else {
+        $('#cardRoundingInfo').text('');
+      }
+    }
+  }
+
+  $(document).on('input', '#cardFinalTotal', updateCardFinalDerived);
+
   // Confirmar pago con tarjeta
   $(document).on('click', '#btnConfirmCardPayment', function() {
     const cardType = $('input[name="cardType"]:checked').val();
@@ -1845,7 +1894,18 @@
       showToast('warning', 'Debe seleccionar un plan de cuotas');
       return;
     }
-    
+
+    // Redondeo sobre el total CON recargo: el ajuste apunta al total final que paga el cliente
+    if (cardType === 'credit' && cardPlan) {
+      const finalVal = parseFloat($('#cardFinalTotal').val());
+      if (!isNaN(finalVal) && finalVal > 0) {
+        roundingAdj = Math.round((finalVal - lastBaseTotal * cardPlanMultiplier()) * 100) / 100;
+        roundingBase = lastBaseTotal;
+        recalc();
+        calculateChange();
+      }
+    }
+
     // Guardar datos de tarjeta en variable global para usar en la venta
     window.cardPaymentData = {
       card_type: cardType,
