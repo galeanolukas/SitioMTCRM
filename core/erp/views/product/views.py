@@ -377,7 +377,11 @@ class ProductCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Com
                          if limit_error:
                              data['error'] = limit_error
                              return JsonResponse(data)
-                         product = form.save()
+                         product = form.save(commit=False)
+                         if not product.company_id:
+                             product.company_id = get_active_company_id(request)
+                         product.save()
+                         form.save_m2m()
                          data = {
                              'id': product.id,
                              'name': product.name,

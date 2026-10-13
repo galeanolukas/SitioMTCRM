@@ -499,7 +499,7 @@
       formData.append('supplier', supplierId);
     }
     
-    fetch('/erp/product/create/', {
+    fetch('{% url "erp:product_create" %}', {
       method: 'POST',
       headers: {
         'X-CSRFToken': getCookie('csrftoken'),

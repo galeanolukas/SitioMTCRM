@@ -251,7 +251,7 @@ class Product(models.Model):
     cost_price = models.DecimalField(default=0.00, max_digits=12, decimal_places=2, null=True, blank=True, verbose_name='Precio de costo (sin IVA)')
     freight_percentage = models.DecimalField(default=0.00, max_digits=5, decimal_places=2, verbose_name='Flete (%)')
     pvp = models.DecimalField(default=0.00, max_digits=9, decimal_places=2, verbose_name='Precio neto (sin IVA)')
-    iva_rate = models.DecimalField(default=0.21, max_digits=5, decimal_places=2, verbose_name='IVA (%)')
+    iva_rate = models.DecimalField(default=0.21, max_digits=6, decimal_places=4, verbose_name='IVA (%)')
     vat_code = models.CharField(max_length=1, choices=VAT_CODE_CHOICES, default='5', verbose_name='Código AFIP')
     margin_percentage = models.DecimalField(default=0.00, max_digits=5, decimal_places=2, verbose_name='Margen de ganancia (%)')
     pvp_final = models.DecimalField(default=0.00, max_digits=9, decimal_places=2, verbose_name='Precio final (con IVA)')
