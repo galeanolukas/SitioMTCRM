@@ -2,7 +2,7 @@ from django.urls import path, include
 from core.erp.views.category.views import *
 from core.erp.views.product.views import *
 from core.erp.views.client.views import ClientListView, ClientCreateView, ClientUpdateView, ClientDeleteView
-from core.erp.views.sale.views import SaleListView, SaleCreateView, SaleUpdateView, SaleDeleteView, ticket_print, ticket_x_print, ticket_budget_print, POSView, InvoiceListView, InvoiceCreateView, invoice_pdf, sync_sales_api, EmployeeAccountListView, employee_account_pdf_export, BudgetListView, BudgetConvertView, BudgetDetailView, BudgetSendLocalView, CardPlanListView, CardPlanCreateView, CardPlanUpdateView, CardPlanDeleteView, CardPlanExportView, CardPlanImportView
+from core.erp.views.sale.views import SaleListView, SaleCreateView, SaleUpdateView, SaleDeleteView, ticket_print, ticket_x_print, ticket_budget_print, POSView, InvoiceListView, InvoiceCreateView, invoice_pdf, sync_sales_api, EmployeeAccountListView, employee_account_pdf_export, BudgetListView, BudgetConvertView, BudgetDetailView, BudgetSendLocalView, CardPlanListView, CardPlanCreateView, CardPlanUpdateView, CardPlanDeleteView, CardPlanExportView, CardPlanImportView, mp_qr_create, mp_qr_status, mp_qr_cancel
 from core.erp.views.transfer.views import TransferListView, TransferCreateView, TransferDetailView, TransferReceiveView, TransferSearchView, TransferProductSearchView
 from core.erp.views.operator_reports.views import OperatorSalesReportView, operator_sales_export
 from core.erp.views.sync.views import SyncToggleView, SyncStatusView, ProductSyncView, RestoreFromServerView
@@ -141,6 +141,9 @@ urlpatterns = [
     path('transfer/products/', TransferProductSearchView.as_view(), name='transfer_products'),
     # api sync (POS local -> servidor)
     path('api/sync/sales/', sync_sales_api, name='api_sync_sales'),
+    path('mp/qr/create/', mp_qr_create, name='mp_qr_create'),
+    path('mp/qr/<int:pk>/status/', mp_qr_status, name='mp_qr_status'),
+    path('mp/qr/<int:pk>/cancel/', mp_qr_cancel, name='mp_qr_cancel'),
     # invoice
     path('invoice/list/', InvoiceListView.as_view(), name='invoice_list'),
     path('invoice/add/', InvoiceCreateView.as_view(), name='invoice_add'),

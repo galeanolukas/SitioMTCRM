@@ -1383,6 +1383,11 @@
       // Limpiar datos de tarjeta después de usar
       window.cardPaymentData = null;
     }
+    // Vincular orden de pago QR de Mercado Pago si corresponde
+    if (payMethod === 'mp' && window.mpQrOrderId) {
+      payload.mp_qr_order_id = window.mpQrOrderId;
+      window.mpQrOrderId = null;
+    }
     ajaxAction('create_sale', { action: 'create_sale', sale: JSON.stringify(payload), sale_token: saleToken })
       .done(resp => {
         if (resp && resp.id) {
@@ -1467,6 +1472,11 @@
       
       // Limpiar datos de tarjeta después de usar
       window.cardPaymentData = null;
+    }
+    // Vincular orden de pago QR de Mercado Pago si corresponde
+    if (payMethod === 'mp' && window.mpQrOrderId) {
+      payload.mp_qr_order_id = window.mpQrOrderId;
+      window.mpQrOrderId = null;
     }
     ajaxAction('invoice', { action: 'invoice', sale: JSON.stringify(payload), sale_token: saleToken })
       .done(resp => {
@@ -1719,7 +1729,13 @@
       openCardPaymentModal();
       return;
     }
-    
+
+    // Mercado Pago -> cobro con QR dinamico
+    if (payMethod === 'mp') {
+      openMpQrModal();
+      return;
+    }
+
     const modalEl = document.getElementById('saleModeModal');
     if (!modalEl) {
       // Fallback si por alguna razón no se cargó el modal
@@ -2865,4 +2881,97 @@
     calculateChange();
     bootstrap.Modal.getInstance(document.getElementById('roundingModal')).hide();
   });
+
+  // ================== Cobro con QR dinamico de Mercado Pago ==================
+  let mpQrPoll = null;
+  let mpQrOrderId = null;
+
+  function stopMpQrPolling() {
+    if (mpQrPoll) { clearInterval(mpQrPoll); mpQrPoll = null; }
+  }
+
+  function openMpQrModal() {
+    const total = Math.round((lastBaseTotal + roundingAdj) * 100) / 100;
+    $('#mpQrTotal').text(fmt(total));
+    $('#mpQrLoading').show();
+    $('#mpQrImageWrap').hide();
+    $('#mpQrError').hide();
+    $('#mpQrStatus').text('');
+    mpQrOrderId = null;
+
+    const modal = new bootstrap.Modal(document.getElementById('mpQrModal'));
+    modal.show();
+
+    const fd = new FormData();
+    fd.append('total', total.toFixed(2));
+    fetch('/erp/mp/qr/create/', {
+      method: 'POST',
+      headers: { 'X-CSRFToken': csrftoken() },
+      body: fd,
+    })
+      .then(r => r.json())
+      .then(data => {
+        $('#mpQrLoading').hide();
+        if (data.error) {
+          $('#mpQrError').text(data.error).show();
+          return;
+        }
+        mpQrOrderId = data.order_id;
+        if (data.qr_png) {
+          $('#mpQrImage').attr('src', data.qr_png);
+          $('#mpQrImageWrap').show();
+        }
+        $('#mpQrStatus').text('Esperando pago...');
+        mpQrPoll = setInterval(() => pollMpQr(modal), 4000);
+        // Red de seguridad: autocalcelar cuando expira la orden
+        setTimeout(() => { if (mpQrPoll) cancelMpQr(true); }, (data.expires_minutes || 15) * 60000);
+      })
+      .catch(() => {
+        $('#mpQrLoading').hide();
+        $('#mpQrError').text('Error de conexion con el servidor').show();
+      });
+  }
+
+  function pollMpQr(modal) {
+    if (!mpQrOrderId) { stopMpQrPolling(); return; }
+    fetch('/erp/mp/qr/' + mpQrOrderId + '/status/')
+      .then(r => r.json())
+      .then(data => {
+        if (data.status === 'paid') {
+          stopMpQrPolling();
+          window.mpQrOrderId = mpQrOrderId;
+          $('#mpQrStatus').html('<span class="text-success fw-bold">Pago recibido</span>');
+          setTimeout(() => {
+            modal.hide();
+            showToast('success', 'Pago de Mercado Pago confirmado');
+            const modeEl = document.getElementById('saleModeModal');
+            if (modeEl) { new bootstrap.Modal(modeEl).show(); } else { doCreateSale(); }
+          }, 800);
+        } else if (data.status === 'expired' || data.status === 'cancelled') {
+          stopMpQrPolling();
+          $('#mpQrStatus').text('El QR expiró o fue cancelado. Genere uno nuevo.');
+          $('#mpQrImageWrap').hide();
+        }
+      })
+      .catch(() => {});
+  }
+
+  function cancelMpQr(silent) {
+    stopMpQrPolling();
+    if (mpQrOrderId) {
+      fetch('/erp/mp/qr/' + mpQrOrderId + '/cancel/', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrftoken() },
+        body: new FormData(),
+      }).catch(() => {});
+      mpQrOrderId = null;
+    }
+    if (!silent) {
+      const inst = bootstrap.Modal.getInstance(document.getElementById('mpQrModal'));
+      if (inst) inst.hide();
+    }
+  }
+
+  $(document).on('click', '#btnMpQrCancel', function () { cancelMpQr(false); });
+  $('#mpQrModal').on('hidden.bs.modal', stopMpQrPolling);
 })();

@@ -520,6 +520,33 @@
   </div>
 </div>
 
+<!-- Modal para cobro con QR de Mercado Pago -->
+<div class="modal fade" id="mpQrModal" tabindex="-1" aria-labelledby="mpQrLabel" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="mpQrLabel"><i class="fas fa-qrcode"></i> Cobrar con Mercado Pago</h5>
+      </div>
+      <div class="modal-body text-center">
+        <p class="mb-2">Total a cobrar: <strong id="mpQrTotal" class="fs-4 text-success"></strong></p>
+        <div id="mpQrLoading" class="py-4">
+          <div class="spinner-border text-primary" role="status"></div>
+          <div class="small text-muted mt-2">Generando QR...</div>
+        </div>
+        <div id="mpQrImageWrap" style="display:none;">
+          <img id="mpQrImage" src="" alt="QR Mercado Pago" style="max-width:260px;" class="border rounded p-2">
+          <div class="small text-muted mt-2">El cliente escanea con la app de Mercado Pago</div>
+        </div>
+        <div id="mpQrError" class="alert alert-danger small mt-2" style="display:none;"></div>
+        <div id="mpQrStatus" class="mt-2 small text-muted"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-danger" id="btnMpQrCancel">Cancelar cobro</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Modal para pagos combinados -->
 <div class="modal fade" id="combinedPaymentModal" tabindex="-1" aria-labelledby="combinedPaymentLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">

@@ -1503,6 +1503,9 @@ class MercadoPagoConfig(models.Model):
     public_key = models.CharField(max_length=255, verbose_name='Public Key', blank=True, null=True)
     enabled = models.BooleanField(default=False, verbose_name='Habilitado')
     mode = models.CharField(max_length=10, choices=MODE_CHOICES, default='sandbox', verbose_name='Modo')
+    collector_id = models.CharField(max_length=30, blank=True, null=True, verbose_name='Collector/User ID MP')
+    store_id = models.CharField(max_length=30, blank=True, null=True, verbose_name='Sucursal MP (store_id)')
+    pos_external_id = models.CharField(max_length=60, blank=True, null=True, verbose_name='Caja MP (pos external_id)')
 
     def __str__(self):
         base = self.name or f"Credenciales MP {self.company.name}" if self.company_id else 'Credenciales MP'
@@ -1512,6 +1515,35 @@ class MercadoPagoConfig(models.Model):
         verbose_name = 'Configuración Mercado Pago'
         verbose_name_plural = 'Configuraciones Mercado Pago'
         ordering = ['company_id']
+
+
+class MpQrOrder(models.Model):
+    STATUS_CHOICES = (
+        ('pending', 'Esperando pago'),
+        ('paid', 'Pagada'),
+        ('cancelled', 'Cancelada'),
+        ('expired', 'Expirada'),
+        ('error', 'Error'),
+    )
+
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa')
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Creada por')
+    sale = models.ForeignKey('Sale', on_delete=models.SET_NULL, null=True, blank=True, related_name='mp_qr_orders', verbose_name='Venta asociada')
+    external_reference = models.CharField(max_length=64, unique=True, verbose_name='Referencia externa')
+    in_store_order_id = models.CharField(max_length=64, blank=True, null=True, verbose_name='Order ID MP')
+    qr_data = models.TextField(blank=True, null=True, verbose_name='Datos del QR (EMV)')
+    total = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Total')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+    paid_at = models.DateTimeField(blank=True, null=True)
+
+    def __str__(self):
+        return f"MpQrOrder {self.external_reference} - {self.company} - {self.get_status_display()}"
+
+    class Meta:
+        verbose_name = 'Orden QR Mercado Pago'
+        verbose_name_plural = 'Órdenes QR Mercado Pago'
+        ordering = ['-created_at']
 
 
 class QuickOrder(models.Model):

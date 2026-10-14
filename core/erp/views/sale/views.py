@@ -749,8 +749,12 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     
                     if 'combined_payments' in payload and payload['combined_payments']:
                         sale.payment_details = payload['combined_payments']
-                    
+
                     sale.save()
+                    # Vincular orden de cobro QR de Mercado Pago (si pago por QR)
+                    mp_qr_id = payload.get('mp_qr_order_id')
+                    if mp_qr_id:
+                        MpQrOrder.objects.filter(pk=mp_qr_id, company_id=sale.company_id).update(sale=sale)
                     logger.info("pos_sale_saved", extra={
                         'sale_id': sale.id,
                         'is_budget': sale.is_budget,
@@ -930,6 +934,10 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         return JsonResponse(data, status=400)
 
                     sale.save()
+                    # Vincular orden de cobro QR de Mercado Pago (si pago por QR)
+                    mp_qr_id = payload.get('mp_qr_order_id')
+                    if mp_qr_id:
+                        MpQrOrder.objects.filter(pk=mp_qr_id, company_id=sale.company_id).update(sale=sale)
                     # Marcar token como procesado
                     request.session[f'processed_invoice_{sale_token}'] = True
                     request.session.save()
@@ -3091,3 +3099,110 @@ class CardPlanImportView(LoginRequiredMixin, View):
             'updated': updated,
             'errors': errors,
         })
+
+
+# ============================================================
+# Cobro con QR dinamico de Mercado Pago (Instore Orders)
+# ============================================================
+from core.erp.models import MpQrOrder, MercadoPagoConfig
+from core.erp import mp_qr as mp_qr_svc
+
+
+def _mp_qr_check(request):
+    """Resuelve empresa + config MP + limite de plan. Devuelve (company, cfg, error_json)."""
+    if not request.user.is_authenticated:
+        return None, None, JsonResponse({'error': 'No autenticado'}, status=401)
+    if not (request.user.is_superuser or request.user.has_perm('erp.add_sale')):
+        return None, None, JsonResponse({'error': 'Sin permisos'}, status=403)
+    active_cid = get_active_company_id(request)
+    from core.subscriptions.services import get_company_limits
+    limits = get_company_limits(active_cid)
+    if not limits.get('allow_mp_qr', True):
+        return None, None, JsonResponse({
+            'error': f"El cobro por QR de Mercado Pago no esta incluido en su plan ({limits.get('plan_name')})."
+        }, status=403)
+    company = Company.objects.filter(pk=active_cid).first() if active_cid else None
+    cfg = getattr(company, 'mp_config', None) if company else None
+    if not (cfg and cfg.enabled and cfg.access_token):
+        return None, None, JsonResponse({'error': 'Mercado Pago no esta configurado/habilitado para esta empresa'}, status=400)
+    return company, cfg, None
+
+
+def mp_qr_create(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Metodo no permitido'}, status=405)
+    company, cfg, err = _mp_qr_check(request)
+    if err:
+        return err
+    try:
+        total = Decimal(str(request.POST.get('total') or '0'))
+    except Exception:
+        return JsonResponse({'error': 'Total invalido'}, status=400)
+    if total <= 0:
+        return JsonResponse({'error': 'El total debe ser mayor a cero'}, status=400)
+
+    order = MpQrOrder(
+        company=company,
+        created_by=request.user,
+        total=total,
+        external_reference=f'qr{company.id}-{uuid.uuid4().hex[:12]}',
+    )
+    try:
+        resp = mp_qr_svc.create_order(
+            cfg, total=total,
+            title=f'Venta POS - {company.name}' if company else 'Venta POS',
+            external_reference=order.external_reference,
+        )
+    except mp_qr_svc.MpQrError as e:
+        logger.warning('mp_qr_create error: %s', e)
+        return JsonResponse({'error': str(e)}, status=502)
+    except Exception as e:
+        logger.error('mp_qr_create unexpected: %s', e)
+        return JsonResponse({'error': 'Error de conexion con Mercado Pago'}, status=502)
+
+    order.in_store_order_id = resp.get('in_store_order_id')
+    order.qr_data = resp.get('qr_data')
+    order.save()
+    return JsonResponse({
+        'order_id': order.id,
+        'qr_png': mp_qr_svc.qr_png_base64(order.qr_data) if order.qr_data else None,
+        'total': str(total),
+        'expires_minutes': mp_qr_svc.ORDER_EXPIRE_MINUTES,
+    })
+
+
+def mp_qr_status(request, pk):
+    order = get_object_or_404(MpQrOrder, pk=pk)
+    if not request.user.is_superuser and order.company_id != get_active_company_id(request):
+        return JsonResponse({'error': 'Sin permisos'}, status=403)
+    if order.status == 'pending' and order.in_store_order_id:
+        cfg = getattr(order.company, 'mp_config', None)
+        try:
+            status = mp_qr_svc.get_payment_status(cfg, order.in_store_order_id)
+            if status == 'paid':
+                order.status = 'paid'
+                order.paid_at = timezone.now()
+                order.save(update_fields=['status', 'paid_at'])
+            elif status == 'expired':
+                order.status = 'expired'
+                order.save(update_fields=['status'])
+        except Exception as e:
+            logger.warning('mp_qr_status refresh error: %s', e)
+    return JsonResponse({'status': order.status})
+
+
+def mp_qr_cancel(request, pk):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Metodo no permitido'}, status=405)
+    order = get_object_or_404(MpQrOrder, pk=pk)
+    if not request.user.is_superuser and order.company_id != get_active_company_id(request):
+        return JsonResponse({'error': 'Sin permisos'}, status=403)
+    if order.status == 'pending':
+        cfg = getattr(order.company, 'mp_config', None)
+        try:
+            mp_qr_svc.cancel_order(cfg)
+        except Exception as e:
+            logger.warning('mp_qr_cancel error: %s', e)
+        order.status = 'cancelled'
+        order.save(update_fields=['status'])
+    return JsonResponse({'status': order.status})
