@@ -1819,7 +1819,6 @@ class SaleListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView
                         response_data = {'error': 'ID de venta no proporcionado'}
                     else:
                         from core.subscriptions.services import get_company_limits
-                        from core.erp.mixins import get_active_company_id
                         _limits = get_company_limits(get_active_company_id(request))
                         if not _limits.get('allow_invoicing', True):
                             response_data = {'error': f"La facturación electrónica no está incluida en su plan ({_limits.get('plan_name')})."}
