@@ -3124,7 +3124,10 @@ def _mp_qr_check(request):
     company = Company.objects.filter(pk=active_cid).first() if active_cid else None
     cfg = getattr(company, 'mp_config', None) if company else None
     if not (cfg and cfg.enabled and cfg.access_token):
-        return None, None, JsonResponse({'error': 'Mercado Pago no esta configurado/habilitado para esta empresa'}, status=400)
+        return None, None, JsonResponse({
+            'error': 'Mercado Pago no esta configurado/habilitado para esta empresa',
+            'not_configured': True,
+        }, status=400)
     return company, cfg, None
 
 

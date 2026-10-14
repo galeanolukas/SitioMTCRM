@@ -2913,6 +2913,14 @@
       .then(data => {
         $('#mpQrLoading').hide();
         if (data.error) {
+          if (data.not_configured) {
+            // MP sin credenciales: registrar el cobro manualmente como siempre
+            const inst = bootstrap.Modal.getInstance(document.getElementById('mpQrModal'));
+            if (inst) inst.hide();
+            showToast('info', 'MP sin credenciales: se registra el cobro manualmente.');
+            proceedToSaleMode();
+            return;
+          }
           $('#mpQrError').text(data.error).show();
           return;
         }
@@ -2944,8 +2952,7 @@
           setTimeout(() => {
             modal.hide();
             showToast('success', 'Pago de Mercado Pago confirmado');
-            const modeEl = document.getElementById('saleModeModal');
-            if (modeEl) { new bootstrap.Modal(modeEl).show(); } else { doCreateSale(); }
+            proceedToSaleMode();
           }, 800);
         } else if (data.status === 'expired' || data.status === 'cancelled') {
           stopMpQrPolling();
@@ -2954,6 +2961,11 @@
         }
       })
       .catch(() => {});
+  }
+
+  function proceedToSaleMode() {
+    const modeEl = document.getElementById('saleModeModal');
+    if (modeEl) { new bootstrap.Modal(modeEl).show(); } else { doCreateSale(); }
   }
 
   function cancelMpQr(silent) {
@@ -2973,5 +2985,12 @@
   }
 
   $(document).on('click', '#btnMpQrCancel', function () { cancelMpQr(false); });
+  $(document).on('click', '#btnMpQrManual', function () {
+    // Registrar el cobro MP manualmente (sin QR): cancela la orden si existe
+    cancelMpQr(true);
+    const inst = bootstrap.Modal.getInstance(document.getElementById('mpQrModal'));
+    if (inst) inst.hide();
+    proceedToSaleMode();
+  });
   $('#mpQrModal').on('hidden.bs.modal', stopMpQrPolling);
 })();
