@@ -1159,6 +1159,8 @@ class MercadoPagoConfigUpdateView(LoginRequiredMixin, ValidatePermissionRequired
         return ctx
 
     def form_valid(self, form):
+        # Guardar credenciales implica habilitar MP para la empresa
+        form.instance.enabled = bool(form.instance.access_token)
         response = super().form_valid(form)
         if self.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return JsonResponse({'success': True})

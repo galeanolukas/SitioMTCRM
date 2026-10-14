@@ -59,7 +59,8 @@ def ensure_store(cfg):
     if cfg.store_id:
         return cfg.store_id
     uid = ensure_collector_id(cfg)
-    r = requests.get(f'{MP_API}/users/{uid}/stores', headers=_headers(cfg), timeout=TIMEOUT)
+    r = requests.get(f'{MP_API}/users/{uid}/stores/search',
+                     headers=_headers(cfg), timeout=TIMEOUT)
     if r.status_code == 200:
         data = r.json()
         items = data.get('results') if isinstance(data, dict) else data
@@ -87,6 +88,11 @@ def ensure_store(cfg):
     r = requests.post(f'{MP_API}/users/{uid}/stores', json=body,
                       headers=_headers(cfg), timeout=TIMEOUT)
     if r.status_code not in (200, 201):
+        if r.status_code == 403:
+            raise MpQrError(
+                'La cuenta de Mercado Pago no tiene habilitado el cobro por QR '
+                '(o son credenciales de prueba: el QR solo funciona con '
+                'credenciales de produccion).')
         _err(r, 'No se pudo crear la sucursal en Mercado Pago')
     cfg.store_id = str(r.json()['id'])
     cfg.save(update_fields=['store_id'])
