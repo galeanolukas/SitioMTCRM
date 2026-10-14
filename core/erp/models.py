@@ -1529,8 +1529,16 @@ class MpQrOrder(models.Model):
     company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa')
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Creada por')
     sale = models.ForeignKey('Sale', on_delete=models.SET_NULL, null=True, blank=True, related_name='mp_qr_orders', verbose_name='Venta asociada')
+    MODE_CHOICES = (
+        ('instore', 'QR de caja (Instore)'),
+        ('preference', 'QR a checkout web'),
+    )
+
     external_reference = models.CharField(max_length=64, unique=True, verbose_name='Referencia externa')
+    mode = models.CharField(max_length=12, choices=MODE_CHOICES, default='instore', verbose_name='Modo de cobro')
     in_store_order_id = models.CharField(max_length=64, blank=True, null=True, verbose_name='Order ID MP')
+    preference_id = models.CharField(max_length=64, blank=True, null=True, verbose_name='Preference ID MP')
+    init_point = models.URLField(blank=True, null=True, verbose_name='Link de pago (modo preferencia)')
     qr_data = models.TextField(blank=True, null=True, verbose_name='Datos del QR (EMV)')
     total = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Total')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')

@@ -171,6 +171,42 @@ def get_payment_status(cfg, in_store_order_id):
     return 'pending'
 
 
+def create_preference(cfg, total, title, external_reference):
+    """Fallback cuando la cuenta no tiene QR instore habilitado:
+    crea una preferencia de Checkout Pro y se dibuja un QR del init_point.
+    Devuelve dict con id e init_point."""
+    body = {
+        'external_reference': external_reference,
+        'items': [{
+            'title': title[:120],
+            'quantity': 1,
+            'currency_id': 'ARS',
+            'unit_price': round(float(total), 2),
+        }],
+    }
+    r = requests.post(f'{MP_API}/checkout/preferences', json=body,
+                      headers=_headers(cfg), timeout=TIMEOUT)
+    if r.status_code not in (200, 201):
+        _err(r, 'No se pudo crear la preferencia de pago')
+    return r.json()
+
+
+def get_payment_status_by_ref(cfg, external_reference):
+    """Busca pagos por external_reference (modo preferencia).
+    Devuelve 'paid' o 'pending'."""
+    r = requests.get(f'{MP_API}/v1/payments/search',
+                     params={'external_reference': external_reference,
+                             'sort': 'date_created', 'criteria': 'desc'},
+                     headers=_headers(cfg), timeout=TIMEOUT)
+    if r.status_code != 200:
+        logger.warning('mp payments search error: %s %s', r.status_code, r.text[:200])
+        return 'pending'
+    for p in (r.json().get('results') or []):
+        if p.get('status') == 'approved':
+            return 'paid'
+    return 'pending'
+
+
 def cancel_order(cfg, pos_external_id=None):
     uid = ensure_collector_id(cfg)
     pos_ext = pos_external_id or cfg.pos_external_id

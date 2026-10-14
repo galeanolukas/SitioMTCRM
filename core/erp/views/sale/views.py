@@ -3150,27 +3150,42 @@ def mp_qr_create(request):
         total=total,
         external_reference=f'qr{company.id}-{uuid.uuid4().hex[:12]}',
     )
+    title = f'Venta POS - {company.name}' if company else 'Venta POS'
     try:
         resp = mp_qr_svc.create_order(
-            cfg, total=total,
-            title=f'Venta POS - {company.name}' if company else 'Venta POS',
+            cfg, total=total, title=title,
             external_reference=order.external_reference,
         )
+        order.in_store_order_id = resp.get('in_store_order_id')
+        order.qr_data = resp.get('qr_data')
     except mp_qr_svc.MpQrError as e:
-        logger.warning('mp_qr_create error: %s', e)
-        return JsonResponse({'error': str(e)}, status=502)
+        # Fallback: cuenta sin QR instore -> preferencia de Checkout Pro
+        # (el QR abre el link de pago web de MP)
+        logger.warning('mp_qr instore fallo, probando preferencia: %s', e)
+        try:
+            pref = mp_qr_svc.create_preference(
+                cfg, total=total, title=title,
+                external_reference=order.external_reference,
+            )
+        except mp_qr_svc.MpQrError as e2:
+            return JsonResponse({'error': f'{e}. Fallback: {e2}'}, status=502)
+        except Exception:
+            return JsonResponse({'error': 'Error de conexion con Mercado Pago'}, status=502)
+        order.mode = 'preference'
+        order.preference_id = pref.get('id')
+        order.init_point = pref.get('init_point')
+        order.qr_data = order.init_point
     except Exception as e:
         logger.error('mp_qr_create unexpected: %s', e)
         return JsonResponse({'error': 'Error de conexion con Mercado Pago'}, status=502)
 
-    order.in_store_order_id = resp.get('in_store_order_id')
-    order.qr_data = resp.get('qr_data')
     order.save()
     return JsonResponse({
         'order_id': order.id,
         'qr_png': mp_qr_svc.qr_png_base64(order.qr_data) if order.qr_data else None,
         'total': str(total),
         'expires_minutes': mp_qr_svc.ORDER_EXPIRE_MINUTES,
+        'mode': order.mode,
     })
 
 
@@ -3178,10 +3193,13 @@ def mp_qr_status(request, pk):
     order = get_object_or_404(MpQrOrder, pk=pk)
     if not request.user.is_superuser and order.company_id != get_active_company_id(request):
         return JsonResponse({'error': 'Sin permisos'}, status=403)
-    if order.status == 'pending' and order.in_store_order_id:
+    if order.status == 'pending' and (order.in_store_order_id or order.preference_id):
         cfg = getattr(order.company, 'mp_config', None)
         try:
-            status = mp_qr_svc.get_payment_status(cfg, order.in_store_order_id)
+            if order.mode == 'preference':
+                status = mp_qr_svc.get_payment_status_by_ref(cfg, order.external_reference)
+            else:
+                status = mp_qr_svc.get_payment_status(cfg, order.in_store_order_id)
             if status == 'paid':
                 order.status = 'paid'
                 order.paid_at = timezone.now()
@@ -3202,10 +3220,11 @@ def mp_qr_cancel(request, pk):
         return JsonResponse({'error': 'Sin permisos'}, status=403)
     if order.status == 'pending':
         cfg = getattr(order.company, 'mp_config', None)
-        try:
-            mp_qr_svc.cancel_order(cfg)
-        except Exception as e:
-            logger.warning('mp_qr_cancel error: %s', e)
+        if order.mode == 'instore':
+            try:
+                mp_qr_svc.cancel_order(cfg)
+            except Exception as e:
+                logger.warning('mp_qr_cancel error: %s', e)
         order.status = 'cancelled'
         order.save(update_fields=['status'])
     return JsonResponse({'status': order.status})
