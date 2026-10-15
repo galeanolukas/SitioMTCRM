@@ -2814,6 +2814,9 @@ class BudgetListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListVi
         context = super().get_context_data(**kwargs)
         context['title'] = 'Presupuestos Pendientes'
         context['entity'] = 'Presupuestos'
+        active_cid = get_active_company_id(self.request)
+        company_obj = Company.objects.filter(id=active_cid).first() if active_cid else None
+        context['active_company_name'] = company_obj.name if company_obj else ''
         return context
 
 
@@ -2885,7 +2888,13 @@ class BudgetDetailView(LoginRequiredMixin, View):
                 'items_count': budget.detsale_set.count(),
                 'details': details
             }
-            
+            pl = budget.payment_links.order_by('-created_at').first()
+            data['payment_link'] = ({
+                'id': pl.id, 'url': pl.init_point, 'status': pl.status,
+                'status_display': pl.get_status_display(),
+                'paid_at': pl.paid_at.strftime('%d/%m/%Y %H:%M') if pl.paid_at else None,
+            } if pl else None)
+
             return JsonResponse(data)
         except Sale.DoesNotExist:
             return JsonResponse({'error': 'Presupuesto no encontrado'}, status=404)
@@ -3227,3 +3236,124 @@ def mp_qr_cancel(request, pk):
         order.status = 'cancelled'
         order.save(update_fields=['status'])
     return JsonResponse({'status': order.status})
+
+
+# ============================================================
+# Links de pago de Mercado Pago para presupuestos
+# ============================================================
+from core.erp.models import PaymentLink
+from django.urls import reverse
+
+
+def payment_link_create(request, pk):
+    """Genera (o reutiliza) un link de pago MP para un presupuesto.
+    El cliente paga el total exacto; el pago se confirma por webhook
+    o por 'Verificar pago' y el presupuesto queda marcado como pagado."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Metodo no permitido'}, status=405)
+    company, cfg, err = _mp_qr_check(request)
+    if err:
+        return err
+    sale = get_object_or_404(Sale, pk=pk, is_budget=True)
+    if company and sale.company_id and sale.company_id != company.id:
+        return JsonResponse({'error': 'El presupuesto pertenece a otra empresa'}, status=403)
+    if sale.status != 'budget':
+        return JsonResponse({'error': 'El presupuesto ya fue convertido a venta'}, status=400)
+
+    existing = sale.payment_links.filter(status='pending').first()
+    if existing:
+        return JsonResponse({'success': True, 'url': existing.init_point,
+                             'status': existing.status, 'link_id': existing.id, 'reused': True})
+
+    ext_ref = f'pres-{sale.id}-{uuid.uuid4().hex[:10]}'
+    title = f'Presupuesto #{sale.id} - {company.name}' if company else f'Presupuesto #{sale.id}'
+    webhook_url = request.build_absolute_uri(reverse('erp:mp_webhook'))
+    result_url = request.build_absolute_uri(reverse('erp:mp_payment_result'))
+    try:
+        pref = mp_qr_svc.create_preference(
+            cfg, total=sale.total, title=title, external_reference=ext_ref,
+            notification_url=webhook_url, back_url=result_url, expiration_hours=72,
+        )
+    except mp_qr_svc.MpQrError as e:
+        return JsonResponse({'error': str(e)}, status=502)
+
+    link = PaymentLink.objects.create(
+        company=company, sale=sale, created_by=request.user,
+        external_reference=ext_ref, preference_id=str(pref.get('id') or ''),
+        init_point=pref.get('init_point'), total=sale.total,
+    )
+    return JsonResponse({'success': True, 'url': link.init_point,
+                         'status': link.status, 'link_id': link.id, 'reused': False})
+
+
+def payment_link_refresh(request, pk):
+    """Verificacion manual del estado del pago (polling)."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Metodo no permitido'}, status=405)
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'No autenticado'}, status=401)
+    link = get_object_or_404(PaymentLink, pk=pk)
+    if not request.user.is_superuser and link.company_id != get_active_company_id(request):
+        return JsonResponse({'error': 'Sin permisos'}, status=403)
+    if link.status == 'pending':
+        cfg = getattr(link.company, 'mp_config', None)
+        try:
+            _mark_link_paid_by_payment(link, mp_qr_svc.get_payment_by_ref(cfg, link.external_reference))
+        except Exception as e:
+            logger.warning('payment_link_refresh error: %s', e)
+    return JsonResponse({'status': link.status, 'paid': link.status == 'paid'})
+
+
+def _mark_link_paid_by_payment(link, pay):
+    """Marca el link como pagado si el pago MP esta aprobado."""
+    if not pay or pay.get('status') != 'approved':
+        return False
+    amount = pay.get('transaction_amount')
+    if amount is not None and abs(float(amount) - float(link.total)) > 0.01:
+        logger.warning('MP link %s: monto distinto (link=%s pago=%s)', link.id, link.total, amount)
+    if link.status != 'paid':
+        link.status = 'paid'
+        link.payment_id = str(pay.get('id') or '')
+        link.paid_at = timezone.now()
+        link.save(update_fields=['status', 'payment_id', 'paid_at'])
+    return True
+
+
+def _mp_confirm_payment_link(payment_id):
+    """Webhook: busca el pago con el token de cada empresa configurada
+    (el webhook no dice de que empresa es) y marca el link como pagado."""
+    for cfg in MercadoPagoConfig.objects.filter(enabled=True).exclude(access_token=''):
+        pay = mp_qr_svc.get_payment(cfg, payment_id)
+        if not pay:
+            continue
+        ext_ref = pay.get('external_reference') or ''
+        link = PaymentLink.objects.filter(external_reference=ext_ref).first()
+        if link:
+            _mark_link_paid_by_payment(link, pay)
+        return
+
+
+@csrf_exempt
+def mp_webhook(request):
+    """Endpoint publico para notificaciones de Mercado Pago.
+    Nunca se confia en el body: el pago se verifica contra la API de MP."""
+    payment_id = request.GET.get('id') or request.GET.get('payment_id')
+    topic = request.GET.get('topic') or request.GET.get('type')
+    if request.method == 'POST' and not payment_id:
+        try:
+            body = json.loads(request.body or b'{}')
+        except Exception:
+            body = {}
+        payment_id = (body.get('data') or {}).get('id') or body.get('id')
+        topic = topic or body.get('type') or body.get('topic')
+    if payment_id and str(topic or 'payment') in ('payment', 'payments'):
+        try:
+            _mp_confirm_payment_link(str(payment_id))
+        except Exception as e:
+            logger.warning('mp_webhook error: %s', e)
+    return JsonResponse({'ok': True})
+
+
+def mp_payment_result(request):
+    """Pagina publica a la que vuelve el cliente tras pagar (back_urls)."""
+    return render(request, 'sale/payment_result.html')

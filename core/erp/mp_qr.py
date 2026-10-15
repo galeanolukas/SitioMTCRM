@@ -171,9 +171,12 @@ def get_payment_status(cfg, in_store_order_id):
     return 'pending'
 
 
-def create_preference(cfg, total, title, external_reference):
-    """Fallback cuando la cuenta no tiene QR instore habilitado:
-    crea una preferencia de Checkout Pro y se dibuja un QR del init_point.
+def create_preference(cfg, total, title, external_reference, notification_url=None,
+                      back_url=None, expiration_hours=None):
+    """Preferencia de Checkout Pro.
+    Uso 1: fallback cuando la cuenta no tiene QR instore (se dibuja QR del init_point).
+    Uso 2: link de pago para presupuestos (notification_url avisa al webhook,
+    expiration_hours limita la validez del link).
     Devuelve dict con id e init_point."""
     body = {
         'external_reference': external_reference,
@@ -184,11 +187,48 @@ def create_preference(cfg, total, title, external_reference):
             'unit_price': round(float(total), 2),
         }],
     }
+    if notification_url:
+        body['notification_url'] = notification_url
+    if back_url:
+        body['back_urls'] = {'success': back_url, 'pending': back_url, 'failure': back_url}
+        body['auto_return'] = 'approved'
+    if expiration_hours:
+        now = timezone.now()
+        body['expires'] = True
+        body['expiration_date_from'] = now.isoformat()
+        body['expiration_date_to'] = (now + timedelta(hours=expiration_hours)).isoformat()
     r = requests.post(f'{MP_API}/checkout/preferences', json=body,
                       headers=_headers(cfg), timeout=TIMEOUT)
     if r.status_code not in (200, 201):
         _err(r, 'No se pudo crear la preferencia de pago')
     return r.json()
+
+
+def get_payment(cfg, payment_id):
+    """Consulta un pago por ID. Devuelve el dict del pago o None."""
+    try:
+        r = requests.get(f'{MP_API}/v1/payments/{payment_id}',
+                         headers=_headers(cfg), timeout=TIMEOUT)
+        if r.status_code == 200:
+            return r.json()
+    except requests.RequestException as e:
+        logger.warning('mp get payment %s error: %s', payment_id, e)
+    return None
+
+
+def get_payment_by_ref(cfg, external_reference):
+    """Devuelve el dict del pago aprobado para la external_reference, o None."""
+    r = requests.get(f'{MP_API}/v1/payments/search',
+                     params={'external_reference': external_reference,
+                             'sort': 'date_created', 'criteria': 'desc'},
+                     headers=_headers(cfg), timeout=TIMEOUT)
+    if r.status_code != 200:
+        logger.warning('mp payments search error: %s %s', r.status_code, r.text[:200])
+        return None
+    for p in (r.json().get('results') or []):
+        if p.get('status') == 'approved':
+            return p
+    return None
 
 
 def get_payment_status_by_ref(cfg, external_reference):

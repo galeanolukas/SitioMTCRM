@@ -3,6 +3,7 @@
 {% load currency_filters %}
 {% block head_list %}
   <script src="{% static 'sale/js/budget_list.js' %}"></script>
+  <script>window.ACTIVE_COMPANY_NAME = "{{ active_company_name|escapejs }}";</script>
 {% endblock %}
 
 {% block columns %}
@@ -51,6 +52,10 @@
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
+          <div id="detPaidBadge" class="alert alert-success py-2 d-none" role="alert">
+            <i class="fas fa-check-circle"></i> <strong>PAGADO por Mercado Pago</strong>
+            <span id="detPaidAt" class="small"></span> — verificar y convertir a venta.
+          </div>
           <div class="row g-3 mb-3">
             <div class="col-md-6">
               <div class="p-2 border rounded bg-light">
@@ -80,6 +85,20 @@
               <div class="p-2 border rounded bg-light">
                 <div class="small text-muted">Notas del presupuesto</div>
                 <div id="detNotes" class="fw-semibold">-</div>
+              </div>
+            </div>
+            <div class="col-12 d-none" id="payLinkBox">
+              <div class="p-2 border rounded bg-light">
+                <div class="small text-muted">Link de pago Mercado Pago <span id="payLinkStatus" class="badge bg-warning text-dark">Pendiente</span></div>
+                <div class="input-group input-group-sm">
+                  <input type="text" id="payLinkUrl" class="form-control" readonly onclick="this.select()">
+                  <button type="button" class="btn btn-outline-secondary" id="btnCopyPayLink" title="Copiar link">
+                    <i class="fas fa-copy"></i>
+                  </button>
+                  <button type="button" class="btn btn-outline-primary" id="btnCheckPay" title="Verificar pago">
+                    <i class="fas fa-sync-alt"></i> Verificar
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -115,6 +134,12 @@
           <a href="#" id="btnPrintBudget" class="btn btn-outline-primary">
             <i class="fas fa-print"></i> Imprimir Ticket
           </a>
+          <button type="button" class="btn btn-outline-info" id="btnPayLink">
+            <i class="fas fa-link"></i> Link de pago
+          </button>
+          <button type="button" class="btn btn-outline-success" id="btnShareBudgetWA">
+            <i class="fab fa-whatsapp"></i> WhatsApp
+          </button>
           <button type="button" class="btn btn-success" id="btnConvertBudget">
             <i class="fas fa-check"></i> Convertir a Venta
           </button>

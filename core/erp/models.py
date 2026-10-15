@@ -1548,6 +1548,33 @@ class MpQrOrder(models.Model):
     def __str__(self):
         return f"MpQrOrder {self.external_reference} - {self.company} - {self.get_status_display()}"
 
+
+class PaymentLink(models.Model):
+    """Link de pago de Mercado Pago (Checkout Pro) generado desde un presupuesto.
+    El cliente paga el total exacto; al confirmarse el pago el presupuesto
+    queda marcado 'pagado' y el vendedor lo convierte en venta."""
+    STATUS_CHOICES = (
+        ('pending', 'Pendiente'),
+        ('paid', 'Pagado'),
+        ('cancelled', 'Cancelado'),
+        ('expired', 'Expirado'),
+    )
+
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa')
+    sale = models.ForeignKey('Sale', on_delete=models.CASCADE, related_name='payment_links', verbose_name='Presupuesto')
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Creado por')
+    external_reference = models.CharField(max_length=64, unique=True, verbose_name='Referencia externa')
+    preference_id = models.CharField(max_length=64, blank=True, null=True, verbose_name='Preference ID MP')
+    payment_id = models.CharField(max_length=50, blank=True, null=True, verbose_name='ID de pago MP')
+    init_point = models.URLField(blank=True, null=True, verbose_name='Link de pago')
+    total = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Total')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+    paid_at = models.DateTimeField(blank=True, null=True)
+
+    def __str__(self):
+        return f"PaymentLink {self.external_reference} - {self.get_status_display()}"
+
     class Meta:
         verbose_name = 'Orden QR Mercado Pago'
         verbose_name_plural = 'Órdenes QR Mercado Pago'
