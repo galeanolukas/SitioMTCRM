@@ -1185,6 +1185,39 @@
   </div>
 </div>
 
+<!-- Modal: presupuesto creado + link de pago MP -->
+<div class="modal fade" id="budgetPayModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-success text-white">
+        <h5 class="modal-title"><i class="fas fa-check-circle"></i> Presupuesto creado</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p>El presupuesto se registró correctamente.</p>
+        <div id="budgetPayLinkBox">
+          <div class="small text-muted mb-1">Link de pago Mercado Pago (válido 72 hs)</div>
+          <div class="input-group input-group-sm">
+            <input type="text" id="budgetPayLinkUrl" class="form-control" readonly onclick="this.select()">
+            <button type="button" class="btn btn-outline-secondary" id="btnBudgetPayCopy" title="Copiar link">
+              <i class="fas fa-copy"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+        <button type="button" class="btn btn-outline-primary" id="btnBudgetPayPrint">
+          <i class="fas fa-print"></i> Imprimir ticket
+        </button>
+        <button type="button" class="btn btn-success" id="btnBudgetPayWA">
+          <i class="fab fa-whatsapp"></i> Enviar por WhatsApp
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 
 <script>
 window.ACTIVE_COMPANY_NAME = "{{ active_company_name|escapejs }}";

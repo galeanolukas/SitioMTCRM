@@ -2386,6 +2386,9 @@
       text += '  - ' + fmt(d.combinedPaymentData.first_amount) + ' (' + d.combinedPaymentData.first_method + ')\n';
       text += '  - ' + fmt(d.combinedPaymentData.second_amount) + ' (' + d.combinedPaymentData.second_method + ')\n';
     }
+    if (window.budgetPaymentLink) {
+      text += '\nPagalo online con Mercado Pago:\n' + window.budgetPaymentLink + '\n';
+    }
     if (d.notes) {
       text += '\nNotas: ' + d.notes + '\n';
     }
@@ -2443,29 +2446,77 @@
           lastSaleIsBudget = true;  // Marcar que es presupuesto
           flashSummary();
           showToast('success', 'Presupuesto creado correctamente. ID: ' + resp.id);
-          
-          // Abrir modal de impresión
-          const modalEl = document.getElementById('printTicketModal');
-          if (modalEl) {
-            const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-            modal.show();
-          }
-          
+
           // Limpiar campos
           $('#budgetNotes').val('');
           $('#btnClear').trigger('click');
           window.budgetPayload = null;
-          
-          // Recargar página para mostrar el presupuesto en la lista
-          setTimeout(() => {
-            window.location.reload();
-          }, 1000);
+          window.budgetPaymentLink = null;
+
+          const finishBudget = function() {
+            // Flujo sin link: modal de impresión + recarga
+            const modalEl = document.getElementById('printTicketModal');
+            if (modalEl) {
+              bootstrap.Modal.getOrCreateInstance(modalEl).show();
+            }
+            setTimeout(() => { window.location.reload(); }, 1000);
+          };
+
+          // Intentar generar link de pago MP para el presupuesto
+          $.ajax({
+            url: '/erp/budget/payment-link/' + resp.id + '/',
+            type: 'POST',
+            dataType: 'json',
+          }).done(d => {
+            if (d && d.success && d.url) {
+              window.budgetPaymentLink = d.url;
+              $('#budgetPayLinkUrl').val(d.url);
+              const payModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('budgetPayModal'));
+              payModal.show();
+            } else {
+              finishBudget();
+            }
+          }).fail(() => finishBudget());
         }
       })
       .fail(jq => {
         console.error('[DEBUG] Error AJAX presupuesto:', jq.responseText, jq.status, jq.statusText);
         showToast('error', 'Error al crear presupuesto: ' + (jq.responseJSON ? jq.responseJSON.error : jq.statusText));
       });
+  });
+
+  // Modal post-creacion: link de pago MP del presupuesto
+  $('#btnBudgetPayCopy').on('click', function() {
+    const url = $('#budgetPayLinkUrl').val();
+    if (!url) return;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url);
+    } else {
+      $('#budgetPayLinkUrl').select();
+      document.execCommand('copy');
+    }
+    const btn = $(this);
+    btn.html('<i class="fas fa-check"></i>');
+    setTimeout(() => btn.html('<i class="fas fa-copy"></i>'), 1500);
+  });
+
+  $('#btnBudgetPayWA').on('click', function() {
+    $('#btnBudgetWhatsApp').trigger('click');
+  });
+
+  $('#btnBudgetPayPrint').on('click', function() {
+    const payEl = document.getElementById('budgetPayModal');
+    $(payEl).data('gotoPrint', true);
+    bootstrap.Modal.getInstance(payEl).hide();
+    const printEl = document.getElementById('printTicketModal');
+    $(printEl).one('hidden.bs.modal', () => window.location.reload());
+    bootstrap.Modal.getOrCreateInstance(printEl).show();
+  });
+
+  $('#budgetPayModal').on('hidden.bs.modal', function() {
+    if (!$(this).data('gotoPrint')) {
+      window.location.reload();
+    }
   });
 
   // Botón para agregar nuevo empleado (desactivado, ahora se usan clientes)
