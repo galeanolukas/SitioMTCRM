@@ -176,3 +176,188 @@ class PublicPlansView(ListView):
         ctx = super().get_context_data(**kwargs)
         ctx['title'] = 'Planes y suscripciones'
         return ctx
+
+
+# ============================================================
+# Solicitudes publicas de alta (desde /planes/)
+# ============================================================
+import re
+import secrets
+from datetime import timedelta
+
+from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
+from django.db import transaction
+from django.http import JsonResponse
+from django.urls import reverse
+from django.views.decorators.http import require_POST
+
+from .models import PlanRequest
+
+
+def solicitar_plan(request):
+    """Formulario publico de solicitud de cuenta (desde /planes/)."""
+    if request.method != 'POST':
+        return redirect('public_plans')
+    plan = SubscriptionPlan.objects.filter(
+        pk=request.POST.get('plan_id'), is_active=True
+    ).first()
+    if not plan:
+        return redirect('/planes/?error=plan')
+    fields = {k: (request.POST.get(k) or '').strip()
+              for k in ('first_name', 'last_name', 'email', 'phone',
+                        'company_name', 'cuit', 'message')}
+    if not (fields['first_name'] and fields['email']
+            and fields['company_name'] and fields['phone']):
+        return redirect('/planes/?error=datos')
+    PlanRequest.objects.create(plan=plan, **fields)
+    return redirect('/planes/?solicitado=1')
+
+
+def _superuser_required(request):
+    return request.user.is_authenticated and request.user.is_superuser
+
+
+def _unique_username(User, base):
+    base = re.sub(r'[^a-zA-Z0-9_.-]', '',
+                  (base or 'usuario').split('@')[0].lower()) or 'usuario'
+    username, n = base, 0
+    while User.objects.filter(username=username).exists():
+        n += 1
+        username = f'{base}{n}'
+    return username
+
+
+def _billing_mp_config():
+    """Config MP de la plataforma para cobrar suscripciones
+    (la plata va a la cuenta del servicio, no a la del cliente).
+    Configurable con settings.SUBSCRIPTION_BILLING_COMPANY_ID."""
+    from core.erp.models import MercadoPagoConfig
+    qs = MercadoPagoConfig.objects.filter(enabled=True).exclude(access_token='')
+    cid = getattr(settings, 'SUBSCRIPTION_BILLING_COMPANY_ID', None)
+    if cid:
+        cfg = qs.filter(company_id=cid).first()
+        if cfg:
+            return cfg
+    return qs.order_by('company_id').first()
+
+
+class PlanRequestListView(SuperuserRequiredMixin, ListView):
+    """Solicitudes de alta recibidas desde la pagina publica de planes."""
+    template_name = 'subscriptions/requests.html'
+    context_object_name = 'requests'
+
+    def get_queryset(self):
+        return PlanRequest.objects.select_related('plan', 'company').all()
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['title'] = 'Solicitudes de alta'
+        ctx['entity'] = 'Solicitudes'
+        return ctx
+
+
+@require_POST
+def plan_request_approve(request, pk):
+    """Aprueba la solicitud: crea empresa + usuario + suscripcion.
+    Devuelve las credenciales generadas para enviar al cliente."""
+    if not _superuser_required(request):
+        return JsonResponse({'error': 'Sin permisos'}, status=403)
+    req = get_object_or_404(PlanRequest, pk=pk)
+    if req.status == 'approved':
+        return JsonResponse({'error': 'La solicitud ya fue aprobada'}, status=400)
+    if req.status == 'rejected':
+        return JsonResponse({'error': 'La solicitud fue rechazada'}, status=400)
+    User = get_user_model()
+    with transaction.atomic():
+        company = Company.objects.create(
+            name=req.company_name, cuit=req.cuit or None,
+            phone=req.phone, email=req.email,
+        )
+        username = _unique_username(User, req.email or req.company_name)
+        password = secrets.token_urlsafe(6)
+        user = User.objects.create_user(
+            username=username, email=req.email, password=password,
+            first_name=req.first_name, last_name=req.last_name,
+            company=company,
+        )
+        group = Group.objects.filter(name='admin_empresa').first()
+        if group:
+            user.groups.add(group)
+        today = timezone.localdate()
+        sub = Subscription.objects.create(
+            company=company, plan=req.plan,
+            start_date=today,
+            end_date=today + timedelta(days=req.plan.duration_days),
+            status='active',
+        )
+        req.status = 'approved'
+        req.company = company
+        req.user = user
+        req.save(update_fields=['status', 'company', 'user', 'updated_at'])
+    return JsonResponse({
+        'success': True, 'username': username, 'password': password,
+        'company': company.name, 'vence': sub.end_date.strftime('%d/%m/%Y'),
+    })
+
+
+@require_POST
+def plan_request_pay_link(request, pk):
+    """Genera el link de pago MP del primer periodo (cuenta de la plataforma)."""
+    if not _superuser_required(request):
+        return JsonResponse({'error': 'Sin permisos'}, status=403)
+    req = get_object_or_404(PlanRequest, pk=pk)
+    if req.payment_link_url and req.payment_status == 'pending':
+        return JsonResponse({'success': True, 'url': req.payment_link_url, 'reused': True})
+    cfg = _billing_mp_config()
+    if not cfg:
+        return JsonResponse({
+            'error': 'No hay cuenta MP de facturacion configurada. Habilite una config '
+                     'MP o defina settings.SUBSCRIPTION_BILLING_COMPANY_ID'
+        }, status=400)
+    from core.erp import mp_qr as mp_svc
+    try:
+        pref = mp_svc.create_preference(
+            cfg, total=req.plan.price,
+            title=f'Suscripcion {req.plan.name} - {req.company_name}',
+            external_reference=req.external_reference,
+            notification_url=request.build_absolute_uri(reverse('erp:mp_webhook')),
+            back_url=request.build_absolute_uri(reverse('erp:mp_payment_result')),
+            expiration_hours=168,
+        )
+    except mp_svc.MpQrError as e:
+        return JsonResponse({'error': str(e)}, status=502)
+    req.preference_id = str(pref.get('id') or '')
+    req.payment_link_url = pref.get('init_point') or ''
+    req.save(update_fields=['preference_id', 'payment_link_url', 'updated_at'])
+    return JsonResponse({'success': True, 'url': req.payment_link_url})
+
+
+@require_POST
+def plan_request_pay_status(request, pk):
+    """Verificacion manual del pago (respaldo del webhook)."""
+    if not _superuser_required(request):
+        return JsonResponse({'error': 'Sin permisos'}, status=403)
+    req = get_object_or_404(PlanRequest, pk=pk)
+    if req.payment_status == 'pending' and req.external_reference:
+        cfg = _billing_mp_config()
+        if cfg:
+            from core.erp import mp_qr as mp_svc
+            pay = mp_svc.get_payment_by_ref(cfg, req.external_reference)
+            if pay and pay.get('status') == 'approved':
+                req.payment_status = 'paid'
+                req.payment_id = str(pay.get('id') or '')
+                req.paid_at = timezone.now()
+                req.save(update_fields=['payment_status', 'payment_id', 'paid_at'])
+    return JsonResponse({'status': req.payment_status, 'paid': req.payment_status == 'paid'})
+
+
+@require_POST
+def plan_request_reject(request, pk):
+    if not _superuser_required(request):
+        return JsonResponse({'error': 'Sin permisos'}, status=403)
+    req = get_object_or_404(PlanRequest, pk=pk)
+    req.status = 'rejected'
+    req.save(update_fields=['status', 'updated_at'])
+    return JsonResponse({'success': True})

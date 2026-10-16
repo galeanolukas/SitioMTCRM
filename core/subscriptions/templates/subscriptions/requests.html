@@ -1,0 +1,190 @@
+{% extends 'base/list.html' %}
+{% load currency_filters %}
+
+{% block columns %}
+  <tr>
+    <th>Fecha</th>
+    <th>Empresa</th>
+    <th>Solicitante</th>
+    <th>Contacto</th>
+    <th>Plan</th>
+    <th>Estado</th>
+    <th>Pago</th>
+    <th style="width: 30%;">Acciones</th>
+  </tr>
+{% endblock %}
+
+{% block rows %}
+  {% for req in requests %}
+  <tr data-req-id="{{ req.id }}" data-phone="{{ req.phone }}" data-company="{{ req.company_name }}" data-plan="{{ req.plan.name }}" data-price="{{ req.plan.price }}">
+    <td>{{ req.created_at|date:"d/m/Y H:i" }}</td>
+    <td>
+      <strong>{{ req.company_name }}</strong>
+      {% if req.cuit %}<br><small class="text-muted">CUIT: {{ req.cuit }}</small>{% endif %}
+    </td>
+    <td>{{ req.first_name }} {{ req.last_name }}</td>
+    <td>
+      {{ req.email }}<br>
+      <small class="text-muted">{{ req.phone }}</small>
+      {% if req.message %}<br><small class="text-muted" title="{{ req.message }}"><i class="fas fa-comment"></i> {{ req.message|truncatechars:30 }}</small>{% endif %}
+    </td>
+    <td>{{ req.plan.name }}<br><small class="text-muted">{{ req.plan.price|currency }} / {{ req.plan.duration_days }}d</small></td>
+    <td>
+      {% if req.status == 'pending' %}<span class="badge badge-warning">Pendiente</span>
+      {% elif req.status == 'approved' %}<span class="badge badge-success">Aprobada</span>
+      {% else %}<span class="badge badge-dark">Rechazada</span>{% endif %}
+      {% if req.company %}<br><small class="text-muted">→ {{ req.company.name }}</small>{% endif %}
+    </td>
+    <td class="pay-cell">
+      {% if req.payment_status == 'paid' %}
+        <span class="badge badge-success">Pagado</span>
+      {% elif req.payment_link_url %}
+        <span class="badge badge-warning">Esperando pago</span>
+      {% else %}
+        <span class="text-muted">—</span>
+      {% endif %}
+    </td>
+    <td>
+      {% if req.status == 'pending' %}
+        <button type="button" class="btn btn-sm btn-success btn-approve" data-id="{{ req.id }}" title="Crear empresa + usuario + suscripción">
+          <i class="fas fa-check"></i> Aprobar
+        </button>
+      {% endif %}
+      {% if req.status != 'rejected' %}
+        {% if req.payment_status != 'paid' %}
+        <button type="button" class="btn btn-sm btn-info btn-paylink" data-id="{{ req.id }}" title="Generar link de pago MP">
+          <i class="fas fa-link"></i> Link MP
+        </button>
+        {% endif %}
+        <button type="button" class="btn btn-sm btn-outline-success btn-sendwa d-none" data-id="{{ req.id }}" title="Enviar datos por WhatsApp">
+          <i class="fab fa-whatsapp"></i>
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-primary btn-checkpay {% if not req.payment_link_url %}d-none{% endif %}" data-id="{{ req.id }}" title="Verificar pago">
+          <i class="fas fa-sync-alt"></i>
+        </button>
+      {% endif %}
+      {% if req.status == 'pending' %}
+        <button type="button" class="btn btn-sm btn-outline-danger btn-reject" data-id="{{ req.id }}">
+          <i class="fas fa-times"></i>
+        </button>
+      {% endif %}
+      {% if req.payment_link_url %}
+        <div class="small mt-1 pay-url-box">
+          <input type="text" class="form-control form-control-sm pay-url" value="{{ req.payment_link_url }}" readonly onclick="this.select()">
+        </div>
+      {% endif %}
+    </td>
+  </tr>
+  {% empty %}
+  <tr><td colspan="8" class="text-center text-muted">No hay solicitudes.</td></tr>
+  {% endfor %}
+{% endblock %}
+
+{% block javascript %}
+<script>
+function csrfToken() {
+  var m = document.cookie.match(/csrftoken=([^;]+)/);
+  return m ? m[1] : '';
+}
+function post(url) {
+  return fetch(url, {method: 'POST', headers: {'X-CSRFToken': csrfToken()}}).then(r => r.json());
+}
+
+// Aprobar: crea empresa + usuario + suscripcion, muestra credenciales
+document.querySelectorAll('.btn-approve').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    if (!confirm('Crear empresa, usuario y suscripción para esta solicitud?')) return;
+    btn.disabled = true;
+    post('/subscriptions/requests/' + btn.dataset.id + '/approve/').then(function(d) {
+      if (d.success) {
+        var row = btn.closest('tr');
+        row.dataset.creds = 'Usuario: ' + d.username + ' - Clave temporal: ' + d.password;
+        // Badge aprobada + credenciales visibles para copiar
+        var statusCell = row.querySelectorAll('td')[5];
+        statusCell.innerHTML = '<span class="badge badge-success">Aprobada</span>' +
+          '<br><small class="text-muted">→ ' + d.company + '</small>' +
+          '<br><small class="text-success fw-bold">User: ' + d.username + ' / Clave: ' + d.password + '</small>';
+        var rejectBtn = row.querySelector('.btn-reject');
+        if (rejectBtn) rejectBtn.remove();
+        row.querySelector('.btn-sendwa').classList.remove('d-none');
+        btn.remove();
+      } else {
+        alert('Error: ' + (d.error || 'desconocido'));
+        btn.disabled = false;
+      }
+    });
+  });
+});
+
+// Generar link de pago MP
+document.querySelectorAll('.btn-paylink').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    post('/subscriptions/requests/' + btn.dataset.id + '/pay-link/').then(function(d) {
+      if (d.success) {
+        var td = btn.closest('td');
+        if (!td.querySelector('.pay-url-box')) {
+          var div = document.createElement('div');
+          div.className = 'small mt-1 pay-url-box';
+          div.innerHTML = '<input type="text" class="form-control form-control-sm pay-url" readonly onclick="this.select()">';
+          td.appendChild(div);
+        }
+        td.querySelector('.pay-url').value = d.url;
+        td.querySelector('.btn-checkpay').classList.remove('d-none');
+        td.querySelector('.btn-sendwa').classList.remove('d-none');
+        td.closest('tr').querySelector('.pay-cell').innerHTML = '<span class="badge badge-warning">Esperando pago</span>';
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-link"></i> Link MP';
+      } else {
+        alert('Error: ' + (d.error || 'desconocido'));
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-link"></i> Link MP';
+      }
+    });
+  });
+});
+
+// Verificar pago
+document.querySelectorAll('.btn-checkpay').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    btn.disabled = true;
+    post('/subscriptions/requests/' + btn.dataset.id + '/pay-status/').then(function(d) {
+      var cell = btn.closest('tr').querySelector('.pay-cell');
+      if (d.status === 'paid') {
+        cell.innerHTML = '<span class="badge badge-success">Pagado</span>';
+        alert('Pago acreditado en Mercado Pago.');
+      } else {
+        alert('El pago aún no se acreditó.');
+      }
+      btn.disabled = false;
+    });
+  });
+});
+
+// Rechazar
+document.querySelectorAll('.btn-reject').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    if (!confirm('Rechazar esta solicitud?')) return;
+    post('/subscriptions/requests/' + btn.dataset.id + '/reject/').then(function() {
+      location.reload();
+    });
+  });
+});
+
+// Enviar datos por WhatsApp (abre selector de contacto de WhatsApp)
+document.querySelectorAll('.btn-sendwa').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var row = btn.closest('tr');
+    var payUrl = row.querySelector('.pay-url');
+    var creds = row.dataset.creds || '';
+    var text = 'Alta de cuenta - ' + row.dataset.company + '\n' +
+               'Plan: ' + row.dataset.plan + ' ($' + row.dataset.price + ')\n';
+    if (creds) text += creds + '\n';
+    if (payUrl && payUrl.value) text += '\nLink de pago del primer período:\n' + payUrl.value + '\n';
+    text += '\nIngresá en: ' + location.origin + '/login/';
+    window.open('https://wa.me/?text=' + encodeURIComponent(text), 'whatsapp_web');
+  });
+});
+</script>
+{% endblock %}

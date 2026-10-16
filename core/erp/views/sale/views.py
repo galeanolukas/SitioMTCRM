@@ -3321,7 +3321,9 @@ def _mark_link_paid_by_payment(link, pay):
 
 def _mp_confirm_payment_link(payment_id):
     """Webhook: busca el pago con el token de cada empresa configurada
-    (el webhook no dice de que empresa es) y marca el link como pagado."""
+    (el webhook no dice de que empresa es) y marca el link como pagado.
+    Cubre links de presupuestos (PaymentLink) y de solicitudes de alta
+    de suscripcion (PlanRequest)."""
     for cfg in MercadoPagoConfig.objects.filter(enabled=True).exclude(access_token=''):
         pay = mp_qr_svc.get_payment(cfg, payment_id)
         if not pay:
@@ -3330,6 +3332,17 @@ def _mp_confirm_payment_link(payment_id):
         link = PaymentLink.objects.filter(external_reference=ext_ref).first()
         if link:
             _mark_link_paid_by_payment(link, pay)
+            return
+        try:
+            from core.subscriptions.models import PlanRequest
+            req = PlanRequest.objects.filter(external_reference=ext_ref).first()
+            if req and pay.get('status') == 'approved' and req.payment_status != 'paid':
+                req.payment_status = 'paid'
+                req.payment_id = str(pay.get('id') or '')
+                req.paid_at = timezone.now()
+                req.save(update_fields=['payment_status', 'payment_id', 'paid_at'])
+        except Exception as e:
+            logger.warning('mp_webhook PlanRequest error: %s', e)
         return
 
 

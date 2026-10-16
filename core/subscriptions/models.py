@@ -141,3 +141,60 @@ class SubscriptionPayment(models.Model):
 
     def __str__(self):
         return f'{self.subscription.company.name} - ${self.amount} ({self.paid_at})'
+
+
+class PlanRequest(models.Model):
+    """Solicitud pública de alta de cuenta desde /planes/.
+
+    El admin la aprueba (crea empresa+usuario+suscripción) y le envía
+    el link de pago del primer período por WhatsApp o email."""
+    STATUS_CHOICES = (
+        ('pending', 'Pendiente'),
+        ('approved', 'Aprobada'),
+        ('rejected', 'Rechazada'),
+    )
+
+    plan = models.ForeignKey(
+        SubscriptionPlan, on_delete=models.PROTECT,
+        related_name='requests', verbose_name='Plan'
+    )
+    first_name = models.CharField(max_length=100, verbose_name='Nombre')
+    last_name = models.CharField(max_length=100, blank=True, verbose_name='Apellido')
+    email = models.EmailField(verbose_name='Email')
+    phone = models.CharField(max_length=30, verbose_name='Teléfono / WhatsApp')
+    company_name = models.CharField(max_length=150, verbose_name='Empresa')
+    cuit = models.CharField(max_length=20, blank=True, verbose_name='CUIT')
+    message = models.TextField(blank=True, verbose_name='Mensaje')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', verbose_name='Estado')
+    # Datos generados al aprobar
+    company = models.ForeignKey(
+        'erp.Company', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='plan_requests', verbose_name='Empresa creada'
+    )
+    user = models.ForeignKey(
+        'user.User', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='plan_requests', verbose_name='Usuario creado'
+    )
+    # Pago del primer período (link MP de la cuenta de facturación de la plataforma)
+    external_reference = models.CharField(max_length=64, unique=True, blank=True, verbose_name='Referencia pago')
+    preference_id = models.CharField(max_length=64, blank=True, verbose_name='Preference ID MP')
+    payment_link_url = models.URLField(blank=True, verbose_name='Link de pago')
+    payment_id = models.CharField(max_length=50, blank=True, verbose_name='ID de pago MP')
+    payment_status = models.CharField(max_length=20, default='pending', verbose_name='Estado del pago')
+    paid_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Solicitud de plan'
+        verbose_name_plural = 'Solicitudes de planes'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.company_name} - {self.plan.name} ({self.get_status_display()})'
+
+    def save(self, *args, **kwargs):
+        if not self.external_reference:
+            import uuid
+            self.external_reference = f'subsreq-{uuid.uuid4().hex[:16]}'
+        super().save(*args, **kwargs)
