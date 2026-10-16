@@ -56,7 +56,7 @@
           <i class="fas fa-link"></i> Link MP
         </button>
         {% endif %}
-        <button type="button" class="btn btn-sm btn-outline-success btn-sendwa d-none" data-id="{{ req.id }}" title="Enviar datos por WhatsApp">
+        <button type="button" class="btn btn-sm btn-outline-success btn-sendwa" data-id="{{ req.id }}" title="Enviar datos + link de pago por WhatsApp">
           <i class="fab fa-whatsapp"></i>
         </button>
         <button type="button" class="btn btn-sm btn-outline-primary btn-checkpay {% if not req.payment_link_url %}d-none{% endif %}" data-id="{{ req.id }}" title="Verificar pago">
@@ -116,31 +116,37 @@ document.querySelectorAll('.btn-approve').forEach(function(btn) {
   });
 });
 
-// Generar link de pago MP
+// Generar (o reutilizar) el link de pago MP de una solicitud.
+// Devuelve Promise<string> con la URL, o null si falló.
+function ensurePayLink(row) {
+  var input = row.querySelector('.pay-url');
+  if (input && input.value) return Promise.resolve(input.value);
+  var id = row.dataset.reqId;
+  return post('/subscriptions/requests/' + id + '/pay-link/').then(function(d) {
+    if (!d.success) { alert('Error link MP: ' + (d.error || 'desconocido')); return null; }
+    var td = row.querySelector('.acciones-cell') || row.querySelector('td:last-child');
+    if (!td.querySelector('.pay-url-box')) {
+      var div = document.createElement('div');
+      div.className = 'small mt-1 pay-url-box';
+      div.innerHTML = '<input type="text" class="form-control form-control-sm pay-url" readonly onclick="this.select()">';
+      td.appendChild(div);
+    }
+    td.querySelector('.pay-url').value = d.url;
+    var checkBtn = td.querySelector('.btn-checkpay');
+    if (checkBtn) checkBtn.classList.remove('d-none');
+    row.querySelector('.pay-cell').innerHTML = '<span class="badge badge-warning">Esperando pago</span>';
+    return d.url;
+  });
+}
+
+// Generar link de pago MP (botón manual)
 document.querySelectorAll('.btn-paylink').forEach(function(btn) {
   btn.addEventListener('click', function() {
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-    post('/subscriptions/requests/' + btn.dataset.id + '/pay-link/').then(function(d) {
-      if (d.success) {
-        var td = btn.closest('td');
-        if (!td.querySelector('.pay-url-box')) {
-          var div = document.createElement('div');
-          div.className = 'small mt-1 pay-url-box';
-          div.innerHTML = '<input type="text" class="form-control form-control-sm pay-url" readonly onclick="this.select()">';
-          td.appendChild(div);
-        }
-        td.querySelector('.pay-url').value = d.url;
-        td.querySelector('.btn-checkpay').classList.remove('d-none');
-        td.querySelector('.btn-sendwa').classList.remove('d-none');
-        td.closest('tr').querySelector('.pay-cell').innerHTML = '<span class="badge badge-warning">Esperando pago</span>';
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-link"></i> Link MP';
-      } else {
-        alert('Error: ' + (d.error || 'desconocido'));
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-link"></i> Link MP';
-      }
+    ensurePayLink(btn.closest('tr')).finally(function() {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-link"></i> Link MP';
     });
   });
 });
@@ -172,18 +178,24 @@ document.querySelectorAll('.btn-reject').forEach(function(btn) {
   });
 });
 
-// Enviar datos por WhatsApp (abre selector de contacto de WhatsApp)
+// Enviar datos por WhatsApp (abre selector de contacto de WhatsApp).
+// Si no hay link de pago, lo genera primero.
 document.querySelectorAll('.btn-sendwa').forEach(function(btn) {
   btn.addEventListener('click', function() {
     var row = btn.closest('tr');
-    var payUrl = row.querySelector('.pay-url');
-    var creds = row.dataset.creds || '';
-    var text = 'Alta de cuenta - ' + row.dataset.company + '\n' +
-               'Plan: ' + row.dataset.plan + ' ($' + row.dataset.price + ')\n';
-    if (creds) text += creds + '\n';
-    if (payUrl && payUrl.value) text += '\nLink de pago del primer período:\n' + payUrl.value + '\n';
-    text += '\nIngresá en: ' + location.origin + '/login/';
-    window.open('https://wa.me/?text=' + encodeURIComponent(text), 'whatsapp_web');
+    btn.disabled = true;
+    var isPaid = row.querySelector('.pay-cell .badge-success') !== null;
+    var ready = isPaid ? Promise.resolve(null) : ensurePayLink(row);
+    ready.then(function(url) {
+      btn.disabled = false;
+      var creds = row.dataset.creds || '';
+      var text = 'Alta de cuenta - ' + row.dataset.company + '\n' +
+                 'Plan: ' + row.dataset.plan + ' ($' + row.dataset.price + ')\n';
+      if (creds) text += creds + '\n';
+      if (url) text += '\nLink de pago del primer período:\n' + url + '\n';
+      text += '\nIngresá en: ' + location.origin + '/login/';
+      window.open('https://wa.me/?text=' + encodeURIComponent(text), 'whatsapp_web');
+    });
   });
 });
 </script>
