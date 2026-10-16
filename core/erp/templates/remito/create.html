@@ -65,7 +65,7 @@
             <div class="form-group">
               <label>IVA (%)</label>
               {{ form.iva_porcentaje }}
-              <small class="text-muted">Ej: 21, 10.5, 27. Dejar 0 si no lleva IVA.</small>
+              <small class="text-muted">Dejar 0 si no lleva IVA. Cada producto tributa con su propia alícuota (este % es solo el default si un producto no tiene tasa cargada).</small>
             </div>
           </div>
         </div>
@@ -177,7 +177,7 @@
       document.getElementById('tfootIva').style.display = display;
       document.getElementById('thTotalCol').style.display = display;
       const ivaLabel = document.getElementById('ivaLabel');
-      if (ivaLabel) ivaLabel.textContent = 'IVA (' + (ivaRate * 100) + '%):';
+      if (ivaLabel) ivaLabel.textContent = 'IVA:';
       renderDetalles();
     }
 
@@ -261,7 +261,8 @@
                 id: prod.id,
                 text: prod.name + ' - $' + prod.pvp_final,
                 price: prod.pvp_final,
-                cost_price: prod.cost_price
+                cost_price: prod.cost_price,
+                iva_rate: prod.iva_rate
               };
             })
           };
@@ -317,13 +318,25 @@
     const producto = document.getElementById('productSelect').options[document.getElementById('productSelect').selectedIndex];
     const subtotal = cantidad * precioUnitario;
 
+    // Alicuota propia del producto (select2 data o data-attr si fue creado en el modal)
+    let prodIvaRate = null;
+    const selData = $('#productSelect').select2('data');
+    if (selData && selData.length && selData[0].iva_rate !== undefined && selData[0].iva_rate !== null) {
+      prodIvaRate = parseFloat(selData[0].iva_rate);
+      if (prodIvaRate > 1) prodIvaRate = prodIvaRate / 100;
+    } else {
+      const attrRate = parseFloat($(producto).data('iva_rate'));
+      if (!isNaN(attrRate)) prodIvaRate = attrRate > 1 ? attrRate / 100 : attrRate;
+    }
+
     const detalle = {
       temp_id: Date.now(),
       prod_id: productId,
       prod_name: producto.textContent,
       cantidad: cantidad,
       precio_unitario: precioUnitario,
-      subtotal: subtotal
+      subtotal: subtotal,
+      iva_rate: prodIvaRate
     };
 
     detalles.push(detalle);
@@ -344,12 +357,15 @@
     detalles.forEach((det, index) => {
       let neto = det.subtotal;
       let iva = 0;
+      // Alicuota propia del producto; si no tiene, la del remito
+      const lineRate = (det.iva_rate != null && !isNaN(det.iva_rate)) ? det.iva_rate : ivaRate;
+      const lineRateLabel = parseFloat((lineRate * 100).toFixed(4));
       if (hasIva) {
         if (ivaModo === 'agregado') {
           neto = det.subtotal;
-          iva = det.subtotal * ivaRate;
+          iva = det.subtotal * lineRate;
         } else {
-          neto = det.subtotal / (1 + ivaRate);
+          neto = det.subtotal / (1 + lineRate);
           iva = det.subtotal - neto;
         }
         totalNeto += neto;
@@ -357,7 +373,7 @@
       }
       total += neto + iva;
       const ivaCols = hasIva ? `
-        <td>$${iva.toFixed(2)}</td>
+        <td>$${iva.toFixed(2)} <small class="text-muted">(${lineRateLabel}%)</small></td>
         <td>$${neto.toFixed(2)}</td>
       ` : '';
       const row = `
@@ -511,6 +527,7 @@
       if (data.id) {
         // Agregar producto al select y seleccionarlo
         const option = new Option(data.name + ' - $' + data.pvp_final, data.id, true, true);
+        $(option).data('iva_rate', data.iva_rate);
         $('#productSelect').append(option).trigger('change');
         document.getElementById('precioUnitario').value = data.cost_price || precioCosto;
         $('#modalNuevoProducto').modal('hide');

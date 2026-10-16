@@ -88,11 +88,12 @@
                 <th>IVA:</th>
                 <td>
                   {% if object.iva_porcentaje and object.iva_porcentaje > 0 %}
-                    {% if object.iva_modo == 'agregado' %}
-                      <span class="badge bg-info">IVA {{ object.iva_porcentaje }}% adicional</span>
-                    {% else %}
-                      <span class="badge bg-info">IVA {{ object.iva_porcentaje }}% incluido</span>
-                    {% endif %}
+                    <span class="badge bg-info">
+                      IVA{% if iva_breakdown %}
+                        ({% for b in iva_breakdown %}{{ b.rate }}%{% if not forloop.last %} + {% endif %}{% endfor %})
+                      {% else %} {{ object.iva_porcentaje }}%{% endif %}
+                      {% if object.iva_modo == 'agregado' %}adicional{% else %}incluido{% endif %}
+                    </span>
                   {% else %}
                     <span class="badge bg-secondary">Sin IVA</span>
                   {% endif %}
@@ -139,7 +140,7 @@
               <th>Precio Unitario</th>
               <th>Subtotal</th>
               {% if object.iva_porcentaje and object.iva_porcentaje > 0 %}
-              <th>IVA ({{ object.iva_porcentaje }}%)</th>
+              <th>IVA</th>
               <th>Neto</th>
               {% endif %}
             </tr>
@@ -152,7 +153,7 @@
               <td>${{ detalle.precio_unitario|floatformat:2 }}</td>
               <td>${{ detalle.subtotal|floatformat:2 }}</td>
               {% if object.iva_porcentaje and object.iva_porcentaje > 0 %}
-              <td>${{ detalle.iva_monto|floatformat:2 }}</td>
+              <td>${{ detalle.iva_monto|floatformat:2 }} <small class="text-muted">({{ detalle.line_iva_label }}%)</small></td>
               <td>${{ detalle.neto|floatformat:2 }}</td>
               {% endif %}
             </tr>
@@ -168,10 +169,18 @@
               <th colspan="4" class="text-end">Neto:</th>
               <th colspan="2">${{ total_neto|floatformat:2 }}</th>
             </tr>
+            {% for b in iva_breakdown %}
             <tr>
-              <th colspan="4" class="text-end">IVA ({{ object.iva_porcentaje }}%):</th>
+              <th colspan="4" class="text-end">IVA {{ b.rate }}% (sobre ${{ b.neto|floatformat:2 }}):</th>
+              <th colspan="2">${{ b.iva|floatformat:2 }}</th>
+            </tr>
+            {% endfor %}
+            {% if iva_breakdown|length > 1 %}
+            <tr>
+              <th colspan="4" class="text-end">IVA total:</th>
               <th colspan="2">${{ total_iva|floatformat:2 }}</th>
             </tr>
+            {% endif %}
             {% endif %}
             <tr>
               <th colspan="3" class="text-end">Total:</th>

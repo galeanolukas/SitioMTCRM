@@ -17,6 +17,18 @@ import math
 logger = logging.getLogger(__name__)
 
 
+def _line_iva_rate(remito, prod):
+    """Alicuota de IVA de una linea como fraccion (0.21, 0.105...).
+    Usa la tasa propia del producto; si no hay producto o tasa,
+    cae al % declarado en el remito."""
+    rate = getattr(prod, 'iva_rate', None) if prod else None
+    if rate is None:
+        rate = (remito.iva_porcentaje or Decimal('0')) / Decimal('100')
+    if rate and rate > Decimal('1'):   # valores legacy guardados en %
+        rate = rate / Decimal('100')
+    return rate or Decimal('0')
+
+
 class RemitoListView(LoginRequiredMixin, PermissionRequiredMixin, ListView):
     model = Remito
     template_name = 'remito/list.html'
@@ -140,29 +152,45 @@ class RemitoDetailView(LoginRequiredMixin, PermissionRequiredMixin, DetailView):
         subtotal_lineas = sum(d.subtotal for d in detalles)
         context['total'] = subtotal_lineas
         if self.object.iva_porcentaje and self.object.iva_porcentaje > 0:
+            # IVA por linea: cada producto tributa con su propia alicuota
+            for d in detalles:
+                d.line_iva_rate = _line_iva_rate(self.object, d.prod)
+                d.line_iva_label = '%g' % float(d.line_iva_rate * 100)
             if getattr(self.object, 'iva_modo', 'incluido') == 'agregado':
-                # Precios netos: el IVA se suma sobre el subtotal
-                iva_rate = self.object.iva_porcentaje / Decimal('100')
+                # Precios netos: el IVA se suma sobre el subtotal por alicuota
                 for d in detalles:
                     d.neto = d.subtotal
-                    d.iva_monto = (d.subtotal * iva_rate).quantize(Decimal('0.01'))
-                # Liquidar IVA sobre el neto total (como AFIP) y repartir
-                # la diferencia de redondeo en la última línea
-                total_iva = (subtotal_lineas * iva_rate).quantize(Decimal('0.01'))
-                diff = total_iva - sum(d.iva_monto for d in detalles)
-                if detalles and diff:
-                    detalles[-1].iva_monto += diff
+                    d.iva_monto = (d.subtotal * d.line_iva_rate).quantize(Decimal('0.01'))
+                # Liquidar IVA por grupo (como AFIP) y repartir la diferencia
+                # de redondeo en la ultima linea de cada alicuota
+                groups = {}
+                for d in detalles:
+                    groups.setdefault(d.line_iva_rate, []).append(d)
+                for rate, lines in groups.items():
+                    iva_grupo = (sum(d.subtotal for d in lines) * rate).quantize(Decimal('0.01'))
+                    diff = iva_grupo - sum(d.iva_monto for d in lines)
+                    if diff:
+                        lines[-1].iva_monto += diff
                 context['total_neto'] = subtotal_lineas
-                context['total_iva'] = total_iva
+                context['total_iva'] = sum(d.iva_monto for d in detalles)
                 context['total'] = context['total_neto'] + context['total_iva']
             else:
-                # Precios con IVA incluido: se extrae del subtotal
-                iva_divisor = Decimal('1') + (self.object.iva_porcentaje / Decimal('100'))
+                # Precios con IVA incluido: se extrae con la tasa de cada linea
                 for d in detalles:
-                    d.neto = (d.subtotal / iva_divisor).quantize(Decimal('0.01'))
+                    d.neto = (d.subtotal / (Decimal('1') + d.line_iva_rate)).quantize(Decimal('0.01'))
                     d.iva_monto = d.subtotal - d.neto
                 context['total_neto'] = sum(d.neto for d in detalles)
                 context['total_iva'] = sum(d.iva_monto for d in detalles)
+            # Desglose por alicuota para el footer
+            breakdown = {}
+            for d in detalles:
+                b = breakdown.setdefault(d.line_iva_rate, {'neto': Decimal('0'), 'iva': Decimal('0')})
+                b['neto'] += d.neto
+                b['iva'] += d.iva_monto
+            context['iva_breakdown'] = [
+                {'rate': '%g' % float(rate * 100), 'neto': b['neto'], 'iva': b['iva']}
+                for rate, b in sorted(breakdown.items(), key=lambda x: x[0], reverse=True)
+            ]
         context['detalles'] = detalles
         # Datos para el modal de ajuste de margen/precio de venta
         productos_margen = []
@@ -249,9 +277,10 @@ def procesar_remito(request, pk):
 
     try:
         with transaction.atomic():
-            iva_divisor = Decimal('1')
-            if remito.iva_porcentaje and remito.iva_porcentaje > 0 and getattr(remito, 'iva_modo', 'incluido') != 'agregado':
-                iva_divisor = Decimal('1') + (remito.iva_porcentaje / Decimal('100'))
+            iva_incluido = (
+                remito.iva_porcentaje and remito.iva_porcentaje > 0
+                and getattr(remito, 'iva_modo', 'incluido') != 'agregado'
+            )
             for detalle in remito.detalleremito_set.all():
                 # Usar select_for_update para evitar race conditions
                 producto = Product.objects.select_for_update().get(pk=detalle.prod_id)
@@ -259,8 +288,10 @@ def procesar_remito(request, pk):
                     # Entrada: sumar stock
                     producto.stock += detalle.cantidad
                     # Actualizar costo con el precio neto del remito (sin IVA)
+                    # Extraccion por linea: cada producto usa su propia alicuota
                     # y recalcular precio de venta segun el margen del producto
                     if detalle.precio_unitario and detalle.precio_unitario > 0:
+                        iva_divisor = (Decimal('1') + _line_iva_rate(remito, producto)) if iva_incluido else Decimal('1')
                         nuevo_costo = (detalle.precio_unitario / iva_divisor).quantize(Decimal('0.01'))
                         if nuevo_costo != producto.cost_price:
                             producto.cost_price = nuevo_costo
@@ -514,10 +545,10 @@ def facturar_remito(request, pk):
 
     detalles = list(remito.detalleremito_set.select_related('prod').all())
     if remito.iva_porcentaje and remito.iva_porcentaje > 0 and getattr(remito, 'iva_modo', 'incluido') != 'agregado':
-        iva_divisor = Decimal('1') + (remito.iva_porcentaje / Decimal('100'))
-        neto_remito = sum(d.subtotal / iva_divisor for d in detalles)
+        neto_remito = Decimal('0')
         for d in detalles:
-            d.neto = (d.subtotal / iva_divisor).quantize(Decimal('0.01'))
+            d.neto = (d.subtotal / (Decimal('1') + _line_iva_rate(remito, d.prod))).quantize(Decimal('0.01'))
+            neto_remito += d.neto
     else:
         # Sin IVA o modo 'agregado': los precios ya son netos
         neto_remito = sum(d.subtotal for d in detalles)
@@ -581,8 +612,10 @@ def facturar_remito(request, pk):
                     and getattr(remito, 'iva_modo', 'incluido') != 'agregado'
                 )
                 if iva_incluido:
-                    iva_divisor = Decimal('1') + (remito.iva_porcentaje / Decimal('100'))
-                    neto_remito = sum(d.subtotal / iva_divisor for d in detalles)
+                    neto_remito = sum(
+                        d.subtotal / (Decimal('1') + _line_iva_rate(remito, d.prod))
+                        for d in detalles
+                    )
                 else:
                     neto_remito = sum(d.subtotal for d in detalles)
                 if neto_gravado > 0 and neto_remito > 0 and neto_gravado != neto_remito:
@@ -590,7 +623,7 @@ def facturar_remito(request, pk):
                     for detalle in detalles:
                         if detalle.prod:
                             if iva_incluido:
-                                precio_neto = detalle.precio_unitario / iva_divisor
+                                precio_neto = detalle.precio_unitario / (Decimal('1') + _line_iva_rate(remito, detalle.prod))
                             else:
                                 precio_neto = detalle.precio_unitario
                             nuevo_costo = (precio_neto * factor).quantize(Decimal('0.01'))

@@ -388,6 +388,7 @@ class ProductCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Com
                              'pvp': str(product.pvp),
                              'pvp_final': str(product.pvp_final),
                              'cost_price': str(product.cost_price),
+                             'iva_rate': str(product.iva_rate),
                          }
                      else:
                          data = {'error': 'Formulario inválido', 'errors': form.errors}
