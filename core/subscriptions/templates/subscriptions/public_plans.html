@@ -33,7 +33,7 @@
     box-shadow: 0 18px 40px rgba(0,0,0,.14);
   }
   .plan-card .plan-head {
-    padding: 1.5rem 1.25rem 1.1rem;
+    padding: 1.4rem 1.25rem 1rem;
     text-align: center;
     border-bottom: 1px solid #f1f3f5;
   }
@@ -75,7 +75,7 @@
     box-shadow: 0 3px 8px rgba(0,0,0,.18);
   }
   @media (min-width: 992px) {
-    .plan-col-featured { margin-top: -14px; }
+    .plan-col-featured { margin-top: -8px; }
   }
 </style>
 
@@ -118,7 +118,7 @@
   </div>
 
   <!-- Grilla de planes -->
-  <div class="row justify-content-center align-items-stretch g-4">
+  <div class="row justify-content-center align-items-stretch g-4 gx-lg-5">
     {% for plan in plans %}
     <div class="col-md-6 col-lg-4 {% if plan.is_featured %}plan-col-featured{% endif %}">
       <div class="plan-card {% if plan.is_featured %}is-featured{% endif %}">
