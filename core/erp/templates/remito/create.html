@@ -92,6 +92,11 @@
 
         <hr>
         <h4>Productos</h4>
+        {% if read_only_items %}
+        <div class="alert alert-warning small py-1 px-2 mb-2">
+          <i class="fas fa-lock"></i> Este remito ya está procesado/facturado — solo se edita la cabecera, las líneas no se modifican.
+        </div>
+        {% endif %}
         <div class="alert alert-info small py-1 px-2 mb-2" id="productSearchHint">
           <i class="fas fa-info-circle"></i> Seleccione un proveedor para filtrar productos, o busque entre todos si no selecciona ninguno.
         </div>
@@ -161,8 +166,11 @@
     </div>
   </form>
 
+  {{ detalles_iniciales|default:"[]"|json_script:"detalles-iniciales" }}
   <script>
-    let detalles = [];
+    let detalles = JSON.parse(document.getElementById('detalles-iniciales').textContent);
+    if (!Array.isArray(detalles)) detalles = [];
+    detalles.forEach(d => { d.temp_id = Date.now() + Math.random(); d.subtotal = d.cantidad * d.precio_unitario; });
 
     function getIvaRate() {
       const val = parseFloat(document.getElementById('id_iva_porcentaje').value) || 0;
@@ -192,8 +200,10 @@
     const ivaModoEl = document.getElementById('id_iva_modo');
     if (ivaModoEl) ivaModoEl.addEventListener('change', toggleIvaColumns);
 
+    const readOnlyItems = {% if read_only_items %}true{% else %}false{% endif %};
+
     $('form').on('submit', function (e) {
-      if (detalles.length === 0) {
+      if (!readOnlyItems && detalles.length === 0) {
         e.preventDefault();
         alert('Agregue al menos un producto');
         return;
@@ -208,6 +218,11 @@
 
       console.log('Enviando formulario con detalles:', detalles);
     });
+
+    // Precargar detalles en modo edición
+    if (detalles.length > 0) {
+      renderDetalles();
+    }
   </script>
 {% endblock %}
 

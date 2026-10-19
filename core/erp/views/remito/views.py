@@ -17,6 +17,14 @@ import math
 logger = logging.getLogger(__name__)
 
 
+def _prod_iva_rate_frac(producto):
+    """IVA del producto como fracción para el JS del formulario; None si no tiene."""
+    if not producto or not producto.iva_rate:
+        return None
+    rate = Decimal(str(producto.iva_rate))
+    return float(rate / 100) if rate > 1 else float(rate)
+
+
 def _line_iva_rate(remito, prod):
     """Alicuota de IVA de una linea como fraccion (0.21, 0.105...).
     Usa la tasa propia del producto; si no hay producto o tasa,
@@ -231,14 +239,51 @@ class RemitoUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateView):
         return kwargs
 
     def form_valid(self, form):
+        with transaction.atomic():
+            self.object = form.save()
+
+            # Solo se reemplazan detalles si el remito sigue pendiente —
+            # en un procesado/facturado cambiar lineas desincronizaria el stock
+            if self.object.estado == 'pending':
+                detalles_json = self.request.POST.get('detalles_json', '')
+                if detalles_json:
+                    try:
+                        detalles = json.loads(detalles_json)
+                        self.object.detalleremito_set.all().delete()
+                        for det in detalles:
+                            producto = Product.objects.get(pk=det['prod_id'])
+                            DetalleRemito.objects.create(
+                                remito=self.object,
+                                prod=producto,
+                                cantidad=det['cantidad'],
+                                precio_unitario=det['precio_unitario']
+                            )
+                    except Exception as e:
+                        messages.error(self.request, f'Error al guardar detalles: {e}')
+                        raise
+            else:
+                messages.warning(self.request, 'Solo se actualizó la cabecera: el remito ya está procesado/facturado y sus líneas no se pueden modificar.')
+
         messages.success(self.request, 'Remito actualizado exitosamente.')
-        return super().form_valid(form)
+        return super(UpdateView, self).form_valid(form)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = 'Editar Remito'
         context['entity'] = 'Remito'
         context['list_url'] = self.success_url
+        if self.object.estado == 'pending':
+            context['detalles_iniciales'] = [
+                {
+                    'prod_id': d.prod_id,
+                    'prod_name': d.prod.name if d.prod else '-',
+                    'cantidad': float(d.cantidad),
+                    'precio_unitario': float(d.precio_unitario),
+                    'iva_rate': _prod_iva_rate_frac(d.prod),
+                }
+                for d in self.object.detalleremito_set.select_related('prod')
+            ]
+        context['read_only_items'] = self.object.estado != 'pending'
         return context
 
 
