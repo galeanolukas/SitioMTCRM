@@ -292,7 +292,11 @@ def procesar_remito(request, pk):
                     # y recalcular precio de venta segun el margen del producto
                     if detalle.precio_unitario and detalle.precio_unitario > 0:
                         iva_divisor = (Decimal('1') + _line_iva_rate(remito, producto)) if iva_incluido else Decimal('1')
-                        nuevo_costo = (detalle.precio_unitario / iva_divisor).quantize(Decimal('0.01'))
+                        costo_pagado = detalle.precio_unitario / iva_divisor
+                        # Ajuste de costo %: la factura se pago a precio viejo pero
+                        # el costo de reposicion ya aumento (ej: +4% del proveedor)
+                        ajuste = Decimal('1') + (remito.ajuste_costo_pct or Decimal('0')) / Decimal('100')
+                        nuevo_costo = (costo_pagado * ajuste).quantize(Decimal('0.01'))
                         if nuevo_costo != producto.cost_price:
                             producto.cost_price = nuevo_costo
                         margin = producto.margin_percentage or Decimal('0')

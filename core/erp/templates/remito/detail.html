@@ -189,6 +189,12 @@
           </tfoot>
         </table>
       </div>
+      {% if object.ajuste_costo_pct %}
+      <div class="alert alert-warning py-2 mt-2 mb-0">
+        <i class="fas fa-percentage"></i> <strong>Ajuste de costo {{ object.ajuste_costo_pct }}%:</strong>
+        los precios cargados son los pagados al proveedor, pero el costo del producto se actualizó con este aumento (costo de reposición).
+      </div>
+      {% endif %}
     </div>
   </div>
 

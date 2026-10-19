@@ -77,6 +77,13 @@
               <small class="text-muted">"Incluido": los precios ya traen IVA. "Agregado": precios netos, el IVA se suma al total (facturas A/B típicas).</small>
             </div>
           </div>
+          <div class="col-md-4" id="ajusteCostoCol">
+            <div class="form-group">
+              <label>{{ form.ajuste_costo_pct.label }}</label>
+              {{ form.ajuste_costo_pct }}
+              <small class="text-muted">Si el proveedor aumentó su lista pero esta factura se pagó a precio viejo: ej. 4 → el costo queda pagado × 1,04 y el PVP se recalcula con el nuevo costo. Dejar 0 si no aplica.</small>
+            </div>
+          </div>
         </div>
         <div class="form-group">
           <label>{{ form.observaciones.label }}</label>
