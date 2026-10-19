@@ -100,6 +100,7 @@
         <div class="alert alert-info small py-1 px-2 mb-2" id="productSearchHint">
           <i class="fas fa-info-circle"></i> Seleccione un proveedor para filtrar productos, o busque entre todos si no selecciona ninguno.
         </div>
+        {% if not read_only_items %}
         <div class="row mb-3">
           <div class="col-md-4">
             <select id="productSelect" class="form-select select2">
@@ -123,6 +124,7 @@
             </button>
           </div>
         </div>
+        {% endif %}
 
         <table class="table table-bordered">
           <thead>
@@ -398,6 +400,12 @@
         <td>$${iva.toFixed(2)} <small class="text-muted">(${lineRateLabel}%)</small></td>
         <td>$${neto.toFixed(2)}</td>
       ` : '';
+      const accionesCol = readOnlyItems ? '<td><span class="text-muted">-</span></td>' : `
+          <td>
+            <button type="button" onclick="eliminarDetalle(${det.temp_id})" class="btn btn-sm btn-danger btn-flat">
+              <i class="fas fa-trash"></i>
+            </button>
+          </td>`;
       const row = `
         <tr>
           <td>${det.prod_name}</td>
@@ -405,11 +413,7 @@
           <td>$${det.precio_unitario.toFixed(2)}</td>
           <td>$${det.subtotal.toFixed(2)}</td>
           ${ivaCols}
-          <td>
-            <button type="button" onclick="eliminarDetalle(${det.temp_id})" class="btn btn-sm btn-danger btn-flat">
-              <i class="fas fa-trash"></i>
-            </button>
-          </td>
+          ${accionesCol}
         </tr>
       `;
       tbody.innerHTML += row;

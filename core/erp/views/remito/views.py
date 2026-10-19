@@ -272,17 +272,16 @@ class RemitoUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateView):
         context['title'] = 'Editar Remito'
         context['entity'] = 'Remito'
         context['list_url'] = self.success_url
-        if self.object.estado == 'pending':
-            context['detalles_iniciales'] = [
-                {
-                    'prod_id': d.prod_id,
-                    'prod_name': d.prod.name if d.prod else '-',
-                    'cantidad': float(d.cantidad),
-                    'precio_unitario': float(d.precio_unitario),
-                    'iva_rate': _prod_iva_rate_frac(d.prod),
-                }
-                for d in self.object.detalleremito_set.select_related('prod')
-            ]
+        context['detalles_iniciales'] = [
+            {
+                'prod_id': d.prod_id,
+                'prod_name': d.prod.name if d.prod else '-',
+                'cantidad': float(d.cantidad),
+                'precio_unitario': float(d.precio_unitario),
+                'iva_rate': _prod_iva_rate_frac(d.prod),
+            }
+            for d in self.object.detalleremito_set.select_related('prod')
+        ]
         context['read_only_items'] = self.object.estado != 'pending'
         return context
 
