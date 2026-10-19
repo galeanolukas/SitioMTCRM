@@ -220,11 +220,6 @@
 
       console.log('Enviando formulario con detalles:', detalles);
     });
-
-    // Precargar detalles en modo edición
-    if (detalles.length > 0) {
-      renderDetalles();
-    }
   </script>
 {% endblock %}
 
@@ -308,24 +303,29 @@
       }
     });
 
-    // Cuando cambia el proveedor, resetear el select de productos
+    // Cuando cambia el proveedor, resetear el select de productos (si existe)
     $('#id_supplier').on('change', function() {
-      $('#productSelect').val(null).trigger('change');
+      const $prodSel = $('#productSelect');
+      if (!$prodSel.length || !$prodSel.data('select2')) return;
+      $prodSel.val(null).trigger('change');
       const supplierId = $(this).val();
-      if (supplierId) {
-        $('#productSelect').prop('disabled', false);
-        $('#productSelect').data('select2').dropdown.$search.attr('placeholder', 'Buscar producto del proveedor...');
-      } else {
-        $('#productSelect').prop('disabled', false);
-        $('#productSelect').data('select2').dropdown.$search.attr('placeholder', 'Buscar producto (todos)...');
-      }
+      $prodSel.prop('disabled', false);
+      $prodSel.data('select2').dropdown.$search.attr('placeholder',
+        supplierId ? 'Buscar producto del proveedor...' : 'Buscar producto (todos)...');
     });
 
-    // Estado inicial del select de productos
+    // Estado inicial del select de productos (puede no existir en modo solo-lectura)
     const initialSupplier = $('#id_supplier').val();
-    if (!initialSupplier) {
+    const prodSelectData = $('#productSelect').length ? $('#productSelect').data('select2') : null;
+    if (!initialSupplier && prodSelectData) {
       // Si no hay proveedor seleccionado, permitir buscar todos
-      $('#productSelect').data('select2').dropdown.$search.attr('placeholder', 'Buscar producto (todos)...');
+      prodSelectData.dropdown.$search.attr('placeholder', 'Buscar producto (todos)...');
+    }
+
+    // Precargar detalles en modo edición (una vez definida renderDetalles)
+    if (detalles.length > 0) {
+      toggleIvaColumns();
+      renderDetalles();
     }
   });
 
