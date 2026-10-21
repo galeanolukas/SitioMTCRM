@@ -628,6 +628,14 @@ def _run_full_sync_impl(company_id=None):
             logger.error(f"Error en sincronización de planes de cuotas: {e}")
             errors.append(f"sync_card_plans_to_remote: {e}")
 
+        # 3.l) Remitos (comprobantes de entrada/salida de mercadería)
+        try:
+            call_command("sync_remitos_to_remote")
+            logger.info("✅ Remitos sincronizados")
+        except Exception as e:
+            logger.error(f"Error en sincronización de remitos: {e}")
+            errors.append(f"sync_remitos_to_remote: {e}")
+
         # 3.j) Pedidos entregados del catálogo (solo si hay configuración activa)
         logger.info("🛒 PASO 3.j: Sincronizando pedidos entregados del catálogo...")
         try:
