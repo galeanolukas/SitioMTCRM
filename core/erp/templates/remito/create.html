@@ -211,6 +211,32 @@
         return;
       }
 
+      // Hay un producto seleccionado sin agregar a la tabla -> la linea se perderia
+      const $prodSel = $('#productSelect');
+      if (!readOnlyItems && $prodSel.length && $prodSel.val()) {
+        const cantPend = parseFloat(document.getElementById('cantidad').value) || 0;
+        const precioPend = parseFloat(document.getElementById('precioUnitario').value) || 0;
+        const selText = ($prodSel.find('option:selected').text() || 'el producto seleccionado').trim();
+        if (cantPend > 0 && precioPend > 0) {
+          e.preventDefault();
+          if (confirm('ATENCION: "' + selText + '" esta seleccionado con cantidad y precio pero NO fue agregado a la tabla y se perderia al guardar.\n\n¿Agregarlo ahora al remito? (Aceptar = agregar y guardar / Cancelar = volver sin guardar)')) {
+            agregarProducto();
+            document.getElementById('detallesJson').value = JSON.stringify(detalles.map(d => ({
+              prod_id: d.prod_id,
+              cantidad: d.cantidad,
+              precio_unitario: d.precio_unitario
+            })));
+            this.submit();
+          }
+          return;
+        }
+        // Seleccionado pero sin cantidad/precio completos -> solo avisar, dejar guardar
+        if (!confirm('ATENCION: "' + selText + '" esta seleccionado pero NO fue agregado a la tabla.\n\n¿Guardar igual sin esa linea?')) {
+          e.preventDefault();
+          return;
+        }
+      }
+
       // Guardar detalles en campo oculto como JSON
       document.getElementById('detallesJson').value = JSON.stringify(detalles.map(d => ({
         prod_id: d.prod_id,
