@@ -1456,6 +1456,31 @@ class SaleCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Create
             data['error'] = str(e)
         return JsonResponse(data, safe=False)
 
+    def calculate_vat_breakdown(self, sale):
+        """Calcular y guardar la apertura de alícuotas de IVA para una venta"""
+        SaleVatBreakdown.objects.filter(sale=sale).delete()
+        vat_breakdown = {}
+        for det in sale.detsale_set.all():
+            if det.prod and det.prod.vat_code:
+                vat_code = det.prod.vat_code
+                vat_rate = det.prod.iva_rate or Decimal('0.00')
+                if vat_code not in vat_breakdown:
+                    vat_breakdown[vat_code] = {
+                        'vat_rate': vat_rate,
+                        'taxable_base': Decimal('0.00'),
+                        'vat_amount': Decimal('0.00')
+                    }
+                vat_breakdown[vat_code]['taxable_base'] += Decimal(str(det.subtotal))
+                vat_breakdown[vat_code]['vat_amount'] += Decimal(str(det.iva_amount))
+        for vat_code, data in vat_breakdown.items():
+            SaleVatBreakdown.objects.create(
+                sale=sale,
+                vat_code=vat_code,
+                vat_rate=data['vat_rate'],
+                taxable_base=data['taxable_base'],
+                vat_amount=data['vat_amount']
+            )
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = 'Creación una Venta'
@@ -1552,7 +1577,7 @@ class SaleUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Update
             data['error'] = str(e)
         return JsonResponse(data, safe=False)
 
-    def calculate_vat_breakdown_for_sale(self, sale):
+    def calculate_vat_breakdown(self, sale):
         """Calcular y guardar la apertura de alícuotas de IVA para una venta (método auxiliar)"""
         from django.db.models import Sum
         
