@@ -19,6 +19,7 @@ from core.erp.forms import SaleForm
 from django.views.generic import CreateView, ListView, DeleteView, UpdateView, TemplateView, View
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
+from django.core.serializers.json import DjangoJSONEncoder
 import json
 from django.db import transaction, IntegrityError
 from django.db.models import F, Q
@@ -1629,7 +1630,7 @@ class SaleUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Update
         context['entity'] = 'Ventas'
         context['list_url'] = self.success_url
         context['action'] = 'edit'
-        context['det'] = json.dumps(self.get_details_product())
+        context['det'] = json.dumps(self.get_details_product(), cls=DjangoJSONEncoder)
         return context
 
 class SaleDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin, DeleteView):
