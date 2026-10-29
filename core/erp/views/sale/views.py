@@ -2420,23 +2420,24 @@ class EmployeeAccountListView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                                 method_names.append(pm_map.get(method, method))
                             
                             combined_method = ' + '.join(method_names)
-                            
+
                             # Crear una sola venta con el total completo
+                            # payment_method es varchar(12): el texto combinado va en payment_details
                             sale = Sale.objects.create(
                                 company_id=active_cid,
                                 cli=account.client,
                                 subtotal=account.total,
                                 iva=0,
                                 total=account.total,
-                                payment_method=combined_method,  # Ej: "Efectivo + MercadoPago"
+                                payment_method='combined',
                                 is_invoiced=False,
                                 date_joined=timezone.now(),
                                 local_uuid=str(uuid.uuid4()),
                                 synced_to_server=False
                             )
                             
-                            # Guardar detalles de pago combinado
-                            sale.payment_details = payment_details
+                            # Guardar detalles de pago combinado + etiqueta original
+                            sale.payment_details = {'method_label': combined_method, 'payments': payment_details}
                             sale.save()
                             
                             # Crear detalles de venta para que figure en reportes (sin descontar stock)
