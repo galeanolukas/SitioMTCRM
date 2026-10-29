@@ -2540,11 +2540,18 @@ class EmployeeAccountListView(LoginRequiredMixin, ValidatePermissionRequiredMixi
             elif action == 'delete_account':
                 account_id = request.POST.get('account_id')
                 account = EmployeeAccountSale.objects.get(id=account_id)
-                
+
                 # Verificar permisos
                 if not request.user.has_perm('erp.manage_employee_accounts'):
                     return JsonResponse({'error': 'No tiene permisos para realizar esta acción'}, status=403)
-                
+
+                # Las cuentas pagadas son registros de cobro: no se pueden eliminar
+                if account.is_paid:
+                    return JsonResponse({
+                        'error': 'No se puede eliminar una cuenta corriente pagada. '
+                                 'Solo las cuentas impagas pueden anularse.'
+                    }, status=400)
+
                 # Restaurar stock antes de eliminar solo si la cuenta está impaga
                 with transaction.atomic():
                     if not account.is_paid:

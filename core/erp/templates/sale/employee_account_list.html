@@ -308,9 +308,11 @@
                               <i class="fas fa-undo"></i>
                             </button>
                           {% endif %}
-                          <button type="button" class="btn btn-outline-danger" onclick="deleteAccount({{ account.id }})" title="Eliminar">
-                            <i class="fas fa-trash"></i>
-                          </button>
+                          {% if not account.is_paid %}
+                            <button type="button" class="btn btn-outline-danger" onclick="deleteAccount({{ account.id }})" title="Eliminar">
+                              <i class="fas fa-trash"></i>
+                            </button>
+                          {% endif %}
                         </div>
                       </td>
                     </tr>
