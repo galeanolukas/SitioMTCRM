@@ -120,30 +120,31 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                         
                         product_sales = DetSale.objects.filter(
                             sale__in=sales
-                        ).values('prod__name', 'prod__id').annotate(
+                        ).values('prod__id').annotate(
                             total_quantity=Sum('cant'),
                             total_sales=Sum('subtotal')
-                        ).order_by('-total_quantity')
-                        
+                        )
+                        sold_map = {ps['prod__id']: ps for ps in product_sales}
+
+                        # Todos los productos del inventario, rankeados por cantidad vendida
+                        inv_qs = Product.objects.all().order_by('name')
+                        if active_cid:
+                            inv_qs = inv_qs.filter(company_id=active_cid)
+
                         product_sales_data = []
-                        for idx, ps in enumerate(product_sales, 1):
-                            # Obtener PVP y stock actual del producto
-                            try:
-                                product = Product.objects.get(id=ps['prod__id'])
-                                pvp = float(product.pvp or 0)
-                                stock_actual = float(product.stock or 0)
-                            except Product.DoesNotExist:
-                                pvp = 0
-                                stock_actual = 0
-                            
+                        for idx, product in enumerate(inv_qs, 1):
+                            ps = sold_map.get(product.id, {})
                             product_sales_data.append({
                                 'rank': idx,
-                                'product': ps['prod__name'],
-                                'quantity': int(float(ps['total_quantity'])),  # Convertir a entero
-                                'price': pvp,  # PVP del producto en lugar de precio promedio
-                                'total': float(ps['total_sales']),
-                                'stock': int(stock_actual)  # Stock como entero
+                                'product': product.name,
+                                'quantity': int(float(ps.get('total_quantity') or 0)),
+                                'price': float(product.pvp or 0),
+                                'total': float(ps.get('total_sales') or 0),
+                                'stock': int(float(product.stock or 0))
                             })
+                        product_sales_data.sort(key=lambda x: (-x['quantity'], x['product']))
+                        for idx, ps in enumerate(product_sales_data, 1):
+                            ps['rank'] = idx
                         
                         # Calcular total general usando subtotal (igual que en reporte por método de pago)
                         grand_total = sum(float(sale.subtotal) for sale in sales)
@@ -444,30 +445,30 @@ def operator_sales_export(request):
                 
                 product_sales = DetSale.objects.filter(
                     sale__in=sales
-                ).values('prod__name', 'prod__id').annotate(
+                ).values('prod__id').annotate(
                     total_quantity=Sum('cant'),
                     total_sales=Sum('subtotal')
-                ).order_by('-total_quantity')
-                
+                )
+                sold_map = {ps['prod__id']: ps for ps in product_sales}
+
+                inv_qs = Product.objects.all().order_by('name')
+                if active_cid:
+                    inv_qs = inv_qs.filter(company_id=active_cid)
+
                 product_sales_data = []
-                for idx, ps in enumerate(product_sales, 1):
-                    # Obtener PVP y stock actual del producto
-                    try:
-                        product = Product.objects.get(id=ps['prod__id'])
-                        pvp = float(product.pvp or 0)
-                        stock_actual = float(product.stock or 0)
-                    except:
-                        pvp = 0
-                        stock_actual = 0
-                    
+                for product in inv_qs:
+                    ps = sold_map.get(product.id, {})
                     product_sales_data.append({
-                        'rank': idx,
-                        'product': ps['prod__name'],
-                        'quantity': int(float(ps['total_quantity'])),  # Convertir a entero
-                        'price': pvp,  # PVP del producto
-                        'total': float(ps['total_sales']),
-                        'stock': int(stock_actual)  # Stock como entero
+                        'rank': 0,
+                        'product': product.name,
+                        'quantity': int(float(ps.get('total_quantity') or 0)),
+                        'price': float(product.pvp or 0),
+                        'total': float(ps.get('total_sales') or 0),
+                        'stock': int(float(product.stock or 0))
                     })
+                product_sales_data.sort(key=lambda x: (-x['quantity'], x['product']))
+                for idx, ps in enumerate(product_sales_data, 1):
+                    ps['rank'] = idx
                 
                 # Calcular total general usando subtotal (igual que en reporte por método de pago)
                 grand_total = sum(float(sale.subtotal) for sale in sales)
@@ -1384,33 +1385,33 @@ def generate_products_pdf_report(sales, start_date, end_date, company_id, user, 
     except:
         font_name = 'Helvetica'
     
-    # Obtener datos de productos agrupados
+    # Obtener datos de productos agrupados (todo el inventario, rankeado por ventas)
     product_sales = DetSale.objects.filter(
         sale__in=sales
-    ).values('prod__name', 'prod__id').annotate(
+    ).values('prod__id').annotate(
         total_quantity=Sum('cant'),
         total_sales=Sum('subtotal')
-    ).order_by('-total_quantity')
-    
+    )
+    sold_map = {ps['prod__id']: ps for ps in product_sales}
+
+    inv_qs = Product.objects.all().order_by('name')
+    if company_id:
+        inv_qs = inv_qs.filter(company_id=company_id)
+
     product_sales_data = []
-    for idx, ps in enumerate(product_sales, 1):
-        # Obtener PVP y stock actual del producto
-        try:
-            product = Product.objects.get(id=ps['prod__id'])
-            pvp = float(product.pvp or 0)
-            stock_actual = float(product.stock or 0)
-        except Product.DoesNotExist:
-            pvp = 0
-            stock_actual = 0
-        
+    for product in inv_qs:
+        ps = sold_map.get(product.id, {})
         product_sales_data.append({
-            'rank': idx,
-            'product': ps['prod__name'],
-            'quantity': int(float(ps['total_quantity'])),  # Convertir a entero
-            'price': pvp,  # PVP del producto en lugar de precio promedio
-            'total': float(ps['total_sales']),
-            'stock': int(stock_actual)  # Stock como entero
+            'rank': 0,
+            'product': product.name,
+            'quantity': int(float(ps.get('total_quantity') or 0)),
+            'price': float(product.pvp or 0),
+            'total': float(ps.get('total_sales') or 0),
+            'stock': int(float(product.stock or 0))
         })
+    product_sales_data.sort(key=lambda x: (-x['quantity'], x['product']))
+    for idx, ps in enumerate(product_sales_data, 1):
+        ps['rank'] = idx
     
     # Calcular total general usando subtotal (igual que en reporte por método de pago)
     grand_total = sum(float(sale.subtotal) for sale in sales)
