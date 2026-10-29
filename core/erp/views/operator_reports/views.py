@@ -311,8 +311,13 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                             check_amount = sale_total
                         elif payment_method == 'combined' or (payment_method and '+' in payment_method):
                             # Pagos combinados - usar los detalles de pago
-                            if payment_details and isinstance(payment_details, list):
-                                for payment in payment_details:
+                            # Puede ser lista directa o dict {'method_label':..,'payments':[..]}
+                            if isinstance(payment_details, dict):
+                                payments_list = payment_details.get('payments', [])
+                            else:
+                                payments_list = payment_details if isinstance(payment_details, list) else []
+                            if payments_list:
+                                for payment in payments_list:
                                     if isinstance(payment, dict):
                                         method = payment.get('method', '')
                                         amount = float(payment.get('amount', 0))
@@ -579,6 +584,8 @@ def operator_sales_export(request):
                 elif sale.payment_method == 'combined' or (sale.payment_method and '+' in sale.payment_method):
                     # Combined payments - distribuir proporcionalmente
                     payment_details = getattr(sale, 'payment_details', [])
+                    if isinstance(payment_details, dict):
+                        payment_details = payment_details.get('payments', [])
                     sale_total = float(sale.total)
                     if payment_details and isinstance(payment_details, list) and sale_total > 0:
                         for payment in payment_details:
@@ -785,6 +792,8 @@ def operator_sales_export(request):
                 elif sale.payment_method == 'combined' or (sale.payment_method and '+' in sale.payment_method):
                     # Combined payments - distribuir proporcionalmente
                     payment_details = getattr(sale, 'payment_details', [])
+                    if isinstance(payment_details, dict):
+                        payment_details = payment_details.get('payments', [])
                     sale_total = float(sale.total)
                     if payment_details and isinstance(payment_details, list) and sale_total > 0:
                         for payment in payment_details:
@@ -1161,8 +1170,12 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
             check_amount = sale_total
         elif payment_method == 'combined' or (payment_method and '+' in payment_method):
             # Pagos combinados - usar los detalles de pago
-            if payment_details and isinstance(payment_details, list):
-                for payment in payment_details:
+            if isinstance(payment_details, dict):
+                payments_list = payment_details.get('payments', [])
+            else:
+                payments_list = payment_details if isinstance(payment_details, list) else []
+            if payments_list:
+                for payment in payments_list:
                     if isinstance(payment, dict):
                         method = payment.get('method', '')
                         amount = float(payment.get('amount', 0))
