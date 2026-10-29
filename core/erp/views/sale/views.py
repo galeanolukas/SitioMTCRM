@@ -480,8 +480,11 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 prod.save()
                 data = {'id': prod.id, 'name': prod.name, 'stock': float(prod.stock)}
             elif action == 'list_categories':
-                # Obtener categorías existentes
+                # Obtener categorías existentes de la empresa activa
                 categories = Category.objects.all().order_by('name')
+                cid_cats = get_active_company_id(request)
+                if cid_cats:
+                    categories = categories.filter(company_id=cid_cats)
                 data = [{'id': cat.id, 'name': cat.name, 'desc': cat.desc or ''} for cat in categories]
             elif action == 'get_client_prices':
                 client_id = request.POST.get('client_id')
