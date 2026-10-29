@@ -511,11 +511,21 @@ function displayPaymentReport(data) {
             cardTotal += cardAmount;
             checkTotal += checkAmount;
             grandTotal += totalAmount;
-            
+
+            const isDebt = !!sale.is_debt;
+            const debtSuffix = isDebt
+                ? ` — $${totalAmount.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} impago`
+                : ' — pagada';
+            const ccBadgeClass = isDebt ? 'badge-danger' : 'badge-success';
+            const ccBadgeTitle = isDebt ? 'Cuenta corriente impaga: no suma en los totales' : 'Cuenta corriente pagada: suma en los totales';
+            const ccBadge = sale.employee_account
+                ? `<br/><span class="badge ${ccBadgeClass}" title="${ccBadgeTitle}">CC ${sale.employee_account}${debtSuffix}</span>`
+                : '';
+
             const row = `
                 <tr>
                     <td><small>${sale.date}</small></td>
-                    <td style="white-space: pre-line;"><small>${sale.products}</small></td>
+                    <td style="white-space: pre-line;"><small>${sale.products}${ccBadge}</small></td>
                     <td class="text-right">$${cashAmount.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                     <td class="text-right">$${mpAmount.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                     <td class="text-right">$${transferAmount.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>

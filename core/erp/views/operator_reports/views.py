@@ -5,7 +5,7 @@ from core.erp.mixins import ValidatePermissionRequiredMixin, get_active_company_
 from django.db.models import Sum, Count, F
 from django.utils import timezone
 from datetime import datetime, timedelta
-from core.erp.models import Sale, Company, DetSale, Category
+from core.erp.models import Sale, Company, DetSale, Category, EmployeeAccountSale
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 import json
@@ -254,13 +254,33 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                             'count': method_total['count'] or 0
                         }
                     
+                    # Mapear ventas originadas en cuentas corrientes
+                    cc_map = {}
+                    cc_details_map = {}
+                    for acc in EmployeeAccountSale.objects.filter(
+                        related_sale_id__in=sales.values('id')
+                    ).select_related('client', 'employee').prefetch_related('detemployeeaccount_set__prod'):
+                        titular = ''
+                        if acc.client_id and acc.client:
+                            titular = acc.client.names
+                        elif acc.employee_id and acc.employee:
+                            titular = acc.employee.get_full_name() or acc.employee.username
+                        cc_map[acc.related_sale_id] = titular
+                        cc_details_map[acc.related_sale_id] = '<br/>'.join(
+                            f"{d.prod.name} x{float(d.cant or 0):g}"
+                            for d in acc.detemployeeaccount_set.all()
+                        )
+
                     # Agrupar datos por venta
                     sales_list = []
                     for sale in sales:
                         # Obtener todos los productos de esta venta
                         det_sales = DetSale.objects.filter(sale=sale).select_related('prod')
                         products_str = _products_summary(det_sales)
-                        
+                        # Si la venta no tiene detalles, usar los de la cuenta corriente origen
+                        if not products_str:
+                            products_str = cc_details_map.get(sale.id, '') or '<i>(sin detalle disponible)</i>'
+
                         # Distribuir el total según método de pago
                         sale_total = float(sale.total)
                         payment_method = sale.payment_method
@@ -273,7 +293,9 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                         check_amount = 0.0
                         other_amount = 0.0
                         
-                        if payment_method == 'cash':
+                        if payment_method == 'debt':
+                            pass  # Venta de cuenta corriente impaga: no suma en resúmenes
+                        elif payment_method == 'cash':
                             cash_amount = sale_total
                         elif payment_method == 'mp':
                             mp_amount = sale_total
@@ -322,7 +344,9 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                             'card': card_amount,
                             'check': check_amount,
                             'other': other_amount,
-                            'total': sale_total
+                            'total': sale_total,
+                            'employee_account': cc_map.get(sale.id, ''),
+                            'is_debt': payment_method == 'debt'
                         })
                     
                     # Ordenar por fecha descendente
@@ -531,7 +555,9 @@ def operator_sales_export(request):
                 check_amount = 0
                 other_amount = 0
                 
-                if sale.payment_method == 'cash':
+                if sale.payment_method == 'debt':
+                    pass  # Venta de cuenta corriente impaga: no suma en resúmenes
+                elif sale.payment_method == 'cash':
                     cash_amount = sale_subtotal
                     cash_total += cash_amount
                 elif sale.payment_method == 'mp':
@@ -735,7 +761,9 @@ def operator_sales_export(request):
                 check_amount = 0
                 other_amount = 0
                 
-                if sale.payment_method == 'cash':
+                if sale.payment_method == 'debt':
+                    pass  # Venta de cuenta corriente impaga: no suma en resúmenes
+                elif sale.payment_method == 'cash':
                     cash_amount = sale_subtotal
                     cash_total += cash_amount
                 elif sale.payment_method == 'mp':
@@ -1069,13 +1097,37 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
     check_total = 0
     other_total = 0
     
+    # Mapear ventas originadas en cuentas corrientes
+    cc_map = {}
+    cc_details_map = {}
+    for acc in EmployeeAccountSale.objects.filter(
+        related_sale_id__in=sales.values('id')
+    ).select_related('client', 'employee').prefetch_related('detemployeeaccount_set__prod'):
+        titular = ''
+        if acc.client_id and acc.client:
+            titular = acc.client.names
+        elif acc.employee_id and acc.employee:
+            titular = acc.employee.get_full_name() or acc.employee.username
+        cc_map[acc.related_sale_id] = titular
+        cc_details_map[acc.related_sale_id] = '<br/>'.join(
+            f"{d.prod.name} x{float(d.cant or 0):g}"
+            for d in acc.detemployeeaccount_set.all()
+        )
+
     # Agrupar datos por venta (misma lógica que en el backend HTML)
     sales_list = []
     for sale in sales:
         # Obtener todos los productos de esta venta
         det_sales = DetSale.objects.filter(sale=sale).select_related('prod')
         products_str = _products_summary(det_sales)
-        
+        # Si la venta no tiene detalles, usar los de la cuenta corriente origen
+        if not products_str:
+            products_str = cc_details_map.get(sale.id, '') or '<i>(sin detalle disponible)</i>'
+        # Marcar titular de la cuenta corriente en los productos
+        if cc_map.get(sale.id):
+            estado_cc = 'impaga' if sale.payment_method == 'debt' else 'pagada'
+            products_str = f"{products_str}<br/><b>CC {cc_map[sale.id]} ({estado_cc})</b>"
+
         # Distribuir el total según método de pago
         sale_total = float(sale.total)
         payment_method = sale.payment_method
@@ -1088,7 +1140,9 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
         check_amount = 0.0
         other_amount = 0.0
         
-        if payment_method == 'cash':
+        if payment_method == 'debt':
+            pass  # Venta de cuenta corriente impaga: no suma en resúmenes
+        elif payment_method == 'cash':
             cash_amount = sale_total
         elif payment_method == 'mp':
             mp_amount = sale_total
@@ -1136,7 +1190,8 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
             'card': card_amount,
             'check': check_amount,
             'other': other_amount,
-            'total': sale_total
+            'total': sale_total,
+            'is_debt': payment_method == 'debt'
         })
     
     # Ordenar por fecha descendente
@@ -1155,15 +1210,16 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
         products_paragraph = Paragraph(sale['products'].replace('\n', '<br/>'), normal_style)
         date_paragraph = Paragraph(sale['date'], normal_style)
         
+        debt_cell = Paragraph('—', normal_style)
         table_data.append([
             date_paragraph,
             products_paragraph,
-            format_currency(sale['cash']),
-            format_currency(sale['mp']),
-            format_currency(sale['transfer']),
-            format_currency(sale['card']),
-            format_currency(sale['check']),
-            format_currency(sale['total'])
+            debt_cell if sale['is_debt'] else format_currency(sale['cash']),
+            debt_cell if sale['is_debt'] else format_currency(sale['mp']),
+            debt_cell if sale['is_debt'] else format_currency(sale['transfer']),
+            debt_cell if sale['is_debt'] else format_currency(sale['card']),
+            debt_cell if sale['is_debt'] else format_currency(sale['check']),
+            debt_cell if sale['is_debt'] else format_currency(sale['total'])
         ])
     
     # Add summary row (gray background) - will be moved to end after grand total
