@@ -1774,10 +1774,22 @@ class SaleListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView
                         print(f"[DEBUG] Total ventas con company_id={active_cid}: {qs.count()}")
                     else:
                         qs = qs.none()
-                    
+
+                    # Mapear ventas vinculadas a cuentas corrientes (cobro de deuda)
+                    cc_map = {}
+                    try:
+                        for acc in EmployeeAccountSale.objects.exclude(related_sale_id__isnull=True).values('related_sale_id', 'id', 'is_paid'):
+                            cc_map[acc['related_sale_id']] = acc
+                    except Exception:
+                        pass
+
                     for sale in qs:
                         try:
                             sale_data = sale.toJSON()
+                            acc = cc_map.get(sale.id)
+                            if acc:
+                                sale_data['cc_account_id'] = acc['id']
+                                sale_data['cc_paid'] = acc['is_paid']
                             # Los valores ya vienen formateados desde toJSON()
                             # Solo agregar versiones formateadas con separadores si se necesitan
                             if 'total' in sale_data:

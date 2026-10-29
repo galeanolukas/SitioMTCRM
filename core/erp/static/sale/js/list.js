@@ -122,7 +122,12 @@ $(function () {
                 targets: [1],
                 class: 'text-center',
                 render: function (data, type, row) {
-                    return row.invoice_number ? row.invoice_number : data;
+                    let label = row.invoice_number ? row.invoice_number : data;
+                    if (row.cc_account_id) {
+                        const txt = row.cc_paid ? 'CC (cobrada)' : 'CC (a cuenta)';
+                        label += ` <span class="badge badge-info" title="Venta vinculada a la cuenta corriente #${row.cc_account_id}">${txt}</span>`;
+                    }
+                    return label;
                 }
             },
             {
