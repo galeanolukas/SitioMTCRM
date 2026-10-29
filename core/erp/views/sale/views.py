@@ -2506,10 +2506,10 @@ class EmployeeAccountListView(LoginRequiredMixin, ValidatePermissionRequiredMixi
             elif action == 'mark_as_unpaid':
                 account_id = request.POST.get('account_id')
                 account = EmployeeAccountSale.objects.get(id=account_id)
-                
-                # Verificar permisos
-                if not request.user.has_perm('erp.manage_employee_accounts'):
-                    return JsonResponse({'error': 'No tiene permisos para realizar esta acción'}, status=403)
+
+                # Desmarcar borra la venta de cobro: solo administradores
+                if not request.user.is_superuser:
+                    return JsonResponse({'error': 'Solo un administrador puede desmarcar una cuenta pagada'}, status=403)
                 
                 try:
                     with transaction.atomic():

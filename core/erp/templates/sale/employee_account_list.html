@@ -303,8 +303,8 @@
                             <button type="button" class="btn btn-outline-success" onclick="markAsPaid({{ account.id }}, {{ account.total }})" title="Marcar Pagado">
                               <i class="fas fa-check"></i>
                             </button>
-                          {% else %}
-                            <button type="button" class="btn btn-outline-warning" onclick="markAsUnpaid({{ account.id }})" title="Desmarcar">
+                          {% elif request.user.is_superuser %}
+                            <button type="button" class="btn btn-outline-warning" onclick="markAsUnpaid({{ account.id }})" title="Desmarcar (solo admin)">
                               <i class="fas fa-undo"></i>
                             </button>
                           {% endif %}
@@ -646,7 +646,7 @@ function markAsPaid(accountId, total) {
 }
 
 function markAsUnpaid(accountId) {
-  if (!confirm('¿Está seguro que desea desmarcar esta cuenta como pagada?')) return;
+  if (!confirm('ADVERTENCIA: desmarcar la cuenta elimina la venta de cobro registrada (el ingreso desaparece de la caja). ¿Continuar?')) return;
   
   fetch('', {
     method: 'POST',
