@@ -39,6 +39,7 @@
                                         <option value="profit" {% if report_type == 'profit' %}selected{% endif %}>Ganancias</option>
                                         <option value="top_selling" {% if report_type == 'top_selling' %}selected{% endif %}>Productos Más Vendidos</option>
                                         <option value="iva_ventas" {% if report_type == 'iva_ventas' %}selected{% endif %}>Libro de IVA Ventas</option>
+                                        <option value="employee_accounts" {% if report_type == 'employee_accounts' %}selected{% endif %}>Cuentas Corrientes</option>
                                     </select>
                                 </div>
                             </div>
@@ -137,6 +138,12 @@
                             <a class="nav-link {% if report_type == 'iva_ventas' %}active{% endif %}" 
                                href="?report_type=iva_ventas&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}">
                                 <i class="fas fa-file-invoice"></i> Libro de IVA Ventas
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if report_type == 'employee_accounts' %}active{% endif %}" 
+                               href="?report_type=employee_accounts&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}">
+                                <i class="fas fa-user-clock"></i> Cuentas Corrientes
                             </a>
                         </li>
                     </ul>
@@ -492,6 +499,160 @@
                     </nav>
                     <div class="text-center text-muted">
                         Mostrando {{ expenses_data.expenses.start_index }}-{{ expenses_data.expenses.end_index }} de {{ expenses_data.expenses.paginator.count }} gastos
+                    </div>
+                    {% endif %}
+
+                    {% endif %}
+
+                    <!-- Reporte de Cuentas Corrientes -->
+                    {% if report_type == 'employee_accounts' %}
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <div class="info-box">
+                                <span class="info-box-icon bg-blue">
+                                    <i class="fas fa-dollar-sign"></i>
+                                </span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">Total CC</span>
+                                    <span class="info-box-number">{{ employee_accounts_data.summary.total_amount|ars_currency|default:"0.00" }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="info-box">
+                                <span class="info-box-icon bg-green">
+                                    <i class="fas fa-check-circle"></i>
+                                </span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">Pagadas ({{ employee_accounts_data.summary.paid_count|default:"0" }})</span>
+                                    <span class="info-box-number">{{ employee_accounts_data.summary.paid_total|ars_currency|default:"0.00" }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="info-box">
+                                <span class="info-box-icon bg-red">
+                                    <i class="fas fa-exclamation-circle"></i>
+                                </span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">Impagas ({{ employee_accounts_data.summary.unpaid_count|default:"0" }})</span>
+                                    <span class="info-box-number">{{ employee_accounts_data.summary.unpaid_total|ars_currency|default:"0.00" }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="info-box">
+                                <span class="info-box-icon bg-orange">
+                                    <i class="fas fa-file-invoice"></i>
+                                </span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">Cantidad</span>
+                                    <span class="info-box-number">{{ employee_accounts_data.summary.total_count|default:"0" }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Filtro por estado -->
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <label>Estado</label>
+                            <div class="btn-group d-block">
+                                <a href="?report_type=employee_accounts&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}" class="btn btn-sm {% if not filter_is_paid %}btn-primary{% else %}btn-default{% endif %}">Todas</a>
+                                <a href="?report_type=employee_accounts&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}&is_paid=false" class="btn btn-sm {% if filter_is_paid == 'false' %}btn-danger{% else %}btn-default{% endif %}">Impagas</a>
+                                <a href="?report_type=employee_accounts&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}&is_paid=true" class="btn btn-sm {% if filter_is_paid == 'true' %}btn-success{% else %}btn-default{% endif %}">Pagadas</a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Saldo pendiente por cliente -->
+                    {% if employee_accounts_data.client_breakdown %}
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <h5>Saldo pendiente por cliente</h5>
+                        </div>
+                        {% for c in employee_accounts_data.client_breakdown %}
+                        <div class="col-md-3">
+                            <div class="alert alert-danger py-2 mb-2">
+                                <strong>{{ c.client__names|default:c.employee__username|default:"(sin titular)" }}</strong><br>
+                                {{ c.total|ars_currency }} ({{ c.count }} cuenta{{ c.count|pluralize:"s" }})
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <!-- Tabla de Cuentas -->
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Titular</th>
+                                    <th>Productos</th>
+                                    <th>Total</th>
+                                    <th>Estado</th>
+                                    <th>Fecha Pago</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for account in employee_accounts_data.accounts %}
+                                <tr class="{% if account.is_paid %}table-success{% else %}table-danger{% endif %}">
+                                    <td>{{ account.date_joined|date:"d/m/Y" }}</td>
+                                    <td>{{ account.client.names|default:account.employee.username|default:"N/A" }}</td>
+                                    <td>
+                                        {% for detail in account.detemployeeaccount_set.all %}
+                                        <span class="badge bg-secondary">{{ detail.prod.name }} x{{ detail.cant }}</span>
+                                        {% endfor %}
+                                    </td>
+                                    <td>{{ account.total|ars_currency }}</td>
+                                    <td>
+                                        <span class="badge {% if account.is_paid %}bg-success{% else %}bg-danger{% endif %}">
+                                            {% if account.is_paid %}Pagado{% else %}Impago{% endif %}
+                                        </span>
+                                    </td>
+                                    <td>{{ account.paid_date|date:"d/m/Y"|default:"-" }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center">No hay cuentas corrientes en el período</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Paginación de Cuentas -->
+                    {% if employee_accounts_data.accounts.has_other_pages %}
+                    <nav aria-label="Paginación de cuentas">
+                        <ul class="pagination justify-content-center">
+                            {% if employee_accounts_data.accounts.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?report_type=employee_accounts&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}&is_paid={{ filter_is_paid }}&page={{ employee_accounts_data.accounts.previous_page_number }}">«</a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled"><span class="page-link">«</span></li>
+                            {% endif %}
+                            {% for num in employee_accounts_data.accounts.paginator.page_range %}
+                                {% if employee_accounts_data.accounts.number == num %}
+                                    <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                                {% elif num > employee_accounts_data.accounts.number|add:'-3' and num < employee_accounts_data.accounts.number|add:'3' %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?report_type=employee_accounts&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}&is_paid={{ filter_is_paid }}&page={{ num }}">{{ num }}</a>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+                            {% if employee_accounts_data.accounts.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?report_type=employee_accounts&company={{ company_id }}&start_date={{ start_date }}&end_date={{ end_date }}&is_paid={{ filter_is_paid }}&page={{ employee_accounts_data.accounts.next_page_number }}">»</a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled"><span class="page-link">»</span></li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    <div class="text-center text-muted">
+                        Mostrando {{ employee_accounts_data.accounts.start_index }}-{{ employee_accounts_data.accounts.end_index }} de {{ employee_accounts_data.accounts.paginator.count }} cuentas
                     </div>
                     {% endif %}
 

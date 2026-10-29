@@ -29,7 +29,7 @@ try:
 except ImportError:
     REPORTLAB_AVAILABLE = False
 
-from core.erp.models import Sale, DetSale, Product, Company, Expense
+from core.erp.models import Sale, DetSale, Product, Company, Expense, EmployeeAccountSale
 from core.erp.models_report_changes import ReportChangeLog, ReportConfiguration
 from core.user.models import User
 
@@ -105,6 +105,11 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
             context['profit_data'] = self.get_profit_data(company_id, start_date, end_date)
         elif report_type == 'top_selling':
             context['top_selling_data'] = self.get_top_selling_data(company_id, start_date, end_date, page)
+        elif report_type == 'employee_accounts':
+            is_paid = self.request.GET.get('is_paid', '')
+            context['employee_accounts_data'] = self.get_employee_accounts_data(
+                company_id, start_date, end_date, is_paid, page)
+            context['filter_is_paid'] = is_paid
         elif report_type == 'iva_ventas':
             context['iva_ventas_data'] = self.get_iva_ventas_data(company_id, start_date, end_date)
         
@@ -380,6 +385,50 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
             'daily_expenses': daily_expenses,
         }
     
+    def get_employee_accounts_data(self, company_id, start_date, end_date, is_paid='', page=1):
+        filters = {'date_joined__date__range': [start_date, end_date]}
+        if company_id:
+            filters['company_id'] = company_id
+        if is_paid == 'true':
+            filters['is_paid'] = True
+        elif is_paid == 'false':
+            filters['is_paid'] = False
+
+        accounts_queryset = (EmployeeAccountSale.objects.filter(**filters)
+                             .select_related('client', 'employee', 'company')
+                             .prefetch_related('detemployeeaccount_set__prod')
+                             .order_by('-date_joined'))
+
+        paginator = Paginator(accounts_queryset, 50)
+        try:
+            accounts = paginator.page(page)
+        except PageNotAnInteger:
+            accounts = paginator.page(1)
+        except EmptyPage:
+            accounts = paginator.page(paginator.num_pages)
+
+        summary = accounts_queryset.aggregate(
+            total_amount=Sum('total'),
+            total_count=Count('id'),
+        )
+        paid_agg = accounts_queryset.filter(is_paid=True).aggregate(
+            paid_total=Sum('total'), paid_count=Count('id'))
+        unpaid_agg = accounts_queryset.filter(is_paid=False).aggregate(
+            unpaid_total=Sum('total'), unpaid_count=Count('id'))
+        summary.update(paid_agg)
+        summary.update(unpaid_agg)
+
+        client_breakdown = (accounts_queryset.filter(is_paid=False)
+                            .values('client__names', 'employee__username')
+                            .annotate(total=Sum('total'), count=Count('id'))
+                            .order_by('-total'))
+
+        return {
+            'accounts': accounts,
+            'summary': summary,
+            'client_breakdown': client_breakdown,
+        }
+
     def get_profit_data(self, company_id, start_date, end_date):
         # Calcular ganancias basadas en ventas vs costos
         # Convertir strings a datetime para el rango completo
