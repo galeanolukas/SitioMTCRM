@@ -267,8 +267,14 @@ class ClientForm(ModelForm):
                 self.fields['company'].widget = HiddenInput()
                 self.fields['company'].required = False
         elif 'company' in self.fields:
-            # Para superusuarios, mostrar solo empresas activas
-            self.fields['company'].queryset = Company.objects.filter(is_active=True)
+            # Superusuarios: solo la empresa activa de la sesión
+            active_cid = get_active_company_id(self.request) if self.request else None
+            qs = Company.objects.filter(is_active=True)
+            if active_cid:
+                qs = qs.filter(pk=active_cid)
+            self.fields['company'].queryset = qs
+            if active_cid:
+                self.fields['company'].initial = active_cid
 
     class Meta:
         model = Client
