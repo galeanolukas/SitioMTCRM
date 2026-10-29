@@ -257,6 +257,7 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                     
                     # Mapear ventas originadas en cuentas corrientes
                     cc_map = {}
+                    cc_paid_ids = set()
                     cc_details_map = {}
                     for acc in EmployeeAccountSale.objects.filter(
                         related_sale_id__in=sales.values('id')
@@ -267,6 +268,8 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                         elif acc.employee_id and acc.employee:
                             titular = acc.employee.get_full_name() or acc.employee.username
                         cc_map[acc.related_sale_id] = titular
+                        if acc.is_paid:
+                            cc_paid_ids.add(acc.related_sale_id)
                         cc_details_map[acc.related_sale_id] = '<br/>'.join(
                             f"{d.prod.name} x{float(d.cant or 0):g}"
                             for d in acc.detemployeeaccount_set.all()
@@ -347,7 +350,7 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                             'other': other_amount,
                             'total': sale_total,
                             'employee_account': cc_map.get(sale.id, ''),
-                            'is_debt': payment_method == 'debt'
+                            'is_debt': payment_method == 'debt' and sale.id not in cc_paid_ids
                         })
                     
                     # Ordenar por fecha descendente
@@ -1100,6 +1103,7 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
     
     # Mapear ventas originadas en cuentas corrientes
     cc_map = {}
+    cc_paid_ids = set()
     cc_details_map = {}
     for acc in EmployeeAccountSale.objects.filter(
         related_sale_id__in=sales.values('id')
@@ -1110,6 +1114,8 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
         elif acc.employee_id and acc.employee:
             titular = acc.employee.get_full_name() or acc.employee.username
         cc_map[acc.related_sale_id] = titular
+        if acc.is_paid:
+            cc_paid_ids.add(acc.related_sale_id)
         cc_details_map[acc.related_sale_id] = '<br/>'.join(
             f"{d.prod.name} x{float(d.cant or 0):g}"
             for d in acc.detemployeeaccount_set.all()
@@ -1192,7 +1198,7 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
             'check': check_amount,
             'other': other_amount,
             'total': sale_total,
-            'is_debt': payment_method == 'debt'
+            'is_debt': payment_method == 'debt' and sale.id not in cc_paid_ids
         })
     
     # Ordenar por fecha descendente
