@@ -118,8 +118,13 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                     try:
                         from core.erp.models import Product
                         
+                        cobro_sales = EmployeeAccountSale.objects.filter(
+                            is_paid=True, related_sale_id__isnull=False
+                        ).values('related_sale_id')
                         product_sales = DetSale.objects.filter(
                             sale__in=sales
+                        ).exclude(
+                            sale_id__in=cobro_sales
                         ).values('prod__id').annotate(
                             total_quantity=Sum('cant'),
                             total_sales=Sum('subtotal')
@@ -451,8 +456,13 @@ def operator_sales_export(request):
             if report_format == 'products':
                 from django.db.models import Avg
                 
+                cobro_sales = EmployeeAccountSale.objects.filter(
+                    is_paid=True, related_sale_id__isnull=False
+                ).values('related_sale_id')
                 product_sales = DetSale.objects.filter(
                     sale__in=sales
+                ).exclude(
+                    sale_id__in=cobro_sales
                 ).values('prod__id').annotate(
                     total_quantity=Sum('cant'),
                     total_sales=Sum('subtotal')
@@ -1405,8 +1415,13 @@ def generate_products_pdf_report(sales, start_date, end_date, company_id, user, 
         font_name = 'Helvetica'
     
     # Obtener datos de productos agrupados (todo el inventario, rankeado por ventas)
+    cobro_sales = EmployeeAccountSale.objects.filter(
+        is_paid=True, related_sale_id__isnull=False
+    ).values('related_sale_id')
     product_sales = DetSale.objects.filter(
         sale__in=sales
+    ).exclude(
+        sale_id__in=cobro_sales
     ).values('prod__id').annotate(
         total_quantity=Sum('cant'),
         total_sales=Sum('subtotal')
