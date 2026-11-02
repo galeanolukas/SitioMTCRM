@@ -2285,7 +2285,9 @@ class EmployeeAccountListView(LoginRequiredMixin, ValidatePermissionRequiredMixi
         if is_paid == 'true':
             queryset = queryset.filter(is_paid=True)
         elif is_paid == 'false':
-            queryset = queryset.filter(is_paid=False)
+            queryset = queryset.filter(is_paid=False, is_cancelled=False)
+        elif is_paid == 'cancelled':
+            queryset = queryset.filter(is_cancelled=True)
 
         date_from = self.request.GET.get('date_from')
         date_to = self.request.GET.get('date_to')
@@ -2319,7 +2321,7 @@ class EmployeeAccountListView(LoginRequiredMixin, ValidatePermissionRequiredMixi
         # Calcular totales
         queryset = self.get_queryset()
         from django.db.models import Sum
-        context['total_debt'] = queryset.filter(is_paid=False).aggregate(
+        context['total_debt'] = queryset.filter(is_paid=False, is_cancelled=False).aggregate(
             total=Sum('total')
         )['total'] or 0
         context['total_paid'] = queryset.filter(is_paid=True).aggregate(
@@ -2610,7 +2612,9 @@ def employee_account_pdf_export(request):
         if is_paid == 'true':
             queryset = queryset.filter(is_paid=True)
         elif is_paid == 'false':
-            queryset = queryset.filter(is_paid=False)
+            queryset = queryset.filter(is_paid=False, is_cancelled=False)
+        elif is_paid == 'cancelled':
+            queryset = queryset.filter(is_cancelled=True)
         if date_from:
             queryset = queryset.filter(date_joined__date__gte=date_from)
         if date_to:

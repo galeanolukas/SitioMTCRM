@@ -2483,6 +2483,8 @@ class EmployeeAccountSale(models.Model):
     notes = models.TextField(blank=True, null=True, verbose_name='Notas')
     is_paid = models.BooleanField(default=False, verbose_name='Pagado')
     paid_date = models.DateTimeField(null=True, blank=True, verbose_name='Fecha de pago')
+    is_cancelled = models.BooleanField(default=False, verbose_name='Anulada')
+    cancelled_at = models.DateTimeField(null=True, blank=True, verbose_name='Fecha de anulación')
     related_sale_id = models.IntegerField(null=True, blank=True, verbose_name='ID de venta relacionada')
     synced_to_server = models.BooleanField(default=False, verbose_name='Sincronizado con servidor')
     local_uuid = models.CharField(max_length=64, blank=True, null=True, db_index=True, verbose_name='UUID local', help_text='UUID para sincronización (índice para búsquedas rápidas)')

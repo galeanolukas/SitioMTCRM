@@ -206,6 +206,7 @@
                 <option value="">Todos</option>
                 <option value="false" {% if filters.is_paid == 'false' %}selected{% endif %}>Impagos</option>
                 <option value="true" {% if filters.is_paid == 'true' %}selected{% endif %}>Pagados</option>
+                <option value="cancelled" {% if filters.is_paid == 'cancelled' %}selected{% endif %}>Anuladas</option>
               </select>
             </div>
             <div class="col-md-2">
@@ -264,7 +265,7 @@
                 </thead>
                 <tbody>
                   {% for account in object_list %}
-                    <tr class="{% if account.is_paid %}table-success{% else %}table-danger{% endif %}">
+                    <tr class="{% if account.is_cancelled %}table-secondary{% elif account.is_paid %}table-success{% else %}table-danger{% endif %}">
                       <td>
                         <strong>{% if account.client %}{{ account.client.names }} {{ account.client.surnames|default:'' }}{% else %}{{ account.employee.get_full_name|default:account.employee.username }}{% endif %}</strong>
                         {% if account.notes %}
@@ -287,8 +288,8 @@
                         <strong class="{% if not account.is_paid %}text-danger{% endif %}">{{ account.total|currency }}</strong>
                       </td>
                       <td>
-                        <span class="badge {% if account.is_paid %}bg-success{% else %}bg-danger{% endif %}">
-                          {% if account.is_paid %}Pagado{% else %}Impago{% endif %}
+                        <span class="badge {% if account.is_cancelled %}bg-secondary{% elif account.is_paid %}bg-success{% else %}bg-danger{% endif %}">
+                          {% if account.is_cancelled %}Anulada{% elif account.is_paid %}Pagado{% else %}Impago{% endif %}
                         </span>
                         {% if account.is_paid and account.paid_date %}
                           <br><small class="text-muted">{{ account.paid_date|date:"d/m/Y" }}</small>
@@ -299,7 +300,7 @@
                           <button type="button" class="btn btn-outline-info" onclick="showDetails({{ account.id }})" title="Detalles">
                             <i class="fas fa-eye"></i>
                           </button>
-                          {% if not account.is_paid %}
+                          {% if not account.is_paid and not account.is_cancelled %}
                             <button type="button" class="btn btn-outline-success" onclick="markAsPaid({{ account.id }}, {{ account.total }})" title="Marcar Pagado">
                               <i class="fas fa-check"></i>
                             </button>
