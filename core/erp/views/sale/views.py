@@ -753,6 +753,15 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                     
                     if 'combined_payments' in payload and payload['combined_payments']:
                         sale.payment_details = payload['combined_payments']
+                        # Plan de cuotas aplicado a la porcion tarjeta
+                        for pay in payload['combined_payments']:
+                            if isinstance(pay, dict) and pay.get('card_plan_id'):
+                                try:
+                                    sale.card_plan = CardInstallmentPlan.objects.get(id=pay['card_plan_id'])
+                                    sale.card_installments = pay.get('installments') or sale.card_plan.installments
+                                except CardInstallmentPlan.DoesNotExist:
+                                    pass
+                                break
 
                     sale.save()
                     # Vincular orden de cobro QR de Mercado Pago (si pago por QR)

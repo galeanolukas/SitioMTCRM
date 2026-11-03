@@ -2095,6 +2095,24 @@
     }
   });
 
+  // Mostrar opciones de tarjeta/plan cuando algun metodo es tarjeta
+  function updateCombinedCardOptions() {
+    const hasCard = $('#firstPaymentMethod').val() === 'card' || $('#secondPaymentMethod').val() === 'card';
+    $('#combinedCardOptions').toggle(hasCard);
+  }
+  $(document).on('change', '#firstPaymentMethod, #secondPaymentMethod', updateCombinedCardOptions);
+
+  // Aviso del recargo del plan seleccionado
+  $(document).on('change', '#combinedCardPlan', function() {
+    const opt = $(this).find(':selected');
+    const mult = parseFloat(opt.data('multiplier'));
+    if (mult && mult > 1) {
+      $('#combinedPlanInfo').html('<span class="text-warning"><i class="fas fa-info-circle"></i> Recargo ' + ((mult - 1) * 100).toFixed(1) + '% sobre la porcion tarjeta</span>');
+    } else {
+      $('#combinedPlanInfo').text('');
+    }
+  });
+
   // Confirmar pagos combinados
   $(document).on('click', '#btnCombinedPaymentConfirm', function() {
     const total = parseFormattedAmount($('#combinedTotalAmount').text());
@@ -2122,19 +2140,45 @@
     const subtotal = calc.subtotal_neto;
     const iva = calc.iva_total;
     
+    // Plan de cuotas sobre la porcion tarjeta (el cliente paga el recargo)
+    let cardSurcharge = 0;
+    const combinedPayments = [
+      { method: firstMethod, amount: firstAmount },
+      { method: secondMethod, amount: secondAmount }
+    ];
+    const planOpt = $('#combinedCardPlan').find(':selected');
+    if (planOpt.val() && (firstMethod === 'card' || secondMethod === 'card')) {
+      const multiplier = parseFloat(planOpt.data('multiplier'));
+      const installments = parseFloat(planOpt.data('installments'));
+      if (multiplier > 1) {
+        const cardType = $('input[name="combinedCardType"]:checked').val() || 'credit';
+        combinedPayments.forEach(p => {
+          if (p.method === 'card') {
+            p.card_plan_id = parseInt(planOpt.val());
+            p.card_type = cardType;
+            p.installments = installments;
+            p.multiplier = multiplier;
+            p.surcharge = Math.round(p.amount * (multiplier - 1) * 100) / 100;
+            p.amount_final = Math.round(p.amount * multiplier * 100) / 100;
+            cardSurcharge += p.surcharge;
+          }
+        });
+      }
+    }
+
     const payload = {
       items: items,
       subtotal: subtotal,
       iva: iva,
-      total: total,
+      total: total + cardSurcharge,
       rounding_amount: roundingAdj,
       payment_method: 'combined',
-      payment_method_desc: paymentDescription,
-      combined_payments: [
-        { method: firstMethod, amount: firstAmount },
-        { method: secondMethod, amount: secondAmount }
-      ]
+      payment_method_desc: paymentDescription + (cardSurcharge > 0 ? ' (con recargo plan $' + cardSurcharge.toFixed(2) + ')' : ''),
+      combined_payments: combinedPayments
     };
+    if (cardSurcharge > 0) {
+      showToast('info', `Recargo del plan sobre tarjeta: ${fmt(cardSurcharge)} — Nuevo total: ${fmt(total + cardSurcharge)}`);
+    }
     
     // Cerrar modal y registrar venta
     bootstrap.Modal.getInstance(document.getElementById('combinedPaymentStep2Modal')).hide();
