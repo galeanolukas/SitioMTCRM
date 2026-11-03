@@ -2102,16 +2102,26 @@
   }
   $(document).on('change', '#firstPaymentMethod, #secondPaymentMethod', updateCombinedCardOptions);
 
-  // Aviso del recargo del plan seleccionado
-  $(document).on('change', '#combinedCardPlan', function() {
-    const opt = $(this).find(':selected');
+  // Vista previa del total con recargo del plan (funciona tarjeta 1ra o 2da)
+  function updateCombinedPlanPreview() {
+    const opt = $('#combinedCardPlan').find(':selected');
     const mult = parseFloat(opt.data('multiplier'));
-    if (mult && mult > 1) {
-      $('#combinedPlanInfo').html('<span class="text-warning"><i class="fas fa-info-circle"></i> Recargo ' + ((mult - 1) * 100).toFixed(1) + '% sobre la porcion tarjeta</span>');
-    } else {
-      $('#combinedPlanInfo').text('');
-    }
-  });
+    if (!mult || mult <= 1) { $('#combinedPlanInfo').text(''); return; }
+    const total = parseFormattedAmount($('#combinedTotalAmount').text());
+    const firstAmount = parseFloat($('#firstPaymentAmount').val()) || 0;
+    const secondAmount = parseFloat($('#secondPaymentAmount').val()) || 0;
+    const cardPart = ($('#firstPaymentMethod').val() === 'card' ? firstAmount : 0)
+                   + ($('#secondPaymentMethod').val() === 'card' ? secondAmount : 0);
+    if (cardPart <= 0) { $('#combinedPlanInfo').text(''); return; }
+    const surcharge = Math.round(cardPart * (mult - 1) * 100) / 100;
+    $('#combinedPlanInfo').html(
+      '<div class="alert alert-warning p-2 mb-0">' +
+      'Recargo ' + ((mult - 1) * 100).toFixed(1) + '% sobre tarjeta (' + fmt(cardPart) + '): <strong>+' + fmt(surcharge) + '</strong><br>' +
+      'Nuevo total a cobrar: <strong class="text-dark">' + fmt(total + surcharge) + '</strong></div>'
+    );
+  }
+  $(document).on('change', '#combinedCardPlan', updateCombinedPlanPreview);
+  $(document).on('input change', '#firstPaymentAmount, #secondPaymentAmount', updateCombinedPlanPreview);
 
   // Confirmar pagos combinados
   $(document).on('click', '#btnCombinedPaymentConfirm', function() {
