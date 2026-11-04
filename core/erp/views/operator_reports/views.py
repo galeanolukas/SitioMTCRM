@@ -5,7 +5,7 @@ from core.erp.mixins import ValidatePermissionRequiredMixin, get_active_company_
 from django.db.models import Sum, Count, F
 from django.utils import timezone
 from datetime import datetime, timedelta
-from core.erp.models import Sale, Company, DetSale, Category, EmployeeAccountSale
+from core.erp.models import Sale, Company, DetSale, Category, EmployeeAccountSale, DetEmployeeAccount, Product
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 import json
@@ -42,6 +42,87 @@ def _products_summary(det_sales):
         cant_str = str(int(cant)) if cant == int(cant) else f'{cant:g}'
         parts.append(f"{det.prod.name} x{cant_str}")
     return '\n'.join(parts)
+
+
+def get_product_ranking_data(sales, start_date, end_date, company_id=None, category_id=None):
+    """Calcula el ranking de productos sumando las salidas de mercadería de mostrador (DetSale)
+    y de cuentas corrientes (DetEmployeeAccount no anuladas), evitando doble conteo de cobros.
+    """
+    from collections import defaultdict
+
+    # 1. Ventas de cobro de cuentas corrientes (para excluir de DetSale y no duplicar)
+    cobro_sales = EmployeeAccountSale.objects.filter(
+        is_paid=True, related_sale_id__isnull=False
+    )
+    if company_id:
+        cobro_sales = cobro_sales.filter(company_id=company_id)
+    cobro_sale_ids = cobro_sales.values('related_sale_id')
+
+    # 2. Ventas directas de mostrador (excluyendo ventas 'debt' de CC y cobros de CC)
+    ds_qs = DetSale.objects.filter(
+        sale__in=sales
+    ).exclude(
+        sale__payment_method='debt'
+    ).exclude(
+        sale_id__in=cobro_sale_ids
+    )
+    if category_id:
+        ds_qs = ds_qs.filter(prod__cat_id=category_id)
+
+    ds_grouped = ds_qs.values('prod__id').annotate(
+        total_quantity=Sum('cant'),
+        total_sales=Sum('subtotal')
+    )
+
+    # 3. Salidas de mercadería por Cuenta Corriente en el período (no anuladas)
+    dcc_qs = DetEmployeeAccount.objects.filter(
+        employee_account__is_cancelled=False
+    )
+    if company_id:
+        dcc_qs = dcc_qs.filter(employee_account__company_id=company_id)
+    if start_date and end_date:
+        dcc_qs = dcc_qs.filter(employee_account__date_joined__date__range=[start_date, end_date])
+    if category_id:
+        dcc_qs = dcc_qs.filter(prod__cat_id=category_id)
+
+    dcc_grouped = dcc_qs.values('prod__id').annotate(
+        total_quantity=Sum('cant'),
+        total_sales=Sum('subtotal')
+    )
+
+    sold_map = defaultdict(lambda: {'total_quantity': 0.0, 'total_sales': 0.0})
+    for r in ds_grouped:
+        sold_map[r['prod__id']]['total_quantity'] += float(r['total_quantity'] or 0)
+        sold_map[r['prod__id']]['total_sales'] += float(r['total_sales'] or 0)
+    for r in dcc_grouped:
+        sold_map[r['prod__id']]['total_quantity'] += float(r['total_quantity'] or 0)
+        sold_map[r['prod__id']]['total_sales'] += float(r['total_sales'] or 0)
+
+    # 4. Todos los productos del inventario
+    inv_qs = Product.objects.all().order_by('name')
+    if company_id:
+        inv_qs = inv_qs.filter(company_id=company_id)
+    if category_id:
+        inv_qs = inv_qs.filter(cat_id=category_id)
+
+    product_sales_data = []
+    for product in inv_qs:
+        ps = sold_map.get(product.id, {})
+        product_sales_data.append({
+            'rank': 0,
+            'product': product.name,
+            'quantity': int(round(float(ps.get('total_quantity') or 0))),
+            'price': float(product.pvp or 0),
+            'total': float(ps.get('total_sales') or 0),
+            'stock': int(round(float(product.stock or 0)))
+        })
+
+    product_sales_data.sort(key=lambda x: (-x['quantity'], x['product']))
+    for idx, ps in enumerate(product_sales_data, 1):
+        ps['rank'] = idx
+
+    grand_total = sum(p['total'] for p in product_sales_data)
+    return product_sales_data, grand_total
 
 
 class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView):
@@ -112,47 +193,10 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                 
                 # Si el formato es ranking de productos, calcular agrupación por producto
                 if report_format == 'products':
-                    from django.db.models import Avg
-                    
-                    # Obtener detalles de venta agrupados por producto
                     try:
-                        from core.erp.models import Product
-                        
-                        cobro_sales = EmployeeAccountSale.objects.filter(
-                            is_paid=True, related_sale_id__isnull=False
-                        ).values('related_sale_id')
-                        product_sales = DetSale.objects.filter(
-                            sale__in=sales
-                        ).exclude(
-                            sale_id__in=cobro_sales
-                        ).values('prod__id').annotate(
-                            total_quantity=Sum('cant'),
-                            total_sales=Sum('subtotal')
+                        product_sales_data, grand_total = get_product_ranking_data(
+                            sales, start_date, end_date, company_id=active_cid, category_id=category_id
                         )
-                        sold_map = {ps['prod__id']: ps for ps in product_sales}
-
-                        # Todos los productos del inventario, rankeados por cantidad vendida
-                        inv_qs = Product.objects.all().order_by('name')
-                        if active_cid:
-                            inv_qs = inv_qs.filter(company_id=active_cid)
-
-                        product_sales_data = []
-                        for idx, product in enumerate(inv_qs, 1):
-                            ps = sold_map.get(product.id, {})
-                            product_sales_data.append({
-                                'rank': idx,
-                                'product': product.name,
-                                'quantity': int(float(ps.get('total_quantity') or 0)),
-                                'price': float(product.pvp or 0),
-                                'total': float(ps.get('total_sales') or 0),
-                                'stock': int(float(product.stock or 0))
-                            })
-                        product_sales_data.sort(key=lambda x: (-x['quantity'], x['product']))
-                        for idx, ps in enumerate(product_sales_data, 1):
-                            ps['rank'] = idx
-                        
-                        # Calcular total general usando subtotal (igual que en reporte por método de pago)
-                        grand_total = sum(float(sale.subtotal) for sale in sales)
                         
                         data = {
                             'success': True,
@@ -444,7 +488,7 @@ def operator_sales_export(request):
                 return HttpResponse("Error: ReportLab no está instalado. Instale con: pip install reportlab", content_type='text/plain')
             
             if report_format == 'products':
-                return generate_products_pdf_report(sales, start_date, end_date, active_cid, request.user, report_type)
+                return generate_products_pdf_report(sales, start_date, end_date, active_cid, request.user, report_type, category_id=category_id)
             else:
                 return generate_pdf_report(sales, start_date, end_date, active_cid, request.user, report_type)
         
@@ -454,42 +498,9 @@ def operator_sales_export(request):
             
             # Si es formato de productos, generar CSV de ranking
             if report_format == 'products':
-                from django.db.models import Avg
-                
-                cobro_sales = EmployeeAccountSale.objects.filter(
-                    is_paid=True, related_sale_id__isnull=False
-                ).values('related_sale_id')
-                product_sales = DetSale.objects.filter(
-                    sale__in=sales
-                ).exclude(
-                    sale_id__in=cobro_sales
-                ).values('prod__id').annotate(
-                    total_quantity=Sum('cant'),
-                    total_sales=Sum('subtotal')
+                product_sales_data, grand_total = get_product_ranking_data(
+                    sales, start_date, end_date, company_id=active_cid, category_id=category_id
                 )
-                sold_map = {ps['prod__id']: ps for ps in product_sales}
-
-                inv_qs = Product.objects.all().order_by('name')
-                if active_cid:
-                    inv_qs = inv_qs.filter(company_id=active_cid)
-
-                product_sales_data = []
-                for product in inv_qs:
-                    ps = sold_map.get(product.id, {})
-                    product_sales_data.append({
-                        'rank': 0,
-                        'product': product.name,
-                        'quantity': int(float(ps.get('total_quantity') or 0)),
-                        'price': float(product.pvp or 0),
-                        'total': float(ps.get('total_sales') or 0),
-                        'stock': int(float(product.stock or 0))
-                    })
-                product_sales_data.sort(key=lambda x: (-x['quantity'], x['product']))
-                for idx, ps in enumerate(product_sales_data, 1):
-                    ps['rank'] = idx
-                
-                # Calcular total general usando subtotal (igual que en reporte por método de pago)
-                grand_total = sum(float(sale.subtotal) for sale in sales)
                 
                 response = HttpResponse(content_type='text/csv')
                 response['Content-Disposition'] = f'attachment; filename="ranking_productos_{start_date}_al_{end_date}.csv"'
@@ -1376,7 +1387,7 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
     return response
 
 
-def generate_products_pdf_report(sales, start_date, end_date, company_id, user, report_type='daily'):
+def generate_products_pdf_report(sales, start_date, end_date, company_id, user, report_type='daily', category_id=None):
     """Generate PDF report for product ranking"""
     if not REPORTLAB_AVAILABLE:
         from django.http import HttpResponse
@@ -1414,41 +1425,10 @@ def generate_products_pdf_report(sales, start_date, end_date, company_id, user, 
     except:
         font_name = 'Helvetica'
     
-    # Obtener datos de productos agrupados (todo el inventario, rankeado por ventas)
-    cobro_sales = EmployeeAccountSale.objects.filter(
-        is_paid=True, related_sale_id__isnull=False
-    ).values('related_sale_id')
-    product_sales = DetSale.objects.filter(
-        sale__in=sales
-    ).exclude(
-        sale_id__in=cobro_sales
-    ).values('prod__id').annotate(
-        total_quantity=Sum('cant'),
-        total_sales=Sum('subtotal')
+    # Obtener datos de productos agrupados (mostrador + cuenta corriente)
+    product_sales_data, grand_total = get_product_ranking_data(
+        sales, start_date, end_date, company_id=company_id, category_id=category_id
     )
-    sold_map = {ps['prod__id']: ps for ps in product_sales}
-
-    inv_qs = Product.objects.all().order_by('name')
-    if company_id:
-        inv_qs = inv_qs.filter(company_id=company_id)
-
-    product_sales_data = []
-    for product in inv_qs:
-        ps = sold_map.get(product.id, {})
-        product_sales_data.append({
-            'rank': 0,
-            'product': product.name,
-            'quantity': int(float(ps.get('total_quantity') or 0)),
-            'price': float(product.pvp or 0),
-            'total': float(ps.get('total_sales') or 0),
-            'stock': int(float(product.stock or 0))
-        })
-    product_sales_data.sort(key=lambda x: (-x['quantity'], x['product']))
-    for idx, ps in enumerate(product_sales_data, 1):
-        ps['rank'] = idx
-    
-    # Calcular total general usando subtotal (igual que en reporte por método de pago)
-    grand_total = sum(float(sale.subtotal) for sale in sales)
     
     response = HttpResponse(content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="ranking_productos_{start_date}_al_{end_date}.pdf"'
