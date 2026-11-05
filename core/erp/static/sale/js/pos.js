@@ -1956,6 +1956,14 @@
     $('#firstPaymentMethod').val('cash');
     $('#combinedRemaining').text(fmt(0));
     $('#btnCombinedPaymentStep2').prop('disabled', true);
+    // Resetear estado del paso 2 y opciones de tarjeta
+    $('#secondPaymentMethod').val('cash');
+    $('#secondPaymentMethod option').prop('disabled', false).show();
+    $('#secondPaymentAmount').val('');
+    $('#combinedCardCredit').prop('checked', true);
+    $('#combinedCardPlan').val('').prop('disabled', false);
+    $('#combinedPlanInfo').empty();
+    $('#combinedCardOptions').hide();
     
     // Calcular totales según el tipo de comprobante seleccionado
     updateCombinedTotals();
@@ -2070,6 +2078,8 @@
     // Establecer el segundo pago después de que el modal se muestre
     setTimeout(() => {
       $('#secondPaymentAmount').val(secondPaymentValue);
+      updateCombinedCardOptions();
+      updateCombinedPlanPreview();
     }, 100);
   });
 
@@ -2100,24 +2110,43 @@
     const hasCard = $('#firstPaymentMethod').val() === 'card' || $('#secondPaymentMethod').val() === 'card';
     $('#combinedCardOptions').toggle(hasCard);
   }
-  $(document).on('change', '#firstPaymentMethod, #secondPaymentMethod', updateCombinedCardOptions);
+  $(document).on('change', '#firstPaymentMethod, #secondPaymentMethod', function() {
+    updateCombinedCardOptions();
+    updateCombinedPlanPreview();
+  });
 
-  // Vista previa del total con recargo del plan (funciona tarjeta 1ra o 2da)
+  // Débito: sin plan ni recargo. Crédito: plan habilitado
+  $(document).on('change', 'input[name="combinedCardType"]', function() {
+    const isDebit = $(this).val() === 'debit';
+    if (isDebit) {
+      $('#combinedCardPlan').val('').prop('disabled', true);
+    } else {
+      $('#combinedCardPlan').prop('disabled', false);
+    }
+    updateCombinedPlanPreview();
+  });
+
+  // Vista previa del monto a cobrar en tarjeta con interés (funciona tarjeta 1ra o 2da)
   function updateCombinedPlanPreview() {
     const opt = $('#combinedCardPlan').find(':selected');
     const mult = parseFloat(opt.data('multiplier'));
-    if (!mult || mult <= 1) { $('#combinedPlanInfo').text(''); return; }
+    const cardType = $('input[name="combinedCardType"]:checked').val() || 'credit';
     const total = parseFormattedAmount($('#combinedTotalAmount').text());
     const firstAmount = parseFloat($('#firstPaymentAmount').val()) || 0;
     const secondAmount = parseFloat($('#secondPaymentAmount').val()) || 0;
     const cardPart = ($('#firstPaymentMethod').val() === 'card' ? firstAmount : 0)
                    + ($('#secondPaymentMethod').val() === 'card' ? secondAmount : 0);
-    if (cardPart <= 0) { $('#combinedPlanInfo').text(''); return; }
+    if (!mult || mult <= 1 || cardPart <= 0 || cardType !== 'credit') {
+      $('#combinedPlanInfo').empty();
+      return;
+    }
     const surcharge = Math.round(cardPart * (mult - 1) * 100) / 100;
+    const cardFinal = Math.round(cardPart * mult * 100) / 100;
     $('#combinedPlanInfo').html(
       '<div class="alert alert-warning p-2 mb-0">' +
-      'Recargo ' + ((mult - 1) * 100).toFixed(1) + '% sobre tarjeta (' + fmt(cardPart) + '): <strong>+' + fmt(surcharge) + '</strong><br>' +
-      'Nuevo total a cobrar: <strong class="text-dark">' + fmt(total + surcharge) + '</strong></div>'
+      'A cobrar en tarjeta: <strong class="fs-5 text-dark">' + fmt(cardFinal) + '</strong><br>' +
+      '<span class="text-muted">(restante ' + fmt(cardPart) + ' + interés ' + fmt(surcharge) + ')</span><br>' +
+      'Nuevo total venta: <strong class="text-dark">' + fmt(total + surcharge) + '</strong></div>'
     );
   }
   $(document).on('change', '#combinedCardPlan', updateCombinedPlanPreview);
@@ -2135,6 +2164,15 @@
     if (Math.abs((firstAmount + secondAmount) - total) > 0.01) {
       showToast('error', 'Los montos no suman el total correcto');
       $(this).prop('disabled', false);
+      return;
+    }
+    
+    // Si alguna forma de pago es tarjeta de crédito, el plan es obligatorio
+    const hasCardPayment = firstMethod === 'card' || secondMethod === 'card';
+    const combinedCardType = $('input[name="combinedCardType"]:checked').val() || 'credit';
+    if (hasCardPayment && combinedCardType === 'credit' && !$('#combinedCardPlan').val()) {
+      showToast('warning', 'Hay pago con tarjeta de crédito: seleccione el plan de cuotas');
+      $('#combinedCardPlan').focus();
       return;
     }
     
@@ -2157,7 +2195,7 @@
       { method: secondMethod, amount: secondAmount }
     ];
     const planOpt = $('#combinedCardPlan').find(':selected');
-    if (planOpt.val() && (firstMethod === 'card' || secondMethod === 'card')) {
+    if (planOpt.val() && combinedCardType === 'credit' && (firstMethod === 'card' || secondMethod === 'card')) {
       const multiplier = parseFloat(planOpt.data('multiplier'));
       const installments = parseFloat(planOpt.data('installments'));
       if (multiplier > 1) {
