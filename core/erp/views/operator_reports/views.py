@@ -1126,13 +1126,14 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
     money_style = ParagraphStyle(
         'MoneyCell',
         parent=normal_style,
-        fontSize=7.5,
-        leading=9,
+        fontSize=7,
+        leading=8.5,
         alignment=2,  # Right
     )
     money_style_bold = ParagraphStyle(
         'MoneyCellBold',
         parent=money_style,
+        fontSize=7.5,
         fontName=font_name,
     )
     def money_cell(amount, bold=False):
@@ -1318,7 +1319,7 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
     
     # Create table with optimized column widths for A4 (8 columnas: Fecha/Hora, Productos, Efectivo, MP, Transfer, Tarjeta, Cheque, Total)
     # Reducidos anchos para agregar más margen lateral
-    sales_table = Table(table_data, colWidths=[0.85*inch, 1.5*inch, 0.78*inch, 0.72*inch, 0.72*inch, 0.78*inch, 0.72*inch, 0.95*inch])
+    sales_table = Table(table_data, colWidths=[0.7*inch, 1.3*inch, 0.83*inch, 0.83*inch, 0.83*inch, 0.83*inch, 0.83*inch, 0.95*inch])
     sales_table.setStyle(TableStyle([
         # Header styling
         ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
@@ -1339,6 +1340,9 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
         ('FONTSIZE', (0, 1), (-1, -3), 8),  # Reducido de 9 a 8
         ('BOTTOMPADDING', (0, 1), (-1, -3), 3),  # Reducido de 4 a 3
         ('TOPPADDING', (0, 1), (-1, -3), 3),  # Reducido de 4 a 3
+        # Padding mínimo en columnas de montos (2-7) para que entren valores grandes
+        ('LEFTPADDING', (2, 1), (-1, -1), 2),
+        ('RIGHTPADDING', (2, 1), (-1, -1), 2),
         ('GRID', (0, 0), (-1, -1), 1, colors.black),
         ('VALIGN', (0, 1), (-1, -3), 'TOP'),     # Alinear texto hacia arriba para múltiples líneas
         
