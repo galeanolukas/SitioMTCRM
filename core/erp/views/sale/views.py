@@ -2761,6 +2761,20 @@ def employee_account_pdf_export(request):
                 leading=9.5,
                 alignment=2,  # Right
             )
+            cell_style = ParagraphStyle(
+                'CellCC',
+                parent=styles['Normal'],
+                fontSize=8,
+                leading=9.5,
+                alignment=0,  # Left
+            )
+            date_cell_style = ParagraphStyle(
+                'DateCellCC',
+                parent=styles['Normal'],
+                fontSize=8,
+                leading=9.5,
+                alignment=1,  # Center
+            )
 
             for account in queryset:
                 # Formatear productos
@@ -2771,20 +2785,20 @@ def employee_account_pdf_export(request):
                 if account.detemployeeaccount_set.count() > 3:
                     productos.append(f"...+{account.detemployeeaccount_set.count() - 3} más")
                 
-                productos_str = '\n'.join(productos)
-                
+                productos_str = '<br/>'.join(productos)
+
                 # Calcular totales
                 subtotal = float(account.subtotal)
                 total = float(account.total)
                 total_general += total
-                
+
                 if account.is_paid:
                     total_paid += total
                     estado = 'Pagado'
                 else:
                     total_debt += total
                     estado = 'Impago'
-                
+
                 if account.employee_id and account.employee:
                     titular = account.employee.get_full_name() or account.employee.username
                 elif account.client_id and account.client:
@@ -2792,17 +2806,16 @@ def employee_account_pdf_export(request):
                 else:
                     titular = '(sin titular)'
                 table_data.append([
-                    titular,
-                    account.date_joined.strftime('%d/%m/%Y'),
-                    productos_str,
+                    Paragraph(titular, cell_style),
+                    Paragraph(account.date_joined.strftime('%d/%m/%Y'), date_cell_style),
+                    Paragraph(productos_str, cell_style),
                     Paragraph(fmt_money_ar(subtotal), money_cell_style),
                     Paragraph(fmt_money_ar(total), money_cell_style),
                     estado
                 ])
             
             # Crear tabla con anchos ajustados para A4 (210mm ancho - 30mm márgenes = 180mm usable)
-            # Distribución: Empleado(40mm), Fecha(30mm), Productos(55mm), Subtotal(25mm), Total(25mm), Estado(15mm) = 190mm total
-            table = Table(table_data, colWidths=[1.6*inch, 1.2*inch, 2.2*inch, 1.0*inch, 1.0*inch, 0.8*inch])
+            table = Table(table_data, colWidths=[1.4*inch, 0.75*inch, 2.35*inch, 0.95*inch, 0.95*inch, 0.68*inch])
             
             # Estilo de tabla mejorado
             table_style = TableStyle([
@@ -2822,8 +2835,8 @@ def employee_account_pdf_export(request):
                 ('FONTNAME', (0, 1), (-1, -1), font_name),
                 ('FONTSIZE', (0, 1), (-1, -1), 9),
                 ('VALIGN', (0, 1), (-1, -1), 'TOP'),
-                ('LEFTPADDING', (0, 1), (-1, -1), 6),
-                ('RIGHTPADDING', (0, 1), (-1, -1), 6),
+                ('LEFTPADDING', (0, 1), (-1, -1), 3),
+                ('RIGHTPADDING', (0, 1), (-1, -1), 3),
                 ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
                 ('TOPPADDING', (0, 1), (-1, -1), 6),
                 
