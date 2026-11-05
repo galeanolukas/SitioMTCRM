@@ -2630,7 +2630,7 @@ def employee_account_pdf_export(request):
         if date_to:
             queryset = queryset.filter(date_joined__date__lte=date_to)
         
-        queryset = queryset.select_related('employee').prefetch_related('detemployeeaccount_set__prod')
+        queryset = queryset.select_related('employee', 'client').prefetch_related('detemployeeaccount_set__prod')
         
         # Generar PDF
         from django.http import HttpResponse
@@ -2747,7 +2747,7 @@ def employee_account_pdf_export(request):
         # Tabla de cuentas corrientes
         if queryset.exists():
             # Cabecera de la tabla
-            headers = ['Empleado', 'Fecha', 'Productos', 'Subtotal', 'Total', 'Estado']
+            headers = ['Titular', 'Fecha', 'Productos', 'Subtotal', 'Total', 'Estado']
             table_data = [headers]
             
             total_general = 0
@@ -2785,8 +2785,14 @@ def employee_account_pdf_export(request):
                     total_debt += total
                     estado = 'Impago'
                 
+                if account.employee_id and account.employee:
+                    titular = account.employee.get_full_name() or account.employee.username
+                elif account.client_id and account.client:
+                    titular = account.client.names
+                else:
+                    titular = '(sin titular)'
                 table_data.append([
-                    account.employee.get_full_name() or account.employee.username,
+                    titular,
                     account.date_joined.strftime('%d/%m/%Y'),
                     productos_str,
                     Paragraph(fmt_money_ar(subtotal), money_cell_style),

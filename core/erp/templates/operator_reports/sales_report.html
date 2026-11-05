@@ -46,14 +46,22 @@
                         </div>
                         <div class="col-md-2">
                             <div class="form-group">
-                                <label for="start_date">Fecha Desde</label>
-                                <input type="date" name="start_date" id="start_date" class="form-control">
+                                <label for="start_date_view">Fecha Desde</label>
+                                <div class="input-group">
+                                    <input type="text" id="start_date_view" class="form-control" placeholder="dd/mm/aaaa" autocomplete="off" maxlength="10" inputmode="numeric">
+                                    <button class="btn btn-outline-secondary" type="button" id="start_date_btn" title="Abrir calendario"><i class="fas fa-calendar-alt"></i></button>
+                                </div>
+                                <input type="date" name="start_date" id="start_date" class="visually-hidden" tabindex="-1">
                             </div>
                         </div>
                         <div class="col-md-2">
                             <div class="form-group">
-                                <label for="end_date">Fecha Hasta</label>
-                                <input type="date" name="end_date" id="end_date" class="form-control">
+                                <label for="end_date_view">Fecha Hasta</label>
+                                <div class="input-group">
+                                    <input type="text" id="end_date_view" class="form-control" placeholder="dd/mm/aaaa" autocomplete="off" maxlength="10" inputmode="numeric">
+                                    <button class="btn btn-outline-secondary" type="button" id="end_date_btn" title="Abrir calendario"><i class="fas fa-calendar-alt"></i></button>
+                                </div>
+                                <input type="date" name="end_date" id="end_date" class="visually-hidden" tabindex="-1">
                             </div>
                         </div>
                         {% if request.user.is_superuser %}
@@ -207,14 +215,49 @@
 </div>
 
 <script>
+// --- Fechas dd/mm/aaaa: vista amigable sobre inputs nativos ocultos ---
+function isoToView(iso) {
+    if (!iso) return '';
+    const p = iso.split('-');
+    return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : '';
+}
+function viewToIso(v) {
+    const m = (v || '').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (!m) return '';
+    return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+}
+function setRealDate(realId, iso) {
+    const real = document.getElementById(realId);
+    real.value = iso;
+    real.dispatchEvent(new Event('change'));
+}
+function bindDateView(realId) {
+    const real = document.getElementById(realId);
+    const view = document.getElementById(realId + '_view');
+    const btn  = document.getElementById(realId + '_btn');
+    view.value = isoToView(real.value);
+    view.addEventListener('input', function() {
+        const iso = viewToIso(view.value);
+        if (iso) { real.value = iso; view.classList.remove('is-invalid'); }
+        else if (!view.value.trim()) { real.value = ''; view.classList.remove('is-invalid'); }
+        else { view.classList.add('is-invalid'); }
+    });
+    real.addEventListener('change', function() { view.value = isoToView(real.value); });
+    if (btn) btn.addEventListener('click', function() {
+        try { real.showPicker(); } catch(e) { view.focus(); }
+    });
+}
+
 $(document).ready(function() {
     // Set current year
     $('#current-year').text(new Date().getFullYear());
     
     // Set default dates
     const today = new Date().toISOString().split('T')[0];
-    $('#start_date').val(today);
-    $('#end_date').val(today);
+    bindDateView('start_date');
+    bindDateView('end_date');
+    setRealDate('start_date', today);
+    setRealDate('end_date', today);
     $('#report-date').val(today);
     
     // Auto-generate report on load
@@ -226,9 +269,9 @@ $(document).ready(function() {
         const today = new Date();
         
         if (reportType === 'custom') {
-            $('#start_date, #end_date').prop('disabled', false);
+            $('#start_date, #end_date, #start_date_view, #end_date_view, #start_date_btn, #end_date_btn').prop('disabled', false);
         } else {
-            $('#start_date, #end_date').prop('disabled', true);
+            $('#start_date, #end_date, #start_date_view, #end_date_view, #start_date_btn, #end_date_btn').prop('disabled', true);
             
             // Calculate dates based on report type
             let startDate, endDate;
@@ -257,8 +300,8 @@ $(document).ready(function() {
                 return `${year}-${month}-${day}`;
             };
             
-            $('#start_date').val(formatDate(startDate));
-            $('#end_date').val(formatDate(endDate));
+            setRealDate('start_date', formatDate(startDate));
+            setRealDate('end_date', formatDate(endDate));
         }
     });
     
