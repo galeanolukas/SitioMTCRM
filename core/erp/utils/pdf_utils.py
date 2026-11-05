@@ -14,6 +14,16 @@ from django.conf import settings
 import base64
 import io
 
+def fmt_money_ar(amount):
+    """Formatea un monto en formato argentino: $1.739.000,00 (punto miles, coma decimal)."""
+    try:
+        value = float(amount or 0)
+    except (TypeError, ValueError):
+        value = 0.0
+    s = f"{abs(value):,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+    return f"-${s}" if value < 0 else f"${s}"
+
+
 def invoice_pdf_reportlab(request, sale):
     """
     Generar PDF de factura usando ReportLab como alternativa a WeasyPrint

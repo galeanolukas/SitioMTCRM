@@ -1579,10 +1579,11 @@ def expense_export(request):
         try:
             from reportlab.lib.pagesizes import letter, A4
             from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-            from reportlab.lib.styles import getSampleStyleSheet
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
             from reportlab.lib import colors
             from reportlab.lib.units import inch
             from io import BytesIO
+            from core.erp.utils.pdf_utils import fmt_money_ar
             
             # Create PDF buffer
             buffer = BytesIO()
@@ -1605,24 +1606,39 @@ def expense_export(request):
             elements.append(Paragraph("RESUMEN DE GASTOS", heading_style))
             elements.append(Spacer(1, 12))
             
+            # Estilos de celda: texto con ajuste y montos alineados a la derecha
+            cell_style = ParagraphStyle(
+                'ExpenseCell',
+                parent=normal_style,
+                fontSize=8,
+                leading=9.5,
+            )
+            money_cell_style = ParagraphStyle(
+                'ExpenseMoney',
+                parent=normal_style,
+                fontSize=8,
+                leading=9.5,
+                alignment=2,  # Right
+            )
+
             # Table data
             table_data = [['Fecha', 'Proveedor', 'Descripción', 'Items', 'Monto', 'Pagado por', 'Empresa']]
             for row in detailed_rows:
                 table_data.append([
-                    row['Fecha'],
-                    row['Proveedor'],
-                    row['Descripción'],
-                    row['Items'],
-                    f"${row['Monto']:.2f}",
-                    row['Pagado por'],
-                    row['Empresa']
+                    Paragraph(str(row['Fecha']), cell_style),
+                    Paragraph(str(row['Proveedor']), cell_style),
+                    Paragraph(str(row['Descripción']), cell_style),
+                    Paragraph(str(row['Items']), cell_style),
+                    Paragraph(fmt_money_ar(row['Monto']), money_cell_style),
+                    Paragraph(str(row['Pagado por']), cell_style),
+                    Paragraph(str(row['Empresa']), cell_style)
                 ])
-            
+
             # Add total row
-            table_data.append(['', '', '', '', f"${total_amount:.2f}", '', ''])
-            
-            # Create table
-            table = Table(table_data)
+            table_data.append(['', '', '', '', Paragraph(fmt_money_ar(total_amount), money_cell_style), '', ''])
+
+            # Create table con anchos fijos para que los montos no se superpongan
+            table = Table(table_data, colWidths=[0.65*inch, 0.9*inch, 1.3*inch, 1.4*inch, 0.9*inch, 0.9*inch, 1.05*inch])
             table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -1645,9 +1661,9 @@ def expense_export(request):
             elements.append(Spacer(1, 12))
             
             stats_data = [
-                ['Total de Gastos', f"${total_amount:.2f}"],
+                ['Total de Gastos', fmt_money_ar(total_amount)],
                 ['Cantidad de Registros', str(total_count)],
-                ['Promedio por Gasto', f"${total_amount / total_count if total_count > 0 else 0:.2f}"]
+                ['Promedio por Gasto', fmt_money_ar(total_amount / total_count if total_count > 0 else 0)]
             ]
             
             stats_table = Table(stats_data)

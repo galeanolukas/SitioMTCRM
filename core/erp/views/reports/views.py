@@ -1818,19 +1818,20 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
             
         elif report_type == 'expenses':
             # Datos de la tabla de gastos
+            from core.erp.utils.pdf_utils import fmt_money_ar
             table_data = [['Fecha', 'Proveedor', 'Descripción', 'Monto', 'Pagado por']]
-            
+
             for expense in data:
                 table_data.append([
                     expense.date.strftime('%d/%m/%Y') if expense.date else '',
                     expense.supplier.name if expense.supplier else 'N/A',
                     expense.description or '',
-                    f"${expense.amount:,.2f}",
+                    fmt_money_ar(expense.amount),
                     expense.payer or 'N/A'
                 ])
-            
-            # Crear tabla
-            table = Table(table_data)
+
+            # Crear tabla con anchos fijos para evitar superposición de montos
+            table = Table(table_data, colWidths=[0.8*inch, 1.3*inch, 2.4*inch, 1.1*inch, 1.5*inch])
             table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -1855,8 +1856,8 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
             summary_data = [
                 ['Concepto', 'Valor'],
                 ['Total de Gastos', str(total_expenses)],
-                ['Monto Total', f"${total_amount:,.2f}"],
-                ['Promedio por Gasto', f"${total_amount/total_expenses if total_expenses > 0 else 0:,.2f}"]
+                ['Monto Total', fmt_money_ar(total_amount)],
+                ['Promedio por Gasto', fmt_money_ar(total_amount/total_expenses if total_expenses > 0 else 0)]
             ]
             
             summary_table = Table(summary_data)

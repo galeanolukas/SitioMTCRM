@@ -6,6 +6,7 @@ from django.db.models import Sum, Count, F
 from django.utils import timezone
 from datetime import datetime, timedelta
 from core.erp.models import Sale, Company, DetSale, Category, EmployeeAccountSale, DetEmployeeAccount, Product
+from core.erp.utils.pdf_utils import fmt_money_ar
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 import json
@@ -369,7 +370,7 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                                 for payment in payments_list:
                                     if isinstance(payment, dict):
                                         method = payment.get('method', '')
-                                        amount = float(payment.get('amount', 0))
+                                        amount = float(payment.get('amount_final') or payment.get('amount', 0))
                                         
                                         if method == 'cash':
                                             cash_amount += amount
@@ -609,12 +610,17 @@ def operator_sales_export(request):
                         payment_details = payment_details.get('payments', [])
                     sale_total = float(sale.total)
                     if payment_details and isinstance(payment_details, list) and sale_total > 0:
+                        # amount_final incluye el recargo del plan de tarjeta
+                        eff_total = sum(
+                            float(p.get('amount_final') or p.get('amount', 0))
+                            for p in payment_details if isinstance(p, dict)
+                        ) or sale_total
                         for payment in payment_details:
                             if isinstance(payment, dict):
                                 method = payment.get('method', '')
-                                amount = float(payment.get('amount', 0))
-                                # Proporción de este método sobre el total de la venta
-                                proportion = amount / sale_total
+                                amount = float(payment.get('amount_final') or payment.get('amount', 0))
+                                # Proporción de este método sobre lo efectivamente cobrado
+                                proportion = amount / eff_total
                                 # Aplicar proporción al subtotal de la venta
                                 detail_amount = sale_subtotal * proportion
                                 
@@ -817,12 +823,17 @@ def operator_sales_export(request):
                         payment_details = payment_details.get('payments', [])
                     sale_total = float(sale.total)
                     if payment_details and isinstance(payment_details, list) and sale_total > 0:
+                        # amount_final incluye el recargo del plan de tarjeta
+                        eff_total = sum(
+                            float(p.get('amount_final') or p.get('amount', 0))
+                            for p in payment_details if isinstance(p, dict)
+                        ) or sale_total
                         for payment in payment_details:
                             if isinstance(payment, dict):
                                 method = payment.get('method', '')
-                                amount = float(payment.get('amount', 0))
-                                # Proporción de este método sobre el total de la venta
-                                proportion = amount / sale_total
+                                amount = float(payment.get('amount_final') or payment.get('amount', 0))
+                                # Proporción de este método sobre lo efectivamente cobrado
+                                proportion = amount / eff_total
                                 # Aplicar proporción al subtotal de la venta
                                 detail_amount = sale_subtotal * proportion
                                 
@@ -1108,8 +1119,25 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
     def format_currency(amount):
         if amount == 0:
             return ''
-        return f"${amount:,.2f}"
-    
+        return fmt_money_ar(amount)
+
+    # Estilo para celdas de montos: alineadas a la derecha y compactas
+    # para que valores grandes no se superpongan entre columnas
+    money_style = ParagraphStyle(
+        'MoneyCell',
+        parent=normal_style,
+        fontSize=7.5,
+        leading=9,
+        alignment=2,  # Right
+    )
+    money_style_bold = ParagraphStyle(
+        'MoneyCellBold',
+        parent=money_style,
+        fontName=font_name,
+    )
+    def money_cell(amount, bold=False):
+        return Paragraph(format_currency(amount), money_style_bold if bold else money_style)
+
     # Función para formatear pagos combinados con descripción
     def format_combined_payment(amount, payment_method):
         if amount == 0:
@@ -1199,7 +1227,7 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
                 for payment in payments_list:
                     if isinstance(payment, dict):
                         method = payment.get('method', '')
-                        amount = float(payment.get('amount', 0))
+                        amount = float(payment.get('amount_final') or payment.get('amount', 0))
                         
                         if method == 'cash':
                             cash_amount += amount
@@ -1255,24 +1283,24 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
         table_data.append([
             date_paragraph,
             products_paragraph,
-            debt_cell if sale['is_debt'] else format_currency(sale['cash']),
-            debt_cell if sale['is_debt'] else format_currency(sale['mp']),
-            debt_cell if sale['is_debt'] else format_currency(sale['transfer']),
-            debt_cell if sale['is_debt'] else format_currency(sale['card']),
-            debt_cell if sale['is_debt'] else format_currency(sale['check']),
-            debt_cell if sale['is_debt'] else format_currency(sale['total'])
+            debt_cell if sale['is_debt'] else money_cell(sale['cash']),
+            debt_cell if sale['is_debt'] else money_cell(sale['mp']),
+            debt_cell if sale['is_debt'] else money_cell(sale['transfer']),
+            debt_cell if sale['is_debt'] else money_cell(sale['card']),
+            debt_cell if sale['is_debt'] else money_cell(sale['check']),
+            debt_cell if sale['is_debt'] else money_cell(sale['total'])
         ])
     
     # Add summary row (gray background) - will be moved to end after grand total
     table_data.append([
-        'Resumen',
+        Paragraph('Resumen', money_style_bold),
         '',
-        format_currency(cash_total),
-        format_currency(mp_total),
-        format_currency(transfer_total),
-        format_currency(card_total),
-        format_currency(check_total),
-        format_currency(cash_total + mp_total + transfer_total + card_total + check_total + other_total)
+        money_cell(cash_total, bold=True),
+        money_cell(mp_total, bold=True),
+        money_cell(transfer_total, bold=True),
+        money_cell(card_total, bold=True),
+        money_cell(check_total, bold=True),
+        money_cell(cash_total + mp_total + transfer_total + card_total + check_total + other_total, bold=True)
     ])
     
     # Add grand total row (white background) - last row
@@ -1285,12 +1313,12 @@ def generate_pdf_report(sales, start_date, end_date, company_id, user, report_ty
         '',
         '',
         '',
-        format_currency(grand_total)
+        money_cell(grand_total, bold=True)
     ])
     
     # Create table with optimized column widths for A4 (8 columnas: Fecha/Hora, Productos, Efectivo, MP, Transfer, Tarjeta, Cheque, Total)
     # Reducidos anchos para agregar más margen lateral
-    sales_table = Table(table_data, colWidths=[0.9*inch, 1.6*inch, 0.75*inch, 0.7*inch, 0.7*inch, 0.7*inch, 0.7*inch, 0.85*inch])
+    sales_table = Table(table_data, colWidths=[0.85*inch, 1.5*inch, 0.78*inch, 0.72*inch, 0.72*inch, 0.78*inch, 0.72*inch, 0.95*inch])
     sales_table.setStyle(TableStyle([
         # Header styling
         ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
@@ -1514,8 +1542,24 @@ def generate_products_pdf_report(sales, start_date, end_date, company_id, user, 
     def format_currency(amount):
         if amount == 0:
             return ''
-        return f"${amount:,.2f}"
-    
+        return fmt_money_ar(amount)
+
+    # Estilo para celdas de montos: alineadas a la derecha y compactas
+    money_style = ParagraphStyle(
+        'MoneyCell',
+        parent=normal_style,
+        fontSize=8,
+        leading=9.5,
+        alignment=2,  # Right
+    )
+    money_style_bold = ParagraphStyle(
+        'MoneyCellBold',
+        parent=money_style,
+        fontName=font_name,
+    )
+    def money_cell(amount, bold=False):
+        return Paragraph(format_currency(amount), money_style_bold if bold else money_style)
+
     def format_number(amount):
         if amount == 0:
             return ''
@@ -1562,8 +1606,8 @@ def generate_products_pdf_report(sales, start_date, end_date, company_id, user, 
             wrap_text(product['product']),  # Aplicar wrapping de texto
             str(product['quantity']),  # Entero sin formato
             str(product['stock']),      # Entero sin formato
-            format_currency(product['price']),
-            format_currency(product['total'])
+            money_cell(product['price']),
+            money_cell(product['total'])
         ])
     
     # Add summary row
@@ -1573,7 +1617,7 @@ def generate_products_pdf_report(sales, start_date, end_date, company_id, user, 
         str(total_quantity),  # Entero sin formato
         '',
         '',
-        format_currency(grand_total)  # Usar grand_total calculado anteriormente
+        money_cell(grand_total, bold=True)  # Usar grand_total calculado anteriormente
     ])
     
     # Create table with optimized column widths

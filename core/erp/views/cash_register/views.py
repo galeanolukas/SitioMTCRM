@@ -241,7 +241,7 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
                     for payment in payment_breakdown:
                         if isinstance(payment, dict):
                             method = payment.get('method', '')
-                            amount = Decimal(str(payment.get('amount', 0)))
+                            amount = Decimal(str(payment.get('amount_final') or payment.get('amount', 0)))
                             if method == 'cash':
                                 dynamic_cash += amount
                             elif method == 'card':
@@ -360,7 +360,7 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
                     for payment in payment_breakdown:
                         if isinstance(payment, dict):
                             method = payment.get('method', '')
-                            amount = Decimal(str(payment.get('amount', 0)))
+                            amount = Decimal(str(payment.get('amount_final') or payment.get('amount', 0)))
                             if method == 'cash':
                                 cash_total += amount
                             elif method == 'card':
@@ -473,7 +473,7 @@ class CashRegisterDetailView(LoginRequiredMixin, ValidatePermissionRequiredMixin
                     for payment in payment_breakdown:
                         if isinstance(payment, dict):
                             method = payment.get('method', '')
-                            amount = Decimal(str(payment.get('amount', 0)))
+                            amount = Decimal(str(payment.get('amount_final') or payment.get('amount', 0)))
                             if method == 'cash':
                                 dynamic_cash += amount
                             elif method == 'card':

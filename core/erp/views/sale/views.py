@@ -5,6 +5,7 @@ from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, get_object_or_404
 from django import forms
 from core.erp.models import Sale, Product, DetSale, Company, Client, QuickOrder, Category, CashRegister, EmployeeAccountSale, DetEmployeeAccount, SaleVatBreakdown, CardInstallmentPlan
+from core.erp.utils.pdf_utils import fmt_money_ar
 from django.contrib.auth import get_user_model
 from django.template.loader import get_template
 from django.conf import settings
@@ -2752,7 +2753,15 @@ def employee_account_pdf_export(request):
             total_general = 0
             total_debt = 0
             total_paid = 0
-            
+
+            money_cell_style = ParagraphStyle(
+                'MoneyCellCC',
+                parent=styles['Normal'],
+                fontSize=8,
+                leading=9.5,
+                alignment=2,  # Right
+            )
+
             for account in queryset:
                 # Formatear productos
                 productos = []
@@ -2780,8 +2789,8 @@ def employee_account_pdf_export(request):
                     account.employee.get_full_name() or account.employee.username,
                     account.date_joined.strftime('%d/%m/%Y'),
                     productos_str,
-                    f"${subtotal:,.2f}",
-                    f"${total:,.2f}",
+                    Paragraph(fmt_money_ar(subtotal), money_cell_style),
+                    Paragraph(fmt_money_ar(total), money_cell_style),
                     estado
                 ])
             
@@ -2839,9 +2848,9 @@ def employee_account_pdf_export(request):
                 bold=True
             )
             
-            story.append(Paragraph(f"Deuda Total: ${total_debt:,.2f}", summary_style))
-            story.append(Paragraph(f"Pagado: ${total_paid:,.2f}", summary_style))
-            story.append(Paragraph(f"Total General: ${total_general:,.2f}", summary_style))
+            story.append(Paragraph(f"Deuda Total: {fmt_money_ar(total_debt)}", summary_style))
+            story.append(Paragraph(f"Pagado: {fmt_money_ar(total_paid)}", summary_style))
+            story.append(Paragraph(f"Total General: {fmt_money_ar(total_general)}", summary_style))
         
         else:
             story.append(Paragraph("No se encontraron cuentas corrientes con los filtros especificados.", info_style))
