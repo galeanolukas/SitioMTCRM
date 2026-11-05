@@ -2606,17 +2606,20 @@ def employee_account_pdf_export(request):
     try:
         # Obtener parámetros de filtro
         employee_id = request.GET.get('employee')
+        client_id = request.GET.get('client')
         is_paid = request.GET.get('is_paid')
         date_from = request.GET.get('date_from')
         date_to = request.GET.get('date_to')
-        
+
         # Construir queryset
         queryset = EmployeeAccountSale.objects.all()
         active_cid = get_active_company_id(request)
         if active_cid:
             queryset = queryset.filter(company_id=active_cid)
-        
+
         # Aplicar filtros
+        if client_id:
+            queryset = queryset.filter(client_id=client_id)
         if employee_id:
             queryset = queryset.filter(employee_id=employee_id)
         if is_paid == 'true':
@@ -2724,6 +2727,10 @@ def employee_account_pdf_export(request):
         
         # Filtros aplicados
         filters = []
+        if client_id:
+            cli_obj = Client.objects.filter(id=client_id).first()
+            if cli_obj:
+                filters.append(f"Cliente: {cli_obj.names}")
         if employee_id:
             from core.user.models import User
             employee = User.objects.get(id=employee_id)
