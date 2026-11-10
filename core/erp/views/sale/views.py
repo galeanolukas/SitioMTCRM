@@ -1662,14 +1662,20 @@ class SaleDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Delete
         data = {}
         try:
             with transaction.atomic():
-                # Restaurar stock antes de eliminar
                 from django.utils import timezone
-                for d in self.object.detsale_set.all():
-                    Product.objects.filter(pk=d.prod_id).update(
-                        stock=F('stock') + d.cant,
-                        stock_modified_locally=timezone.now(),  # Marcar modificación local
-                        synced_to_server=False  # Marcar para sincronizar
-                    )
+
+                # La vista de anulación pregunta si la mercadería volvió al depósito.
+                # 'yes' = restaurar stock (devolución real); 'no' = la mercadería ya se
+                # entregó, no restaurar (evita "cajas fantasma" en el stock).
+                restore_stock = request.POST.get('restore_stock', 'yes') == 'yes'
+
+                if restore_stock:
+                    for d in self.object.detsale_set.all():
+                        Product.objects.filter(pk=d.prod_id).update(
+                            stock=F('stock') + d.cant,
+                            stock_modified_locally=timezone.now(),  # Marcar modificación local
+                            synced_to_server=False  # Marcar para sincronizar
+                        )
 
                 # Eliminar registros contables/IVA relacionados localmente
                 # (los que tienen on_delete=SET_NULL y quedarían huérfanos)
@@ -1678,7 +1684,7 @@ class SaleDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Delete
                 CuentaCorrienteCliente.objects.filter(sale=self.object).delete()
                 AsientoContable.objects.filter(sale=self.object).delete()
 
-                # Eliminar venta y registros relacionados del servidor remoto
+                # Anular la venta en el servidor remoto (sin borrado físico, queda traza)
                 sale_uuid = self.object.local_uuid
                 sale_local_id = self.object.local_sale_id or self.object.id
                 if sale_uuid or sale_local_id:
@@ -1693,55 +1699,35 @@ class SaleDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Delete
                                 where_clause = "local_sale_id = %s AND source = 'local_pos'"
                                 where_params = [sale_local_id]
 
-                            # Eliminar registros relacionados por FK en servidor
-                            # 1. SaleVatBreakdown
+                            # Eliminar registros contables relacionados en servidor
+                            for table, fk in (
+                                ("erp_salevatbreakdown", "sale_id"),
+                                ("erp_libroivaregistro", "sale_id"),
+                                ("erp_cuentacorrientecliente", "sale_id"),
+                                ("erp_asientocontable", "sale_id"),
+                            ):
+                                cursor.execute(
+                                    f"DELETE FROM {table} WHERE {fk} IN ("
+                                    f"  SELECT id FROM erp_sale WHERE {where_clause}"
+                                    f")",
+                                    where_params
+                                )
+                            # Anular la venta remota (queda el registro con status cancelled)
                             cursor.execute(
-                                f"DELETE FROM erp_salevatbreakdown WHERE sale_id IN ("
-                                f"  SELECT id FROM erp_sale WHERE {where_clause}"
-                                f")",
-                                where_params
-                            )
-                            # 2. DetSale
-                            cursor.execute(
-                                f"DELETE FROM erp_detsale WHERE sale_id IN ("
-                                f"  SELECT id FROM erp_sale WHERE {where_clause}"
-                                f")",
-                                where_params
-                            )
-                            # 3. LibroIvaRegistro
-                            cursor.execute(
-                                f"DELETE FROM erp_libroivaregistro WHERE sale_id IN ("
-                                f"  SELECT id FROM erp_sale WHERE {where_clause}"
-                                f")",
-                                where_params
-                            )
-                            # 4. CuentaCorrienteCliente
-                            cursor.execute(
-                                f"DELETE FROM erp_cuentacorrientecliente WHERE sale_id IN ("
-                                f"  SELECT id FROM erp_sale WHERE {where_clause}"
-                                f")",
-                                where_params
-                            )
-                            # 5. AsientoContable
-                            cursor.execute(
-                                f"DELETE FROM erp_asientocontable WHERE sale_id IN ("
-                                f"  SELECT id FROM erp_sale WHERE {where_clause}"
-                                f")",
-                                where_params
-                            )
-                            # 6. Sale (finalmente)
-                            cursor.execute(
-                                f"DELETE FROM erp_sale WHERE {where_clause}",
+                                f"UPDATE erp_sale SET status = 'cancelled' WHERE {where_clause}",
                                 where_params
                             )
                     except Exception as remote_err:
-                        # Si falla la eliminación remota, no bloquear la local
+                        # Si falla la anulación remota, no bloquear la local
                         import logging
                         logging.getLogger(__name__).warning(
-                            f"No se pudo eliminar venta {self.object.id} del servidor remoto: {remote_err}"
+                            f"No se pudo anular venta {self.object.id} en el servidor remoto: {remote_err}"
                         )
 
-                self.object.delete()
+                # Anular la venta localmente (traza: queda el registro y sus detalles)
+                self.object.status = 'cancelled'
+                self.object.synced_to_server = False
+                self.object.save(update_fields=['status', 'synced_to_server'])
         except Exception as e:
             data['error'] = str(e)
         return JsonResponse(data)
@@ -2417,9 +2403,59 @@ class EmployeeAccountListView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                     with transaction.atomic():
                         # Obtener empresa activa
                         active_cid = get_active_company_id(request)
-                        
+
                         sales_created = []
-                        
+
+                        # Si la cuenta ya tiene una venta "debt" propia (fiado creado desde el POS),
+                        # actualizar esa venta en vez de crear una nueva: evita duplicar el monto
+                        # en los reportes de ventas.
+                        existing_debt_sale = None
+                        if account.related_sale_id:
+                            existing_debt_sale = Sale.objects.filter(
+                                id=account.related_sale_id,
+                                payment_method='debt',
+                                status='confirmed'
+                            ).first()
+
+                        if existing_debt_sale:
+                            if payment_details and isinstance(payment_details, list):
+                                from core.erp.choices import payment_method_choices
+                                pm_map = dict(payment_method_choices)
+                                method_names = [
+                                    pm_map.get(p.get('method', 'cash'), p.get('method', 'cash'))
+                                    for p in payment_details
+                                ]
+                                existing_debt_sale.payment_method = 'combined'
+                                existing_debt_sale.payment_details = {
+                                    'method_label': ' + '.join(method_names),
+                                    'payments': payment_details,
+                                }
+                            else:
+                                existing_debt_sale.payment_method = payment_method
+                                existing_debt_sale.payment_details = {}
+                            # La plata entra hoy: el cobro debe figurar en el reporte del día
+                            existing_debt_sale.date_joined = timezone.now()
+                            existing_debt_sale.synced_to_server = False
+                            # Marcar que esta venta nació como fiado: si se desmarca el pago,
+                            # vuelve a 'debt' en vez de borrarse (conserva la deuda y el registro)
+                            lsr = dict(existing_debt_sale.local_server_response or {})
+                            lsr['debt_origin_account'] = account.id
+                            existing_debt_sale.local_server_response = lsr
+                            existing_debt_sale.save()
+
+                            account.is_paid = True
+                            account.paid_date = timezone.now()
+                            account.payment_details = payment_details if isinstance(payment_details, list) else None
+                            account.save()
+
+                            return JsonResponse({
+                                'success': True,
+                                'message': 'Pago registrado correctamente',
+                                'sale_ids': [existing_debt_sale.id],
+                                'is_combined': bool(payment_details and isinstance(payment_details, list)),
+                                'updated_debt_sale': True
+                            })
+
                         if payment_details and isinstance(payment_details, list):
                             # Pago combinado - crear una sola venta con método combinado
                             # Construir string de método combinado (ej: "Efectivo + MercadoPago")
@@ -2531,8 +2567,20 @@ class EmployeeAccountListView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                         if account.related_sale_id:
                             try:
                                 sale = Sale.objects.get(id=account.related_sale_id)
-                                # Eliminar la venta y sus detalles sin restaurar stock
-                                sale.delete()
+                                # Si la venta nació como fiado "debt", revertirla a 'debt'
+                                # en vez de borrarla: conserva el registro de la deuda.
+                                lsr = sale.local_server_response or {}
+                                if lsr.get('debt_origin_account') == account.id:
+                                    sale.payment_method = 'debt'
+                                    sale.payment_details = {}
+                                    lsr.pop('debt_origin_account', None)
+                                    sale.local_server_response = lsr
+                                    sale.date_joined = account.date_joined
+                                    sale.synced_to_server = False
+                                    sale.save()
+                                else:
+                                    # Eliminar la venta y sus detalles sin restaurar stock
+                                    sale.delete()
                             except Sale.DoesNotExist:
                                 pass  # La venta ya no existe, continuar
                         

@@ -1,2 +1,18 @@
 {% extends 'base/delete.html' %}
-{% block name %}¿Estas seguro de eliminar la venta de {{ object.cli }} con fecha {{ object.date_joined }} y el numero de registro {{ object.id }} ?{% endblock name %}
+{% block name %}¿Estas seguro de anular la venta de {{ object.cli }} con fecha {{ object.date_joined }} y el numero de registro {{ object.id }} ?
+  <div class="mt-3 pt-2 border-top">
+    <strong>¿La mercadería volvió al depósito/heladera?</strong>
+    <div class="form-check mt-2">
+      <input class="form-check-input" type="radio" name="restore_stock" id="restore_yes" value="yes" checked>
+      <label class="form-check-label" for="restore_yes">
+        Sí, volvió — <span class="text-muted">se devuelve el stock al inventario</span>
+      </label>
+    </div>
+    <div class="form-check">
+      <input class="form-check-input" type="radio" name="restore_stock" id="restore_no" value="no">
+      <label class="form-check-label" for="restore_no">
+        No, ya se entregó — <span class="text-danger">NO se devuelve el stock</span>
+      </label>
+    </div>
+  </div>
+{% endblock name %}

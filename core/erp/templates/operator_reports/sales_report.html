@@ -164,6 +164,7 @@
                                 <th>Transferencias</th>
                                 <th>Tarjeta</th>
                                 <th>Cheque</th>
+                                <th>Deber/Fiado</th>
                                 <th>Total</th>
                             </tr>
                         </thead>
@@ -177,6 +178,7 @@
                                 <td id="transfer-total">$0.00</td>
                                 <td id="card-total">$0.00</td>
                                 <td id="check-total">$0.00</td>
+                                <td id="debt-total">$0.00</td>
                                 <td id="grand-total">$0.00</td>
                             </tr>
                         </tfoot>
@@ -505,8 +507,9 @@ function displayPaymentReport(data) {
     let transferTotal = 0;
     let cardTotal = 0;
     let checkTotal = 0;
+    let debtTotal = 0;
     let grandTotal = 0;
-    
+
     // Actualizar headers para mostrar ventas
     const tableHead = $('#table-head');
     tableHead.html(`
@@ -518,10 +521,11 @@ function displayPaymentReport(data) {
             <th>Transferencias</th>
             <th>Tarjeta</th>
             <th>Cheque</th>
+            <th>Deber/Fiado</th>
             <th>Total</th>
         </tr>
     `);
-    
+
     // Actualizar footer
     const tableFoot = $('#table-foot');
     tableFoot.html(`
@@ -532,6 +536,7 @@ function displayPaymentReport(data) {
             <td id="transfer-total">$0.00</td>
             <td id="card-total">$0.00</td>
             <td id="check-total">$0.00</td>
+            <td id="debt-total">$0.00</td>
             <td id="grand-total">$0.00</td>
         </tr>
     `);
@@ -546,13 +551,15 @@ function displayPaymentReport(data) {
             const transferAmount = parseFloat(sale.transfer) || 0;
             const cardAmount = parseFloat(sale.card) || 0;
             const checkAmount = parseFloat(sale.check) || 0;
+            const debtAmount = parseFloat(sale.debt) || 0;
             const totalAmount = parseFloat(sale.total) || 0;
-            
+
             cashTotal += cashAmount;
             mpTotal += mpAmount;
             transferTotal += transferAmount;
             cardTotal += cardAmount;
             checkTotal += checkAmount;
+            debtTotal += debtAmount;
             grandTotal += totalAmount;
 
             const isDebt = !!sale.is_debt;
@@ -574,6 +581,7 @@ function displayPaymentReport(data) {
                     <td class="text-right">$${transferAmount.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                     <td class="text-right">$${cardAmount.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                     <td class="text-right">$${checkAmount.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td class="text-right">${debtAmount ? `<span class="text-danger font-weight-bold">$${debtAmount.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>` : '$0.00'}</td>
                     <td class="text-right font-weight-bold">$${totalAmount.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                 </tr>
             `;
@@ -586,6 +594,7 @@ function displayPaymentReport(data) {
         $('#transfer-total').text('$' + transferTotal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
         $('#card-total').text('$' + cardTotal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
         $('#check-total').text('$' + checkTotal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+        $('#debt-total').text('$' + debtTotal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
         $('#grand-total').text('$' + grandTotal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
         
         $('#empty-state').hide();

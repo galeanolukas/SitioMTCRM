@@ -346,9 +346,10 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                         card_amount = 0.0
                         check_amount = 0.0
                         other_amount = 0.0
-                        
+                        debt_amount = 0.0
+
                         if payment_method == 'debt':
-                            pass  # Venta de cuenta corriente impaga: no suma en resúmenes
+                            debt_amount = sale_total  # Venta a deber: no suma en resúmenes de cobrado
                         elif payment_method == 'cash':
                             cash_amount = sale_total
                         elif payment_method == 'mp':
@@ -403,6 +404,7 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                             'card': card_amount,
                             'check': check_amount,
                             'other': other_amount,
+                            'debt': debt_amount,
                             'total': sale_total,
                             'employee_account': cc_map.get(sale.id, ''),
                             'is_debt': payment_method == 'debt' and sale.id not in cc_paid_ids

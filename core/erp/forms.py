@@ -79,6 +79,11 @@ class ProductForm(ModelForm):
                 form.field.widget.attrs["class"] = "form-control"
                 form.field.widget.attrs["autocomplete"] = "off"
         self.fields['name'].widget.attrs['autofocus'] = True
+        # Opcionales con default en el modelo (el modal "Nuevo Producto" del
+        # remito no los envía; si faltan se usa 0 del modelo).
+        for fname in ('supplier_discount', 'freight_percentage'):
+            if fname in self.fields:
+                self.fields[fname].required = False
         # supplier opcional
         if 'supplier' in self.fields:
             self.fields['supplier'].required = False
