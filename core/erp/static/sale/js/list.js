@@ -123,6 +123,9 @@ $(function () {
                 class: 'text-center',
                 render: function (data, type, row) {
                     let label = row.invoice_number ? row.invoice_number : data;
+                    if (row.status === 'cancelled') {
+                        label += ' <span class="badge badge-danger" title="Venta anulada">ANULADA</span>';
+                    }
                     if (row.cc_account_id) {
                         const txt = row.cc_paid ? 'CC (cobrada)' : 'CC (a cuenta)';
                         label += ` <span class="badge badge-info" title="Venta vinculada a la cuenta corriente #${row.cc_account_id}">${txt}</span>`;
@@ -153,8 +156,11 @@ $(function () {
                 class: 'text-center',
                 orderable: false,
                 render: function (data, type, row) {
-                    var buttons = '<a href="/erp/sale/delete/' + row.id + '/" type="button" class="btn btn-danger btn-xs btn-flat"><i class="fas fa-trash-alt"></i></a> ';
-                    buttons += '<a href="/erp/sale/update/' + row.id + '/" class="btn btn-warning btn-xs btn-flat"><i class="fas fa-edit" style="color: #fafafa;"></i></a> ';
+                    var buttons = '';
+                    if (row.status !== 'cancelled') {
+                        buttons += '<a href="/erp/sale/delete/' + row.id + '/" type="button" class="btn btn-danger btn-xs btn-flat" title="Anular venta"><i class="fas fa-trash-alt"></i></a> ';
+                        buttons += '<a href="/erp/sale/update/' + row.id + '/" class="btn btn-warning btn-xs btn-flat"><i class="fas fa-edit" style="color: #fafafa;"></i></a> ';
+                    }
                     if (row.is_invoiced) {
                         var title = row.invoice_number ? ('PDF ' + row.invoice_number) : 'PDF';
                         buttons += '<a href="/erp/invoice/pdf/' + row.id + '/" target="_blank" class="btn btn-primary btn-xs btn-flat" title="' + title + '"><i class="fas fa-file-pdf"></i></a> ';

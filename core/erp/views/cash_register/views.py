@@ -12,7 +12,7 @@ from django.shortcuts import get_object_or_404, redirect
 from django.http import JsonResponse
 
 from core.erp.mixins import ValidatePermissionRequiredMixin, get_active_company_id
-from core.erp.models import CashRegister, CashMovement, Sale, Expense
+from core.erp.models import CashRegister, CashMovement, Sale, Expense, EmployeeAccountSale
 from core.erp.sync_utils import sync_cash_register_immediately
 import logging
 
@@ -56,6 +56,7 @@ class CashRegisterListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
             sales_agg = Sale.objects.filter(
                 company_id=cr.company_id,
                 is_budget=False,
+                status='confirmed',
                 **sales_filter,
             ).aggregate(
                 live_cash=Sum('total', filter=Q(payment_method='cash')),
@@ -216,6 +217,7 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
                 date_joined__date=cash_register.date,
                 company_id=cash_register.company_id,
                 is_budget=False,
+                status='confirmed',
             )
         else:
             # Caja abierta: acumular ventas desde la apertura hasta hoy
@@ -223,6 +225,7 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
                 date_joined__date__range=(cash_register.date, date.today()),
                 company_id=cash_register.company_id,
                 is_budget=False,
+                status='confirmed',
             )
 
         dynamic_cash = sales_qs.filter(payment_method='cash').aggregate(total=Sum('total'))['total'] or 0
@@ -448,6 +451,7 @@ class CashRegisterDetailView(LoginRequiredMixin, ValidatePermissionRequiredMixin
                 date_joined__date=cash_register.date,
                 company_id=cash_register.company_id,
                 is_budget=False,
+                status='confirmed',
             )
         else:
             # Si está abierta, acumular ventas desde la apertura hasta hoy (fecha local)
@@ -455,6 +459,7 @@ class CashRegisterDetailView(LoginRequiredMixin, ValidatePermissionRequiredMixin
                 date_joined__date__range=(cash_register.date, date.today()),
                 company_id=cash_register.company_id,
                 is_budget=False,
+                status='confirmed',
             )
 
         # Ventas por métodos simples
@@ -515,6 +520,22 @@ class CashRegisterDetailView(LoginRequiredMixin, ValidatePermissionRequiredMixin
         dynamic_total_expenses = dynamic_cash_expenses + dynamic_transfer_expenses + dynamic_mp_expenses + dynamic_card_expenses + dynamic_cheque_expenses + dynamic_other_expenses
 
         dynamic_total_sales = dynamic_cash + dynamic_card + dynamic_transfer + dynamic_mp + dynamic_check
+
+        # Cobros de cuentas corrientes del período: desglose informativo.
+        # La plata ya está incluida en las columnas de método de pago de arriba
+        # (ventas de cobro creadas al pagar el fiado + ventas 'debt' actualizadas
+        # al cobrarse). Sirve para cruzar con el reporte de ventas.
+        cc_paid_sale_ids = EmployeeAccountSale.objects.filter(
+            company_id=cash_register.company_id,
+            is_paid=True,
+            related_sale_id__isnull=False,
+        ).values_list('related_sale_id', flat=True)
+        cc_sales_qs = sales_qs.filter(status='confirmed').filter(
+            Q(id__in=cc_paid_sale_ids) |
+            Q(local_server_response__has_key='debt_origin_account')
+        )
+        context['cc_collections_total'] = cc_sales_qs.aggregate(t=Sum('total'))['t'] or 0
+        context['cc_collections_count'] = cc_sales_qs.count()
 
         # Saldo esperado en caja solo para efectivo
         cash_movements = cash_register.movements.filter(payment_type='cash').aggregate(

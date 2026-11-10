@@ -179,7 +179,7 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                         start_date = (end_date - timedelta(days=30)).strftime('%Y-%m-%d')
                 
                 # Build filters
-                filters = {'is_budget': False}
+                filters = {'is_budget': False, 'status': 'confirmed'}
                 if active_cid:
                     filters['company_id'] = active_cid
                 if start_date and end_date:
@@ -472,7 +472,7 @@ def operator_sales_export(request):
                 start_date = (end_date - timedelta(days=30)).strftime('%Y-%m-%d')
         
         # Build filters
-        filters = {'is_budget': False}
+        filters = {'is_budget': False, 'status': 'confirmed'}
         if active_cid:
             filters['company_id'] = active_cid
         if start_date and end_date:

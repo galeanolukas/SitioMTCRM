@@ -133,6 +133,7 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         filters = {
             'date_joined__range': [start_datetime, end_datetime],
             'is_budget': False,
+            'status': 'confirmed',
         }
 
         if company_id:
@@ -438,6 +439,7 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         filters = {
             'date_joined__range': [start_datetime, end_datetime],
             'is_budget': False,
+            'status': 'confirmed',
         }
 
         if company_id:
@@ -484,6 +486,7 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         filters = {
             'sale__date_joined__range': [start_datetime, end_datetime],
             'sale__is_budget': False,
+            'sale__status': 'confirmed',
         }
 
         if company_id:
@@ -556,6 +559,7 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
             'date_joined__range': [start_datetime, end_datetime],
             'is_invoiced': True,
             'is_budget': False,
+            'status': 'confirmed',
         }
         if company_id:
             filters['company_id'] = company_id
@@ -661,6 +665,7 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         filters = {
             'date_joined__range': [start_datetime, end_datetime],
             'is_budget': False,
+            'status': 'confirmed',
         }
 
         if company_id:
@@ -816,6 +821,7 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         filters = {
             'sale__date_joined__range': [start_datetime, end_datetime],
             'sale__is_budget': False,
+            'sale__status': 'confirmed',
         }
 
         if company_id:
@@ -1018,6 +1024,7 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
         filters = {
             'date_joined__range': [start_datetime, end_datetime],
             'is_budget': False,
+            'status': 'confirmed',
         }
 
         if company_id:
