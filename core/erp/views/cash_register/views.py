@@ -532,7 +532,7 @@ class CashRegisterDetailView(LoginRequiredMixin, ValidatePermissionRequiredMixin
         ).values_list('related_sale_id', flat=True)
         cc_sales_qs = sales_qs.filter(status='confirmed').filter(
             Q(id__in=cc_paid_sale_ids) |
-            Q(local_server_response__has_key='debt_origin_account')
+            Q(local_server_response__icontains='debt_origin_account')
         )
         context['cc_collections_total'] = cc_sales_qs.aggregate(t=Sum('total'))['t'] or 0
         context['cc_collections_count'] = cc_sales_qs.count()
