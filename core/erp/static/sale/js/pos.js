@@ -186,7 +186,7 @@
       
       const tr = $(`
         <tr data-idx="${idx}" class="${idx===selectedIndex ? 'table-primary' : ''}">
-          <td>${it.name}${it.unit === 'kg' ? ' <small class="text-muted">(kg)</small>' : ''}</td>
+          <td>${it.name}${it.unit === 'kg' ? ' <small class="text-muted">(kg)</small>' : ''}${it.list_applied ? ` <small class="badge bg-success">${it.list_applied}</small>` : ''}</td>
           <td class="text-center">
             <div class="input-group input-group-sm">
               <button class="btn btn-outline-secondary btnMinus">-</button>
@@ -199,6 +199,7 @@
           </td>
           <td class="text-end">${fmt(it.subtotal)}</td>
           <td class="text-center">
+            <button class="btn btn-outline-secondary btn-sm btnListItem" title="Aplicar lista de descuento a este artículo"><i class="fas fa-tags"></i></button>
             <button class="btn btn-danger btn-sm btnDel"><i class="fas fa-trash"></i></button>
           </td>
         </tr>
@@ -532,6 +533,11 @@
   });
   $tbody.on('click', '.btnDel', function () {
     const idx = $(this).closest('tr').data('idx'); items.splice(idx, 1); selectedIndex = -1; recalc();
+  });
+  $tbody.on('click', '.btnListItem', function () {
+    const idx = $(this).closest('tr').data('idx');
+    selectedIndex = idx;
+    window.openPriceListModalForItem(idx);
   });
   $tbody.on('click', 'tr', function () {
     selectedIndex = $(this).data('idx'); render();
@@ -1169,6 +1175,9 @@
     showToast('info', 'Cliente limpiado');
   });
 
+  // Modo del modal de listas: 'cart' aplica a toda la venta, 'item' solo al ítem elegido
+  let priceListModalItemIdx = null;
+
   // Función global para abrir modal de lista de precios (accesible desde onclick)
   window.openPriceListModal = function() {
     const modalEl = document.getElementById('priceListSelectModal');
@@ -1176,6 +1185,21 @@
       console.error('[POS] Modal priceListSelectModal no encontrado');
       return;
     }
+    priceListModalItemIdx = null;  // modo venta completa
+    const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+    modal.show();
+    loadPriceLists();
+  };
+
+  // Abrir el mismo modal pero para aplicar la lista solo a un artículo del carrito
+  window.openPriceListModalForItem = function(idx) {
+    const modalEl = document.getElementById('priceListSelectModal');
+    if (!modalEl) return;
+    if (idx < 0 || !items[idx]) {
+      showToast('warning', 'Seleccioná un artículo del carrito primero');
+      return;
+    }
+    priceListModalItemIdx = idx;
     const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
     modal.show();
     loadPriceLists();
@@ -1229,6 +1253,48 @@
 
   // Seleccionar lista de precios
   window.selectPriceList = function(priceListId, priceListName, discountPercentage, interestPercentage) {
+    // Modo ítem: aplicar la lista solo al artículo seleccionado
+    if (priceListModalItemIdx !== null) {
+      const it = items[priceListModalItemIdx];
+      priceListModalItemIdx = null;
+      if (!it) return;
+      if (originalPrices[it.id] === undefined) {
+        originalPrices[it.id] = it.price;
+      }
+      $.ajax({
+        url: window.location.pathname,
+        type: 'POST',
+        data: {
+          action: 'get_price_list_prices',
+          price_list_id: priceListId,
+          product_ids: String(it.id),
+          csrfmiddlewaretoken: csrftoken()
+        },
+        dataType: 'json',
+        success: function(resp) {
+          const newPrice = resp.prices && resp.prices[String(it.id)];
+          if (resp.has_price_list && newPrice) {
+            const rate = (typeof it.iva_rate !== 'undefined' && !isNaN(parseFloat(it.iva_rate))) ? parseFloat(it.iva_rate) : getIvaRate();
+            const rate_decimal = rate > 1 ? rate / 100 : rate;
+            it.price = newPrice;              // Precio neto con descuento (sin IVA)
+            it.pvp_final = newPrice * (1 + rate_decimal);
+            it.list_applied = priceListName;  // Marca para mostrar en el renglón
+            recalc();
+            showToast('success', `Lista "${priceListName}" aplicada a ${it.name}`);
+          } else {
+            showToast('info', `La lista no tiene precio definido para ${it.name}`);
+          }
+        },
+        error: function() {
+          showToast('error', 'Error al aplicar lista de precios');
+        }
+      });
+      const modalEl0 = document.getElementById('priceListSelectModal');
+      const modal0 = bootstrap.Modal.getInstance(modalEl0);
+      if (modal0) modal0.hide();
+      return;
+    }
+
     $('#selectedPriceListId').val(priceListId);
     $('#selectedPriceListName').text(priceListName);
     
