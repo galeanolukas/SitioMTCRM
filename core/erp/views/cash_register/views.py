@@ -240,6 +240,15 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
         for sale in combined_sales:
             if sale.payment_details:
                 payment_breakdown = sale.payment_details
+                # Normalizar a lista de tramos: puede venir como lista directa,
+                # dict {'method_label':.., 'payments':[...]} (cobros de CC)
+                # o dict de montos {'cash': x, 'mp': y}
+                if isinstance(payment_breakdown, dict):
+                    payment_breakdown = payment_breakdown.get('payments') or [
+                        {'method': m, 'amount': payment_breakdown.get(m, 0)}
+                        for m in ('cash', 'card', 'transfer', 'mp', 'check')
+                        if payment_breakdown.get(m)
+                    ]
                 if isinstance(payment_breakdown, list):
                     for payment in payment_breakdown:
                         if isinstance(payment, dict):
@@ -255,12 +264,6 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
                                 dynamic_mp += amount
                             elif method == 'check':
                                 dynamic_check += amount
-                elif isinstance(payment_breakdown, dict):
-                    dynamic_cash += Decimal(str(payment_breakdown.get('cash', 0)))
-                    dynamic_card += Decimal(str(payment_breakdown.get('card', 0)))
-                    dynamic_transfer += Decimal(str(payment_breakdown.get('transfer', 0)))
-                    dynamic_mp += Decimal(str(payment_breakdown.get('mp', 0)))
-                    dynamic_check += Decimal(str(payment_breakdown.get('check', 0)))
 
         if cash_register.is_closed:
             expenses_qs = Expense.objects.filter(
@@ -283,7 +286,8 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
         dynamic_other_expenses = expenses_qs.filter(payment_method='otro').aggregate(total=Sum('amount'))['total'] or 0
         dynamic_total_expenses = dynamic_cash_expenses + dynamic_transfer_expenses + dynamic_mp_expenses + dynamic_card_expenses + dynamic_cheque_expenses + dynamic_other_expenses
 
-        dynamic_total_sales = dynamic_cash + dynamic_card + dynamic_transfer + dynamic_mp + dynamic_check + dynamic_debt
+        # Total = plata realmente cobrada (la deuda se muestra en su propio renglón)
+        dynamic_total_sales = dynamic_cash + dynamic_card + dynamic_transfer + dynamic_mp + dynamic_check
 
         # Conteo de operaciones
         sales_count = sales_qs.count()
@@ -474,6 +478,15 @@ class CashRegisterDetailView(LoginRequiredMixin, ValidatePermissionRequiredMixin
         for sale in combined_sales:
             if sale.payment_details:
                 payment_breakdown = sale.payment_details
+                # Normalizar a lista de tramos: puede venir como lista directa,
+                # dict {'method_label':.., 'payments':[...]} (cobros de CC)
+                # o dict de montos {'cash': x, 'mp': y}
+                if isinstance(payment_breakdown, dict):
+                    payment_breakdown = payment_breakdown.get('payments') or [
+                        {'method': m, 'amount': payment_breakdown.get(m, 0)}
+                        for m in ('cash', 'card', 'transfer', 'mp', 'check')
+                        if payment_breakdown.get(m)
+                    ]
                 if isinstance(payment_breakdown, list):
                     for payment in payment_breakdown:
                         if isinstance(payment, dict):
@@ -489,12 +502,6 @@ class CashRegisterDetailView(LoginRequiredMixin, ValidatePermissionRequiredMixin
                                 dynamic_mp += amount
                             elif method == 'check':
                                 dynamic_check += amount
-                elif isinstance(payment_breakdown, dict):
-                    dynamic_cash += Decimal(str(payment_breakdown.get('cash', 0)))
-                    dynamic_card += Decimal(str(payment_breakdown.get('card', 0)))
-                    dynamic_transfer += Decimal(str(payment_breakdown.get('transfer', 0)))
-                    dynamic_mp += Decimal(str(payment_breakdown.get('mp', 0)))
-                    dynamic_check += Decimal(str(payment_breakdown.get('check', 0)))
 
         # Para cajas abiertas, incluir gastos desde la fecha de apertura hasta ahora
         if cash_register.is_closed:
