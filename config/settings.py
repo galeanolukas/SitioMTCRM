@@ -277,6 +277,9 @@ STORAGES = {
     'staticfiles': {'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage'},
 }
 
+# No abortar collectstatic/render si una referencia de estático no existe en el manifest
+WHITENOISE_MANIFEST_STRICT = False
+
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, "static"),
 ]
