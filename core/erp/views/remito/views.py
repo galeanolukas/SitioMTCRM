@@ -7,6 +7,7 @@ from django.contrib import messages
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import get_object_or_404, render
 from core.erp.models import Remito, DetalleRemito, Product, Supplier, FacturaProveedor, CONDICION_IVA_CHOICES
+from core.erp.services.stock_service import log_stock_movement
 from core.erp.forms import RemitoForm
 from core.erp.mixins import get_active_company_id
 from decimal import Decimal
@@ -328,6 +329,7 @@ def procesar_remito(request, pk):
             for detalle in remito.detalleremito_set.all():
                 # Usar select_for_update para evitar race conditions
                 producto = Product.objects.select_for_update().get(pk=detalle.prod_id)
+                stock_antes = producto.stock or Decimal('0')
                 if remito.tipo == 'entrada':
                     # Entrada: sumar stock
                     producto.stock += detalle.cantidad
@@ -355,18 +357,22 @@ def procesar_remito(request, pk):
                         producto.pvp_final = (producto.pvp * (Decimal('1') + rate)).quantize(Decimal('0.01'))
                         producto.synced_to_server = False
                 else:
-                    # Salida: restar stock
+                    # Salida: restar stock. Se permite stock negativo: el remito
+                    # documenta una salida física real; el negativo expone que el
+                    # stock registrado era menor al real.
                     producto.stock -= detalle.cantidad
                     if producto.stock < 0:
-                        logger.warning("remito_process_stock_insufficient", extra={
+                        logger.warning("remito_process_stock_negative", extra={
                             'remito_id': pk,
                             'product_id': producto.id,
                             'product_name': producto.name,
-                            'available': float(producto.stock),
-                            'required': float(detalle.cantidad)
+                            'resulting_stock': float(producto.stock),
+                            'quantity': float(detalle.cantidad)
                         })
-                        return JsonResponse({'error': f'Stock insuficiente para {producto.name}'}, status=400)
                 producto.save()
+                log_stock_movement(producto, stock_antes, movement_type='remito',
+                                   user=request.user, remito=remito,
+                                   ref=f'Remito {remito.get_tipo_display()} {remito.numero}')
 
             remito.estado = 'processed'
             remito.stock_applied = True
@@ -412,22 +418,26 @@ def anular_remito(request, pk):
                 for detalle in remito.detalleremito_set.all():
                     # Usar select_for_update para evitar race conditions
                     producto = Product.objects.select_for_update().get(pk=detalle.prod_id)
+                    stock_antes = producto.stock or Decimal('0')
                     if remito.tipo == 'entrada':
-                        # Entrada anulado: restar stock
+                        # Entrada anulado: restar stock. Se permite negativo: si la
+                        # mercadería ya se vendió, el negativo muestra el faltante real.
                         producto.stock -= detalle.cantidad
                         if producto.stock < 0:
-                            logger.warning("remito_anular_stock_insufficient", extra={
+                            logger.warning("remito_anular_stock_negative", extra={
                                 'remito_id': pk,
                                 'product_id': producto.id,
                                 'product_name': producto.name,
-                                'available': float(producto.stock),
-                                'required': float(detalle.cantidad)
+                                'resulting_stock': float(producto.stock),
+                                'quantity': float(detalle.cantidad)
                             })
-                            return JsonResponse({'error': f'Stock insuficiente para {producto.name}'}, status=400)
                     else:
                         # Salida anulado: sumar stock
                         producto.stock += detalle.cantidad
                     producto.save()
+                    log_stock_movement(producto, stock_antes, movement_type='remito_cancel',
+                                       user=request.user, remito=remito,
+                                       ref=f'Anulación remito {remito.get_tipo_display()} {remito.numero}')
 
             remito.estado = 'cancelled'
             remito.stock_applied = False

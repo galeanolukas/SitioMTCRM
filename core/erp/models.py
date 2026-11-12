@@ -279,9 +279,8 @@ class Product(models.Model):
         if self.pvp_final < 0:
             raise ValidationError({'pvp_final': 'El precio final no puede ser negativo'})
 
-        # Validar que stock no sea negativo
-        if self.stock < 0:
-            raise ValidationError({'stock': 'El stock no puede ser negativo'})
+        # El stock puede ser negativo: un stock que no puede ser negativo miente
+        # (las ventas con stock sub-registrado se "evaporarían" en el piso 0).
 
         # Validar que stock mínimo no sea negativo
         if self.min_stock < 0:
@@ -2497,6 +2496,16 @@ class EmployeeAccountSale(models.Model):
             return self.employee.get_full_name() or self.employee.username
         return 'Sin titular'
 
+    def amount_paid(self):
+        """Total abonado mediante pagos parciales."""
+        from django.db.models import Sum
+        return self.payments.aggregate(t=Sum('amount'))['t'] or Decimal('0')
+
+    def balance(self):
+        """Saldo pendiente: total menos lo abonado."""
+        b = (self.total or Decimal('0')) - self.amount_paid()
+        return b if b > 0 else Decimal('0')
+
     def __str__(self):
         return f"Cta. Cte. {self.account_holder_name()} - {self.date_joined.strftime('%d/%m/%Y')}"
 
@@ -2613,6 +2622,44 @@ class DetEmployeeAccount(models.Model):
         verbose_name = 'Detalle Cuenta Corriente Empleado'
         verbose_name_plural = 'Detalles Cuenta Corriente Empleados'
         ordering = ['id']
+
+
+class EmployeeAccountPayment(models.Model):
+    """Abono/pago parcial de una venta por cuenta corriente.
+
+    Registra el cobro y la forma de pago SIN vincularse a la caja ni crear
+    una venta: el ingreso en caja lo decide el usuario cargando el
+    movimiento de caja manualmente. No descuenta stock (ya se descontó al
+    crear la cuenta corriente).
+    """
+    account = models.ForeignKey(EmployeeAccountSale, on_delete=models.CASCADE,
+                                related_name='payments', verbose_name='Cuenta corriente')
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa', null=True, blank=True)
+    amount = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Monto')
+    payment_method = models.CharField(max_length=12, choices=payment_method_choices,
+                                      default='cash', verbose_name='Forma de pago')
+    notes = models.CharField(max_length=255, blank=True, null=True, verbose_name='Nota')
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+                                   verbose_name='Registrado por')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha de registro')
+
+    def __str__(self):
+        return f'Abono ${self.amount} - {self.account}'
+
+    def toJSON(self):
+        item = model_to_dict(self, exclude=['created_by'])
+        item['payment_method_display'] = self.get_payment_method_display()
+        item['created_by'] = str(self.created_by) if self.created_by else ''
+        try:
+            item['created_at'] = timezone.localtime(self.created_at).strftime('%d/%m/%Y %H:%M')
+        except Exception:
+            item['created_at'] = str(self.created_at)
+        return item
+
+    class Meta:
+        verbose_name = 'Pago parcial de cuenta corriente'
+        verbose_name_plural = 'Pagos parciales de cuenta corriente'
+        ordering = ['created_at']
 
 
 class RemitoEntrada(models.Model):
@@ -2781,3 +2828,52 @@ class MarginAdjustmentHistory(models.Model):
         verbose_name = 'Ajuste de Margen'
         verbose_name_plural = 'Ajustes de Margen'
         ordering = ['-created_at']
+
+class StockMovement(models.Model):
+    """Registro auditable de cada movimiento de stock de un producto.
+
+    Toda mutación de Product.stock debe pasar por este registro: ventas,
+    fiados, anulaciones, remitos, transferencias, ajustes manuales e
+    importaciones. `quantity` es el delta con signo aplicado al stock.
+    """
+    MOVEMENT_TYPES = [
+        ('sale', 'Venta'),
+        ('sale_cancel', 'Anulación de venta'),
+        ('sale_edit', 'Edición de venta'),
+        ('sale_delete', 'Eliminación de venta'),
+        ('employee_account', 'Fiado (cuenta corriente)'),
+        ('employee_account_cancel', 'Anulación de fiado'),
+        ('remito', 'Remito'),
+        ('remito_cancel', 'Anulación de remito'),
+        ('transfer', 'Transferencia interna'),
+        ('quick_add', 'Carga rápida desde venta'),
+        ('manual', 'Ajuste manual'),
+        ('import', 'Importación'),
+        ('sync', 'Sincronización'),
+    ]
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, verbose_name='Empresa', null=True, blank=True)
+    product = models.ForeignKey(Product, on_delete=models.SET_NULL, verbose_name='Producto', null=True, blank=True, related_name='stock_movements')
+    movement_type = models.CharField(max_length=30, choices=MOVEMENT_TYPES, verbose_name='Tipo de movimiento')
+    quantity = models.DecimalField(max_digits=12, decimal_places=3, verbose_name='Cantidad (+/-)')
+    stock_before = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Stock anterior')
+    stock_after = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Stock resultante')
+    sale = models.ForeignKey('Sale', on_delete=models.SET_NULL, verbose_name='Venta', null=True, blank=True)
+    remito = models.ForeignKey('Remito', on_delete=models.SET_NULL, verbose_name='Remito', null=True, blank=True)
+    employee_account = models.ForeignKey('EmployeeAccountSale', on_delete=models.SET_NULL, verbose_name='Cuenta corriente', null=True, blank=True)
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, verbose_name='Usuario', null=True, blank=True)
+    ref = models.CharField(max_length=120, blank=True, default='', verbose_name='Referencia')
+    notes = models.CharField(max_length=255, blank=True, default='', verbose_name='Motivo / notas')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha')
+
+    def __str__(self):
+        prod_name = self.product.name if self.product else '(producto eliminado)'
+        return f"{prod_name}: {self.quantity:+} ({self.get_movement_type_display()}) - {self.created_at:%d/%m/%Y %H:%M}"
+
+    class Meta:
+        verbose_name = 'Movimiento de Stock'
+        verbose_name_plural = 'Movimientos de Stock'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['product', 'created_at']),
+            models.Index(fields=['company', 'created_at']),
+        ]

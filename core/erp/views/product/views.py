@@ -25,7 +25,8 @@ import openpyxl
 OPENPYXL_AVAILABLE = True
 
 from core.erp.forms import ProductForm
-from core.erp.models import Product, Category, Company, Supplier, Client, PriceList
+from core.erp.models import Product, Category, Company, Supplier, Client, PriceList, StockMovement
+from core.erp.services.stock_service import adjust_stock, log_stock_movement
 from core.erp.mixins import ValidatePermissionRequiredMixin, CompanyInitialMixin, get_active_company_id
 from core.erp.services.server_sync_service import ServerSyncService
 
@@ -328,6 +329,49 @@ class ProductListView(ValidatePermissionRequiredMixin, LoginRequiredMixin, ListV
                     }
                 else:
                     data = {}
+            elif action == 'adjust_stock':
+                if not request.user.has_perm('erp.change_product'):
+                    return JsonResponse({'error': 'No tiene permisos para ajustar stock'}, status=403)
+                active_cid = get_active_company_id(request)
+                prod = Product.objects.filter(pk=request.POST.get('product_id')).first()
+                if not prod or (active_cid and prod.company_id != active_cid):
+                    data = {'error': 'Producto no encontrado'}
+                    return JsonResponse(data)
+                try:
+                    new_stock = Decimal(str(request.POST.get('new_stock', '')).replace(',', '.'))
+                except Exception:
+                    data = {'error': 'Cantidad inválida'}
+                    return JsonResponse(data)
+                reason = (request.POST.get('reason') or '').strip()
+                if not reason:
+                    data = {'error': 'Debe indicar el motivo del ajuste'}
+                    return JsonResponse(data)
+                obs = (request.POST.get('notes') or '').strip()
+                delta = new_stock - Decimal(str(prod.stock or 0))
+                resultante = adjust_stock(
+                    prod.id, delta, movement_type='manual', user=request.user,
+                    ref=f'Ajuste manual - {prod.name}',
+                    notes=reason + (f': {obs}' if obs else ''))
+                data = {'success': True, 'stock': float(resultante),
+                        'message': f'Stock de {prod.name} actualizado a {resultante}'}
+            elif action == 'stock_history':
+                movs = StockMovement.objects.filter(product_id=request.POST.get('product_id'))
+                active_cid = get_active_company_id(request)
+                if active_cid:
+                    movs = movs.filter(company_id=active_cid)
+                movs = (movs
+                        .select_related('user')
+                        .order_by('-created_at')[:50])
+                data = [{
+                    'fecha': timezone.localtime(m.created_at).strftime('%d/%m/%Y %H:%M'),
+                    'tipo': m.get_movement_type_display(),
+                    'cantidad': float(m.quantity),
+                    'stock_before': float(m.stock_before),
+                    'stock_after': float(m.stock_after),
+                    'usuario': (m.user.get_full_name() or m.user.username) if m.user else '-',
+                    'ref': m.ref,
+                    'notes': m.notes,
+                } for m in movs]
             else:
                 data = {'error': 'Ha ocurrido un error'}
         except Exception as e:
@@ -1787,6 +1831,11 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                         prod.stock_modified_locally = now
                         prod.synced_to_server = False
                         prod.save()
+                        log_stock_movement(
+                            prod, Decimal(str(old_stock)), movement_type='import',
+                            user=request.user,
+                            ref=f'Importación masiva ({stock_mode})',
+                            notes='Actualización de stock por archivo')
                         updated += 1
                         updated_items.append({
                             'code': code,
@@ -2210,6 +2259,12 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                         if pvp_final is not None:
                             prod.pvp_final = pvp_final
                         prod.save()
+                        if prod.stock:
+                            log_stock_movement(
+                                prod, Decimal('0'), movement_type='import',
+                                user=request.user,
+                                ref='Importación de productos',
+                                notes='Stock inicial por importación')
                         products_by_code[code] = prod
                         created += 1
                         created_items.append({
@@ -2221,6 +2276,7 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                             'iva': f"{iva_rate*100:.1f}%" if iva_rate else '0%',
                         })
                     else:
+                        stock_antes_import = Decimal(str(prod.stock or 0))
                         if name:
                             prod.name = name
                         if cat:
@@ -2257,6 +2313,12 @@ class ImportInventoryView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
                             import_logger.info(f"Fila {idx+1}: Actualizando producto '{code}' con empresa del usuario {request.user.username} (ID: {request.user.company.id})")
                         prod.synced_to_server = False  # Marcar para sincronizar stock actualizado
                         prod.save()
+                        if prod.stock != stock_antes_import:
+                            log_stock_movement(
+                                prod, stock_antes_import, movement_type='import',
+                                user=request.user,
+                                ref='Importación de productos',
+                                notes='Stock actualizado por importación')
                         updated += 1
                         updated_items.append({
                             'code': code,

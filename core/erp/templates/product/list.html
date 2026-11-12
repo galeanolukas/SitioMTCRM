@@ -2,7 +2,7 @@
 {% load static %}
 {% load currency_filters %}
 {% block head_list %}
-    <script src="{% static 'product/js/list.js' %}?v=20261007"></script>
+    <script src="{% static 'product/js/list.js' %}?v=20261112"></script>
 {% endblock %}
 
 {% block columns %}
@@ -256,6 +256,95 @@ $(function () {
         $('input[name="costMode"][value="supplier"]').prop('checked', true).trigger('change');
     });
 
+    // ===== Ajuste de stock (con traza en StockMovement) =====
+    $(document).on('click', '.btnAdjustStock', function () {
+        var row = $('#data').DataTable().row($(this).closest('tr')).data() || {};
+        $('#adjustProdId').val(row.id);
+        $('#adjustProdName').val(row.name);
+        $('#adjustCurrentStock').val(parseFloat(row.stock) || 0);
+        $('#adjustNewStock').val('');
+        $('#adjustReason').val('');
+        $('#adjustNotes').val('');
+        $('#modalAdjustStock').modal('show');
+    });
+
+    $(document).on('click', '#btnConfirmAdjustStock', function () {
+        var btn = $(this);
+        var newStock = $('#adjustNewStock').val();
+        var reason = $('#adjustReason').val();
+        if (newStock === '' || isNaN(parseFloat(newStock))) {
+            alert('Ingrese el nuevo stock (número)'); return;
+        }
+        if (!reason) {
+            alert('Seleccione el motivo del ajuste'); return;
+        }
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Aplicando...');
+        $.ajax({
+            url: window.location.pathname,
+            type: 'POST',
+            data: {
+                'action': 'adjust_stock',
+                'product_id': $('#adjustProdId').val(),
+                'new_stock': newStock,
+                'reason': reason,
+                'notes': $('#adjustNotes').val(),
+                'csrfmiddlewaretoken': getCookie('csrftoken')
+            },
+            dataType: 'json'
+        }).done(function (resp) {
+            $('#modalAdjustStock').modal('hide');
+            if (resp.success) {
+                $('#data').DataTable().ajax.reload(null, false);
+                alert(resp.message);
+            } else {
+                alert(resp.error || 'Error al ajustar el stock');
+            }
+        }).fail(function (jqXHR, textStatus) {
+            alert('Error: ' + (jqXHR.responseJSON ? jqXHR.responseJSON.error : textStatus));
+        }).always(function () {
+            btn.prop('disabled', false).html('<i class="fas fa-check"></i> Aplicar Ajuste');
+        });
+    });
+
+    // ===== Historial de movimientos de stock =====
+    $(document).on('click', '.btnStockHistory', function () {
+        var row = $('#data').DataTable().row($(this).closest('tr')).data() || {};
+        $('#historyProdName').text(row.name || '');
+        var tbody = $('#stockHistoryBody');
+        tbody.html('<tr><td colspan="6" class="text-center text-muted">Cargando...</td></tr>');
+        $('#modalStockHistory').modal('show');
+        $.ajax({
+            url: window.location.pathname,
+            type: 'POST',
+            data: {
+                'action': 'stock_history',
+                'product_id': row.id,
+                'csrfmiddlewaretoken': getCookie('csrftoken')
+            },
+            dataType: 'json'
+        }).done(function (resp) {
+            tbody.empty();
+            if (!Array.isArray(resp) || resp.length === 0) {
+                tbody.html('<tr><td colspan="6" class="text-center text-muted">Sin movimientos registrados</td></tr>');
+                return;
+            }
+            resp.forEach(function (m) {
+                var qty = m.cantidad > 0 ? '+' + m.cantidad : String(m.cantidad);
+                var detalle = (m.ref || '') + (m.notes ? ' — ' + m.notes : '');
+                tbody.append('<tr>' +
+                    '<td>' + m.fecha + '</td>' +
+                    '<td>' + m.tipo + '</td>' +
+                    '<td class="text-end">' + qty + '</td>' +
+                    '<td class="text-end">' + m.stock_before + ' → ' + m.stock_after + '</td>' +
+                    '<td>' + m.usuario + '</td>' +
+                    '<td>' + detalle + '</td>' +
+                    '</tr>');
+            });
+        }).fail(function () {
+            tbody.html('<tr><td colspan="6" class="text-center text-danger">Error al cargar el historial</td></tr>');
+        });
+    });
+
     // Deshacer último ajuste
     $(document).on('click', '#btnConfirmUndoMargin', function () {
         var btn = $(this);
@@ -392,6 +481,85 @@ $(function () {
         <button type="button" class="btn btn-danger btn-flat" id="btnConfirmCostIncrease">
           <i class="fas fa-check"></i> Aplicar Aumento
         </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal ajuste de stock -->
+<div class="modal fade" id="modalAdjustStock" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-info">
+        <h5 class="modal-title text-white"><i class="fas fa-boxes"></i> Ajustar Stock</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="adjustProdId">
+        <div class="form-group mb-2">
+          <label>Producto</label>
+          <input type="text" id="adjustProdName" class="form-control" readonly>
+        </div>
+        <div class="form-group mb-2">
+          <label>Stock actual</label>
+          <input type="text" id="adjustCurrentStock" class="form-control" readonly>
+        </div>
+        <div class="form-group mb-2">
+          <label>Nuevo stock (conteo real)</label>
+          <input type="number" id="adjustNewStock" class="form-control" step="0.01" placeholder="Ej: 58">
+        </div>
+        <div class="form-group mb-2">
+          <label>Motivo <span class="text-danger">*</span></label>
+          <select id="adjustReason" class="form-control">
+            <option value="">--- Seleccione ---</option>
+            <option value="Conteo físico">Conteo físico</option>
+            <option value="Merma / rotura">Merma / rotura</option>
+            <option value="Carga sin remito">Carga sin remito</option>
+            <option value="Corrección de error de carga">Corrección de error de carga</option>
+            <option value="Otro">Otro</option>
+          </select>
+        </div>
+        <div class="form-group mb-2">
+          <label>Observaciones</label>
+          <input type="text" id="adjustNotes" class="form-control" placeholder="Opcional">
+        </div>
+        <div class="alert alert-info small">
+          <i class="fas fa-info-circle"></i> Para mercadería que entra de un proveedor, use un
+          <strong>remito de entrada</strong> (también actualiza el costo). El ajuste queda
+          registrado con usuario, fecha y motivo.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-flat" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-info btn-flat" id="btnConfirmAdjustStock">
+          <i class="fas fa-check"></i> Aplicar Ajuste
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal historial de stock -->
+<div class="modal fade" id="modalStockHistory" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-secondary">
+        <h5 class="modal-title text-white"><i class="fas fa-history"></i> Movimientos de stock: <span id="historyProdName"></span></h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <table class="table table-sm table-striped">
+          <thead>
+            <tr>
+              <th>Fecha</th><th>Tipo</th><th class="text-end">Cant.</th>
+              <th class="text-end">Stock</th><th>Usuario</th><th>Detalle</th>
+            </tr>
+          </thead>
+          <tbody id="stockHistoryBody"></tbody>
+        </table>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-flat" data-bs-dismiss="modal">Cerrar</button>
       </div>
     </div>
   </div>

@@ -1,0 +1,64 @@
+# Estado del proyecto / pendientes
+
+## PENDIENTE: deploy al servidor de producción (hacer al cierre del local)
+
+Hay cambios SIN COMMITEAR que implementan trazabilidad de stock. Aplicar al cierre:
+
+1. Commitear los cambios locales (19 archivos modificados + migración `0022_stockmovement`).
+2. Subir el código al servidor (VPS `148.230.73.167` — verificar método de deploy,
+   SSH `root@` no autenticado, script viejo usa `ubuntu@erp.multilideres.com` que no resuelve).
+3. En el server: `python manage.py migrate` (la tabla `erp_stockmovement` YA existe en
+   producción — se migró por la conexión remota desde este equipo — pero re-correr no molesta).
+4. `collectstatic` (cambió `core/erp/static/product/js/list.js` — bump `?v=20261112` ya puesto).
+5. Reiniciar el servicio (gunicorn/uwsgi según corresponda).
+
+## Qué se implementó (rama de trabajo actual)
+
+- Modelo `StockMovement` + servicio `core/erp/services/stock_service.py`
+  (`adjust_stock` / `log_stock_movement`). Toda mutación de `Product.stock` queda
+  auditada: ventas, fiados, anulaciones, ediciones, remitos, transferencias,
+  importaciones, ajustes manuales y syncs.
+- `stock` removido del `ProductForm` (ya no se edita a mano). Se agregó botón
+  "Ajustar stock" (modal con motivo obligatorio) y botón "Historial" en
+  `product/list.html`/`list.js`; acciones `adjust_stock` y `stock_history`
+  en `ProductListView.post`.
+- Stock negativo permitido: se eliminaron los pisos `Greatest(F('stock')-cant, 0)`
+  y la validación `stock < 0` de `Product.clean()`. Remitos de salida y
+  anulaciones ya no bloquean (dejan warning en log).
+- Migración `erp.0022_stockmovement` aplicada en `default` y `remote`.
+- Migración `erp.0023_employeeaccountpayment` aplicada en `default` y `remote`.
+- Pagos parciales (abonos) en cuentas corrientes: modelo `EmployeeAccountPayment`
+  (monto, forma de pago, nota, usuario, fecha) + helpers `amount_paid()`/`balance()`
+  en `EmployeeAccountSale`. Botón "Abonar" (monedas) en
+  `employee_account_list.html` con modal; columnas Abonado/Saldo; historial en el
+  detalle. Los abonos NO crean venta ni tocan caja (el ingreso lo hace el usuario
+  con movimiento de caja manual). `mark_as_paid` con abonos solo marca paga sin
+  crear Sale (evita duplicar el ingreso). `total_debt` del listado ahora descuenta
+  los abonos. Pedido por Pablo (Don Julio Pereiro, empresa 7).
+- Alta rápida de cliente desde el modal de Cuenta Corriente del POS: action
+  `add_client` en `sale/views.py` + botón "Nuevo cliente" con mini-form inline
+  en `pos.html` + handlers en `sale/js/pos.js` (bump `?v=20261112`). Antes el
+  modal solo permitía elegir clientes existentes (el viejo "agregar empleado"
+  está comentado) y el botón tenía un `"` de más en el HTML — corregido.
+
+## Normalización aplicada (12/11, conteo físico Acro Activo, empresa 10)
+
+Ajustes `manual` ya escritos en el servidor con `adjust_stock(using='remote')`:
+90348 pata muslo 36→41 (+5), 90216 milanesas 6kg 1→4 (+3), 90328 alas AVEGUAY 21→22 (+1),
+90332 cogote 5→6 (+1), 90276 milanesa 1kg 7→8 (+1). Resto del conteo: exacto.
+
+## Hallazgo conocido sin corregir
+
+- `core/erp/views/transfer/views.py`: al recibir transferencia suma stock al
+  producto de ORIGEN (`detail.product`) aunque el destino ya fue acreditado al
+  crearla → fabrica stock en destino y restaura origen. Quedó auditado por
+  StockMovement; decidir si se corrige la lógica.
+- Acro Activo vende "CAJA SOY ALAS" (114 en 35 días) con stock 0 mientras
+  despacha cajas físicas AVEGUAY → el stock se desfasa por uso del registro
+  equivocado. Sugerir unificar productos duplicados SOY/AVEGUAY o revisar
+  qué registro se usa al cobrar.
+
+## Informes generados
+
+- `videos_tutoriales/informe_desfasaje_stock_2_acroactivo.pdf` (informe Nro 5,
+  diagnóstico + guía del ranking). Script: `scripts/generar_informe_desfasaje_v2.py`.

@@ -210,8 +210,10 @@ $(function () {
                 class: 'text-center',
                 orderable: false,
                 render: function (data, type, row) {
-                    var buttons = '<a href="/erp/product/update/' + row.id + '/" class="btn btn-warning btn-xs btn-flat"><i class="fas fa-edit"></i></a> ';
-                    buttons += '<a href="/erp/product/delete/' + row.id + '/" type="button" class="btn btn-danger btn-xs btn-flat"><i class="fas fa-trash-alt"></i></a>';
+                    var buttons = '<a href="/erp/product/update/' + row.id + '/" class="btn btn-warning btn-xs btn-flat" title="Editar"><i class="fas fa-edit"></i></a> ';
+                    buttons += '<button type="button" class="btn btn-info btn-xs btn-flat btnAdjustStock" title="Ajustar stock"><i class="fas fa-boxes"></i></button> ';
+                    buttons += '<button type="button" class="btn btn-secondary btn-xs btn-flat btnStockHistory" title="Historial de stock"><i class="fas fa-history"></i></button> ';
+                    buttons += '<a href="/erp/product/delete/' + row.id + '/" type="button" class="btn btn-danger btn-xs btn-flat" title="Eliminar"><i class="fas fa-trash-alt"></i></a>';
                     return buttons;
                 }
             },

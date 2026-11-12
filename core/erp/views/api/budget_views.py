@@ -175,15 +175,11 @@ def confirm_budget(request, sale_id):
         sale.save(skip_afip_call_on_save=True)
         
         # Descontar stock de los productos
-        from django.db.models import F
-        from django.db.models.functions import Greatest
-        from django.utils import timezone
+        from core.erp.services.stock_service import adjust_stock
         for det in sale.detsale_set.all():
-            Product.objects.filter(pk=det.prod_id).update(
-                stock=Greatest(F('stock') - det.cant, 0),
-                stock_modified_locally=timezone.now(),
-                synced_to_server=False
-            )
+            adjust_stock(det.prod_id, -det.cant, movement_type='sale',
+                         user=request.user, sale=sale,
+                         ref=f'Presupuesto #{sale.id} confirmado (API)')
         
         logger.info(f"Presupuesto confirmado: {sale.local_uuid} - ID: {sale.id}")
         

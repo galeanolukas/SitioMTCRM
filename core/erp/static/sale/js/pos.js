@@ -2442,6 +2442,58 @@
     });
   }
 
+  // Alta rápida de cliente/titular desde el modal de cuenta corriente
+  $(document).on('click', '#btnToggleNewClient', function () {
+    $('#newClientInline').toggle();
+    $('#newClientName').trigger('focus');
+  });
+
+  $(document).on('click', '#btnSaveNewClient', function () {
+    const name = $('#newClientName').val().trim();
+    if (!name) {
+      showToast('warning', 'Ingrese el nombre del cliente');
+      return;
+    }
+    const btn = $(this).prop('disabled', true);
+    $.ajax({
+      url: window.location.pathname,
+      type: 'POST',
+      data: {
+        action: 'add_client',
+        name: name,
+        telefono: $('#newClientPhone').val().trim(),
+        csrfmiddlewaretoken: csrftoken()
+      },
+      success: function (resp) {
+        if (resp.error) {
+          showToast('error', resp.error);
+        } else {
+          const $select = $('#employeeSelect');
+          $select.append(`<option value="${resp.id}">${resp.name}</option>`);
+          $select.val(String(resp.id));
+          $('#newClientName').val('');
+          $('#newClientPhone').val('');
+          $('#newClientInline').hide();
+          showToast('success', 'Cliente creado y seleccionado');
+        }
+      },
+      error: function () {
+        showToast('error', 'Error al crear el cliente');
+      },
+      complete: function () {
+        btn.prop('disabled', false);
+      }
+    });
+  });
+
+  // Enter en el campo de nombre del nuevo cliente = crear
+  $(document).on('keydown', '#newClientName, #newClientPhone', function (e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      $('#btnSaveNewClient').trigger('click');
+    }
+  });
+
   function updateEmployeeAccountSummary() {
     const subtotal = items.reduce((sum, it) => sum + (it.subtotal || 0), 0);
     // Para empleados, el IVA es 0

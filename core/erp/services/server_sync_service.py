@@ -86,7 +86,7 @@ class ServerSyncService:
             # Verificar si el producto ya existe en remoto
             with remote_conn.cursor() as cursor:
                 cursor.execute(
-                    "SELECT id FROM erp_product WHERE code = %s AND company_id = %s",
+                    "SELECT id, stock FROM erp_product WHERE code = %s AND company_id = %s",
                     [product.code, company_id]
                 )
                 existing = cursor.fetchone()
@@ -116,6 +116,25 @@ class ServerSyncService:
                         'product_id': product_id,
                         'remote_id': existing[0]
                     })
+                    # Registrar el movimiento de stock en el servidor (si la
+                    # tabla existe); nunca interrumpir el sync por esto.
+                    try:
+                        remote_old = float(existing[1] or 0)
+                        remote_new = float(product.stock or 0)
+                        if remote_new != remote_old:
+                            cursor.execute("""
+                                INSERT INTO erp_stockmovement
+                                (company_id, product_id, movement_type, quantity,
+                                 stock_before, stock_after, ref, notes, created_at)
+                                VALUES (%s, %s, 'sync', %s, %s, %s, %s, %s, NOW())
+                            """, [
+                                company_id, existing[0],
+                                remote_new - remote_old, remote_old, remote_new,
+                                f'Sync POS (prod local {product_id})',
+                                'Escritura absoluta por server_sync'
+                            ])
+                    except Exception:
+                        pass
                 else:
                     # Insertar nuevo producto
                     cursor.execute("""

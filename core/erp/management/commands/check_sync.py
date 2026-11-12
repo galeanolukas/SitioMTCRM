@@ -102,8 +102,18 @@ class Command(BaseCommand):
                         remote_prod.iva_rate = prod.iva_rate
                         remote_prod.pvp_final = prod.pvp_final
                         remote_prod.unit = prod.unit
+                        remote_stock_antes = remote_prod.stock
                         remote_prod.stock = prod.stock
                         remote_prod.save()
+                        try:
+                            from core.erp.services.stock_service import log_stock_movement
+                            log_stock_movement(
+                                remote_prod, remote_stock_antes, movement_type='sync',
+                                ref=f'Sync forzado desde POS (prod local {prod.pk})',
+                                notes='Escritura absoluta por check_sync',
+                                using='remote')
+                        except Exception:
+                            pass
 
                 # Marcar como sincronizado
                 Product.objects.using('default').filter(pk=prod.pk).update(synced_to_server=True)

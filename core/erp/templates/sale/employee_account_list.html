@@ -286,6 +286,12 @@
                       <td class="text-end">{{ account.iva|currency }}</td>
                       <td class="text-end">
                         <strong class="{% if not account.is_paid %}text-danger{% endif %}">{{ account.total|currency }}</strong>
+                        {% if account.paid_sum > 0 %}
+                          <br><small class="text-success">Abonado: {{ account.paid_sum|currency }}</small>
+                          {% if not account.is_paid %}
+                            <br><small class="text-danger">Saldo: {{ account.balance_due|currency }}</small>
+                          {% endif %}
+                        {% endif %}
                       </td>
                       <td>
                         <span class="badge {% if account.is_cancelled %}bg-secondary{% elif account.is_paid %}bg-success{% else %}bg-danger{% endif %}">
@@ -301,7 +307,10 @@
                             <i class="fas fa-eye"></i>
                           </button>
                           {% if not account.is_paid and not account.is_cancelled %}
-                            <button type="button" class="btn btn-outline-success" onclick="markAsPaid({{ account.id }}, {{ account.total }})" title="Marcar Pagado">
+                            <button type="button" class="btn btn-outline-primary" onclick="openPartialPayment({{ account.id }}, {{ account.total }}, {{ account.paid_sum|default:0 }})" title="Registrar abono (pago parcial)">
+                              <i class="fas fa-coins"></i>
+                            </button>
+                            <button type="button" class="btn btn-outline-success" onclick="markAsPaid({{ account.id }}, {{ account.total }}, {{ account.paid_sum|default:0 }})" title="Marcar Pagado">
                               <i class="fas fa-check"></i>
                             </button>
                           {% elif request.user.is_superuser %}
@@ -451,6 +460,65 @@
   </div>
 </div>
 
+<!-- Modal de abono parcial -->
+<div class="modal fade" id="partialPaymentModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fas fa-coins"></i> Registrar Abono
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="partialAccountId" value="">
+        <div class="row mb-3 text-center">
+          <div class="col-4">
+            <small class="text-muted">Total</small><br>
+            <strong id="partialTotal">$0.00</strong>
+          </div>
+          <div class="col-4">
+            <small class="text-muted">Ya abonado</small><br>
+            <strong class="text-success" id="partialPaidSum">$0.00</strong>
+          </div>
+          <div class="col-4">
+            <small class="text-muted">Saldo</small><br>
+            <strong class="text-danger" id="partialBalance">$0.00</strong>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label for="partialAmount" class="form-label">Monto del abono</label>
+          <input type="number" id="partialAmount" class="form-control" min="0" step="0.01" placeholder="0.00">
+        </div>
+        <div class="mb-3">
+          <label for="partialMethod" class="form-label">Forma de pago</label>
+          <select id="partialMethod" class="form-select">
+            <option value="cash">Efectivo</option>
+            <option value="card">Tarjeta</option>
+            <option value="transfer">Transferencia</option>
+            <option value="mp">Mercado Pago</option>
+            <option value="check">Cheque</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label for="partialNotes" class="form-label">Nota (opcional)</label>
+          <input type="text" id="partialNotes" class="form-control" maxlength="255" placeholder="Ej: entrega parcial">
+        </div>
+        <div class="alert alert-warning mb-0">
+          <i class="fas fa-info-circle"></i> El abono <strong>no ingresa a la caja automáticamente</strong>:
+          registralo también como movimiento de caja si corresponde.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btnConfirmPartial">
+          <i class="fas fa-check"></i> Registrar abono
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Modal de pago combinado paso 2 -->
 <div class="modal fade" id="paymentStep2Modal" tabindex="-1">
   <div class="modal-dialog">
@@ -557,6 +625,34 @@ function showDetails(accountId) {
           </div>
         `;
       }
+
+      // Historial de abonos parciales
+      if (data.payments && data.payments.length > 0) {
+        detailsHtml += `
+          <h6 class="mt-4 mb-3">Abonos registrados
+            <small class="text-muted">(pagado $${account.paid_sum.toLocaleString('es-AR', {minimumFractionDigits: 2})}
+            — saldo $${account.balance.toLocaleString('es-AR', {minimumFractionDigits: 2})})</small>
+          </h6>
+          <div class="table-responsive">
+            <table class="table table-sm table-striped">
+              <thead>
+                <tr><th>Fecha</th><th>Monto</th><th>Forma de pago</th><th>Nota</th><th>Registró</th></tr>
+              </thead>
+              <tbody>
+        `;
+        data.payments.forEach(p => {
+          detailsHtml += `
+            <tr>
+              <td>${p.created_at}</td>
+              <td class="text-end">$${p.amount.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
+              <td>${p.payment_method}</td>
+              <td>${p.notes || '-'}</td>
+              <td>${p.created_by}</td>
+            </tr>
+          `;
+        });
+        detailsHtml += `</tbody></table></div>`;
+      }
       
       detailsHtml += `
         <h6 class="mt-4 mb-3">Productos Retirados</h6>
@@ -614,12 +710,36 @@ function showDetails(accountId) {
   });
 }
 
-function markAsPaid(accountId, total) {
+function openPartialPayment(accountId, total, paidSum) {
+  const balance = total - paidSum;
+  document.getElementById('partialAccountId').value = accountId;
+  document.getElementById('partialTotal').textContent = '$' + total.toLocaleString('es-AR', {minimumFractionDigits: 2});
+  document.getElementById('partialPaidSum').textContent = '$' + paidSum.toLocaleString('es-AR', {minimumFractionDigits: 2});
+  document.getElementById('partialBalance').textContent = '$' + balance.toLocaleString('es-AR', {minimumFractionDigits: 2});
+  document.getElementById('partialAmount').value = '';
+  document.getElementById('partialAmount').max = balance;
+  document.getElementById('partialMethod').value = 'cash';
+  document.getElementById('partialNotes').value = '';
+  const modal = new bootstrap.Modal(document.getElementById('partialPaymentModal'));
+  modal.show();
+}
+
+function markAsPaid(accountId, total, paidSum) {
   // Obtener el total de la fila si no se pasa como parámetro
   if (!total) {
     const row = document.querySelector(`button[onclick="markAsPaid(${accountId})"]`).closest('tr');
     const totalCell = row.querySelector('td:nth-child(6)');
     total = parseFloat(totalCell.textContent.replace('$', '').replace(/\./g, '').replace(',', '.')) || 0;
+  }
+
+  if (paidSum > 0) {
+    const saldo = total - paidSum;
+    if (!confirm('Esta cuenta tiene $' + paidSum.toLocaleString('es-AR', {minimumFractionDigits: 2}) +
+      ' abonados (saldo $' + saldo.toLocaleString('es-AR', {minimumFractionDigits: 2}) + ').\n\n' +
+      'Si la marcás pagada así, NO se crea la venta de cobro en caja porque los abonos ya registran el ingreso. ' +
+      'Se dará la deuda por cancelada en su totalidad.\n\n¿Continuar?')) {
+      return;
+    }
   }
   
   // Establecer valores en el modal
@@ -693,6 +813,53 @@ function deleteAccount(accountId) {
     alert('Error de conexión: ' + error);
   });
 }
+
+// Confirmar abono parcial
+document.getElementById('btnConfirmPartial').addEventListener('click', function() {
+  const accountId = document.getElementById('partialAccountId').value;
+  const amount = parseFloat(document.getElementById('partialAmount').value) || 0;
+  const method = document.getElementById('partialMethod').value;
+  const notes = document.getElementById('partialNotes').value;
+  const balance = parseFloat(document.getElementById('partialAmount').max) || 0;
+
+  if (amount <= 0) {
+    alert('Ingrese un monto válido');
+    return;
+  }
+  if (amount > balance + 0.01) {
+    alert('El monto supera el saldo pendiente');
+    return;
+  }
+
+  this.disabled = true;
+  const btn = this;
+  fetch('', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-CSRFToken': getCookie('csrftoken')
+    },
+    body: 'action=add_partial_payment&account_id=' + accountId +
+          '&amount=' + amount +
+          '&payment_method=' + method +
+          '&notes=' + encodeURIComponent(notes)
+  })
+  .then(response => response.json())
+  .then(data => {
+    btn.disabled = false;
+    if (data.success) {
+      const modal = bootstrap.Modal.getInstance(document.getElementById('partialPaymentModal'));
+      modal.hide();
+      location.reload();
+    } else {
+      alert('Error: ' + data.error);
+    }
+  })
+  .catch(error => {
+    btn.disabled = false;
+    alert('Error de conexión: ' + error);
+  });
+});
 
 function getCookie(name) {
   let cookieValue = null;

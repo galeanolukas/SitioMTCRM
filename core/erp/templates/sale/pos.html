@@ -350,7 +350,7 @@
             <button id="btnCheckout" class="btn btn-success btn-lg" {% if pos_locked_by_cash %}disabled{% endif %}>
               <i class="fas fa-save"></i> Registrar Venta (F2)
             </button>
-            <button id="btnEmployeeAccount" class="btn btn-warning btn-lg" {% if pos_locked_by_cash %}disabled{% endif %}">
+            <button id="btnEmployeeAccount" class="btn btn-warning btn-lg" {% if pos_locked_by_cash %}disabled{% endif %}>
               <i class="fas fa-users"></i> Cuenta Corriente (F3)
             </button>
             <button id="btnCreateBudget" class="btn btn-info btn-lg d-none" {% if pos_locked_by_cash %}disabled{% endif %}>
@@ -779,9 +779,23 @@
         </div>
         <div class="mb-3">
           <label for="employeeSelect" class="form-label">Cliente</label>
-          <select class="form-select" id="employeeSelect" required>
-            <option value="">Seleccione un cliente...</option>
-          </select>
+          <div class="input-group">
+            <select class="form-select" id="employeeSelect" required>
+              <option value="">Seleccione un cliente...</option>
+            </select>
+            <button type="button" class="btn btn-outline-primary" id="btnToggleNewClient" title="Crear cliente nuevo">
+              <i class="fas fa-user-plus"></i>
+            </button>
+          </div>
+          <div id="newClientInline" class="mt-2" style="display:none;">
+            <input type="text" class="form-control mb-2" id="newClientName" placeholder="Nombre y apellido del titular">
+            <div class="input-group">
+              <input type="text" class="form-control" id="newClientPhone" placeholder="Teléfono (opcional)">
+              <button type="button" class="btn btn-primary" id="btnSaveNewClient">
+                <i class="fas fa-check"></i> Crear
+              </button>
+            </div>
+          </div>
         </div>
         <div class="mb-3">
           <label for="employeeNotes" class="form-label">Notas (opcional)</label>
@@ -1306,5 +1320,5 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 </script>
-<script src="{% static 'sale/js/pos.js' %}?v=20260830h"></script>
+<script src="{% static 'sale/js/pos.js' %}?v=20261112"></script>
 {% endblock %}

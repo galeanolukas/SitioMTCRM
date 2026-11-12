@@ -4,7 +4,8 @@ from django.urls import reverse_lazy
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, get_object_or_404
 from django import forms
-from core.erp.models import Sale, Product, DetSale, Company, Client, QuickOrder, Category, CashRegister, EmployeeAccountSale, DetEmployeeAccount, SaleVatBreakdown, CardInstallmentPlan
+from core.erp.models import Sale, Product, DetSale, Company, Client, QuickOrder, Category, CashRegister, EmployeeAccountSale, DetEmployeeAccount, SaleVatBreakdown, CardInstallmentPlan, EmployeeAccountPayment
+from core.erp.services.stock_service import adjust_stock, log_stock_movement
 from core.erp.utils.pdf_utils import fmt_money_ar
 from django.contrib.auth import get_user_model
 from django.template.loader import get_template
@@ -23,8 +24,8 @@ from django.utils.decorators import method_decorator
 from django.core.serializers.json import DjangoJSONEncoder
 import json
 from django.db import transaction, IntegrityError
-from django.db.models import F, Q
-from django.db.models.functions import Greatest
+from django.db.models import F, Q, Sum, Value, DecimalField, ExpressionWrapper
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 import pytz
 from decimal import Decimal
@@ -475,10 +476,11 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                 prod = Product.objects.filter(pk=prod_id).first()
                 if not prod:
                     return JsonResponse({'error': 'Producto no encontrado'}, status=404)
-                prod.stock = (prod.stock or Decimal('0')) + qty
-                prod.stock_modified_locally = timezone.now()
-                prod.synced_to_server = False
-                prod.save()
+                new_stock = adjust_stock(
+                    prod.id, qty, movement_type='quick_add', user=request.user,
+                    ref=f'Producto {prod.name}',
+                    notes='Carga rápida desde la venta')
+                prod.stock = new_stock
                 data = {'id': prod.id, 'name': prod.name, 'stock': float(prod.stock)}
             elif action == 'list_categories':
                 # Obtener categorías existentes de la empresa activa
@@ -598,6 +600,24 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         'id': cli.id,
                         'name': f"{cli.names} {cli.surnames or ''}".strip(),
                     })
+
+            elif action == 'add_client':
+                # Alta rápida de cliente/titular desde el POS (cuenta corriente)
+                name = (request.POST.get('name') or '').strip()
+                telefono = (request.POST.get('telefono') or '').strip()
+                if not name:
+                    data['error'] = 'Debe ingresar el nombre del cliente'
+                else:
+                    active_cid = get_active_company_id(request)
+                    cli = Client(names=name, telefono=telefono or None, is_active=True)
+                    if active_cid:
+                        cli.company_id = active_cid
+                    cli.save()
+                    data = {
+                        'id': cli.id,
+                        'name': f"{cli.names} {cli.surnames or ''}".strip(),
+                        'message': 'Cliente creado correctamente',
+                    }
 
             elif action == 'search_clients':
                 # Buscar clientes para el modal del POS
@@ -799,11 +819,9 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         det.save()
                         if not is_budget:
                             if prod and getattr(prod, 'track_stock', True):
-                                Product.objects.filter(pk=det.prod_id).update(
-                                    stock=Greatest(F('stock') - cant, 0),
-                                    stock_modified_locally=timezone.now(),
-                                    synced_to_server=False
-                                )
+                                adjust_stock(det.prod_id, -cant, movement_type='sale',
+                                             user=request.user, sale=sale,
+                                             ref=f'Venta #{sale.id}')
                     
                     # Calcular y guardar apertura de alícuotas de IVA
                     # Usar vat_breakdown del payload si está disponible, sino calcular desde detalles
@@ -974,12 +992,10 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                             det.iva_amount = float(Decimal(str(det.subtotal)) * iva_rate)
                         det.save()
                         if prod and getattr(prod, 'track_stock', True):
-                            Product.objects.filter(pk=det.prod_id).update(
-                                stock=Greatest(F('stock') - cant, 0),
-                                stock_modified_locally=timezone.now(),  # Marcar modificación de stock
-                                synced_to_server=False  # Marcar para sincronizar
-                            )
-                    
+                            adjust_stock(det.prod_id, -cant, movement_type='sale',
+                                         user=request.user, sale=sale,
+                                         ref=f'Venta #{sale.id}')
+
                     # Calcular y guardar apertura de alícuotas de IVA
                     self.calculate_vat_breakdown(sale)
 
@@ -1050,11 +1066,9 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                             subtotal=subtotal,
                         )
                         if getattr(prod, 'track_stock', True):
-                            Product.objects.filter(pk=prod.id).update(
-                                stock=Greatest(F('stock') - cant, 0),
-                                stock_modified_locally=timezone.now(),  # Marcar modificación de stock
-                                synced_to_server=False  # Marcar para sincronizar
-                            )
+                            adjust_stock(prod.id, -cant, movement_type='sale',
+                                         user=request.user, sale=sale,
+                                         ref=f'Pedido rápido → venta #{sale.id}')
 
                     qo.status = 'paid'
                     qo.save(update_fields=['status'])
@@ -1152,11 +1166,9 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         # Obtener producto para actualizar stock
                         prod = Product.objects.get(pk=int(it['id']))
                         if getattr(prod, 'track_stock', True):
-                            Product.objects.filter(pk=det.prod_id).update(
-                                stock=Greatest(F('stock') - cant, 0),
-                                stock_modified_locally=timezone.now(),  # Marcar modificación de stock
-                                synced_to_server=False  # Marcar para sincronizar
-                            )
+                            adjust_stock(det.prod_id, -cant, movement_type='employee_account',
+                                         user=request.user, employee_account=emp_sale,
+                                         ref=f'Cta. Cte. #{emp_sale.id}')
                     data = {'id': emp_sale.id, 'message': 'Venta por cuenta corriente registrada correctamente'}
             elif action == 'add_employee':
                 # Agregar nuevo empleado
@@ -1433,12 +1445,9 @@ class SaleCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Create
                         
                         # Descontar stock solo si no es presupuesto
                         if not is_budget:
-                            from django.utils import timezone
-                            Product.objects.filter(pk=det.prod_id).update(
-                                stock=Greatest(F('stock') - det.cant, 0),
-                                stock_modified_locally=timezone.now(),  # Marcar modificación local
-                                synced_to_server=False  # Marcar para sincronizar
-                            )
+                            adjust_stock(det.prod_id, -det.cant, movement_type='sale',
+                                         user=request.user, sale=sale,
+                                         ref=f'Venta #{sale.id}')
                     
                     # Calcular y guardar apertura de alícuotas de IVA
                     self.calculate_vat_breakdown(sale)
@@ -1548,11 +1557,10 @@ class SaleUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Update
                     sale.save()
                     # Restaurar stock de detalles anteriores
                     for d in sale.detsale_set.all():
-                        Product.objects.filter(pk=d.prod_id).update(
-                            stock=F('stock') + d.cant,
-                            stock_modified_locally=timezone.now(),  # Marcar modificación de stock
-                            synced_to_server=False  # Marcar para sincronizar
-                        )
+                        adjust_stock(d.prod_id, d.cant, movement_type='sale_edit',
+                                     user=request.user, sale=sale,
+                                     ref=f'Edición venta #{sale.id}',
+                                     notes='Devolución de items anteriores')
                     sale.detsale_set.all().delete()
 
                     # Validación de stock suficiente para nuevos detalles (cantidades decimales)
@@ -1576,15 +1584,14 @@ class SaleUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Update
                         det.price = float(i['pvp'])
                         det.subtotal = float(i['subtotal'])
                         det.save()
-                        Product.objects.filter(pk=det.prod_id).update(
-                            stock=Greatest(F('stock') - cant, 0),
-                            stock_modified_locally=timezone.now(),  # Marcar modificación de stock
-                            synced_to_server=False  # Marcar para sincronizar
-                        )
-                    
+                        adjust_stock(det.prod_id, -cant, movement_type='sale_edit',
+                                     user=request.user, sale=sale,
+                                     ref=f'Edición venta #{sale.id}',
+                                     notes='Descuento de items nuevos')
+
                     # Calcular y guardar apertura de alícuotas de IVA
                     self.calculate_vat_breakdown(sale)
-                
+
             else:
                 data['error'] = 'No ha ingresado a ninguna opción'
         except Exception as e:
@@ -1671,11 +1678,10 @@ class SaleDeleteView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Delete
 
                 if restore_stock:
                     for d in self.object.detsale_set.all():
-                        Product.objects.filter(pk=d.prod_id).update(
-                            stock=F('stock') + d.cant,
-                            stock_modified_locally=timezone.now(),  # Marcar modificación local
-                            synced_to_server=False  # Marcar para sincronizar
-                        )
+                        adjust_stock(d.prod_id, d.cant, movement_type='sale_cancel',
+                                     user=request.user, sale=self.object,
+                                     ref=f'Anulación venta #{self.object.id}',
+                                     notes='Mercadería devuelta al depósito')
 
                 # Eliminar registros contables/IVA relacionados localmente
                 # (los que tienen on_delete=SET_NULL y quedarían huérfanos)
@@ -1909,11 +1915,10 @@ class SaleListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListView
                             for d in sale.detsale_set.all():
                                 prod = Product.objects.filter(pk=d.prod_id).first()
                                 if prod and getattr(prod, 'track_stock', True):
-                                    Product.objects.filter(pk=d.prod_id).update(
-                                        stock=F('stock') + d.cant,
-                                        stock_modified_locally=timezone.now(),
-                                        synced_to_server=False
-                                    )
+                                    adjust_stock(d.prod_id, d.cant, movement_type='sale_delete',
+                                                 user=request.user,
+                                                 ref=f'Venta #{sale.id} eliminada',
+                                                 notes='Eliminación masiva de ventas')
                             sale.delete()
                             count += 1
                         data = {'success': True, 'count': count}
@@ -2081,11 +2086,9 @@ class InvoiceCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Cre
                         det.price = det_info['price_final']            # precio final con IVA
                         det.subtotal = det_info['subtotal_final']      # subtotal con IVA
                         det.save()
-                        Product.objects.filter(pk=det.prod_id).update(
-                            stock=Greatest(F('stock') - det.cant, 0),
-                            stock_modified_locally=timezone.now(),  # Marcar modificación de stock
-                            synced_to_server=False  # Marcar para sincronizar
-                        )
+                        adjust_stock(det.prod_id, -det.cant, movement_type='sale',
+                                     user=request.user, sale=sale,
+                                     ref=f'Venta #{sale.id}')
             else:
                 data['error'] = 'No ha ingresado a ninguna opción'
         except Exception as e:
@@ -2239,11 +2242,9 @@ def sync_sales_api(request):
                     )
                     prod = Product.objects.filter(pk=prod_id).first()
                     if prod and getattr(prod, 'track_stock', True):
-                        Product.objects.filter(pk=prod_id).update(
-                            stock=Greatest(F('stock') - cant, 0),
-                            stock_modified_locally=timezone.now(),  # Marcar modificación de stock
-                            synced_to_server=False  # Marcar para sincronizar
-                        )
+                        adjust_stock(prod_id, -cant, movement_type='sale',
+                                     user=request.user, sale=sale,
+                                     ref=f'Venta #{sale.id} (sync POS)')
 
                 synced.append(local_uuid)
         except IntegrityError:
@@ -2295,6 +2296,12 @@ class EmployeeAccountListView(LoginRequiredMixin, ValidatePermissionRequiredMixi
         if date_to:
             queryset = queryset.filter(date_joined__date__lte=date_to)
 
+        zero = Value(0, output_field=DecimalField(max_digits=12, decimal_places=2))
+        queryset = queryset.annotate(
+            paid_sum=Coalesce(Sum('payments__amount'), zero),
+            balance_due=ExpressionWrapper(F('total') - Coalesce(Sum('payments__amount'), zero),
+                                          output_field=DecimalField(max_digits=12, decimal_places=2)),
+        )
         return queryset.select_related('client', 'employee')
 
     def get_context_data(self, **kwargs):
@@ -2320,12 +2327,16 @@ class EmployeeAccountListView(LoginRequiredMixin, ValidatePermissionRequiredMixi
         # Calcular totales
         queryset = self.get_queryset()
         from django.db.models import Sum
-        context['total_debt'] = queryset.filter(is_paid=False, is_cancelled=False).aggregate(
-            total=Sum('total')
-        )['total'] or 0
+        unpaid = queryset.filter(is_paid=False, is_cancelled=False)
+        unpaid_total = unpaid.aggregate(total=Sum('total'))['total'] or 0
+        # Abonos parciales registrados sobre cuentas impagas
+        unpaid_abonos = EmployeeAccountPayment.objects.filter(
+            account__in=unpaid).aggregate(t=Sum('amount'))['t'] or 0
+        context['total_debt'] = unpaid_total - unpaid_abonos
         context['total_paid'] = queryset.filter(is_paid=True).aggregate(
             total=Sum('total')
         )['total'] or 0
+        context['total_paid'] += unpaid_abonos
         context['total_general'] = queryset.aggregate(
             total=Sum('total')
         )['total'] or 0
@@ -2362,6 +2373,17 @@ class EmployeeAccountListView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                         'iva_amount': float(detail.iva_amount),
                     })
                 
+                payments = []
+                for p in account.payments.all():
+                    payments.append({
+                        'id': p.id,
+                        'amount': float(p.amount),
+                        'payment_method': p.get_payment_method_display(),
+                        'notes': p.notes or '',
+                        'created_by': str(p.created_by),
+                        'created_at': timezone.localtime(p.created_at).strftime('%d/%m/%Y %H:%M'),
+                    })
+
                 return JsonResponse({
                     'success': True,
                     'account': {
@@ -2376,10 +2398,63 @@ class EmployeeAccountListView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                         'is_paid': account.is_paid,
                         'paid_date': account.paid_date.strftime('%d/%m/%Y %H:%M') if account.paid_date else None,
                         'related_sale_id': account.related_sale_id,
+                        'paid_sum': float(account.amount_paid()),
+                        'balance': float(account.balance()),
                     },
+                    'payments': payments,
                     'details': details
                 })
             
+            elif action == 'add_partial_payment':
+                account_id = request.POST.get('account_id')
+                account = EmployeeAccountSale.objects.get(id=account_id)
+
+                if not request.user.has_perm('erp.manage_employee_accounts'):
+                    return JsonResponse({'error': 'No tiene permisos para realizar esta acción'}, status=403)
+
+                if account.is_paid:
+                    return JsonResponse({'error': 'La cuenta ya está marcada como pagada'}, status=400)
+                if account.is_cancelled:
+                    return JsonResponse({'error': 'La cuenta está anulada'}, status=400)
+
+                try:
+                    amount = Decimal(str(request.POST.get('amount', '0')))
+                except Exception:
+                    return JsonResponse({'error': 'Monto inválido'}, status=400)
+
+                balance = account.balance()
+                if amount <= 0:
+                    return JsonResponse({'error': 'El monto debe ser mayor a cero'}, status=400)
+                if amount > balance + Decimal('0.01'):
+                    return JsonResponse({'error': f'El monto supera el saldo pendiente (${balance})'}, status=400)
+
+                payment_method = request.POST.get('payment_method', 'cash')
+                notes = (request.POST.get('notes') or '').strip() or None
+
+                with transaction.atomic():
+                    EmployeeAccountPayment.objects.create(
+                        account=account,
+                        company=account.company,
+                        amount=amount,
+                        payment_method=payment_method,
+                        notes=notes,
+                        created_by=request.user,
+                    )
+                    # Si el abono completa la deuda, la cuenta queda paga.
+                    # No se crea venta ni se toca caja: los abonos son el registro del ingreso.
+                    if account.balance() <= Decimal('0.01'):
+                        account.is_paid = True
+                        account.paid_date = timezone.now()
+                        account.save()
+
+                return JsonResponse({
+                    'success': True,
+                    'message': 'Abono registrado correctamente',
+                    'paid_sum': float(account.amount_paid()),
+                    'balance': float(account.balance()),
+                    'is_paid': account.is_paid,
+                })
+
             elif action == 'mark_as_paid':
                 account_id = request.POST.get('account_id')
                 account = EmployeeAccountSale.objects.get(id=account_id)
@@ -2387,7 +2462,19 @@ class EmployeeAccountListView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                 # Verificar permisos
                 if not request.user.has_perm('erp.manage_employee_accounts'):
                     return JsonResponse({'error': 'No tiene permisos para realizar esta acción'}, status=403)
-                
+
+                # Si la cuenta tiene abonos, el dinero entró por movimientos de caja:
+                # marcar paga sin crear la venta de cobro (duplicaría el ingreso).
+                if account.payments.exists():
+                    account.is_paid = True
+                    account.paid_date = timezone.now()
+                    account.save()
+                    return JsonResponse({
+                        'success': True,
+                        'message': 'Cuenta marcada como pagada (los abonos ya registran el ingreso)',
+                        'has_abonos': True,
+                    })
+
                 # Obtener método de pago para pagos simples
                 payment_method = request.POST.get('payment_method', 'cash')
                 
@@ -2621,11 +2708,11 @@ class EmployeeAccountListView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                     if not account.is_paid:
                         # Solo restaurar stock si la cuenta no está pagada
                         for detail in account.detemployeeaccount_set.all():
-                            Product.objects.filter(pk=detail.prod_id).update(
-                                stock=F('stock') + detail.cant,
-                                stock_modified_locally=timezone.now(),  # Marcar modificación de stock
-                                synced_to_server=False
-                            )
+                            adjust_stock(detail.prod_id, detail.cant,
+                                         movement_type='employee_account_cancel',
+                                         user=request.user,
+                                         ref=f'Cta. Cte. #{account.id} eliminada',
+                                         notes='Eliminación de cuenta impaga')
                     
                     # Si hay una venta relacionada, eliminarla
                     if account.related_sale_id:
@@ -2988,13 +3075,9 @@ class BudgetConvertView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Vie
                 
                 # Descontar stock de los productos
                 for det in budget.detsale_set.all():
-                    from django.db.models import F
-                    from django.utils import timezone
-                    Product.objects.filter(pk=det.prod_id).update(
-                        stock=Greatest(F('stock') - det.cant, 0),
-                        stock_modified_locally=timezone.now(),
-                        synced_to_server=False
-                    )
+                    adjust_stock(det.prod_id, -det.cant, movement_type='sale',
+                                 user=request.user, sale=budget,
+                                 ref=f'Presupuesto #{budget.id} convertido a venta')
                 
                 return JsonResponse({'success': True, 'message': 'Presupuesto convertido a venta correctamente'})
         except Sale.DoesNotExist:

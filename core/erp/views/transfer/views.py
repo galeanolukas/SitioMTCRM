@@ -12,6 +12,7 @@ from decimal import Decimal
 from django.db import models
 
 from core.erp.models import InternalTransfer, InternalTransferDetail, Product, Company
+from core.erp.services.stock_service import log_stock_movement
 from core.erp.forms import InternalTransferForm, InternalTransferDetailForm
 from core.erp.mixins import get_active_company_id
 
@@ -259,10 +260,16 @@ class TransferCreateView(LoginRequiredMixin, View):
                                         total_amount += quantity * unit_price
                                         
                                         # Descontar stock del origen
+                                        stock_antes = product.stock or Decimal('0')
                                         product.stock -= quantity
                                         product.stock_modified_locally = timezone.now()  # Marcar modificación de stock
                                         product.synced_to_server = False  # Marcar para sincronizar
                                         product.save()
+                                        log_stock_movement(
+                                            product, stock_antes, movement_type='transfer',
+                                            user=request.user,
+                                            ref=f'Transferencia {transfer.transfer_number}',
+                                            notes=f'Salida a {destination_company.name}')
                                         
                                         # Buscar o crear producto en destino
                                         dest_product = Product.objects.filter(
@@ -272,10 +279,16 @@ class TransferCreateView(LoginRequiredMixin, View):
                                         
                                         if dest_product:
                                             # Si existe, aumentar stock
+                                            stock_antes_dest = dest_product.stock or Decimal('0')
                                             dest_product.stock += quantity
                                             dest_product.stock_modified_locally = timezone.now()  # Marcar modificación de stock
                                             dest_product.synced_to_server = False  # Marcar para sincronizar
                                             dest_product.save()
+                                            log_stock_movement(
+                                                dest_product, stock_antes_dest, movement_type='transfer',
+                                                user=request.user,
+                                                ref=f'Transferencia {transfer.transfer_number}',
+                                                notes=f'Entrada desde {origin_company.name}')
                                         else:
                                             # Si no existe, crear copia en destino
                                             dest_product = Product.objects.create(
@@ -291,6 +304,11 @@ class TransferCreateView(LoginRequiredMixin, View):
                                                 stock=quantity,
                                                 is_active=True
                                             )
+                                            log_stock_movement(
+                                                dest_product, Decimal('0'), movement_type='transfer',
+                                                user=request.user,
+                                                ref=f'Transferencia {transfer.transfer_number}',
+                                                notes=f'Entrada desde {origin_company.name}')
                                     else:
                                         data['error'] = f'Stock insuficiente para {product.name}. Disponible: {product.stock}, Requerido: {quantity}'
                                         return JsonResponse(data)
@@ -342,10 +360,16 @@ class TransferReceiveView(LoginRequiredMixin, View):
                     # Aumentar stock en el POS destino
                     for detail in transfer.details.all():
                         product = detail.product
+                        stock_antes = product.stock or Decimal('0')
                         product.stock += detail.quantity
                         product.stock_modified_locally = timezone.now()  # Marcar modificación de stock
                         product.synced_to_server = False  # Marcar para sincronizar
                         product.save()
+                        log_stock_movement(
+                            product, stock_antes, movement_type='transfer',
+                            user=request.user,
+                            ref=f'Transferencia {transfer.transfer_number}',
+                            notes='Recepción de transferencia')
                     
                     # Cambiar estado a "Recibido"
                     transfer.status = 'received'
@@ -365,10 +389,16 @@ class TransferReceiveView(LoginRequiredMixin, View):
                     if transfer.status == 'in_transit':
                         for detail in transfer.details.all():
                             product = detail.product
+                            stock_antes = product.stock or Decimal('0')
                             product.stock += detail.quantity
                             product.stock_modified_locally = timezone.now()  # Marcar modificación de stock
                             product.synced_to_server = False  # Marcar para sincronizar
                             product.save()
+                            log_stock_movement(
+                                product, stock_antes, movement_type='transfer',
+                                user=request.user,
+                                ref=f'Transferencia {transfer.transfer_number}',
+                                notes='Cancelación: devolución a origen')
                     
                     # Cambiar estado a "Cancelado"
                     transfer.status = 'cancelled'

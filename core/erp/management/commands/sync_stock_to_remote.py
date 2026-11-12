@@ -153,6 +153,16 @@ class Command(BaseCommand):
                                 stock=new_remote_stock,
                                 last_stock_sync=timezone.now()
                             )
+                            try:
+                                from core.erp.services.stock_service import log_stock_movement
+                                remote_product.stock = new_remote_stock
+                                log_stock_movement(
+                                    remote_product, remote_stock, movement_type='sync',
+                                    ref=f'Sync delta desde POS (prod local {local_product.pk})',
+                                    notes=f'Delta aplicado: {delta}',
+                                    using='remote')
+                            except Exception:
+                                pass
                             
                             self.stdout.write(
                                 self.style.SUCCESS(

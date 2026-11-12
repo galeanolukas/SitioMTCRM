@@ -153,7 +153,8 @@ class ProductForm(ModelForm):
             'margin_percentage',
             'pvp_final',
             'unit',
-            'stock',
+            # 'stock' NO es editable desde el formulario: el stock solo se mueve
+            # por remitos, ajustes firmados (StockMovement), ventas y fiados.
         ]
         widgets = {
             'name': TextInput(
@@ -233,20 +234,6 @@ class ProductForm(ModelForm):
                 raise ValidationError('Ingrese un valor numérico válido para el precio final.')
         return pvp_final
 
-    def clean_stock(self):
-        stock = self.cleaned_data.get('stock')
-        if stock is not None and stock != '':
-            try:
-                from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
-                qty = Decimal(str(stock).replace(',', '.'))
-                # Redondear a 2 decimales en lugar de rechazar
-                rounded_qty = qty.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-                return rounded_qty
-            except (ValueError, TypeError, InvalidOperation) as e:
-                raise ValidationError('Ingrese un valor numérico válido para el stock.')
-        return stock
-
-    
     def save(self, commit=True):
         obj = super().save(commit=False)
         active_cid = get_active_company_id(self.request) if self.request else None

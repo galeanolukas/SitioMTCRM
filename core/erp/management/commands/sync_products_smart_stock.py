@@ -118,6 +118,14 @@ class Command(BaseCommand):
                             local_prod.stock = remote_prod.stock
                             local_prod.last_stock_sync = timezone.now()
                             stock_changed = True
+                            try:
+                                from core.erp.services.stock_service import log_stock_movement
+                                log_stock_movement(
+                                    local_prod, old_stock, movement_type='sync',
+                                    ref=f'Sync desde servidor (prod remoto {remote_prod.pk})',
+                                    notes='Stock pisado por sincronización')
+                            except Exception:
+                                pass
                             self.stdout.write(f"📦 Stock actualizado '{remote_prod.name}': {old_stock} → {remote_prod.stock}")
                         else:
                             stock_preserved += 1
