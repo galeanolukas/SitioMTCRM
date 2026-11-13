@@ -131,6 +131,28 @@ Ajustes `manual` ya escritos en el servidor con `adjust_stock(using='remote')`:
 90348 pata muslo 36→41 (+5), 90216 milanesas 6kg 1→4 (+3), 90328 alas AVEGUAY 21→22 (+1),
 90332 cogote 5→6 (+1), 90276 milanesa 1kg 7→8 (+1). Resto del conteo: exacto.
 
+## Pendiente al retomar (estado remito #147 / factura A00114-00004081)
+
+Hecho directo en producción vía `manage.py shell` (simulando el modal nuevo):
+
+- Los 9 productos del remito quedaron con `cost_price` = neto factura y
+  `pvp_final` = **precio de lista × 1,10** (valores exactos que pidió el
+  usuario, ref. imagen "Con 10% agregado"): milanesa 49313, patitas 52107,
+  medallón 52668, soy alas 41250, carne mecánica 30250, carcasa 19305,
+  suprema 126500, bifecito 131813, pata muslo 42504. En cada uno se
+  guardó el `margin_percentage` implícito (4,64%–38,65%) para que el
+  recálculo al procesar no pise el precio.
+- **La línea PATA MUSLO x80 (neto 33219.91) había desaparecido del remito**
+  (quedaban 8 de 9 renglones) — se re-agregó como `DetalleRemito` 510.
+  Avisar a Cintia: posiblemente se borró al re-editar el remito.
+- Neto total remito: 8.676.171,17 vs factura 8.676.171,15 (2¢ redondeo). OK.
+- Remito sigue `pending` con nota en observaciones; al procesar solo debe
+  impactar stock (costos/PVP ya quedaron como corresponde).
+- OJO: solo `OPT SUPREMA BLOQUE` (90367) tiene `iva_rate=0.21` real; el
+  resto sigue en 0 → su `pvp` = `pvp_final`. Pendiente con contador.
+- Duplicados sin resolver: línea "SOY ALAS" sigue en prod 90351 (si
+  entró AVEGUAY físico corresponde 90328); pata muslo todo en SOY 90348.
+
 ## Hallazgo conocido sin corregir
 
 - `core/erp/views/transfer/views.py`: al recibir transferencia suma stock al
