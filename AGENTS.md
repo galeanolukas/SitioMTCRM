@@ -102,6 +102,13 @@ responde 302→login).
   P. venta actual→nuevo, alerta si queda negativo) con la misma fórmula
   que `procesar_remito`. El modal "Ajustar precios" ahora previsualiza
   el PVP sobre el costo que va a quedar al procesar, no el viejo.
+- Commit `f3b745c0`: el modal "Ajustar precios" es bidireccional — se
+  puede tipear el PVP final directamente (el margen muestra el implícito)
+  o el margen (recalcula el PVP). Al guardar con PVP manual persiste el
+  `pvp_final` exacto y el `margin_percentage` implícito para que futuros
+  recalculos de remito no pisen el precio acordado. Endpoint
+  `actualizar-margen` acepta `{items:[{id, margin|pvp_final}]}` +
+  formato viejo `{margins:{}}`.
 
 ## Normalización aplicada (12/11, conteo físico Acro Activo, empresa 10)
 
