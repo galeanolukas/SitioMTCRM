@@ -70,6 +70,26 @@ responde 302→login).
     inicial remitos), undo_views, history de ajustes de margen.
 - `__date` del ORM ya era correcto (Django convierte al TZ activo).
 
+## Cambios 13/11/2026 tarde (remito A00114-00004081 + carga guiada)
+
+- Remito #147 (empresa 10, Avícola Santa Ana): Cintia cargó `$P.U.Lista`
+  (con IVA, sin bonif.) en vez de `$P.U.Neto`. Corregidos los 9
+  `precio_unitario` a los netos del PDF; quedó **pending** con nota en
+  observaciones para que ella revise y procese. Informe PDF:
+  `videos_tutoriales/informe_carga_remito_cintia.pdf`
+  (`scripts/generar_informe_remito_cintia.py`).
+- `remito/create.html`: campos Bonif% + IVA% por línea, radio
+  "precio neto / precio de lista" (con modo `agregado`+lista el neto se
+  calcula solo), etiqueta dinámica del precio, columna Neto siempre
+  visible. Sin migración — solo template/JS.
+- Fix `_line_iva_rate` (remito/views.py) y el `lineRate` del JS: producto
+  con `iva_rate=0` ahora cae al % del remito. OJO: los productos de Acro
+  tienen `iva_rate=0.0000` (dato, no "exento") — definir alícuotas reales
+  con el contador antes de cargarlas (afecta desglose de IVA en ventas).
+- Pendiente con Cintia: "SSEBA Pata muslo" se cargó en registro SOY
+  (90348); "Soy Alas" en 90351 (duplicado conflictivo — verificar si
+  físicamente entró AVEGUAY → correspondería 90328).
+
 ## Normalización aplicada (12/11, conteo físico Acro Activo, empresa 10)
 
 Ajustes `manual` ya escritos en el servidor con `adjust_stock(using='remote')`:
