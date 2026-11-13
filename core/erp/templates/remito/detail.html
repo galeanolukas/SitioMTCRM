@@ -259,6 +259,11 @@
             <input type="number" id="margenTodos" class="form-control form-control-sm" step="0.01" style="width: 100px;">
             <button type="button" class="btn btn-sm btn-secondary ml-2" onclick="aplicarMargenTodos()">Aplicar</button>
           </div>
+          <p class="text-muted small mb-2">
+            Se puede ajustar el <b>margen %</b> (recalcula el precio) o tipear el
+            <b>PVP final</b> directamente, p.ej. el precio que indica el encargado
+            (calcula el margen que representa).
+          </p>
           <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
             <table class="table table-sm table-bordered">
               <thead>
@@ -303,24 +308,42 @@
                  data-prod-id="${p.prod_id}" value="${parseFloat(p.margin).toFixed(2)}">
         </td>
         <td class="pvp-preview">-</td>
-        <td class="pvpf-preview font-weight-bold">-</td>
+        <td>
+          <input type="number" class="form-control form-control-sm pvpf-input font-weight-bold" step="0.01" min="0"
+                 data-prod-id="${p.prod_id}">
+        </td>
       `;
       tbody.appendChild(row);
       const input = row.querySelector('.margen-input');
-      input.addEventListener('input', () => actualizarPreview(row, p));
-      actualizarPreview(row, p);
+      input.addEventListener('input', () => actualizarPreview(row, p, 'margin'));
+      const pvpfInput = row.querySelector('.pvpf-input');
+      pvpfInput.addEventListener('input', () => actualizarPreview(row, p, 'pvpf'));
+      actualizarPreview(row, p, 'margin');
     });
     $('#modalMargen').modal('show');
   }
 
-  function actualizarPreview(row, p) {
-    const margin = parseFloat(row.querySelector('.margen-input').value) || 0;
+  function actualizarPreview(row, p, source) {
+    const margenInput = row.querySelector('.margen-input');
+    const pvpfInput = row.querySelector('.pvpf-input');
     const costo = parseFloat(p.cost_efectivo);
     const ivaRate = parseFloat(p.iva_rate);
-    const pvp = Math.ceil(costo * (1 + margin / 100));
-    const pvpFinal = pvp * (1 + ivaRate);
-    row.querySelector('.pvp-preview').textContent = '$' + pvp.toFixed(2);
-    row.querySelector('.pvpf-preview').textContent = '$' + pvpFinal.toFixed(2);
+    if (source === 'pvpf') {
+      // PVP final tipeado a mano -> margen implicito
+      const pvpf = parseFloat(pvpfInput.value) || 0;
+      const pvpNeto = pvpf / (1 + ivaRate);
+      const implied = costo > 0 ? (pvpNeto / costo - 1) * 100 : 0;
+      margenInput.value = implied.toFixed(2);
+      row.dataset.pvpfManual = '1';
+      row.querySelector('.pvp-preview').textContent = '$' + pvpNeto.toFixed(2);
+    } else {
+      const margin = parseFloat(margenInput.value) || 0;
+      const pvp = Math.ceil(costo * (1 + margin / 100));
+      const pvpFinal = pvp * (1 + ivaRate);
+      row.dataset.pvpfManual = '';
+      row.querySelector('.pvp-preview').textContent = '$' + pvp.toFixed(2);
+      pvpfInput.value = pvpFinal.toFixed(2);
+    }
   }
 
   function aplicarMargenTodos() {
@@ -333,16 +356,22 @@
   }
 
   function guardarMargenes() {
-    const margins = {};
-    document.querySelectorAll('.margen-input').forEach(input => {
-      const prodId = input.dataset.prodId;
-      const margin = parseFloat(input.value);
-      if (prodId && !isNaN(margin) && margin >= 0) {
-        margins[prodId] = margin;
+    const items = [];
+    document.querySelectorAll('#margenTableBody tr').forEach(row => {
+      const margenInput = row.querySelector('.margen-input');
+      const pvpfInput = row.querySelector('.pvpf-input');
+      const prodId = margenInput.dataset.prodId;
+      if (!prodId) return;
+      if (row.dataset.pvpfManual === '1') {
+        const pvpf = parseFloat(pvpfInput.value);
+        if (!isNaN(pvpf) && pvpf >= 0) items.push({id: prodId, pvp_final: pvpf});
+      } else {
+        const margin = parseFloat(margenInput.value);
+        if (!isNaN(margin) && margin >= 0) items.push({id: prodId, margin: margin});
       }
     });
-    if (Object.keys(margins).length === 0) {
-      alert('No hay márgenes para actualizar');
+    if (items.length === 0) {
+      alert('No hay precios para actualizar');
       return;
     }
     fetch(`/erp/remito/actualizar-margen/{{ object.id }}/`, {
@@ -351,7 +380,7 @@
         'X-CSRFToken': getCookie('csrftoken'),
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({margins: margins}),
+      body: JSON.stringify({items: items}),
     })
     .then(response => response.json())
     .then(data => {

@@ -507,25 +507,56 @@ def actualizar_margen_remito(request, pk):
     remito = get_object_or_404(Remito, pk=pk)
     try:
         data = json.loads(request.body)
-        margins = data.get('margins', {})
+        items = data.get('items')
+        if items is None:
+            # Formato anterior: {margins: {prod_id: margin}}
+            items = [{'id': pid, 'margin': m} for pid, m in data.get('margins', {}).items()]
         prod_ids = {pid for pid in remito.detalleremito_set.values_list('prod_id', flat=True) if pid}
 
         snapshot = []
         count = 0
         with transaction.atomic():
-            for prod_id, margin in margins.items():
+            for item in items:
                 try:
-                    pid = int(prod_id)
-                    new_margin = Decimal(str(margin))
+                    pid = int(item.get('id'))
                 except (ValueError, TypeError):
                     continue
-                if pid not in prod_ids or new_margin < 0:
+                if pid not in prod_ids:
                     continue
                 prod = Product.objects.filter(pk=pid).first()
                 if not prod:
                     continue
                 if remito.company_id and prod.company_id and prod.company_id != remito.company_id:
                     continue
+
+                rate = prod.iva_rate or Decimal('0.21')
+                if rate > Decimal('1'):
+                    rate = rate / Decimal('100')
+                discount = prod.get_supplier_discount()
+                cost_after_discount = (prod.cost_price or Decimal('0')) * (Decimal('1') - discount / Decimal('100'))
+                cost_with_freight = cost_after_discount * (Decimal('1') + (prod.freight_percentage or Decimal('0')) / Decimal('100'))
+
+                pvp_final_in = item.get('pvp_final')
+                if pvp_final_in is not None:
+                    # Precio de venta final fijado a mano (ej: precio que indica
+                    # el encargado). Se persiste el PVP exacto y el margen
+                    # implicito para que futuros recalculos no lo pisen.
+                    try:
+                        pvpf = Decimal(str(pvp_final_in))
+                    except Exception:
+                        continue
+                    if pvpf < 0:
+                        continue
+                else:
+                    margin_in = item.get('margin')
+                    if margin_in is None:
+                        continue
+                    try:
+                        new_margin = Decimal(str(margin_in))
+                    except Exception:
+                        continue
+                    if new_margin < 0:
+                        continue
 
                 snapshot.append({
                     'id': prod.id,
@@ -534,18 +565,19 @@ def actualizar_margen_remito(request, pk):
                     'pvp_final': str(prod.pvp_final),
                 })
 
-                prod.margin_percentage = new_margin
-                if prod.cost_price and prod.cost_price > 0:
-                    # Misma fórmula que adjust_margin: costo - descuento prov. + flete, x margen, redondeo
-                    discount = prod.get_supplier_discount()
-                    cost_after_discount = prod.cost_price * (Decimal('1') - discount / Decimal('100'))
-                    cost_with_freight = cost_after_discount * (Decimal('1') + (prod.freight_percentage or Decimal('0')) / Decimal('100'))
-                    new_pvp = (cost_with_freight * (Decimal('1') + new_margin / Decimal('100'))).quantize(Decimal('0.01'))
-                    prod.pvp = Decimal(math.ceil(float(new_pvp)))
-                    rate = prod.iva_rate or Decimal('0.21')
-                    if rate > Decimal('1'):
-                        rate = rate / Decimal('100')
-                    prod.pvp_final = (prod.pvp * (Decimal('1') + rate)).quantize(Decimal('0.01'))
+                if pvp_final_in is not None:
+                    prod.pvp_final = pvpf.quantize(Decimal('0.01'))
+                    prod.pvp = (prod.pvp_final / (Decimal('1') + rate)).quantize(Decimal('0.01'))
+                    if prod.cost_price and prod.cost_price > 0 and cost_with_freight > 0:
+                        implied = ((prod.pvp / cost_with_freight) - Decimal('1')) * Decimal('100')
+                        prod.margin_percentage = implied.quantize(Decimal('0.01'))
+                else:
+                    prod.margin_percentage = new_margin
+                    if prod.cost_price and prod.cost_price > 0:
+                        # Misma fórmula que adjust_margin: costo - descuento prov. + flete, x margen, redondeo
+                        new_pvp = (cost_with_freight * (Decimal('1') + new_margin / Decimal('100'))).quantize(Decimal('0.01'))
+                        prod.pvp = Decimal(math.ceil(float(new_pvp)))
+                        prod.pvp_final = (prod.pvp * (Decimal('1') + rate)).quantize(Decimal('0.01'))
                 prod.synced_to_server = False
                 prod.save()
                 count += 1
