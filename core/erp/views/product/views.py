@@ -488,6 +488,36 @@ class ProductUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Upd
                         }
                     else:
                         data = {'error': 'Formulario inválido', 'errors': form.errors}
+            elif action == 'quick_update':
+                # Edicion rapida desde el modal del remito: solo los campos
+                # del modal, el form completo pisaria campos no enviados.
+                prod = self.object
+                for f in ('name', 'unit', 'cost_price', 'margin_percentage',
+                          'iva_rate', 'supplier_discount', 'freight_percentage',
+                          'pvp', 'pvp_final'):
+                    val = request.POST.get(f)
+                    if val in (None, ''):
+                        continue
+                    if f in ('name', 'unit'):
+                        setattr(prod, f, val)
+                    else:
+                        setattr(prod, f, Decimal(str(val)))
+                cat = request.POST.get('cat')
+                if cat:
+                    prod.cat_id = int(cat)
+                prod.synced_to_server = False
+                prod.save()
+                data = {
+                    'id': prod.id,
+                    'name': prod.name,
+                    'pvp': str(prod.pvp),
+                    'pvp_final': str(prod.pvp_final),
+                    'cost_price': str(prod.cost_price),
+                    'margin_percentage': str(prod.margin_percentage),
+                    'iva_rate': str(prod.iva_rate),
+                    'freight_percentage': str(prod.freight_percentage),
+                    'supplier_discount': str(prod.supplier_discount),
+                }
             else:
                 data['error'] = 'No ha ingresado a ninguna opción'
         except Exception as e:

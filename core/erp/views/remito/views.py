@@ -32,6 +32,10 @@ def _prod_impacto_data(p):
         return None
     return {
         'id': p.id,
+        'name': p.name,
+        'cat_id': p.cat_id,
+        'unit': p.unit,
+        'supplier_id': p.supplier_id,
         'stock': float(p.stock or 0),
         'cost_price': float(p.cost_price or 0),
         'margin_percentage': float(p.margin_percentage or 0),
@@ -40,6 +44,7 @@ def _prod_impacto_data(p):
         'supplier_default_discount': float(p.supplier.default_discount_percentage or 0)
         if (p.supplier_id and p.supplier.default_discount_percentage) else 0.0,
         'iva_rate': float(p.iva_rate or 0),
+        'pvp': float(p.pvp or 0),
         'pvp_final': float(p.pvp_final or 0),
     }
 

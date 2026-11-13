@@ -103,9 +103,15 @@
         {% if not read_only_items %}
         <div class="row mb-1 g-2">
           <div class="col-md-4">
-            <select id="productSelect" class="form-select select2">
-              <option value="">Buscar producto...</option>
-            </select>
+            <div class="input-group">
+              <select id="productSelect" class="form-select select2">
+                <option value="">Buscar producto...</option>
+              </select>
+              <button type="button" id="btnEditarProducto" onclick="editarProductoSeleccionado()"
+                      class="btn btn-warning" title="Editar producto seleccionado" disabled>
+                <i class="fas fa-pencil-alt"></i>
+              </button>
+            </div>
           </div>
           <div class="col-md-2">
             <input type="number" id="cantidad" class="form-control" placeholder="Cantidad" step="0.001" min="0">
@@ -434,7 +440,15 @@
         const pct = (!isNaN(rate) && rate > 0) ? rate * 100 : getIvaRate() * 100;
         ivaLineaEl.value = pct ? parseFloat(pct.toFixed(4)) : '';
       }
+      const btnEdit = document.getElementById('btnEditarProducto');
+      if (btnEdit) btnEdit.disabled = false;
       updateNetoPreview();
+    });
+
+    // Deshabilitar el lapiz cuando se limpia la seleccion
+    $('#productSelect').on('change', function() {
+      const btnEdit = document.getElementById('btnEditarProducto');
+      if (btnEdit && !$(this).val()) btnEdit.disabled = true;
     });
 
     // Cuando cambia el proveedor, resetear el select de productos (si existe)
@@ -499,6 +513,24 @@
       precioUnitario = precioUnitario / (1 + rate);
     }
     precioUnitario = Math.round(precioUnitario * 100) / 100;
+
+    // Entrada + producto existente: abrir el modal de edicion con los datos
+    // de la DB para que el operador revise/complete antes de agregar la
+    // linea de forma definitiva (se agrega al guardar el modal).
+    const prodDataSel = (window._lastProdData && String(window._lastProdData.id) === String(productId))
+      ? window._lastProdData : null;
+    if (prodDataSel && document.getElementById('id_tipo').value === 'entrada') {
+      _pendingLinea = {
+        prod_id: productId,
+        prod_name: producto.textContent,
+        cantidad: cantidad,
+        bonif: bonifPct,
+        iva_rate: prodIvaRate
+      };
+      abrirModalProducto(Object.assign({}, prodDataSel, {cost_price: precioUnitario}));
+      return;
+    }
+
     const subtotal = cantidad * precioUnitario;
 
     const detalle = {
@@ -552,6 +584,7 @@
       ` : '';
       const accionesCol = readOnlyItems ? '<td><span class="text-muted">-</span></td>' : `
           <td>
+            ${det.prod_data ? `<button type="button" onclick="editarProdDeLinea(${det.temp_id})" class="btn btn-sm btn-warning btn-flat" title="Editar producto"><i class="fas fa-pencil-alt"></i></button>` : ''}
             <button type="button" onclick="eliminarDetalle(${det.temp_id})" class="btn btn-sm btn-danger btn-flat">
               <i class="fas fa-trash"></i>
             </button>
@@ -635,13 +668,36 @@
     renderDetalles();
   }
 
+  var _editProdId = null;   // null = crear, id = editar
+  var _editProdData = null;
+  var _catPendiente = null;
+  var _pendingLinea = null; // linea del remito esperando confirmacion del modal
+
   function mostrarModalNuevoProducto() {
     const tipo = document.getElementById('id_tipo').value;
     if (tipo !== 'entrada') {
       alert('Solo se pueden crear productos nuevos en remitos de entrada');
       return;
     }
-    
+    abrirModalProducto(null);
+  }
+
+  function editarProductoSeleccionado() {
+    _pendingLinea = null;
+    if (window._lastProdData) abrirModalProducto(window._lastProdData);
+  }
+
+  function editarProdDeLinea(tempId) {
+    _pendingLinea = null;
+    const d = detalles.find(x => x.temp_id === tempId);
+    if (d && d.prod_data) abrirModalProducto(d.prod_data);
+  }
+
+  function abrirModalProducto(prodData) {
+    _editProdId = prodData ? prodData.id : null;
+    _editProdData = prodData || null;
+    _catPendiente = prodData ? (prodData.cat_id || (prodData.cat && prodData.cat.id) || null) : null;
+
     // Pre-seleccionar proveedor en el modal si hay uno elegido
     const supplierId = $('#id_supplier').val();
     const supplierName = $('#id_supplier option:selected').text();
@@ -698,13 +754,48 @@
         option.textContent = cat.name;
         select.appendChild(option);
       });
+      if (_catPendiente) {
+        select.value = String(_catPendiente);
+        _catPendiente = null;
+      }
     });
 
-    // El modo de precio del modal arranca igual que el de la fila del remito
-    const remitoLista = (getIvaModo() === 'agregado' && getPrecioEs() === 'lista');
-    document.getElementById('npPrecioLista').checked = remitoLista;
-    document.getElementById('npPrecioNeto').checked = !remitoLista;
-    updateNuevoProductoModo();
+    if (prodData) {
+      // Modo edicion: el costo del producto ya es neto, no aplica lista/bonif
+      document.getElementById('modalNuevoProductoTitulo').textContent = 'Editar Producto';
+      document.getElementById('nuevoProductoBtnLabel').textContent = 'Guardar';
+      document.getElementById('nuevoProductoModoRow').style.display = 'none';
+      document.getElementById('npPrecioNeto').checked = true;
+      document.getElementById('nuevoProductoBonifGroup').style.display = 'none';
+      document.getElementById('nuevoProductoPrecioCostoLabel').textContent = 'Precio de Costo unitario (NETO, sin IVA)';
+      document.getElementById('nuevoProductoNombre').value = prodData.name || '';
+      document.getElementById('nuevoProductoPrecioCosto').value = parseFloat(prodData.cost_price) || '';
+      document.getElementById('nuevoProductoDtoProv').value = parseFloat(prodData.supplier_discount) || 0;
+      document.getElementById('nuevoProductoFlete').value = parseFloat(prodData.freight_percentage) || 0;
+      document.getElementById('nuevoProductoMargen').value = parseFloat(prodData.margin_percentage) || 0;
+      let ivaPct = parseFloat(prodData.iva_rate) || 0;
+      if (ivaPct > 0 && ivaPct <= 1) ivaPct = ivaPct * 100;
+      const ivaSel = document.getElementById('nuevoProductoIva');
+      ivaSel.value = String(parseFloat(ivaPct.toFixed(4)));
+      if (!ivaSel.value) ivaSel.selectedIndex = 0;
+      document.getElementById('nuevoProductoUnidad').value = prodData.unit || 'unit';
+      document.getElementById('nuevoProductoPvpFinal').value = (parseFloat(prodData.pvp_final) || 0).toFixed(2);
+      recalcNuevoProductoPvp('init');
+    } else {
+      // Modo crear: hereda el modo de la fila del remito
+      document.getElementById('modalNuevoProductoTitulo').textContent = 'Crear Nuevo Producto';
+      document.getElementById('nuevoProductoBtnLabel').textContent = 'Crear';
+      document.getElementById('nuevoProductoModoRow').style.display = '';
+      document.getElementById('nuevoProductoNombre').value = '';
+      document.getElementById('nuevoProductoPrecioCosto').value = '';
+      document.getElementById('nuevoProductoDtoProv').value = '0';
+      document.getElementById('nuevoProductoFlete').value = '0';
+      document.getElementById('nuevoProductoPvpFinal').value = '';
+      const remitoLista = (getIvaModo() === 'agregado' && getPrecioEs() === 'lista');
+      document.getElementById('npPrecioLista').checked = remitoLista;
+      document.getElementById('npPrecioNeto').checked = !remitoLista;
+      updateNuevoProductoModo();
+    }
     $('#modalNuevoProducto').modal('show');
   }
 
@@ -732,25 +823,50 @@
     return precio;
   }
 
-  function recalcNuevoProductoPvp() {
+  function npCostoEfectivo() {
+    const dto = parseFloat(document.getElementById('nuevoProductoDtoProv').value) || 0;
+    const flete = parseFloat(document.getElementById('nuevoProductoFlete').value) || 0;
+    return nuevoProductoCostoNeto() * (1 - dto / 100) * (1 + flete / 100);
+  }
+
+  function recalcNuevoProductoPvp(source) {
     const costo = nuevoProductoCostoNeto();
-    const margen = parseFloat(document.getElementById('nuevoProductoMargen').value) || 0;
+    const costoTodo = npCostoEfectivo();
     const iva = parseFloat(document.getElementById('nuevoProductoIva').value) || 0;
-    const pvp = costo * (1 + margen / 100);
-    const pvpFinal = pvp * (1 + iva / 100);
-    const prefix = getNuevoProductoModo() === 'lista' ? 'Costo neto: $' + costo.toFixed(2) + ' — ' : '';
-    document.getElementById('nuevoProductoPvpLabel').textContent = prefix +
-      'Precio neto: $' + pvp.toFixed(2) + ' — Precio final (con IVA): $' + pvpFinal.toFixed(2);
+    const margenEl = document.getElementById('nuevoProductoMargen');
+    const pvpfEl = document.getElementById('nuevoProductoPvpFinal');
+    let pvp, pvpFinal;
+    if (source === 'pvpf') {
+      // Precio final tipeado a mano -> margen implicito (misma formula del sistema)
+      pvpFinal = parseFloat(pvpfEl.value) || 0;
+      pvp = pvpFinal / (1 + iva / 100);
+      margenEl.value = (costoTodo > 0 ? (pvp / costoTodo - 1) * 100 : 0).toFixed(2);
+    } else if (source === 'init') {
+      // Solo refrescar el resumen sin tocar los campos (modo edicion)
+      pvpFinal = parseFloat(pvpfEl.value) || 0;
+      pvp = pvpFinal / (1 + iva / 100);
+    } else {
+      const margen = parseFloat(margenEl.value) || 0;
+      pvp = Math.ceil(costoTodo * (1 + margen / 100));
+      pvpFinal = pvp * (1 + iva / 100);
+      pvpfEl.value = pvpFinal.toFixed(2);
+    }
+    document.getElementById('nuevoProductoPvpLabel').textContent =
+      'Costo neto: $' + costo.toFixed(2) +
+      ' — Costo c/todo (dto+flete+IVA): $' + (costoTodo * (1 + iva / 100)).toFixed(2) +
+      ' — Final: $' + pvpFinal.toFixed(2);
     return { costo: costo, pvp: pvp, pvpFinal: pvpFinal };
   }
 
-  function crearNuevoProducto() {
+  function guardarProductoModal() {
     const nombre = document.getElementById('nuevoProductoNombre').value;
     const categoria = document.getElementById('nuevoProductoCategoria').value;
     const precioCosto = document.getElementById('nuevoProductoPrecioCosto').value;
     const margen = document.getElementById('nuevoProductoMargen').value;
     const iva = document.getElementById('nuevoProductoIva').value;
     const unidad = document.getElementById('nuevoProductoUnidad').value;
+    const dtoProv = document.getElementById('nuevoProductoDtoProv').value;
+    const flete = document.getElementById('nuevoProductoFlete').value;
     const supplierId = document.getElementById('nuevoProductoSupplier').value;
 
     if (!nombre || !categoria || !precioCosto) {
@@ -759,6 +875,88 @@
     }
 
     const precios = recalcNuevoProductoPvp();
+    // Persistir el PVP FINAL tipeado tal cual (el margen implicito ya esta
+    // en el campo); recalcular desde margen puede diferiar por redondeo.
+    const ivaFrac = (parseFloat(iva) || 0) / 100;
+    const pvpfSave = parseFloat(document.getElementById('nuevoProductoPvpFinal').value) || precios.pvpFinal;
+    const pvpSave = pvpfSave / (1 + ivaFrac);
+
+    if (_editProdId) {
+      const fd = new FormData();
+      fd.append('action', 'quick_update');
+      fd.append('name', nombre);
+      fd.append('cat', categoria);
+      fd.append('cost_price', precios.costo.toFixed(2));
+      fd.append('margin_percentage', margen || 0);
+      fd.append('iva_rate', iva || 0);
+      fd.append('supplier_discount', dtoProv || 0);
+      fd.append('freight_percentage', flete || 0);
+      fd.append('pvp', pvpSave.toFixed(2));
+      fd.append('pvp_final', pvpfSave.toFixed(2));
+      fd.append('unit', unidad || 'unit');
+      fetch('/erp/product/update/' + _editProdId + '/', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCookie('csrftoken') },
+        body: fd
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.id) {
+          const opt = $('#productSelect option[value="' + data.id + '"]');
+          if (opt.length) {
+            opt.text(data.name + ' - $' + parseFloat(data.pvp_final).toFixed(2));
+            $(opt).data('iva_rate', data.iva_rate);
+          }
+          const snap = Object.assign({}, _editProdData, {
+            name: data.name,
+            cat_id: parseInt(categoria),
+            unit: unidad,
+            cost_price: parseFloat(data.cost_price),
+            margin_percentage: parseFloat(data.margin_percentage),
+            freight_percentage: parseFloat(data.freight_percentage),
+            supplier_discount: parseFloat(data.supplier_discount),
+            iva_rate: parseFloat(data.iva_rate),
+            pvp: parseFloat(data.pvp),
+            pvp_final: parseFloat(data.pvp_final)
+          });
+          if (window._lastProdData && String(window._lastProdData.id) === String(data.id)) {
+            window._lastProdData = snap;
+          }
+          detalles.forEach(d => {
+            if (String(d.prod_id) === String(data.id)) {
+              d.prod_data = snap;
+              d.prod_name = data.name;
+            }
+          });
+          // Si el modal se abrio desde "Agregar", recien ahora se confirma la linea
+          if (_pendingLinea && String(_pendingLinea.prod_id) === String(data.id)) {
+            const neto = Math.round(precios.costo * 100) / 100;
+            detalles.push({
+              temp_id: Date.now(),
+              prod_id: data.id,
+              prod_name: data.name,
+              cantidad: _pendingLinea.cantidad,
+              precio_unitario: neto,
+              bonif: _pendingLinea.bonif,
+              subtotal: _pendingLinea.cantidad * neto,
+              iva_rate: _pendingLinea.iva_rate,
+              prod_data: snap
+            });
+            _pendingLinea = null;
+          }
+          renderDetalles();
+          $('#modalNuevoProducto').modal('hide');
+          _editProdId = null; _editProdData = null;
+          showToast('success', 'Producto actualizado');
+        } else {
+          const detalle = data.errors ? JSON.stringify(data.errors) : (data.error || 'Error desconocido');
+          alert('Error al actualizar producto: ' + detalle);
+        }
+      })
+      .catch(error => alert('Error: ' + error));
+      return;
+    }
+
     const modalEsLista = getNuevoProductoModo() === 'lista';
     const listaTipeada = parseFloat(document.getElementById('nuevoProductoPrecioCosto').value) || 0;
     const bonifModal = modalEsLista
@@ -770,8 +968,10 @@
     formData.append('cost_price', precios.costo.toFixed(2));
     formData.append('margin_percentage', margen || 0);
     formData.append('iva_rate', iva || 0);
-    formData.append('pvp', precios.pvp.toFixed(2));
-    formData.append('pvp_final', precios.pvpFinal.toFixed(2));
+    formData.append('supplier_discount', dtoProv || 0);
+    formData.append('freight_percentage', flete || 0);
+    formData.append('pvp', pvpSave.toFixed(2));
+    formData.append('pvp_final', pvpfSave.toFixed(2));
     formData.append('unit', unidad || 'unit');
     formData.append('stock', 0);
     if (supplierId) {
@@ -792,17 +992,22 @@
         const option = new Option(data.name + ' - $' + data.pvp_final, data.id, true, true);
         $(option).data('iva_rate', data.iva_rate);
         $('#productSelect').append(option).trigger('change');
-        // Snapshot para la tabla "Que pasara al procesar"
+        // Snapshot para la tabla "Que pasara al procesar" y edicion
         window._lastProdData = {
           id: data.id,
+          name: data.name,
+          cat_id: parseInt(categoria) || null,
+          unit: unidad || 'unit',
+          supplier_id: parseInt(supplierId) || null,
           stock: 0,
           cost_price: parseFloat(data.cost_price) || precios.costo,
           margin_percentage: parseFloat(margen) || 0,
-          freight_percentage: 0,
-          supplier_discount: 0,
+          freight_percentage: parseFloat(flete) || 0,
+          supplier_discount: parseFloat(dtoProv) || 0,
           supplier_default_discount: 0,
           iva_rate: parseFloat(data.iva_rate) || 0,
-          pvp_final: parseFloat(data.pvp_final) || precios.pvpFinal
+          pvp: pvpSave,
+          pvp_final: parseFloat(data.pvp_final) || pvpfSave
         };
         // Precargar la fila del remito segun el modo de precio activo
         const costoNeto = parseFloat(data.cost_price) || precios.costo;
@@ -845,7 +1050,7 @@
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title"><i class="fas fa-plus-circle"></i> Crear Nuevo Producto</h5>
+        <h5 class="modal-title"><i class="fas fa-plus-circle"></i> <span id="modalNuevoProductoTitulo">Crear Nuevo Producto</span></h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
@@ -865,7 +1070,7 @@
             <option value="">Seleccione categoría...</option>
           </select>
         </div>
-        <div class="form-group mb-2">
+        <div class="form-group mb-2" id="nuevoProductoModoRow">
           <div class="form-check form-check-inline">
             <input class="form-check-input" type="radio" name="nuevoProductoPrecioEs" id="npPrecioNeto" value="neto" checked onchange="updateNuevoProductoModo()">
             <label class="form-check-label small" for="npPrecioNeto">Precio neto (sin IVA)</label>
@@ -876,8 +1081,9 @@
           </div>
         </div>
         <div class="form-group mb-3">
-          <label id="nuevoProductoPrecioCostoLabel">Precio de Costo (sin IVA)</label>
+          <label id="nuevoProductoPrecioCostoLabel">Precio de Costo unitario (NETO, sin IVA)</label>
           <input type="number" id="nuevoProductoPrecioCosto" class="form-control" placeholder="0.00" step="0.01" min="0" oninput="recalcNuevoProductoPvp()">
+          <small class="text-muted">Unitario como viene en la factura, sin IVA. El sistema aplica descuento, flete e IVA solo.</small>
         </div>
         <div class="form-group mb-3" id="nuevoProductoBonifGroup" style="display:none">
           <label>Bonificación (%)</label>
@@ -885,11 +1091,12 @@
         </div>
         <div class="row">
           <div class="col-md-6 form-group mb-3">
-            <label>Margen de ganancia (%)</label>
-            <input type="number" id="nuevoProductoMargen" class="form-control" value="30" step="0.01" min="0" oninput="recalcNuevoProductoPvp()">
+            <label>Descuento proveedor (%)</label>
+            <input type="number" id="nuevoProductoDtoProv" class="form-control" value="0" step="0.01" min="0" oninput="recalcNuevoProductoPvp()">
+            <small class="text-muted">Descuento del proveedor sobre el costo. 0 = usa el general del proveedor.</small>
           </div>
           <div class="col-md-6 form-group mb-3">
-            <label>IVA (%)</label>
+            <label>IVA alícuota (%)</label>
             <select id="nuevoProductoIva" class="form-select" onchange="recalcNuevoProductoPvp()">
               <option value="21" selected>21%</option>
               <option value="10.5">10.5%</option>
@@ -899,6 +1106,22 @@
               <option value="0">0% (Exento)</option>
             </select>
           </div>
+        </div>
+        <div class="row">
+          <div class="col-md-6 form-group mb-3">
+            <label>Flete (%)</label>
+            <input type="number" id="nuevoProductoFlete" class="form-control" value="0" step="0.01" min="0" oninput="recalcNuevoProductoPvp()">
+            <small class="text-muted">Flete u otros gastos prorrateados sobre el costo del producto.</small>
+          </div>
+          <div class="col-md-6 form-group mb-3">
+            <label>Margen de ganancia (%)</label>
+            <input type="number" id="nuevoProductoMargen" class="form-control" value="30" step="0.01" min="0" oninput="recalcNuevoProductoPvp('margen')">
+            <small class="text-muted">Escribí el margen y sugiere el precio, o escribí el precio final y calcula el margen solo.</small>
+          </div>
+        </div>
+        <div class="form-group mb-3">
+          <label>Precio de Venta FINAL (c/IVA)</label>
+          <input type="number" id="nuevoProductoPvpFinal" class="form-control" placeholder="0.00" step="0.01" min="0" oninput="recalcNuevoProductoPvp('pvpf')">
         </div>
         <div class="form-group mb-2">
           <label>Unidad de medida</label>
@@ -911,12 +1134,12 @@
           </select>
         </div>
         <div class="alert alert-secondary py-2 mb-0 small">
-          <i class="fas fa-tag"></i> <span id="nuevoProductoPvpLabel">Precio neto: $0.00 — Precio final (con IVA): $0.00</span>
+          <i class="fas fa-tag"></i> <span id="nuevoProductoPvpLabel">Costo neto: $0.00 — Costo c/todo: $0.00 — Final: $0.00</span>
         </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-        <button type="button" onclick="crearNuevoProducto()" class="btn btn-success"><i class="fas fa-check"></i> Crear</button>
+        <button type="button" onclick="guardarProductoModal()" class="btn btn-success"><i class="fas fa-check"></i> <span id="nuevoProductoBtnLabel">Crear</span></button>
       </div>
     </div>
   </div>
