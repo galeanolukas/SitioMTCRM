@@ -153,8 +153,9 @@ class ProductForm(ModelForm):
             'margin_percentage',
             'pvp_final',
             'unit',
-            # 'stock' NO es editable desde el formulario: el stock solo se mueve
-            # por remitos, ajustes firmados (StockMovement), ventas y fiados.
+            # stock editable desde el formulario (alta/corrección), pero las
+            # vistas loguean StockMovement para no perder la auditoría.
+            'stock',
         ]
         widgets = {
             'name': TextInput(

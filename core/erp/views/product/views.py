@@ -426,6 +426,12 @@ class ProductCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Com
                              product.company_id = get_active_company_id(request)
                          product.save()
                          form.save_m2m()
+                         if Decimal(str(product.stock or 0)) != 0:
+                             log_stock_movement(
+                                 product, 0, movement_type='manual',
+                                 user=request.user,
+                                 ref='Alta de producto',
+                                 notes='Stock inicial cargado desde el formulario')
                          data = {
                              'id': product.id,
                              'name': product.name,
@@ -476,9 +482,16 @@ class ProductUpdateView(LoginRequiredMixin, ValidatePermissionRequiredMixin, Upd
             action = request.POST.get('action')
             if action == 'edit':
                 with transaction.atomic():
+                    stock_antes = Decimal(str(self.object.stock or 0))
                     form = self.get_form()
                     if form.is_valid():
                         product = form.save()
+                        if Decimal(str(product.stock or 0)) != stock_antes:
+                            log_stock_movement(
+                                product, stock_antes, movement_type='manual',
+                                user=request.user,
+                                ref='Edicion de producto',
+                                notes='Stock modificado desde el formulario')
                         data = {
                             'id': product.id,
                             'name': product.name,
