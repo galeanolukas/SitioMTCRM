@@ -109,6 +109,13 @@ responde 302→login).
   recalculos de remito no pisen el precio acordado. Endpoint
   `actualizar-margen` acepta `{items:[{id, margin|pvp_final}]}` +
   formato viejo `{margins:{}}`.
+- Commit `b5d20d59`: proyección "Qué pasará al procesar" también en el
+  formulario de carga (tabla live con stock→queda, costo→nuevo,
+  PVP→nuevo por línea, misma fórmula que `procesar_remito`). El
+  detalle usa el mismo formato compacto "antes → nuevo". El buscador
+  viaja con snapshot completo vía `toJSON` + nuevo campo
+  `supplier_default_discount`. Fix autocompletado de precio: en modo
+  lista/incluido sugiere `costo×(1+IVA)` (el campo espera con IVA).
 
 ## Normalización aplicada (12/11, conteo físico Acro Activo, empresa 10)
 
