@@ -24,6 +24,12 @@ Commit `1d60308a` pusheado a `main` y deployado en producción
   "Ajustar stock" (modal con motivo obligatorio) y botón "Historial" en
   `product/list.html`/`list.js`; acciones `adjust_stock` y `stock_history`
   en `ProductListView.post`.
+- **Revertido parcial (commit `df1b01e2`, pedido por Yasmin/AcroActivo):**
+  `stock` volvió al `ProductForm` para cargar stock al crear/editar, pero
+  las vistas loguean `StockMovement` (alta con stock != 0 → 'Alta de
+  producto'; edición con delta → 'Edicion de producto'), así el movimiento
+  sigue auditado. El modal "Ajustar stock" sigue existiendo para ajustes
+  con motivo obligatorio.
 - Stock negativo permitido: se eliminaron los pisos `Greatest(F('stock')-cant, 0)`
   y la validación `stock < 0` de `Product.clean()`. Remitos de salida y
   anulaciones ya no bloquean (dejan warning en log).
