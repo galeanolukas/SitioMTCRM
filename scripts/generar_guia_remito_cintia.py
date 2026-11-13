@@ -115,6 +115,37 @@ E = [
     img('paso3_tabla.png'),
     img('paso4_totales.png', width=16.5 * cm),
 
+    Paragraph('EXTRA - Si el producto no existe: boton "Nuevo Producto"', h_st),
+    Paragraph(
+        'Si un item de la factura no esta en el sistema, se crea ahi mismo con el boton verde '
+        '"Nuevo Producto" (no hay que salir del remito). El formulario ahora copia la misma '
+        'logica de la fila:', body),
+    T([
+        ['Campo', 'Que poner'],
+        ['Nombre del Producto', 'El nombre tal cual figura en la factura/empaque'],
+        ['Categoria', 'La que corresponda (ej: CONGELADOS)'],
+        ['Precio neto / Precio de lista', 'Misma regla que la fila: si vas a tipear la '
+         'columna "$P.U.Lista" de la factura, marca "Precio de lista"'],
+        ['Precio', 'Segun el modo elegido: el neto o el "$P.U.Lista" tal cual'],
+        ['Bonificacion (%)', 'La columna "%Bonif." del renglon (solo aparece en modo lista)'],
+        ['Margen de ganancia (%)', 'El margen para armar el precio de venta'],
+        ['IVA (%)', 'La columna "%IVA" del renglon (21 o 10.5)'],
+        ['Unidad de medida', 'Unidad, Caja, Kg, etc.'],
+    ], [4.8 * cm, 11.4 * cm]),
+    img('paso5_nuevo_producto.png', width=15.5 * cm),
+    Paragraph(
+        'El cartel gris de abajo muestra el <b>Costo neto</b> calculado (en el ejemplo '
+        '$35.567,60 - el mismo que da la factura) y el precio de venta sugerido. '
+        '<b>Verificar ese "Costo neto" contra el "$P.U.Neto" de la factura ANTES de apretar '
+        'Crear</b>: si no coincide, algo se tipeo mal. Al crear, la fila del remito queda '
+        'precargada con el precio, el IVA y la bonif del producto nuevo - solo falta poner '
+        'la cantidad y Agregar.', body),
+    Paragraph(
+        '<b>Importante:</b> si se tipea el "$P.U.Lista" habiendo dejado "Precio neto" marcado, '
+        'el producto nace con costo inflado (~25% mas caro) y el precio de venta tambien '
+        'queda alto. Es el mismo chequeo de siempre, pero aca ademas queda grabado en la '
+        'ficha del producto.', body),
+
     Paragraph('PASO 4 - VERIFICACION (hacer siempre antes de guardar/procesar)', h_st),
     Paragraph('Checklist rapido para saber que la carga esta bien:', body),
     T([
