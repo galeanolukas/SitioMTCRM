@@ -617,19 +617,48 @@
       });
     });
 
-    recalcNuevoProductoPvp();
+    // El modo de precio del modal arranca igual que el de la fila del remito
+    const remitoLista = (getIvaModo() === 'agregado' && getPrecioEs() === 'lista');
+    document.getElementById('npPrecioLista').checked = remitoLista;
+    document.getElementById('npPrecioNeto').checked = !remitoLista;
+    updateNuevoProductoModo();
     $('#modalNuevoProducto').modal('show');
   }
 
+  function getNuevoProductoModo() {
+    const r = document.querySelector('input[name="nuevoProductoPrecioEs"]:checked');
+    return r ? r.value : 'neto';
+  }
+
+  function updateNuevoProductoModo() {
+    const esLista = getNuevoProductoModo() === 'lista';
+    document.getElementById('nuevoProductoBonifGroup').style.display = esLista ? '' : 'none';
+    document.getElementById('nuevoProductoPrecioCostoLabel').textContent = esLista
+      ? 'Precio de Lista (con IVA, sin bonif. — columna "$P.U.Lista")'
+      : 'Precio de Costo (sin IVA)';
+    recalcNuevoProductoPvp();
+  }
+
+  function nuevoProductoCostoNeto() {
+    const precio = parseFloat(document.getElementById('nuevoProductoPrecioCosto').value) || 0;
+    const bonif = parseFloat(document.getElementById('nuevoProductoBonif').value) || 0;
+    const iva = parseFloat(document.getElementById('nuevoProductoIva').value) || 0;
+    if (getNuevoProductoModo() === 'lista') {
+      return precio * (1 - bonif / 100) / (1 + iva / 100);
+    }
+    return precio;
+  }
+
   function recalcNuevoProductoPvp() {
-    const costo = parseFloat(document.getElementById('nuevoProductoPrecioCosto').value) || 0;
+    const costo = nuevoProductoCostoNeto();
     const margen = parseFloat(document.getElementById('nuevoProductoMargen').value) || 0;
     const iva = parseFloat(document.getElementById('nuevoProductoIva').value) || 0;
     const pvp = costo * (1 + margen / 100);
     const pvpFinal = pvp * (1 + iva / 100);
-    document.getElementById('nuevoProductoPvpLabel').textContent =
+    const prefix = getNuevoProductoModo() === 'lista' ? 'Costo neto: $' + costo.toFixed(2) + ' — ' : '';
+    document.getElementById('nuevoProductoPvpLabel').textContent = prefix +
       'Precio neto: $' + pvp.toFixed(2) + ' — Precio final (con IVA): $' + pvpFinal.toFixed(2);
-    return { pvp: pvp, pvpFinal: pvpFinal };
+    return { costo: costo, pvp: pvp, pvpFinal: pvpFinal };
   }
 
   function crearNuevoProducto() {
@@ -647,11 +676,15 @@
     }
 
     const precios = recalcNuevoProductoPvp();
+    const modalEsLista = getNuevoProductoModo() === 'lista';
+    const listaTipeada = parseFloat(document.getElementById('nuevoProductoPrecioCosto').value) || 0;
+    const bonifModal = modalEsLista
+      ? (parseFloat(document.getElementById('nuevoProductoBonif').value) || 0) : 0;
     const formData = new FormData();
     formData.append('action', 'add');
     formData.append('name', nombre);
     formData.append('cat', categoria);
-    formData.append('cost_price', precioCosto);
+    formData.append('cost_price', precios.costo.toFixed(2));
     formData.append('margin_percentage', margen || 0);
     formData.append('iva_rate', iva || 0);
     formData.append('pvp', precios.pvp.toFixed(2));
@@ -676,11 +709,32 @@
         const option = new Option(data.name + ' - $' + data.pvp_final, data.id, true, true);
         $(option).data('iva_rate', data.iva_rate);
         $('#productSelect').append(option).trigger('change');
-        document.getElementById('precioUnitario').value = data.cost_price || precioCosto;
+        // Precargar la fila del remito segun el modo de precio activo
+        const costoNeto = parseFloat(data.cost_price) || precios.costo;
+        const ivaPctNuevo = parseFloat(data.iva_rate);
+        const ivaLineaEl = document.getElementById('ivaPctLinea');
+        if (ivaLineaEl && !isNaN(ivaPctNuevo) && ivaPctNuevo > 0) ivaLineaEl.value = ivaPctNuevo;
+        const bonifEl = document.getElementById('bonifPct');
+        const remitoLista = (getIvaModo() === 'agregado' && getPrecioEs() === 'lista');
+        if (remitoLista) {
+          if (bonifEl) bonifEl.value = bonifModal || 0;
+          const lista = modalEsLista ? listaTipeada
+            : costoNeto * (1 + (isNaN(ivaPctNuevo) ? 0 : ivaPctNuevo) / 100) / (1 - bonifModal / 100);
+          document.getElementById('precioUnitario').value = (Math.round(lista * 100) / 100).toFixed(2);
+        } else if (getIvaModo() !== 'agregado') {
+          if (bonifEl) bonifEl.value = 0;
+          document.getElementById('precioUnitario').value =
+            (costoNeto * (1 + (isNaN(ivaPctNuevo) ? 0 : ivaPctNuevo) / 100)).toFixed(2);
+        } else {
+          if (bonifEl) bonifEl.value = 0;
+          document.getElementById('precioUnitario').value = costoNeto.toFixed(2);
+        }
+        updatePrecioLabel();
         $('#modalNuevoProducto').modal('hide');
         // Limpiar formulario
         document.getElementById('nuevoProductoNombre').value = '';
         document.getElementById('nuevoProductoPrecioCosto').value = '';
+        document.getElementById('nuevoProductoBonif').value = '0';
         showToast('success', 'Producto creado correctamente');
       } else {
         const detalle = data.errors ? JSON.stringify(data.errors) : (data.error || 'Error desconocido');
@@ -716,9 +770,23 @@
             <option value="">Seleccione categoría...</option>
           </select>
         </div>
+        <div class="form-group mb-2">
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="nuevoProductoPrecioEs" id="npPrecioNeto" value="neto" checked onchange="updateNuevoProductoModo()">
+            <label class="form-check-label small" for="npPrecioNeto">Precio neto (sin IVA)</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="nuevoProductoPrecioEs" id="npPrecioLista" value="lista" onchange="updateNuevoProductoModo()">
+            <label class="form-check-label small" for="npPrecioLista">Precio de lista (con IVA — columna "$P.U.Lista")</label>
+          </div>
+        </div>
         <div class="form-group mb-3">
-          <label>Precio de Costo (sin IVA)</label>
+          <label id="nuevoProductoPrecioCostoLabel">Precio de Costo (sin IVA)</label>
           <input type="number" id="nuevoProductoPrecioCosto" class="form-control" placeholder="0.00" step="0.01" min="0" oninput="recalcNuevoProductoPvp()">
+        </div>
+        <div class="form-group mb-3" id="nuevoProductoBonifGroup" style="display:none">
+          <label>Bonificación (%)</label>
+          <input type="number" id="nuevoProductoBonif" class="form-control" value="0" step="0.01" min="0" oninput="recalcNuevoProductoPvp()">
         </div>
         <div class="row">
           <div class="col-md-6 form-group mb-3">
