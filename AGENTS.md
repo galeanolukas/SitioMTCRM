@@ -45,6 +45,9 @@ Commit `1d60308a` pusheado a `main` y deployado en producción
 
 ## Cambios 13/11/2026 (listado de movimientos + fix de fechas UTC→local)
 
+Commit `3d11bbc1` pusheado a `main` y deployado (GET / → 200, ruta nueva
+responde 302→login).
+
 - `StockMovementListView` (`/erp/stock-movement/list/`): listado global de
   movimientos de stock con filtros por fecha, tipo, usuario y producto
   (hasta 500 filas). Template `stock_movement/list.html`, entrada en el
