@@ -89,6 +89,14 @@ responde 302→login).
 - Pendiente con Cintia: "SSEBA Pata muslo" se cargó en registro SOY
   (90348); "Soy Alas" en 90351 (duplicado conflictivo — verificar si
   físicamente entró AVEGUAY → correspondería 90328).
+- Commit `eda6cac2`: modal "Nuevo Producto" alineado al flujo — radio
+  neto/lista + Bonif% (calcula `cost_price` neto), al crear precarga
+  `ivaPctLinea` con el `iva_rate` del producto y llena `precioUnitario`
+  según el modo de la fila (antes volcaba siempre el costo neto → doble
+  descuento en modo lista). Guía PDF para Cintia:
+  `videos_tutoriales/guia_carga_remito.pdf`
+  (`scripts/generar_guia_remito_cintia.py` + capturas en
+  `videos_tutoriales/guia_remito/`).
 
 ## Normalización aplicada (12/11, conteo físico Acro Activo, empresa 10)
 
