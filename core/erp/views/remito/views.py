@@ -202,14 +202,48 @@ class RemitoDetailView(LoginRequiredMixin, PermissionRequiredMixin, DetailView):
                 for rate, b in sorted(breakdown.items(), key=lambda x: x[0], reverse=True)
             ]
         context['detalles'] = detalles
+        # Proyeccion del impacto al procesar (solo remitos pendientes):
+        # misma logica que procesar_remito para stock, costo y PVP.
+        context['show_impacto'] = self.object.estado == 'pending'
+        if self.object.estado == 'pending':
+            iva_incluido = (
+                self.object.iva_porcentaje and self.object.iva_porcentaje > 0
+                and getattr(self.object, 'iva_modo', 'incluido') != 'agregado'
+            )
+            ajuste = Decimal('1') + (self.object.ajuste_costo_pct or Decimal('0')) / Decimal('100')
+            for d in detalles:
+                p = d.prod
+                if not p:
+                    continue
+                stock_antes = p.stock or Decimal('0')
+                d.stock_antes = stock_antes
+                d.stock_despues = (stock_antes + d.cantidad) if self.object.tipo == 'entrada' \
+                    else (stock_antes - d.cantidad)
+                if self.object.tipo == 'entrada' and d.precio_unitario and d.precio_unitario > 0:
+                    iva_divisor = (Decimal('1') + _line_iva_rate(self.object, p)) if iva_incluido else Decimal('1')
+                    d.costo_antes = p.cost_price or Decimal('0')
+                    d.costo_nuevo = (d.precio_unitario / iva_divisor * ajuste).quantize(Decimal('0.01'))
+                    discount = p.get_supplier_discount()
+                    cost_eff = d.costo_nuevo * (Decimal('1') - discount / Decimal('100')) \
+                        * (Decimal('1') + (p.freight_percentage or Decimal('0')) / Decimal('100'))
+                    margin = p.margin_percentage or Decimal('0')
+                    nuevo_pvp = Decimal(math.ceil(float(cost_eff * (Decimal('1') + margin / Decimal('100')))))
+                    rate = p.iva_rate or Decimal('0.21')
+                    if rate > Decimal('1'):
+                        rate = rate / Decimal('100')
+                    d.pvp_antes = p.pvp_final or Decimal('0')
+                    d.pvp_nuevo = (nuevo_pvp * (Decimal('1') + rate)).quantize(Decimal('0.01'))
         # Datos para el modal de ajuste de margen/precio de venta
         productos_margen = []
         for d in detalles:
             p = d.prod
             if not p:
                 continue
+            # Remito pendiente de entrada: el PVP preview debe calcularse sobre
+            # el costo que va a quedar al procesar, no el costo actual.
+            cost_base = getattr(d, 'costo_nuevo', None) or p.cost_price
             discount = p.get_supplier_discount()
-            cost_after_discount = p.cost_price * (Decimal('1') - discount / Decimal('100'))
+            cost_after_discount = cost_base * (Decimal('1') - discount / Decimal('100'))
             cost_efectivo = cost_after_discount * (Decimal('1') + (p.freight_percentage or Decimal('0')) / Decimal('100'))
             iva_rate = p.iva_rate or Decimal('0.21')
             if iva_rate > Decimal('1'):
