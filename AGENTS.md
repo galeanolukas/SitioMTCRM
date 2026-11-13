@@ -97,6 +97,11 @@ responde 302→login).
   `videos_tutoriales/guia_carga_remito.pdf`
   (`scripts/generar_guia_remito_cintia.py` + capturas en
   `videos_tutoriales/guia_remito/`).
+- Commit `845e97e6`: detalle de remito pendiente muestra tabla "Impacto
+  al procesar" por línea (stock actual→resultante, costo actual→nuevo,
+  P. venta actual→nuevo, alerta si queda negativo) con la misma fórmula
+  que `procesar_remito`. El modal "Ajustar precios" ahora previsualiza
+  el PVP sobre el costo que va a quedar al procesar, no el viejo.
 
 ## Normalización aplicada (12/11, conteo físico Acro Activo, empresa 10)
 
