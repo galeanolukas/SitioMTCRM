@@ -1,0 +1,166 @@
+{% extends 'base/list.html' %}
+{% load static %}
+{% block head_list %}
+{% endblock %}
+
+{% block alerts %}
+<div class="card card-secondary">
+  <div class="card-body py-2">
+    <form id="filterForm" class="row g-2 align-items-end">
+      <div class="col-md-2 col-6">
+        <label class="form-label mb-1 small">Desde</label>
+        <input type="date" id="fDateFrom" class="form-control form-control-sm">
+      </div>
+      <div class="col-md-2 col-6">
+        <label class="form-label mb-1 small">Hasta</label>
+        <input type="date" id="fDateTo" class="form-control form-control-sm">
+      </div>
+      <div class="col-md-2 col-6">
+        <label class="form-label mb-1 small">Tipo de movimiento</label>
+        <select id="fMovementType" class="form-control form-control-sm">
+          <option value="">Todos</option>
+          {% for value, label in movement_types %}
+          <option value="{{ value }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2 col-6">
+        <label class="form-label mb-1 small">Usuario</label>
+        <select id="fUser" class="form-control form-control-sm">
+          <option value="">Todos</option>
+          {% for uid, uname, fname, lname in movement_users %}
+          <option value="{{ uid }}">{% if fname or lname %}{{ fname }} {{ lname }}{% else %}{{ uname }}{% endif %}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3 col-8">
+        <label class="form-label mb-1 small">Producto (nombre o código)</label>
+        <input type="text" id="fProduct" class="form-control form-control-sm" placeholder="Buscar...">
+      </div>
+      <div class="col-md-1 col-4">
+        <button type="submit" class="btn btn-primary btn-sm btn-flat w-100"><i class="fas fa-filter"></i> Filtrar</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block columns %}
+    <tr>
+        <th scope="col" style="width: 11%;">Fecha</th>
+        <th scope="col" style="width: 12%;">Tipo</th>
+        <th scope="col" style="width: 20%;">Producto</th>
+        <th scope="col" style="width: 9%;">Cantidad</th>
+        <th scope="col" style="width: 12%;">Stock</th>
+        <th scope="col" style="width: 12%;">Usuario</th>
+        <th scope="col">Referencia / Motivo</th>
+    </tr>
+{% endblock %}
+
+{% block buttons_list %}
+    <a href="{{ list_url }}" class="btn btn-success btn-flat"><i class="fas fa-sync"></i> Actualizar</a>
+{% endblock %}
+
+{% block javascript %}
+<script type="application/javascript">
+$(function () {
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    var table = $('#data').DataTable({
+        responsive: true,
+        deferRender: true,
+        autoWidth: false,
+        pageLength: 25,
+        order: [],
+        language: {
+            decimal: '',
+            emptyTable: 'Sin movimientos para los filtros seleccionados',
+            info: 'Mostrando _START_ a _END_ de _TOTAL_ movimientos',
+            infoEmpty: 'Mostrando 0 a 0 de 0 movimientos',
+            infoFiltered: '(filtrado de _MAX_ movimientos)',
+            lengthMenu: 'Mostrar _MENU_ movimientos',
+            loadingRecords: 'Cargando...',
+            processing: 'Procesando...',
+            search: 'Buscar:',
+            zeroRecords: 'Sin resultados',
+            paginate: { first: 'Primero', last: 'Último', next: 'Siguiente', previous: 'Anterior' }
+        },
+        ajax: {
+            url: window.location.pathname,
+            type: 'POST',
+            data: function () {
+                return {
+                    'action': 'searchdata',
+                    'date_from': $('#fDateFrom').val(),
+                    'date_to': $('#fDateTo').val(),
+                    'movement_type': $('#fMovementType').val(),
+                    'user_id': $('#fUser').val(),
+                    'product': $('#fProduct').val(),
+                    'csrfmiddlewaretoken': getCookie('csrftoken')
+                };
+            },
+            dataSrc: function (resp) {
+                if (resp && resp.error) {
+                    alert(resp.error);
+                    return [];
+                }
+                return resp || [];
+            }
+        },
+        columns: [
+            { data: 'fecha' },
+            { data: 'tipo' },
+            { data: 'producto' },
+            {
+                data: 'cantidad',
+                className: 'text-end',
+                render: function (data) {
+                    var v = parseFloat(data) || 0;
+                    var cls = v >= 0 ? 'text-success' : 'text-danger';
+                    var sign = v > 0 ? '+' : '';
+                    return '<span class="' + cls + '">' + sign + v + '</span>';
+                }
+            },
+            {
+                data: null,
+                className: 'text-end',
+                render: function (row) {
+                    return (parseFloat(row.stock_before) || 0) + ' &rarr; ' + (parseFloat(row.stock_after) || 0);
+                }
+            },
+            { data: 'usuario' },
+            {
+                data: null,
+                render: function (row) {
+                    var det = row.ref || '';
+                    if (row.notes) det += (det ? ' — ' : '') + row.notes;
+                    return det;
+                }
+            }
+        ],
+        drawCallback: function () {
+            var info = this.api().page.info();
+            $('#totalCountBadge').text(info.recordsTotal + ' movimientos');
+        }
+    });
+
+    $('#filterForm').on('submit', function (e) {
+        e.preventDefault();
+        table.ajax.reload();
+    });
+});
+</script>
+{% endblock %}

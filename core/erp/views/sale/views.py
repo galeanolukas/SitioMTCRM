@@ -2210,7 +2210,11 @@ def sync_sales_api(request):
                 date_val = s.get('date_joined')
                 if date_val:
                     try:
-                        sale.date_joined = timezone.make_aware(timezone.datetime.fromisoformat(date_val))
+                        from datetime import datetime as _dt
+                        parsed_dt = _dt.fromisoformat(str(date_val).replace('Z', '+00:00'))
+                        sale.date_joined = (
+                            parsed_dt if timezone.is_aware(parsed_dt)
+                            else timezone.make_aware(parsed_dt))
                     except Exception:
                         pass
                 sale.subtotal = s.get('subtotal', 0) or 0
@@ -2390,7 +2394,7 @@ class EmployeeAccountListView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                         'id': account.id,
                         'employee': account.account_holder_name(),
                         'client': account.account_holder_name(),
-                        'date_joined': account.date_joined.strftime('%d/%m/%Y %H:%M'),
+                        'date_joined': timezone.localtime(account.date_joined).strftime('%d/%m/%Y %H:%M'),
                         'total': float(account.total),
                         'subtotal': float(account.subtotal),
                         'iva': float(account.iva),
@@ -2952,7 +2956,7 @@ def employee_account_pdf_export(request):
                     titular = '(sin titular)'
                 table_data.append([
                     Paragraph(titular, cell_style),
-                    Paragraph(account.date_joined.strftime('%d/%m/%Y'), date_cell_style),
+                    Paragraph(timezone.localtime(account.date_joined).strftime('%d/%m/%Y'), date_cell_style),
                     Paragraph(productos_str, cell_style),
                     Paragraph(fmt_money_ar(subtotal), money_cell_style),
                     Paragraph(fmt_money_ar(total), money_cell_style),
@@ -3108,8 +3112,8 @@ class BudgetDetailView(LoginRequiredMixin, View):
                 'id': budget.id,
                 'cli': budget.cli.names if budget.cli else 'Anónimo',
                 'pos_id': budget.pos_id or '-',
-                'date_joined': budget.date_joined.strftime('%d/%m/%Y'),
-                'time': budget.date_joined.strftime('%H:%M:%S'),
+                'date_joined': timezone.localtime(budget.date_joined).strftime('%d/%m/%Y'),
+                'time': timezone.localtime(budget.date_joined).strftime('%H:%M:%S'),
                 'payment_method': budget.payment_method,
                 'payment_method_display': budget.get_payment_method_display(),
                 'budget_notes': budget.budget_notes or '',

@@ -611,7 +611,7 @@ class UnifiedReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
                 comp_number = f"{sale.invoice_type or ''} {sale.invoice_pos or '0001'}-{sale.invoice_number}"
 
             rows.append({
-                'fecha': sale.date_joined.strftime('%d/%m/%Y'),
+                'fecha': timezone.localtime(sale.date_joined).strftime('%d/%m/%Y'),
                 'tipo': sale.invoice_type or '',
                 'punto_venta': sale.invoice_pos or '',
                 'numero': sale.afip_voucher_number or sale.invoice_number or '',
@@ -1126,7 +1126,7 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
                     ticket_factura = f"Ticket #{sale.id}"
                     
                 writer.writerow([
-                    sale.date_joined.strftime('%Y-%m-%d %H:%M'),
+                    timezone.localtime(sale.date_joined).strftime('%Y-%m-%d %H:%M'),
                     ticket_factura,
                     sale.cli.names if sale.cli else 'N/A',
                     float(sale.subtotal),
@@ -1362,7 +1362,7 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
                     ticket_factura = f"Ticket #{sale.id}"
                     
                 ws.append([
-                    sale.date_joined.strftime('%Y-%m-%d %H:%M'),
+                    timezone.localtime(sale.date_joined).strftime('%Y-%m-%d %H:%M'),
                     ticket_factura,
                     sale.cli.names if sale.cli else 'N/A',
                     float(sale.subtotal),
@@ -1711,7 +1711,7 @@ class ExportReportView(LoginRequiredMixin, UserPassesTestMixin, View):
             for sale in data:
                 table_data.append([
                     str(sale.id),
-                    sale.date_joined.strftime('%d/%m/%Y %H:%M') if sale.date_joined else '',
+                    timezone.localtime(sale.date_joined).strftime('%d/%m/%Y %H:%M') if sale.date_joined else '',
                     sale.cli.name if sale.cli else 'N/A',
                     f"${sale.total:,.2f}",
                     dict(sale.payment_method_choices).get(sale.payment_method, sale.payment_method),

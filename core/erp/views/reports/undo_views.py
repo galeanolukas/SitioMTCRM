@@ -100,7 +100,7 @@ class ChangeHistoryView(LoginRequiredMixin, UserPassesTestMixin, View):
                 'change_type_display': change.get_change_type_display(),
                 'description': change.description,
                 'user': change.user.get_full_name() or change.user.username,
-                'created_at': change.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                'created_at': timezone.localtime(change.created_at).strftime('%Y-%m-%d %H:%M:%S'),
                 'is_reverted': change.is_reverted,
                 'reverted_at': change.reverted_at.strftime('%Y-%m-%d %H:%M:%S') if change.reverted_at else None,
                 'reverted_by': change.reverted_by.get_full_name() if change.reverted_by else None,

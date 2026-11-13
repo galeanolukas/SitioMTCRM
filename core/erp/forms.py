@@ -720,8 +720,8 @@ class RemitoEntradaForm(ModelForm):
 
         # Fecha por defecto: hoy
         if not self.initial.get('fecha') and not self.data.get('fecha'):
-            from datetime import date
-            self.initial['fecha'] = date.today()
+            from django.utils import timezone
+            self.initial['fecha'] = timezone.localdate()
     
     class Meta:
         model = RemitoEntrada
@@ -774,8 +774,8 @@ class RemitoForm(ModelForm):
 
         # Fecha por defecto: hoy
         if not self.initial.get('fecha') and not self.data.get('fecha'):
-            from datetime import date
-            self.initial['fecha'] = date.today().isoformat()
+            from django.utils import timezone
+            self.initial['fecha'] = timezone.localdate().isoformat()
     
     class Meta:
         model = Remito

@@ -39,7 +39,7 @@ class CashRegisterListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, 
         qs = context.get('object_list') or []
 
         # Calcular totales en vivo para todas las cajas (abiertas y cerradas)
-        current_date = date.today()
+        current_date = timezone.localdate()
         active_cid = get_active_company_id(self.request)
 
         for cr in qs:
@@ -156,7 +156,7 @@ class CashRegisterCreateView(LoginRequiredMixin, ValidatePermissionRequiredMixin
                     self._assign_company_and_user(cash_register)
 
                     # Verificar si el usuario ya tiene una caja abierta (en cualquier fecha)
-                    today_local = date.today()
+                    today_local = timezone.localdate()
                     existing = CashRegister.objects.filter(
                         company=cash_register.company,
                         user=cash_register.user,
@@ -222,7 +222,7 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
         else:
             # Caja abierta: acumular ventas desde la apertura hasta hoy
             sales_qs = Sale.objects.filter(
-                date_joined__date__range=(cash_register.date, date.today()),
+                date_joined__date__range=(cash_register.date, timezone.localdate()),
                 company_id=cash_register.company_id,
                 is_budget=False,
                 status='confirmed',
@@ -274,7 +274,7 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
         else:
             # Caja abierta: acumular gastos desde la apertura hasta hoy
             expenses_qs = Expense.objects.filter(
-                date__range=(cash_register.date, date.today()),
+                date__range=(cash_register.date, timezone.localdate()),
                 company_id=cash_register.company_id,
                 is_active=True,
             )
@@ -345,7 +345,7 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
             sales_qs = Sale.objects.filter(date_joined__date=cash_register_date, company_id=company_id, is_budget=False)
         else:
             sales_qs = Sale.objects.filter(
-                date_joined__date__range=(cash_register_date, date.today()),
+                date_joined__date__range=(cash_register_date, timezone.localdate()),
                 company_id=company_id,
                 is_budget=False,
             )
@@ -390,7 +390,7 @@ class CashRegisterCloseView(LoginRequiredMixin, ValidatePermissionRequiredMixin,
             expenses_qs = Expense.objects.filter(date=cash_register_date, company_id=company_id, is_active=True)
         else:
             expenses_qs = Expense.objects.filter(
-                date__range=(cash_register_date, date.today()),
+                date__range=(cash_register_date, timezone.localdate()),
                 company_id=company_id,
                 is_active=True,
             )
@@ -460,7 +460,7 @@ class CashRegisterDetailView(LoginRequiredMixin, ValidatePermissionRequiredMixin
         else:
             # Si está abierta, acumular ventas desde la apertura hasta hoy (fecha local)
             sales_qs = Sale.objects.filter(
-                date_joined__date__range=(cash_register.date, date.today()),
+                date_joined__date__range=(cash_register.date, timezone.localdate()),
                 company_id=cash_register.company_id,
                 is_budget=False,
                 status='confirmed',
@@ -514,7 +514,7 @@ class CashRegisterDetailView(LoginRequiredMixin, ValidatePermissionRequiredMixin
         else:
             # Si está abierta, acumular gastos desde la apertura hasta hoy (fecha local)
             expenses_qs = Expense.objects.filter(
-                date__range=(cash_register.date, date.today()),
+                date__range=(cash_register.date, timezone.localdate()),
                 company_id=cash_register.company_id,
                 is_active=True,
             )

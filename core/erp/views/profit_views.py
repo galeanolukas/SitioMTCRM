@@ -39,7 +39,8 @@ class ProfitReportView(LoginRequiredMixin, TemplateView):
             )
         
         # Fechas por defecto (mes actual)
-        today = datetime.now().date()
+        from django.utils import timezone
+        today = timezone.localdate()
         first_day = today.replace(day=1)
         context['default_date_from'] = first_day.strftime('%Y-%m-%d')
         context['default_date_to'] = today.strftime('%Y-%m-%d')
@@ -123,7 +124,8 @@ class GenerateProfitReportView(LoginRequiredMixin, TemplateView):
                 }
                 
             elif action == 'get_monthly_data':
-                year = request.POST.get('year', datetime.now().year)
+                from django.utils import timezone
+                year = request.POST.get('year', timezone.localdate().year)
                 company_id = request.POST.get('company_id')
                 
                 if not request.user.is_superuser:

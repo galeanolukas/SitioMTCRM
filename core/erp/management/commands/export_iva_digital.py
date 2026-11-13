@@ -4,6 +4,7 @@ from core.erp.models import Sale, SaleVatBreakdown
 from django.contrib.auth import get_user_model
 from crum import get_current_user
 from datetime import datetime
+from django.utils import timezone
 import os
 
 
@@ -173,7 +174,7 @@ class Command(BaseCommand):
                 numero_comprobante = sale.invoice_number or str(sale.id).zfill(8)
                 
                 # Fecha
-                fecha = sale.date_joined.strftime('%d/%m/%Y')
+                fecha = timezone.localtime(sale.date_joined).strftime('%d/%m/%Y')
                 
                 # Escribir línea
                 line = f"{fecha};{tipo_comprobante};{punto_venta};{numero_comprobante};{numero_comprobante};{client_doc_type};{client_doc_number};{client_name};{total_taxable:.2f};0.00;0.00;{total_vat:.2f};{sale.total:.2f};PES;1.0000;{vat_breakdowns.count()};;;;;\n"
@@ -199,7 +200,7 @@ class Command(BaseCommand):
                 numero_comprobante = sale.invoice_number or str(sale.id).zfill(8)
                 
                 # Fecha
-                fecha = sale.date_joined.strftime('%d/%m/%Y')
+                fecha = timezone.localtime(sale.date_joined).strftime('%d/%m/%Y')
                 
                 # Escribir una línea por cada alícuota
                 for vat_breakdown in sale.vat_breakdowns.all():

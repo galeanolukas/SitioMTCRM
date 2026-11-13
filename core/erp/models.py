@@ -25,6 +25,21 @@ CONDICION_IVA_CHOICES = [
     ('NC', 'No Categorizado'),
 ]
 
+def local_date(dt=None):
+    """Fecha en el timezone local (America/Argentina/Buenos_Aires).
+
+    Los DateTimeField se persisten en UTC (USE_TZ=True): dt.date() y
+    timezone.now().date() devuelven la fecha UTC, que difiere de la local
+    a partir de las 21:00. Usar este helper (o timezone.localdate()) para
+    fechas de negocio y reportes.
+    """
+    if dt is None:
+        return timezone.localdate()
+    if timezone.is_aware(dt):
+        dt = timezone.localtime(dt)
+    return dt.date()
+
+
 def validate_cuit(value):
     """
     Validador de CUIT/CUIL argentino.
@@ -488,7 +503,7 @@ class Client(models.Model):
                 raise ValidationError({'cuit_cuil': str(e)})
 
         # Validar que fecha de nacimiento no sea futura
-        if self.date_birthday and self.date_birthday > timezone.now().date():
+        if self.date_birthday and self.date_birthday > local_date():
             raise ValidationError({'date_birthday': 'La fecha de nacimiento no puede ser futura'})
 
         # Validar email si está presente
@@ -1151,7 +1166,7 @@ class Sale(models.Model):
             defaults = {
                 'company': self.company,
                 'tipo_registro': 'venta',
-                'fecha': self.date_joined.date() if self.date_joined else timezone.now().date(),
+                'fecha': local_date(self.date_joined),
                 'tipo_comprobante': tipo_comprobante_libro,
                 'punto_venta': punto_venta,
                 'numero_comprobante': nro_cbte,
@@ -1215,7 +1230,7 @@ class Sale(models.Model):
                 company=self.company,
                 client=self.cli,
                 tipo_movimiento='venta',
-                fecha=self.date_joined.date() if self.date_joined else timezone.now().date(),
+                fecha=local_date(self.date_joined),
                 descripcion=descripcion,
                 debe=float(self.total),
                 haber=0,
@@ -1242,7 +1257,7 @@ class Sale(models.Model):
             AsientoContable.objects.create(
                 company=self.company,
                 tipo_asiento='venta',
-                fecha=self.date_joined.date() if self.date_joined else timezone.now().date(),
+                fecha=local_date(self.date_joined),
                 descripcion=descripcion,
                 debe_total=float(self.total),
                 haber_total=float(self.total),
@@ -1263,7 +1278,7 @@ class Sale(models.Model):
         try:
             # Construir el payload según especificación AFIP
             cuit_clean = str(config_obj.cuit or self.company.cuit or '').replace('-', '')
-            fecha_cbte = self.date_joined.strftime('%Y-%m-%d') if self.date_joined else datetime.now().strftime('%Y-%m-%d')
+            fecha_cbte = local_date(self.date_joined).strftime('%Y-%m-%d')
 
             # Tipo y número de documento del receptor
             if self.cli and self.cli.cuit_cuil:
@@ -2454,7 +2469,7 @@ class ActivityLog(models.Model):
         ]
     
     def __str__(self):
-        return f"{self.user} - {self.action} - {self.timestamp.strftime('%Y-%m-%d %H:%M')}"
+        return f"{self.user} - {self.action} - {timezone.localtime(self.timestamp).strftime('%Y-%m-%d %H:%M')}"
     
     def get_action_display(self):
         """Retorna una descripción más amigable de la acción"""
@@ -2507,7 +2522,7 @@ class EmployeeAccountSale(models.Model):
         return b if b > 0 else Decimal('0')
 
     def __str__(self):
-        return f"Cta. Cte. {self.account_holder_name()} - {self.date_joined.strftime('%d/%m/%Y')}"
+        return f"Cta. Cte. {self.account_holder_name()} - {local_date(self.date_joined).strftime('%d/%m/%Y')}"
 
     def save(self, *args, **kwargs):
         if not self.company_id:

@@ -134,7 +134,8 @@ class DashboardView(TemplateView):
         time_filter = self.request.GET.get('time_filter', 'today')  # today, week, month
         
         # Calcular fechas según el filtro
-        today = date.today()
+        from django.utils import timezone
+        today = timezone.localdate()
         if time_filter == 'today':
             start_date = today
             end_date = today
@@ -739,7 +740,7 @@ class ExpenseListView(LoginRequiredMixin, ValidatePermissionRequiredMixin, ListV
             from django.utils import timezone
             from datetime import timedelta
             
-            today = timezone.now().date()
+            today = timezone.localdate()
             
             if period == 'today':
                 start_date = today.strftime('%Y-%m-%d')
@@ -1364,6 +1365,7 @@ def report_expenses_export(request):
 def report_sales_export(request):
     if not request.user.is_superuser:
         return HttpResponse(status=403)
+    from django.utils import timezone
     fmt = (request.GET.get('format') or 'csv').lower()
     qs = Sale.objects.filter(is_budget=False)
     qs = _filter_company_qs(request, qs)
@@ -1372,7 +1374,7 @@ def report_sales_export(request):
     for s in qs:
         rows.append({
             'ID': s.id,
-            'Fecha': s.date_joined.strftime('%Y-%m-%d') if s.date_joined else '',
+            'Fecha': timezone.localtime(s.date_joined).strftime('%Y-%m-%d') if s.date_joined else '',
             'Total': float(s.total or 0),
             'Pago': pm_map.get(s.payment_method, s.payment_method),
             'Empresa': s.company_id or '',
@@ -1429,7 +1431,7 @@ def expense_export(request):
     from datetime import timedelta
     from django.db.models.functions import TruncDay
     
-    today = timezone.now().date()
+    today = timezone.localdate()
     start_date = request.GET.get('start_date', today.strftime('%Y-%m-%d'))
     end_date = request.GET.get('end_date', today.strftime('%Y-%m-%d'))
     

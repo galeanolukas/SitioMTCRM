@@ -169,13 +169,13 @@ class OperatorSalesReportView(LoginRequiredMixin, ValidatePermissionRequiredMixi
                 # Get dates - only recalculate if not provided from frontend
                 if not start_date or not end_date:
                     if report_type == 'daily':
-                        start_date = timezone.now().date().strftime('%Y-%m-%d')
+                        start_date = timezone.localdate().strftime('%Y-%m-%d')
                         end_date = start_date
                     elif report_type == 'weekly':
-                        end_date = timezone.now().date()
+                        end_date = timezone.localdate()
                         start_date = (end_date - timedelta(days=7)).strftime('%Y-%m-%d')
                     elif report_type == 'monthly':
-                        end_date = timezone.now().date()
+                        end_date = timezone.localdate()
                         start_date = (end_date - timedelta(days=30)).strftime('%Y-%m-%d')
                 
                 # Build filters
@@ -462,13 +462,13 @@ def operator_sales_export(request):
         # Get dates - only recalculate if not provided from frontend
         if not start_date or not end_date:
             if report_type == 'daily':
-                start_date = timezone.now().date().strftime('%Y-%m-%d')
+                start_date = timezone.localdate().strftime('%Y-%m-%d')
                 end_date = start_date
             elif report_type == 'weekly':
-                end_date = timezone.now().date()
+                end_date = timezone.localdate()
                 start_date = (end_date - timedelta(days=7)).strftime('%Y-%m-%d')
             elif report_type == 'monthly':
-                end_date = timezone.now().date()
+                end_date = timezone.localdate()
                 start_date = (end_date - timedelta(days=30)).strftime('%Y-%m-%d')
         
         # Build filters

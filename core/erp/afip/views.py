@@ -7,6 +7,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from core.erp.mixins import ValidatePermissionRequiredMixin, CompanyInitialMixin, get_active_company_id
 from django.http import JsonResponse
 from django.urls import reverse_lazy
+from django.utils import timezone
 from core.erp.models import AfipConfig, Company, Sale, DetSale, AfipPuntoVenta
 from .client import AfipClient
 from django.views.decorators.http import require_POST
@@ -671,7 +672,7 @@ def generate_afip_pdf(request):
         })
 
     # Fechas
-    issue_date = sale.date_joined.strftime('%d/%m/%Y') if sale.date_joined else '-'
+    issue_date = timezone.localtime(sale.date_joined).strftime('%d/%m/%Y') if sale.date_joined else '-'
     cae_due_date = sale.afip_cae_vto.strftime('%d/%m/%Y') if sale.afip_cae_vto else '-'
 
     # Número de comprobante y punto de venta

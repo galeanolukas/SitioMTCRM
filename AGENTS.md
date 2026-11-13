@@ -1,16 +1,18 @@
 # Estado del proyecto / pendientes
 
-## PENDIENTE: deploy al servidor de producción (hacer al cierre del local)
+## Deploy hecho el 12/11/2026
 
-Hay cambios SIN COMMITEAR que implementan trazabilidad de stock. Aplicar al cierre:
+Commit `1d60308a` pusheado a `main` y deployado en producción
+(`erp.multiliderestech.online` → VPS `148.230.73.167`):
 
-1. Commitear los cambios locales (19 archivos modificados + migración `0022_stockmovement`).
-2. Subir el código al servidor (VPS `148.230.73.167` — verificar método de deploy,
-   SSH `root@` no autenticado, script viejo usa `ubuntu@erp.multilideres.com` que no resuelve).
-3. En el server: `python manage.py migrate` (la tabla `erp_stockmovement` YA existe en
-   producción — se migró por la conexión remota desde este equipo — pero re-correr no molesta).
-4. `collectstatic` (cambió `core/erp/static/product/js/list.js` — bump `?v=20261112` ya puesto).
-5. Reiniciar el servicio (gunicorn/uwsgi según corresponda).
+- SSH: `ssh -i ~/.ssh/tbot_vps root@148.230.73.167` (clave instalada vía paramiko,
+  usuario root — `ubuntu` no acepta password).
+- Sitio: `/home/ubuntu/www/SitioMTCRM`, venv `/home/ubuntu/DJENV` (NO el DJENV del repo).
+- Web: lighttpd → scgi :4600 → vassal `/etc/uwsgi/vassals/uwsgi13.ini` (uWSGI Emperor).
+- Deploy: `git pull` → `manage.py collectstatic --noinput` (como root, staticfiles es
+  root-owned) → `touch /etc/uwsgi/vassals/uwsgi13.ini` (el Emperor recarga el vassal).
+- Migraciones 0022/0023 ya estaban aplicadas en la DB vía conexión `remote`.
+- Verificado: workers respawned, GET / → 200.
 
 ## Qué se implementó (rama de trabajo actual)
 
@@ -40,6 +42,30 @@ Hay cambios SIN COMMITEAR que implementan trazabilidad de stock. Aplicar al cier
   en `pos.html` + handlers en `sale/js/pos.js` (bump `?v=20261112`). Antes el
   modal solo permitía elegir clientes existentes (el viejo "agregar empleado"
   está comentado) y el botón tenía un `"` de más en el HTML — corregido.
+
+## Cambios 13/11/2026 (listado de movimientos + fix de fechas UTC→local)
+
+- `StockMovementListView` (`/erp/stock-movement/list/`): listado global de
+  movimientos de stock con filtros por fecha, tipo, usuario y producto
+  (hasta 500 filas). Template `stock_movement/list.html`, entrada en el
+  menú Inventario. Permite auditar "qué ajustes manuales hizo X usuario".
+- Fix de timezone: los `DateTimeField` se guardan en UTC (USE_TZ=True) pero
+  varios puntos usaban `.date()`/`strftime()`/`date.today()` que devuelven
+  fecha UTC o del SO → ventas después de las 21:00 AR (00:00 UTC) caían en
+  el día siguiente en Libro IVA, cuenta corriente, asientos contables, QR
+  de AFIP, informes y exportaciones. Se agregó `local_date()` en models.py
+  y se migró todo a `timezone.localdate()`/`timezone.localtime()`:
+  - models.py: `fecha` de LibroIvaRegistro, CuentaCorrienteCliente,
+    AsientoContable, `fecha_cbte` del QR AFIP, validación date_birthday,
+    `__str__` de ActivityLog y EmployeeAccountSale.
+  - `sync_sales_api` (sale/views.py): `make_aware(fromisoformat(...))`
+    explotaba con fechas aware (`+00:00`/`Z`) → caía al `except` y la venta
+    quedaba con fecha de sync, no de venta. Ahora parsea aware/naive.
+  - Display: afip issue_date, pdf_utils, exports CSV/Excel de reports,
+    export_iva_digital, dashboard export, operator_reports (ya usaba
+    localtime), activity_log, cash_register, profit_views, forms (fecha
+    inicial remitos), undo_views, history de ajustes de margen.
+- `__date` del ORM ya era correcto (Django convierte al TZ activo).
 
 ## Normalización aplicada (12/11, conteo físico Acro Activo, empresa 10)
 

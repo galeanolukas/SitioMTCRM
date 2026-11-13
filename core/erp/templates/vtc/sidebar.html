@@ -81,6 +81,14 @@
               </a>
             </li>
             {% endif %}
+            {% if request.user.is_superuser or perms.erp.view_product %}
+            <li class="nav-item">
+              <a href="{% url 'erp:stock_movement_list' %}" class="nav-link">
+                <i class="fas fa-exchange-alt nav-icon"></i>
+                <p>Movimientos de Stock</p>
+              </a>
+            </li>
+            {% endif %}
             {% if request.user.is_superuser %}
             <li class="nav-item">
               <a href="{% url 'erp:product_labels' %}" class="nav-link">

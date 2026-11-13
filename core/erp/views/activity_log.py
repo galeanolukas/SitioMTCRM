@@ -60,7 +60,7 @@ class ActivityLogView(LoginRequiredMixin, UserPassesTestMixin, ListView):
             
         if date_filter:
             if date_filter == 'today':
-                queryset = queryset.filter(timestamp__date=timezone.now().date())
+                queryset = queryset.filter(timestamp__date=timezone.localdate())
             elif date_filter == 'week':
                 queryset = queryset.filter(timestamp__gte=timezone.now() - timedelta(days=7))
             elif date_filter == 'month':
@@ -77,7 +77,7 @@ class ActivityLogView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         # Estadísticas
         context['total_activities'] = ActivityLog.objects.count()
         context['today_activities'] = ActivityLog.objects.filter(
-            timestamp__date=timezone.now().date()
+            timestamp__date=timezone.localdate()
         ).count()
         
         # Actividades más comunes
@@ -120,7 +120,7 @@ class ActivityLogDashboardView(LoginRequiredMixin, UserPassesTestMixin, Template
         # Estadísticas generales
         context['total_activities'] = ActivityLog.objects.count()
         context['today_activities'] = ActivityLog.objects.filter(
-            timestamp__date=now.date()
+            timestamp__date=timezone.localdate()
         ).count()
         context['week_activities'] = ActivityLog.objects.filter(
             timestamp__gte=now - timedelta(days=7)
@@ -131,11 +131,12 @@ class ActivityLogDashboardView(LoginRequiredMixin, UserPassesTestMixin, Template
         
         # Actividades por día (últimos 7 días)
         daily_stats = []
+        today = timezone.localdate()
         for i in range(7):
-            date = now - timedelta(days=i)
-            count = ActivityLog.objects.filter(timestamp__date=date.date()).count()
+            day = today - timedelta(days=i)
+            count = ActivityLog.objects.filter(timestamp__date=day).count()
             daily_stats.append({
-                'date': date.strftime('%Y-%m-%d'),
+                'date': day.strftime('%Y-%m-%d'),
                 'count': count
             })
         context['daily_stats'] = list(reversed(daily_stats))

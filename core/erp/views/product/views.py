@@ -325,7 +325,7 @@ class ProductListView(ValidatePermissionRequiredMixin, LoginRequiredMixin, ListV
                         'id': hist.id,
                         'percentage': str(hist.percentage),
                         'product_count': hist.product_count,
-                        'created_at': hist.created_at.strftime('%d/%m/%Y %H:%M'),
+                        'created_at': timezone.localtime(hist.created_at).strftime('%d/%m/%Y %H:%M'),
                     }
                 else:
                     data = {}
@@ -2943,3 +2943,90 @@ class CategorySuggestView(LoginRequiredMixin, ValidatePermissionRequiredMixin, T
             })
 
         return JsonResponse({'error': 'Acción no válida'}, status=400)
+
+
+class StockMovementListView(ValidatePermissionRequiredMixin, LoginRequiredMixin, ListView):
+    """Listado global de movimientos de stock (auditoría).
+
+    Filtros por fecha, tipo de movimiento, usuario y producto. Permite
+    responder preguntas como "qué ajustes manuales hizo X usuario".
+    """
+    model = StockMovement
+    template_name = 'stock_movement/list.html'
+    permission_required = 'erp.view_product'
+
+    def get_queryset(self):
+        return StockMovement.objects.none()
+
+    def post(self, request, *args, **kwargs):
+        try:
+            action = request.POST.get('action')
+            if action != 'searchdata':
+                return JsonResponse({'error': 'Ha ocurrido un error'})
+
+            qs = (StockMovement.objects
+                  .select_related('product', 'user')
+                  .order_by('-created_at'))
+
+            active_cid = get_active_company_id(request)
+            if active_cid:
+                qs = qs.filter(company_id=active_cid)
+
+            movement_type = (request.POST.get('movement_type') or '').strip()
+            if movement_type:
+                qs = qs.filter(movement_type=movement_type)
+
+            user_id = (request.POST.get('user_id') or '').strip()
+            if user_id.isdigit():
+                qs = qs.filter(user_id=int(user_id))
+
+            product_term = (request.POST.get('product') or '').strip()
+            if product_term:
+                from django.db.models import Q
+                qs = qs.filter(
+                    Q(product__name__icontains=product_term) |
+                    Q(product__code__icontains=product_term) |
+                    Q(product__external_code__icontains=product_term)
+                )
+
+            date_from = (request.POST.get('date_from') or '').strip()
+            date_to = (request.POST.get('date_to') or '').strip()
+            try:
+                if date_from:
+                    qs = qs.filter(created_at__date__gte=datetime.strptime(date_from, '%Y-%m-%d').date())
+                if date_to:
+                    qs = qs.filter(created_at__date__lte=datetime.strptime(date_to, '%Y-%m-%d').date())
+            except ValueError:
+                return JsonResponse({'error': 'Rango de fechas inválido'})
+
+            data = [{
+                'id': m.id,
+                'fecha': timezone.localtime(m.created_at).strftime('%d/%m/%Y %H:%M'),
+                'tipo': m.get_movement_type_display(),
+                'movement_type': m.movement_type,
+                'producto': m.product.name if m.product else '(producto eliminado)',
+                'cantidad': float(m.quantity),
+                'stock_before': float(m.stock_before),
+                'stock_after': float(m.stock_after),
+                'usuario': (m.user.get_full_name() or m.user.username) if m.user else '-',
+                'ref': m.ref,
+                'notes': m.notes,
+            } for m in qs[:500]]
+            return JsonResponse(data, safe=False)
+        except Exception as e:
+            return JsonResponse({'error': str(e)})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Movimientos de Stock'
+        context['list_url'] = reverse_lazy('erp:stock_movement_list')
+        context['entity'] = 'Movimientos'
+        context['movement_types'] = StockMovement.MOVEMENT_TYPES
+        context['movement_users'] = (
+            StockMovement.objects
+            .filter(user__isnull=False)
+            .values_list('user_id', 'user__username', 'user__first_name', 'user__last_name')
+            .distinct()
+            .order_by('user__username')
+        )
+        return context

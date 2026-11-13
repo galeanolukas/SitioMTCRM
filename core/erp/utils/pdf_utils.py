@@ -1,5 +1,6 @@
 from django.http import HttpResponse
 from django.template.loader import get_template
+from django.utils import timezone
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
@@ -70,7 +71,7 @@ def invoice_pdf_reportlab(request, sale):
     
     invoice_data = [
         ['Factura N°:', invoice_display],
-        ['Fecha:', sale.date_joined.strftime('%d/%m/%Y %H:%M')],
+        ['Fecha:', timezone.localtime(sale.date_joined).strftime('%d/%m/%Y %H:%M')],
         ['Tipo:', 'Factura' if sale.is_invoiced else 'Ticket'],
         ['Cliente:', sale.cli.names if sale.cli else 'Anónimo'],
     ]
