@@ -101,7 +101,7 @@
           <i class="fas fa-info-circle"></i> Seleccione un proveedor para filtrar productos, o busque entre todos si no selecciona ninguno.
         </div>
         {% if not read_only_items %}
-        <div class="row mb-3">
+        <div class="row mb-1 g-2">
           <div class="col-md-4">
             <select id="productSelect" class="form-select select2">
               <option value="">Buscar producto...</option>
@@ -112,6 +112,13 @@
           </div>
           <div class="col-md-2">
             <input type="number" id="precioUnitario" class="form-control" placeholder="Precio" step="0.01" min="0">
+            <small class="text-muted" id="precioLabel"></small>
+          </div>
+          <div class="col-md-1">
+            <input type="number" id="bonifPct" class="form-control" placeholder="Bonif%" step="0.01" min="0" max="100">
+          </div>
+          <div class="col-md-1" id="ivaLineaCol">
+            <input type="number" id="ivaPctLinea" class="form-control" placeholder="IVA%" step="0.01" min="0">
           </div>
           <div class="col-md-2">
             <button type="button" onclick="agregarProducto()" class="btn btn-primary btn-flat">
@@ -124,6 +131,19 @@
             </button>
           </div>
         </div>
+        <div class="row mb-3" id="modoPrecioRow" style="display:none;">
+          <div class="col-12">
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="precioEs" id="precioEsNeto" value="neto" checked>
+              <label class="form-check-label small" for="precioEsNeto">Precio NETO (sin IVA — columna "$P.U.Neto")</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="precioEs" id="precioEsLista" value="lista">
+              <label class="form-check-label small" for="precioEsLista">Precio de LISTA (con IVA — columna "$P.U.Lista") → calculo el neto</label>
+            </div>
+            <span id="netoPreview" class="ms-2 small fw-bold text-success"></span>
+          </div>
+        </div>
         {% endif %}
 
         <table class="table table-bordered">
@@ -132,6 +152,7 @@
               <th>Producto</th>
               <th>Cantidad</th>
               <th>Precio Unitario</th>
+              <th>Bonif</th>
               <th>Subtotal</th>
               <th id="thIva" style="display:none;">IVA</th>
               <th id="thNeto" style="display:none;">Neto</th>
@@ -143,17 +164,17 @@
           </tbody>
           <tfoot>
             <tr id="tfootNeto" style="display:none;">
-              <th colspan="4" class="text-end">Neto:</th>
+              <th colspan="6" class="text-end">Neto:</th>
               <th id="totalNeto">$0.00</th>
               <th></th>
             </tr>
             <tr id="tfootIva" style="display:none;">
-              <th colspan="4" class="text-end"><span id="ivaLabel">IVA:</span></th>
+              <th colspan="5" class="text-end"><span id="ivaLabel">IVA:</span></th>
               <th id="totalIva">$0.00</th>
               <th></th>
             </tr>
             <tr>
-              <th colspan="3" class="text-end">Total:</th>
+              <th colspan="4" class="text-end">Total:</th>
               <th id="totalGeneral">$0.00</th>
               <th id="thTotalCol" style="display:none;"></th>
               <th></th>
@@ -184,9 +205,44 @@
       return el ? el.value : 'incluido';
     }
 
+    function getPrecioEs() {
+      const el = document.querySelector('input[name="precioEs"]:checked');
+      return el ? el.value : 'neto';
+    }
+
+    function updatePrecioLabel() {
+      const modo = getIvaModo();
+      const label = document.getElementById('precioLabel');
+      if (!label) return;
+      if (modo === 'agregado') {
+        label.textContent = getPrecioEs() === 'lista'
+          ? 'P.U. Lista (con IVA, sin bonif.)'
+          : 'Neto sin IVA (columna $P.U.Neto)';
+      } else {
+        label.textContent = 'Precio con IVA incluido';
+      }
+      updateNetoPreview();
+    }
+
+    function updateNetoPreview() {
+      const el = document.getElementById('netoPreview');
+      if (!el) return;
+      const modo = getIvaModo();
+      const precio = parseFloat(document.getElementById('precioUnitario').value) || 0;
+      const bonif = parseFloat(document.getElementById('bonifPct').value) || 0;
+      const ivaLinea = parseFloat(document.getElementById('ivaPctLinea').value) || 0;
+      if (modo === 'agregado' && getPrecioEs() === 'lista' && precio > 0) {
+        const neto = precio * (1 - bonif / 100) / (1 + ivaLinea / 100);
+        el.textContent = 'Neto calculado: $' + neto.toFixed(2);
+      } else {
+        el.textContent = '';
+      }
+    }
+
     function toggleIvaColumns() {
       const ivaRate = getIvaRate();
-      const showIva = ivaRate > 0;
+      const ivaModo = getIvaModo();
+      const showIva = ivaRate > 0 || ivaModo === 'agregado';
       const display = showIva ? '' : 'none';
       document.getElementById('thIva').style.display = display;
       document.getElementById('thNeto').style.display = display;
@@ -195,12 +251,26 @@
       document.getElementById('thTotalCol').style.display = display;
       const ivaLabel = document.getElementById('ivaLabel');
       if (ivaLabel) ivaLabel.textContent = 'IVA:';
+      // Selector "precio neto vs lista" e IVA% por linea solo aplican
+      // cuando los precios cargados son netos (modo agregado)
+      const modoRow = document.getElementById('modoPrecioRow');
+      if (modoRow) modoRow.style.display = ivaModo === 'agregado' ? '' : 'none';
+      const ivaLineaCol = document.getElementById('ivaLineaCol');
+      if (ivaLineaCol) ivaLineaCol.style.display = ivaModo === 'agregado' ? '' : 'none';
+      updatePrecioLabel();
       renderDetalles();
     }
 
     document.getElementById('id_iva_porcentaje').addEventListener('input', toggleIvaColumns);
     const ivaModoEl = document.getElementById('id_iva_modo');
     if (ivaModoEl) ivaModoEl.addEventListener('change', toggleIvaColumns);
+    document.querySelectorAll('input[name="precioEs"]').forEach(function (r) {
+      r.addEventListener('change', updatePrecioLabel);
+    });
+    ['precioUnitario', 'bonifPct', 'ivaPctLinea'].forEach(function (id) {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('input', updateNetoPreview);
+    });
 
     const readOnlyItems = {% if read_only_items %}true{% else %}false{% endif %};
 
@@ -327,6 +397,15 @@
       } else if (data.price) {
         document.getElementById('precioUnitario').value = data.price;
       }
+      // IVA% de la fila: el del producto si tiene (>0), si no el del remito
+      let rate = parseFloat(data.iva_rate);
+      if (!isNaN(rate) && rate > 1) rate = rate / 100;
+      const ivaLineaEl = document.getElementById('ivaPctLinea');
+      if (ivaLineaEl) {
+        const pct = (!isNaN(rate) && rate > 0) ? rate * 100 : getIvaRate() * 100;
+        ivaLineaEl.value = pct ? parseFloat(pct.toFixed(4)) : '';
+      }
+      updateNetoPreview();
     });
 
     // Cuando cambia el proveedor, resetear el select de productos (si existe)
@@ -349,8 +428,8 @@
     }
 
     // Precargar detalles en modo edición (una vez definida renderDetalles)
+    toggleIvaColumns();
     if (detalles.length > 0) {
-      toggleIvaColumns();
       renderDetalles();
     }
   });
@@ -358,15 +437,15 @@
   function agregarProducto() {
     const productId = document.getElementById('productSelect').value;
     const cantidad = parseFloat(document.getElementById('cantidad').value);
-    const precioUnitario = parseFloat(document.getElementById('precioUnitario').value);
+    const precioTipeado = parseFloat(document.getElementById('precioUnitario').value);
+    const bonifPct = parseFloat(document.getElementById('bonifPct').value) || 0;
 
-    if (!productId || !cantidad || !precioUnitario) {
+    if (!productId || !cantidad || !precioTipeado) {
       alert('Complete todos los campos');
       return;
     }
 
     const producto = document.getElementById('productSelect').options[document.getElementById('productSelect').selectedIndex];
-    const subtotal = cantidad * precioUnitario;
 
     // Alicuota propia del producto (select2 data o data-attr si fue creado en el modal)
     let prodIvaRate = null;
@@ -378,6 +457,20 @@
       const attrRate = parseFloat($(producto).data('iva_rate'));
       if (!isNaN(attrRate)) prodIvaRate = attrRate > 1 ? attrRate / 100 : attrRate;
     }
+    // El campo IVA% de la fila manda (viene precargado del producto/remito, editable)
+    const ivaLineaIn = parseFloat(document.getElementById('ivaPctLinea').value);
+    if (!isNaN(ivaLineaIn)) prodIvaRate = ivaLineaIn / 100;
+
+    // Precio a guardar: si viene de "lista con IVA", extraer IVA por linea;
+    // la bonificacion siempre se descuenta antes de guardar.
+    let precioUnitario = precioTipeado;
+    if (bonifPct > 0) precioUnitario = precioUnitario * (1 - bonifPct / 100);
+    if (getIvaModo() === 'agregado' && getPrecioEs() === 'lista') {
+      const rate = (prodIvaRate != null && prodIvaRate > 0) ? prodIvaRate : getIvaRate();
+      precioUnitario = precioUnitario / (1 + rate);
+    }
+    precioUnitario = Math.round(precioUnitario * 100) / 100;
+    const subtotal = cantidad * precioUnitario;
 
     const detalle = {
       temp_id: Date.now(),
@@ -385,6 +478,7 @@
       prod_name: producto.textContent,
       cantidad: cantidad,
       precio_unitario: precioUnitario,
+      bonif: bonifPct,
       subtotal: subtotal,
       iva_rate: prodIvaRate
     };
@@ -400,15 +494,14 @@
     let totalNeto = 0;
     let totalIva = 0;
     const ivaRate = getIvaRate();
-    const hasIva = ivaRate > 0;
-
     const ivaModo = getIvaModo();
+    const hasIva = ivaRate > 0 || ivaModo === 'agregado';
 
     detalles.forEach((det, index) => {
       let neto = det.subtotal;
       let iva = 0;
-      // Alicuota propia del producto; si no tiene, la del remito
-      const lineRate = (det.iva_rate != null && !isNaN(det.iva_rate)) ? det.iva_rate : ivaRate;
+      // Alicuota propia del producto; si no tiene (0 = sin dato), la del remito
+      const lineRate = (det.iva_rate != null && !isNaN(det.iva_rate) && det.iva_rate > 0) ? det.iva_rate : ivaRate;
       const lineRateLabel = parseFloat((lineRate * 100).toFixed(4));
       if (hasIva) {
         if (ivaModo === 'agregado') {
@@ -432,11 +525,13 @@
               <i class="fas fa-trash"></i>
             </button>
           </td>`;
+      const bonifCol = det.bonif ? `<td>${det.bonif}%</td>` : '<td class="text-muted">-</td>';
       const row = `
         <tr>
           <td>${det.prod_name}</td>
           <td>${det.cantidad.toFixed(3)}</td>
           <td>$${det.precio_unitario.toFixed(2)}</td>
+          ${bonifCol}
           <td>$${det.subtotal.toFixed(2)}</td>
           ${ivaCols}
           ${accionesCol}

@@ -28,10 +28,11 @@ def _prod_iva_rate_frac(producto):
 
 def _line_iva_rate(remito, prod):
     """Alicuota de IVA de una linea como fraccion (0.21, 0.105...).
-    Usa la tasa propia del producto; si no hay producto o tasa,
-    cae al % declarado en el remito."""
+    Usa la tasa propia del producto; si no hay producto o la tasa es
+    None/0 (= sin dato, en este sistema 0 nunca fue "exento"), cae al %
+    declarado en el remito."""
     rate = getattr(prod, 'iva_rate', None) if prod else None
-    if rate is None:
+    if not rate:
         rate = (remito.iva_porcentaje or Decimal('0')) / Decimal('100')
     if rate and rate > Decimal('1'):   # valores legacy guardados en %
         rate = rate / Decimal('100')
