@@ -109,6 +109,14 @@ responde 302→login).
   recalculos de remito no pisen el precio acordado. Endpoint
   `actualizar-margen` acepta `{items:[{id, margin|pvp_final}]}` +
   formato viejo `{margins:{}}`.
+- Commit `c06c8490`: modal de producto compartido (alta/edición) con
+  dto. proveedor, flete, IVA, margen, PVP neto y PVP final bidireccional.
+  `ProductUpdateView` action `quick_update` actualiza solo esos campos
+  (verifica empresa). Flujo de remito: al elegir producto existente y
+  apretar Agregar, el modal de edición se abre con datos de la DB + el
+  costo tipeado; la línea se confirma recién al Guardar (`_pendingLinea`).
+  Si cancela el modal, la línea NO se agrega. Lápices junto al buscador
+  y en cada fila para editar sin agregar.
 - Commit `b5d20d59`: proyección "Qué pasará al procesar" también en el
   formulario de carga (tabla live con stock→queda, costo→nuevo,
   PVP→nuevo por línea, misma fórmula que `procesar_remito`). El
