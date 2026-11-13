@@ -427,6 +427,8 @@ class Product(models.Model):
         item['iva_rate'] = float(self.iva_rate) if self.iva_rate is not None else 0.0
         item['margin_percentage'] = float(self.margin_percentage) if self.margin_percentage is not None else 0.0
         item['pvp_final'] = format(self.pvp_final, '.2f') if self.pvp_final is not None else '0.00'
+        item['supplier_default_discount'] = float(self.supplier.default_discount_percentage) \
+            if (self.supplier_id and self.supplier.default_discount_percentage) else 0.0
         item['unit'] = self.unit
         item['unit_display'] = self.get_unit_display()
         item['stock'] = format(self.stock, '.2f') if self.stock is not None else '0.00'

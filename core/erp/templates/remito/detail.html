@@ -198,20 +198,17 @@
 
       {% if show_impacto %}
       <hr>
-      <h4><i class="fas fa-eye"></i> Impacto al procesar (proyección)</h4>
+      <h4><i class="fas fa-eye"></i> Qué pasará al procesar</h4>
       <p class="text-muted small mb-2">Así va a quedar el stock{% if object.tipo == 'entrada' %}, el costo y el precio de venta{% endif %} de cada producto cuando se procese este remito.</p>
       <div class="table-responsive">
         <table class="table table-bordered table-sm">
-          <thead>
+          <thead class="thead-dark">
             <tr>
               <th>Producto</th>
-              <th>Stock actual</th>
-              <th>Stock resultante</th>
+              <th>Stock → queda</th>
               {% if object.tipo == 'entrada' %}
-              <th>Costo actual</th>
-              <th>Costo nuevo</th>
-              <th>P. Venta actual</th>
-              <th>P. Venta nuevo</th>
+              <th>Costo neto → nuevo</th>
+              <th>PVP final → nuevo</th>
               {% endif %}
             </tr>
           </thead>
@@ -219,19 +216,19 @@
             {% for detalle in detalles %}
             <tr>
               <td>{{ detalle.prod.name }}</td>
-              <td>{{ detalle.stock_antes|floatformat:3 }}</td>
-              <td class="{% if detalle.stock_despues < 0 %}text-danger font-weight-bold{% endif %}">
-                {{ detalle.stock_despues|floatformat:3 }}
-                {% if detalle.stock_despues < 0 %}<i class="fas fa-exclamation-triangle" title="Queda en negativo"></i>{% endif %}
+              <td>
+                {{ detalle.stock_antes|floatformat:3 }} →
+                <b{% if detalle.stock_despues < 0 %} class="text-danger"{% endif %}>{{ detalle.stock_despues|floatformat:3 }}</b>
+                {% if detalle.stock_despues < 0 %}<i class="fas fa-exclamation-triangle text-danger" title="Queda en negativo"></i>{% endif %}
               </td>
               {% if object.tipo == 'entrada' %}
-              <td>${{ detalle.costo_antes|floatformat:2 }}</td>
-              <td {% if detalle.costo_nuevo > detalle.costo_antes %}class="text-danger font-weight-bold"{% elif detalle.costo_nuevo < detalle.costo_antes %}class="text-success font-weight-bold"{% endif %}>
-                ${{ detalle.costo_nuevo|floatformat:2 }}
+              <td>
+                ${{ detalle.costo_antes|floatformat:2 }} →
+                <b{% if detalle.costo_nuevo > detalle.costo_antes %} class="text-danger"{% elif detalle.costo_nuevo < detalle.costo_antes %} class="text-success"{% endif %}>${{ detalle.costo_nuevo|floatformat:2 }}</b>
               </td>
-              <td>${{ detalle.pvp_antes|floatformat:2 }}</td>
-              <td {% if detalle.pvp_nuevo > detalle.pvp_antes %}class="text-danger font-weight-bold"{% elif detalle.pvp_nuevo < detalle.pvp_antes %}class="text-success font-weight-bold"{% endif %}>
-                ${{ detalle.pvp_nuevo|floatformat:2 }}
+              <td>
+                ${{ detalle.pvp_antes|floatformat:2 }} →
+                <b{% if detalle.pvp_nuevo > detalle.pvp_antes %} class="text-danger"{% elif detalle.pvp_nuevo < detalle.pvp_antes %} class="text-success"{% endif %}>${{ detalle.pvp_nuevo|floatformat:2 }}</b>
               </td>
               {% endif %}
             </tr>
@@ -239,6 +236,11 @@
           </tbody>
         </table>
       </div>
+      <small class="text-muted d-block mb-2">
+        {% if object.tipo == 'entrada' %}Costo nuevo = precio de línea{% if object.ajuste_costo_pct %} × (1+{{ object.ajuste_costo_pct }}% ajuste){% endif %}.
+        PVP nuevo = (costo −dto proveedor +flete) × (1+margen) + IVA del producto.
+        {% else %}La salida solo descuenta stock; el costo y el precio de venta no cambian.{% endif %}
+      </small>
       {% endif %}
     </div>
   </div>

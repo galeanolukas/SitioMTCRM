@@ -26,6 +26,24 @@ def _prod_iva_rate_frac(producto):
     return float(rate / 100) if rate > 1 else float(rate)
 
 
+def _prod_impacto_data(p):
+    """Datos del producto para proyectar stock/costo/PVP en el formulario."""
+    if not p:
+        return None
+    return {
+        'id': p.id,
+        'stock': float(p.stock or 0),
+        'cost_price': float(p.cost_price or 0),
+        'margin_percentage': float(p.margin_percentage or 0),
+        'freight_percentage': float(p.freight_percentage or 0),
+        'supplier_discount': float(p.supplier_discount or 0),
+        'supplier_default_discount': float(p.supplier.default_discount_percentage or 0)
+        if (p.supplier_id and p.supplier.default_discount_percentage) else 0.0,
+        'iva_rate': float(p.iva_rate or 0),
+        'pvp_final': float(p.pvp_final or 0),
+    }
+
+
 def _line_iva_rate(remito, prod):
     """Alicuota de IVA de una linea como fraccion (0.21, 0.105...).
     Usa la tasa propia del producto; si no hay producto o la tasa es
@@ -315,8 +333,9 @@ class RemitoUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateView):
                 'cantidad': float(d.cantidad),
                 'precio_unitario': float(d.precio_unitario),
                 'iva_rate': _prod_iva_rate_frac(d.prod),
+                'prod_data': _prod_impacto_data(d.prod),
             }
-            for d in self.object.detalleremito_set.select_related('prod')
+            for d in self.object.detalleremito_set.select_related('prod', 'prod__supplier')
         ]
         context['read_only_items'] = self.object.estado != 'pending'
         return context

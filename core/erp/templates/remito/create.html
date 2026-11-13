@@ -181,6 +181,26 @@
             </tr>
           </tfoot>
         </table>
+
+        <div id="impactoBox" class="mt-3" style="display:none;">
+          <h6 class="mb-1"><i class="fas fa-eye"></i> Qué pasará al procesar</h6>
+          <div class="table-responsive">
+            <table class="table table-bordered table-sm mb-1">
+              <thead>
+                <tr>
+                  <th>Producto</th>
+                  <th>Stock → queda</th>
+                  <th id="thImpCosto">Costo neto → nuevo</th>
+                  <th id="thImpPvp">PVP final → nuevo</th>
+                </tr>
+              </thead>
+              <tbody id="impactoTable"></tbody>
+            </table>
+          </div>
+          <small class="text-muted">
+            Costo nuevo = precio de línea (×ajuste de costo). PVP nuevo = (costo −dto proveedor +flete) × (1+margen) + IVA del producto.
+          </small>
+        </div>
       </div>
       <div class="card-footer">
         <button type="submit" class="btn btn-primary btn-flat"><i class="fas fa-save"></i> Guardar registro</button>
@@ -377,7 +397,8 @@
                 text: prod.name + ' - $' + prod.pvp_final,
                 price: prod.pvp_final,
                 cost_price: prod.cost_price,
-                iva_rate: prod.iva_rate
+                iva_rate: prod.iva_rate,
+                prod: prod
               };
             })
           };
@@ -390,16 +411,24 @@
     // Auto-completar precio al seleccionar producto
     $('#productSelect').on('select2:select', function(e) {
       const data = e.params.data;
+      window._lastProdData = data.prod || null;
       const tipo = $('#id_tipo').val();
-      if (tipo === 'entrada' && data.cost_price) {
-        // Para entrada, usar precio de costo
-        document.getElementById('precioUnitario').value = data.cost_price;
-      } else if (data.price) {
-        document.getElementById('precioUnitario').value = data.price;
-      }
       // IVA% de la fila: el del producto si tiene (>0), si no el del remito
       let rate = parseFloat(data.iva_rate);
       if (!isNaN(rate) && rate > 1) rate = rate / 100;
+      const lineRate = (!isNaN(rate) && rate > 0) ? rate : getIvaRate();
+      if (tipo === 'entrada' && data.cost_price) {
+        // Autocompletar segun el modo de precio: el campo espera neto en
+        // modo "agregado+neto" y precio con IVA en "lista"/"incluido"
+        const costo = parseFloat(data.cost_price);
+        const sugiereConIva = (getIvaModo() !== 'agregado') ||
+          (getIvaModo() === 'agregado' && getPrecioEs() === 'lista');
+        document.getElementById('precioUnitario').value = sugiereConIva
+          ? (costo * (1 + lineRate)).toFixed(2)
+          : data.cost_price;
+      } else if (data.price) {
+        document.getElementById('precioUnitario').value = data.price;
+      }
       const ivaLineaEl = document.getElementById('ivaPctLinea');
       if (ivaLineaEl) {
         const pct = (!isNaN(rate) && rate > 0) ? rate * 100 : getIvaRate() * 100;
@@ -480,7 +509,9 @@
       precio_unitario: precioUnitario,
       bonif: bonifPct,
       subtotal: subtotal,
-      iva_rate: prodIvaRate
+      iva_rate: prodIvaRate,
+      prod_data: (window._lastProdData && String(window._lastProdData.id) === String(productId))
+        ? window._lastProdData : null
     };
 
     detalles.push(detalle);
@@ -545,7 +576,59 @@
       document.getElementById('totalNeto').textContent = '$' + totalNeto.toFixed(2);
       document.getElementById('totalIva').textContent = '$' + totalIva.toFixed(2);
     }
+    renderImpacto();
   }
+
+  // Proyeccion en vivo: asi quedan stock/costo/PVP al procesar
+  // (misma formula que procesar_remito en el servidor)
+  function renderImpacto() {
+    const box = document.getElementById('impactoBox');
+    if (!box) return;
+    const tbody = document.getElementById('impactoTable');
+    tbody.innerHTML = '';
+    const esEntrada = document.getElementById('id_tipo').value === 'entrada';
+    document.getElementById('thImpCosto').style.display = esEntrada ? '' : 'none';
+    document.getElementById('thImpPvp').style.display = esEntrada ? '' : 'none';
+    const ivaModo = getIvaModo();
+    const ajusteEl = document.getElementById('id_ajuste_costo_pct');
+    const ajuste = 1 + ((ajusteEl ? parseFloat(ajusteEl.value) : 0) || 0) / 100;
+    const rows = detalles.filter(d => d.prod_data);
+    rows.forEach(d => {
+      const p = d.prod_data;
+      const stockAntes = parseFloat(p.stock) || 0;
+      const stockDesp = esEntrada ? stockAntes + d.cantidad : stockAntes - d.cantidad;
+      let cells = `<td>${d.prod_name}</td>
+        <td>${stockAntes} → <b${stockDesp < 0 ? ' class="text-danger"' : ''}>${stockDesp}</b>${stockDesp < 0 ? ' <i class="fas fa-exclamation-triangle text-danger"></i>' : ''}</td>`;
+      if (esEntrada) {
+        const lineRate = (d.iva_rate != null && d.iva_rate > 0) ? d.iva_rate : getIvaRate();
+        const ivaDivisor = (ivaModo !== 'agregado' && getIvaRate() > 0) ? (1 + lineRate) : 1;
+        const costoNuevo = d.precio_unitario / ivaDivisor * ajuste;
+        const disc = ((parseFloat(p.supplier_discount) > 0 ? parseFloat(p.supplier_discount)
+          : parseFloat(p.supplier_default_discount)) || 0) / 100;
+        const freight = (parseFloat(p.freight_percentage) || 0) / 100;
+        const margin = (parseFloat(p.margin_percentage) || 0) / 100;
+        let prodRate = parseFloat(p.iva_rate) || 0;
+        if (prodRate > 1) prodRate = prodRate / 100;
+        if (!prodRate) prodRate = 0.21;
+        const costEff = costoNuevo * (1 - disc) * (1 + freight);
+        const pvpNuevo = Math.ceil(costEff * (1 + margin));
+        const pvpfNuevo = pvpNuevo * (1 + prodRate);
+        const costoAntes = parseFloat(p.cost_price) || 0;
+        const pvpAntes = parseFloat(p.pvp_final) || 0;
+        const clsCosto = costoNuevo > costoAntes ? ' class="text-danger"' : (costoNuevo < costoAntes ? ' class="text-success"' : '');
+        const clsPvp = pvpfNuevo > pvpAntes ? ' class="text-danger"' : (pvpfNuevo < pvpAntes ? ' class="text-success"' : '');
+        cells += `<td>$${costoAntes.toFixed(2)} → <b${clsCosto}>$${costoNuevo.toFixed(2)}</b></td>
+          <td>$${pvpAntes.toFixed(2)} → <b${clsPvp}>$${pvpfNuevo.toFixed(2)}</b></td>`;
+      }
+      tbody.innerHTML += `<tr>${cells}</tr>`;
+    });
+    box.style.display = rows.length ? '' : 'none';
+  }
+
+  ['id_tipo', 'id_ajuste_costo_pct'].forEach(function (id) {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', renderImpacto);
+  });
 
   function eliminarDetalle(tempId) {
     detalles = detalles.filter(d => d.temp_id !== tempId);
@@ -709,6 +792,18 @@
         const option = new Option(data.name + ' - $' + data.pvp_final, data.id, true, true);
         $(option).data('iva_rate', data.iva_rate);
         $('#productSelect').append(option).trigger('change');
+        // Snapshot para la tabla "Que pasara al procesar"
+        window._lastProdData = {
+          id: data.id,
+          stock: 0,
+          cost_price: parseFloat(data.cost_price) || precios.costo,
+          margin_percentage: parseFloat(margen) || 0,
+          freight_percentage: 0,
+          supplier_discount: 0,
+          supplier_default_discount: 0,
+          iva_rate: parseFloat(data.iva_rate) || 0,
+          pvp_final: parseFloat(data.pvp_final) || precios.pvpFinal
+        };
         // Precargar la fila del remito segun el modo de precio activo
         const costoNeto = parseFloat(data.cost_price) || precios.costo;
         const ivaPctNuevo = parseFloat(data.iva_rate);
