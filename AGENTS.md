@@ -231,6 +231,22 @@ Commit `93401607`:
   normal y combinado) muestran `resp.error` y NO limpian el carrito si
   el server devolvió error JSON — patrón de fallo silencioso corregido.
 
+## Venta manual registrada #6766 (DJP, 14/11)
+
+La venta combinada que Pablo no pudo cargar por el bug se registró a
+mano vía shell en producción (mismo flujo que `create_sale`):
+
+- Items: #912 guitarra Stagg (467702,51), #5002 ampli NUX con lista 6%
+  (649309,81), #827 funda con lista 10% (44116,48), #783 correa (6026,90),
+  #1605 cable (24576,31), #1509 limpiador (42358,47) — cantidad 1 c/u.
+- Neto 1.019.909,49 + IVA 21% 214.180,99 = 1.234.090,48 + redondeo
+  +10.909,52 → **total $1.245.000**.
+- `payment_method='combined'`, `payment_details`: transferencia $750.000
+  + tarjeta $495.000 (Naranja X 6 cuotas, plan 56, `card_plan`/`card_installments` seteados).
+- Stock descontado en los 6 productos vía `adjust_stock` (auditado,
+  user=djp), `SaleVatBreakdown` 21% y `LibroIvaRegistro` creados (1 reg).
+- Cliente CF anónimo, ticket (no factura AFIP).
+
 ## Informes generados
 
 - `videos_tutoriales/informe_desfasaje_stock_2_acroactivo.pdf` (informe Nro 5,
