@@ -159,6 +159,50 @@ Hecho directo en producción vía `manage.py shell` (simulando el modal nuevo):
 - Duplicados sin resolver: línea "SOY ALAS" sigue en prod 90351 (si
   entró AVEGUAY físico corresponde 90328); pata muslo todo en SOY 90348.
 
+## REVISAR MAÑANA — Yasmin (usuario AcroActivo) editó precios a mano
+
+Después de mi ajuste ×1,10, ella editó los productos por
+`/erp/product/update/` (ActivityLog 23:30–23:53 UTC del 13/11) y puso
+precios **redondos**:
+
+| Prod | ×1,10 que dejé | PVP final actual (manual) |
+|---|---|---|
+| 90216 milanesa | 49313 | **50000** |
+| 90289 medallón | 52668 | **52000** |
+| 90351 soy alas | 41250 | **42000** |
+| 90297 carne mec. | 30250 | **31000** |
+| 90338 carcasa | 19305 | **22000** |
+| 90236 bifecito | 131813 | **132000** |
+| 90348 pata muslo | 42504 | **43000** |
+| 90227? patitas | 52107 | **52000** |
+| 90367 suprema | 126500 | 126500 (sin cambio) |
+
+- **Inconsistencia:** los `margin_percentage` quedaron con MIS valores
+  implícitos (38,65 / 35,13 / 26,61 / 27,95%) → ya no matchean el PVP.
+  Si se procesa un remito o recalcula por margen, el precio vuelve al
+  valor ×1,10, no al redondo. Decidir: ¿corregir margen para que
+  coincida con el PVP redondo, o restaurar precios ×1,10?
+- También creó productos: `CAJA PATA MUSLO SSEBA X15KG` (23:25),
+  `CAJA SSEBA PATA MUSLO X15KG` (23:42), `CAJA OPT SUPREMA X20KG`
+  (23:43) y **borró el producto 90368**. Verificar si resolvió
+  duplicados por su cuenta y qué producto usa el remito/POS ahora.
+- Remito 147 sigue `pending` (updated 19:53 UTC).
+
+## Fix 14/11 — productos Acro con IVA que el POS sumaba encima
+
+Yasmin carga **precio final** (costo + PVP final, no usa IVA). Tenía 6
+productos con `iva_rate=0.21` → el POS cobraba `pvp × 1.21` (ej. pata
+muslo tipeado a 43000 → cobraba 52030). Se corrigió en producción:
+`iva_rate=0`, `pvp=pvp_final`=precio que ella quiso cobrar, margen
+recomputado (90367 suprema quedó 126500, margen 26,61%).
+Después del fix, `emp10` tiene `pvp == pvp_final` en todos los
+productos (verificado: 0 diferencias).
+
+**Regla para ella:** en el form de producto dejar **IVA 0%** — si pone
+21% el POS le suma IVA al precio que tipea. Las otras empresas (4/7)
+trabajan al revés (pvp neto + IVA) y NO se tocaron: tienen 1200+
+productos con `pvp_final = pvp×1.21` a propósito.
+
 ## Hallazgo conocido sin corregir
 
 - `core/erp/views/transfer/views.py`: al recibir transferencia suma stock al
