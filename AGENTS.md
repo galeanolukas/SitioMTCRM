@@ -214,6 +214,23 @@ productos con `pvp_final = pvp×1.21` a propósito.
   equivocado. Sugerir unificar productos duplicados SOY/AVEGUAY o revisar
   qué registro se usa al cobrar.
 
+## Fix 14/11 — venta combinada con plan de cuotas no se registraba (Pablo, DJP)
+
+Síntoma: POS avisaba "se aplicó el recargo" pero la venta no aparecía y
+no mostraba error. Causa (uwsgi.log): `UnboundLocalError` —
+`CardInstallmentPlan` se importaba solo dentro del bloque
+`payment_method=='card'`; con `combined` + `card_plan_id` en
+`combined_payments` el nombre quedaba sin ligar → `{'error'}` con
+status 200 → el `.done` de jQuery lo tragaba en silencio y limpiaba el
+carrito.
+
+Commit `93401607`:
+- views/sale: imports locales redundantes eliminados; action `invoice`
+  ahora también persiste `combined_payments` (antes perdía el detalle).
+- pos.js (`?v=20261114`): `.done` de `create_sale`/`invoice` (flujo
+  normal y combinado) muestran `resp.error` y NO limpian el carrito si
+  el server devolvió error JSON — patrón de fallo silencioso corregido.
+
 ## Informes generados
 
 - `videos_tutoriales/informe_desfasaje_stock_2_acroactivo.pdf` (informe Nro 5,
