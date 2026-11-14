@@ -1456,6 +1456,10 @@
     }
     ajaxAction('create_sale', { action: 'create_sale', sale: JSON.stringify(payload), sale_token: saleToken })
       .done(resp => {
+        if (resp && resp.error) {
+          showToast('error', 'Error al registrar: ' + resp.error);
+          return;
+        }
         if (resp && resp.id) {
           lastSaleId = resp.id;
           lastSaleIsBudget = false;
@@ -1471,8 +1475,8 @@
               window.location.reload();
             }, { once: true });
           }
+          $('#btnClear').trigger('click');
         }
-        $('#btnClear').trigger('click');
       })
       .fail(jq => {
         showToast('error', 'Error al registrar: ' + (jq.responseJSON ? jq.responseJSON.error : jq.statusText));
@@ -1546,6 +1550,10 @@
     }
     ajaxAction('invoice', { action: 'invoice', sale: JSON.stringify(payload), sale_token: saleToken })
       .done(resp => {
+        if (resp && resp.error) {
+          showToast('error', 'Error al facturar: ' + resp.error);
+          return;
+        }
         if (resp && resp.id) {
           lastSaleId = resp.id;
           lastSaleIsBudget = false;
@@ -2314,6 +2322,11 @@
       // Generar factura
       ajaxAction('invoice', { action: 'invoice', sale: JSON.stringify(payload), sale_token: saleToken })
         .done(resp => {
+          if (resp && resp.error) {
+            showToast('error', 'Error al facturar: ' + resp.error);
+            $(this).prop('disabled', false);
+            return;
+          }
           flashSummary();
           if (resp.invoice_url) {
             window.open(resp.invoice_url, '_blank');
@@ -2333,6 +2346,11 @@
       // Registrar venta normal
       ajaxAction('create_sale', { action: 'create_sale', sale: JSON.stringify(payload), sale_token: saleToken })
         .done(resp => {
+          if (resp && resp.error) {
+            showToast('error', 'Error al registrar: ' + resp.error);
+            $(this).prop('disabled', false);
+            return;
+          }
           if (resp && resp.id) {
             lastSaleId = resp.id;
             lastSaleIsBudget = false;
@@ -2347,8 +2365,8 @@
                 window.location.reload();
               }, { once: true });
             }
+            $('#btnClear').trigger('click');
           }
-          $('#btnClear').trigger('click');
         })
         .fail(jq => {
           showToast('error', 'Error al registrar: ' + (jq.responseJSON ? jq.responseJSON.error : jq.statusText));

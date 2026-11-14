@@ -729,7 +729,6 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         sale.card_brand = payload.get('card_brand')
                         sale.card_auth_code = payload.get('card_auth_code')
                         if payload.get('card_plan_id'):
-                            from core.erp.models import CardInstallmentPlan
                             try:
                                 card_plan = CardInstallmentPlan.objects.get(id=payload.get('card_plan_id'))
                                 sale.card_plan = card_plan
@@ -903,14 +902,25 @@ class POSView(LoginRequiredMixin, ValidatePermissionRequiredMixin, TemplateView)
                         sale.card_brand = payload.get('card_brand')
                         sale.card_auth_code = payload.get('card_auth_code')
                         if payload.get('card_plan_id'):
-                            from core.erp.models import CardInstallmentPlan
                             try:
                                 card_plan = CardInstallmentPlan.objects.get(id=payload.get('card_plan_id'))
                                 sale.card_plan = card_plan
                                 sale.card_installments = card_plan.installments
                             except CardInstallmentPlan.DoesNotExist:
                                 pass
-                    
+
+                    if 'combined_payments' in payload and payload['combined_payments']:
+                        sale.payment_details = payload['combined_payments']
+                        # Plan de cuotas aplicado a la porcion tarjeta
+                        for pay in payload['combined_payments']:
+                            if isinstance(pay, dict) and pay.get('card_plan_id'):
+                                try:
+                                    sale.card_plan = CardInstallmentPlan.objects.get(id=pay['card_plan_id'])
+                                    sale.card_installments = pay.get('installments') or sale.card_plan.installments
+                                except CardInstallmentPlan.DoesNotExist:
+                                    pass
+                                break
+
                     # Determinar tipo de comprobante según condición IVA del cliente
                     if payload.get('invoice_type'):
                         sale.invoice_type = payload.get('invoice_type')
