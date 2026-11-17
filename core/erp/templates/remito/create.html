@@ -150,6 +150,16 @@
             <span id="netoPreview" class="ms-2 small fw-bold text-success"></span>
           </div>
         </div>
+        <div class="row mb-3">
+          <div class="col-md-12 d-flex align-items-center flex-wrap" style="gap:8px">
+            <button type="button" class="btn btn-info btn-flat" onclick="document.getElementById('archivoFactura').click()">
+              <i class="fas fa-file-invoice"></i> Escanear factura/remito
+            </button>
+            <input type="file" id="archivoFactura" accept=".pdf,image/*" style="display:none" onchange="escanearFactura(this)">
+            <small class="text-muted" id="escanearEstado">Precarga con IA: subí el PDF o la foto del comprobante.</small>
+          </div>
+        </div>
+        <div class="alert alert-warning small py-2 mb-3" id="itemsNoEncontrados" style="display:none"></div>
         {% endif %}
 
         <table class="table table-bordered">
@@ -666,6 +676,155 @@
   function eliminarDetalle(tempId) {
     detalles = detalles.filter(d => d.temp_id !== tempId);
     renderDetalles();
+  }
+
+  // Precarga automática con IA: sube el PDF/foto del comprobante, el servidor
+  // lee los datos con un modelo de visión y completa proveedor, número, fecha,
+  // IVA% y los ítems encontrados en el catálogo. Nada se guarda sin revisar.
+  function escanearFactura(input) {
+    const archivo = input.files[0];
+    if (!archivo) return;
+    const estado = document.getElementById('escanearEstado');
+    estado.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Leyendo comprobante con IA... (puede tardar unos segundos)';
+    const fd = new FormData();
+    fd.append('archivo', archivo);
+    fetch("{% url 'erp:remito_escanear' %}", {
+      method: 'POST',
+      headers: { 'X-CSRFToken': getCookie('csrftoken') },
+      body: fd
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) {
+        estado.innerHTML = '<span class="text-danger"><i class="fas fa-exclamation-triangle"></i> ' + data.error + '</span>';
+        return;
+      }
+      const msg = [];
+      const esSalidaScan = (document.getElementById('id_tipo') || {}).value === 'salida';
+      const nombreEmisor = (data.proveedor ? data.proveedor.name : '') || data.proveedor_texto || '';
+      if (!esSalidaScan && data.proveedor) {
+        const supSel = $('#id_supplier');
+        if (!supSel.find('option[value="' + data.proveedor.id + '"]').length) {
+          supSel.append(new Option(data.proveedor.name, data.proveedor.id));
+        }
+        supSel.val(data.proveedor.id).trigger('change');
+        msg.push('Proveedor: ' + data.proveedor.name);
+      } else if (!esSalidaScan && nombreEmisor) {
+        msg.push('Proveedor "' + nombreEmisor + '" no está en el sistema — elegirlo manual');
+      }
+      const tipoEl = document.getElementById('id_tipo');
+      if (tipoEl && tipoEl.value !== 'salida') tipoEl.value = 'entrada';
+      if (data.numero) document.getElementById('id_numero').value = data.numero;
+      if (data.fecha) document.getElementById('id_fecha').value = data.fecha;
+      if (data.iva_porcentaje && document.getElementById('id_iva_porcentaje')) {
+        document.getElementById('id_iva_porcentaje').value = data.iva_porcentaje;
+      }
+      let ok = 0;
+      let listaCalc = 0;
+      let listaSinIva = 0;
+      const nuevos = [];
+      const ivaDoc = (parseFloat(data.iva_porcentaje) || 0) / 100;
+      escaneoIvaDoc = ivaDoc;
+      (data.items || []).forEach(it => {
+        if (it.estado === 'ok' && it.producto_id) {
+          const cant = parseFloat(it.cantidad) || 1;
+          const precio = parseFloat(it.costo) || 0;
+          let iva = parseFloat(it.iva_rate) || 0;
+          if (iva > 1) iva = iva / 100;
+          // Si el comprobante solo traía precio de lista (con IVA), calcular el
+          // neto igual que el modo "Precio de LISTA" de la fila de carga.
+          let precioLinea = precio;
+          if (it.es_lista) {
+            const r = iva > 0 ? iva : ivaDoc;
+            if (r > 0) { precioLinea = precio / (1 + r); listaCalc++; }
+            else listaSinIva++;
+          }
+          precioLinea = Math.round(precioLinea * 100) / 100;
+          detalles.push({
+            temp_id: Date.now() + Math.random(),
+            prod_id: it.producto_id,
+            prod_name: it.nombre,
+            cantidad: cant,
+            precio_unitario: precioLinea,
+            bonif: 0,
+            subtotal: cant * precioLinea,
+            iva_rate: iva,
+            prod_data: it.prod_data || null
+          });
+          ok++;
+        } else {
+          nuevos.push(it);
+        }
+      });
+      renderDetalles();
+      const divN = document.getElementById('itemsNoEncontrados');
+      escaneoPendientes = nuevos;
+      if (nuevos.length) {
+        divN.style.display = 'block';
+        divN.innerHTML = '<b>' + nuevos.length + ' ítem(s) sin match exacto</b> — elegí un candidato similar, cargalos manual o crealos con "Nuevo Producto":' +
+          '<ul class="mb-0 mt-1" style="list-style:none;padding-left:0">' + nuevos.map((i, idx) => {
+            const sel = (i.candidatos && i.candidatos.length)
+              ? ' <select class="form-select form-select-sm d-inline-block w-auto" onchange="elegirCandidato(' + idx + ', this)">' +
+                '<option value="">— Elegir similar —</option>' +
+                i.candidatos.map((c, cidx) =>
+                  '<option value="' + cidx + '">' + c.name + ' ($' + c.costo + ')</option>'
+                ).join('') + '</select>'
+              : '';
+            return '<li id="escPend-' + idx + '">' + (i.codigo || '?') +
+              (i.cod_barras ? ' / ' + i.cod_barras : '') + ' — ' + i.descripcion +
+              ' × ' + i.cantidad + ' ($' + i.costo + ')' + sel + '</li>';
+          }).join('') + '</ul>';
+      } else {
+        divN.style.display = 'none';
+      }
+      msg.push(ok + ' ítems cargados' + (nuevos.length ? ', ' + nuevos.length + ' sin match' : ''));
+      if (listaCalc) msg.push(listaCalc + ' ítem(s) venían en precio de LISTA — se calculó el neto (revisar)');
+      if (listaSinIva) msg.push(listaSinIva + ' ítem(s) con precio de LISTA sin IVA conocido — quedó el precio tal cual, REVISAR');
+      if (data.total_comprobante) msg.push('Total comprobante: $' + data.total_comprobante);
+      estado.innerHTML = '<i class="fas fa-check text-success"></i> ' + msg.join(' · ');
+    })
+    .catch(err => {
+      estado.innerHTML = '<span class="text-danger"><i class="fas fa-exclamation-triangle"></i> Error: ' + err + '</span>';
+    })
+    .finally(() => { input.value = ''; });
+  }
+
+  // Ítems del escaneo sin match exacto: el usuario elige el candidato similar
+  // y la línea entra a la tabla con cantidad/precio de la factura.
+  let escaneoPendientes = [];
+  let escaneoIvaDoc = 0;
+  function elegirCandidato(idx, sel) {
+    const it = escaneoPendientes[idx];
+    const c = it && it.candidatos ? it.candidatos[parseInt(sel.value)] : null;
+    if (!it || !c) return;
+    const cant = parseFloat(it.cantidad) || 1;
+    const precio = parseFloat(it.costo) || 0;
+    let iva = parseFloat(c.iva_rate) || 0;
+    if (iva > 1) iva = iva / 100;
+    let precioLinea = precio;
+    if (it.es_lista) {
+      const r = iva > 0 ? iva : escaneoIvaDoc;
+      if (r > 0) precioLinea = precio / (1 + r);
+    }
+    precioLinea = Math.round(precioLinea * 100) / 100;
+    detalles.push({
+      temp_id: Date.now() + Math.random(),
+      prod_id: c.id,
+      prod_name: c.name,
+      cantidad: cant,
+      precio_unitario: precioLinea,
+      bonif: 0,
+      subtotal: cant * precioLinea,
+      iva_rate: iva,
+      prod_data: c.prod_data || null
+    });
+    renderDetalles();
+    const li = document.getElementById('escPend-' + idx);
+    if (li) {
+      li.style.opacity = '0.45';
+      li.querySelector('select').disabled = true;
+      li.insertAdjacentHTML('beforeend', ' <i class="fas fa-check text-success"></i>');
+    }
   }
 
   var _editProdId = null;   // null = crear, id = editar

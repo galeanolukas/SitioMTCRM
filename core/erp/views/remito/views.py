@@ -823,3 +823,166 @@ def facturar_remito(request, pk):
         'condicion_iva_choices': CONDICION_IVA_CHOICES,
     }
     return render(request, 'remito/facturar.html', context)
+
+
+@login_required
+def escanear_remito(request):
+    """Recibe un PDF/imagen de factura o remito del proveedor, lo lee con IA
+    (core.erp.services.factura_vision) y devuelve el borrador precargado:
+    proveedor, número, fecha, descuento y los ítems cruzados con el catálogo.
+    Solo precarga la pantalla — no guarda nada."""
+    if not request.user.has_perm('erp.manage_remitos'):
+        return JsonResponse({'error': 'No tiene permisos'}, status=403)
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+
+    import os
+    import re
+    import tempfile
+    from django.db.models import Q
+    from core.erp.services import factura_vision
+
+    archivo = request.FILES.get('archivo')
+    if not archivo:
+        return JsonResponse({'error': 'No se recibió el archivo.'}, status=400)
+
+    sufijo = os.path.splitext(archivo.name)[1].lower() or '.pdf'
+    with tempfile.NamedTemporaryFile(suffix=sufijo, delete=False) as tmp:
+        for trozo in archivo.chunks():
+            tmp.write(trozo)
+        ruta = tmp.name
+
+    try:
+        datos = factura_vision.leer_factura(ruta)
+    except Exception as e:
+        logger.error("remito_escanear_error", extra={'user': request.user.username, 'error': str(e)})
+        return JsonResponse({'error': 'No pude leer el comprobante: %s' % e}, status=422)
+    finally:
+        os.unlink(ruta)
+
+    active_cid = get_active_company_id(request)
+    suppliers_qs = Supplier.objects.filter(is_active=True)
+    products_qs = Product.objects.all()
+    if active_cid:
+        suppliers_qs = suppliers_qs.filter(company_id=active_cid)
+        products_qs = products_qs.filter(company_id=active_cid)
+
+    # Proveedor: por CUIT primero (exacto), si no por nombre en las dos direcciones
+    proveedor = None
+    cuit_prov = datos.get('cuit_proveedor') or ''
+    if cuit_prov:
+        proveedor = suppliers_qs.filter(
+            cuit__iregex=r'\D*'.join(map(re.escape, cuit_prov))).first()
+    if not proveedor:
+        nombre_prov = (datos.get('proveedor') or '').strip()
+        if nombre_prov:
+            # Comparación tolerante: sin puntuación ("HNOS. S.A." == "HNOS S.A.")
+            norm = lambda s: re.sub(r'\s+', ' ', re.sub(r'[^\w\s]', '', (s or '').lower())).strip()
+            prov_norm = norm(nombre_prov)
+            for p in suppliers_qs:
+                pn = norm(p.name)
+                if pn and (pn in prov_norm or prov_norm in pn):
+                    proveedor = p
+                    break
+
+    # Ítems: matchear por codigo_proveedor (del proveedor, luego único global),
+    # código de barras (code) o SKU (external_code)
+    items = []
+    for it in datos.get('items') or []:
+        codigo = it['codigo']
+        barras = it['cod_barras']
+        prod = None
+        if codigo:
+            if proveedor:
+                prod = products_qs.filter(
+                    codigo_proveedor__iexact=codigo, supplier=proveedor).first()
+            if prod is None:
+                q = products_qs.filter(codigo_proveedor__iexact=codigo)
+                if q.count() == 1:
+                    prod = q.first()
+        if prod is None and barras:
+            prod = products_qs.filter(code=barras).first()
+        if prod is None and codigo:
+            prod = products_qs.filter(external_code__iexact=codigo).first()
+
+        items.append({
+            'codigo': codigo,
+            'cod_barras': barras,
+            'descripcion': it['descripcion'],
+            'cantidad': str(it['cantidad']),
+            'costo': str(it['precio_unitario']),
+            'costo_lista': str(it['precio_lista']) if it.get('precio_lista') is not None else None,
+            'es_lista': bool(it.get('es_lista')),
+            'estado': 'ok' if prod else 'nuevo',
+            'producto_id': prod.id if prod else None,
+            'nombre': prod.name if prod else it['descripcion'],
+            'costo_actual': str(prod.cost_price) if prod else None,
+            'stock_actual': str(prod.stock) if prod else None,
+            'iva_rate': str(prod.iva_rate or 0) if prod else '0',
+            'prod_data': prod.toJSON() if prod else None,
+        })
+
+    # Para los ítems sin match exacto: sugerir candidatos por similitud de
+    # nombre (palabras de la descripción presentes en el nombre del producto),
+    # así el usuario puede elegir el correcto a mano.
+    import difflib
+    for it in items:
+        it['candidatos'] = []
+        if it['estado'] == 'ok':
+            continue
+        desc = (it['descripcion'] or '').upper()
+        words = [w for w in re.findall(r'\w{3,}', desc)][:6]
+        if not words:
+            continue
+        # AND progresivo: todas las palabras juntas; si no hay resultados,
+        # probar descartando una palabra a la vez (tolera un typo o una
+        # palabra extra/menos en la descripción). Reorden no molesta.
+        pool = []
+        subsets = [words] + [[w for j, w in enumerate(words) if j != i]
+                           for i in range(len(words))]
+        for subset in subsets:
+            if len(subset) < 2:
+                continue
+            qs_w = products_qs
+            for w in subset:
+                qs_w = qs_w.filter(name__icontains=w)
+            pool = list(qs_w[:40])
+            if pool:
+                break
+        if not pool:
+            # Último recurso: OR acotado, se filtra por cantidad de palabras
+            q = Q()
+            for w in words:
+                q |= Q(name__icontains=w)
+            pool = list(products_qs.filter(q).order_by('name')[:500])
+
+        def _score(p, _desc=desc, _words=words):
+            nom = p.name.upper()
+            hits = sum(1 for w in _words if w in nom)
+            return (hits, difflib.SequenceMatcher(None, nom, _desc).ratio())
+
+        pool.sort(key=_score, reverse=True)
+        it['candidatos'] = [
+            {'id': p.id, 'name': p.name, 'costo': str(p.cost_price or 0),
+             'stock': str(p.stock or 0), 'iva_rate': str(p.iva_rate or 0),
+             'prod_data': p.toJSON()}
+            for p in pool if _score(p)[0] >= 2
+        ][:5]
+
+    # Fecha DD/MM/AAAA -> AAAA-MM-DD para el input date
+    fecha_iso = ''
+    m = re.match(r'(\d{1,2})/(\d{1,2})/(\d{4})', datos.get('fecha') or '')
+    if m:
+        fecha_iso = '%s-%02d-%02d' % (m.group(3), int(m.group(2)), int(m.group(1)))
+
+    return JsonResponse({
+        'proveedor': {'id': proveedor.id, 'name': proveedor.name} if proveedor else None,
+        'proveedor_texto': datos.get('proveedor') or '',
+        'numero': datos.get('numero') or '',
+        'fecha': fecha_iso,
+        'tipo': datos.get('tipo'),
+        'iva_porcentaje': str(datos.get('iva_porcentaje') or ''),
+        'descuento_pct': str(datos.get('descuento') or 0),
+        'total_comprobante': str(datos.get('total') or ''),
+        'items': items,
+    })
