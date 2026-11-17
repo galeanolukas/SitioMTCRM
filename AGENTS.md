@@ -251,3 +251,33 @@ mano vía shell en producción (mismo flujo que `create_sale`):
 
 - `videos_tutoriales/informe_desfasaje_stock_2_acroactivo.pdf` (informe Nro 5,
   diagnóstico + guía del ranking). Script: `scripts/generar_informe_desfasaje_v2.py`.
+
+## Carga de factura/remito con IA (commit 999172d4, deployado 17/11)
+
+Portado del repo de referencia ERPOutlet + adaptado a nuestro flujo:
+
+- `core/erp/services/factura_vision.py`: PDF→PNG (pymupdf) → OpenRouter
+  (modelo `nvidia/nemotron-3.5-super-vl:free`, gratis; configurable con
+  `FACTURA_VISION_MODELO`) → JSON con proveedor/CUIT/fecha/nro/tipo/IVA
+  y por ítem: codigo, cod_barras, descripcion, cantidad, **precio_neto**
+  y **precio_lista** por separado, bonif_pct por renglón.
+  - OJO: el prompt original pedía "precio de lista SIN IVA" (ambiguo) y
+    devolvía los precios CON IVA. Se corrigió para pedir ambas columnas
+    por separado — verificado con la factura real A00114-00004081:
+    netos exactos (milanesa 35567.60, no 44830).
+- `escanear_remito` (`/erp/remito/escanear/`): POST con el archivo →
+  matchea proveedor por CUIT→nombre, ítems por codigo_proveedor/barras/
+  SKU, y por similitud de nombre devuelve hasta 5 `candidatos` por ítem
+  sin match. Devuelve `prod_data` (toJSON completo) para que funcionen
+  el lápiz de edición y la tabla "Qué pasará al procesar".
+- Template: botón "Escanear factura/remito" + alerta "ítems sin match"
+  con select de candidatos. Las líneas entran DIRECTO a la tabla (no
+  abre el modal por línea — el operador revisa con el lápiz). Ítems con
+  solo precio de lista: el JS calcula el neto con el IVA del producto o
+  del comprobante y lo avisa en el estado.
+- **API key en `/etc/uwsgi/vassals/uwsgi13.ini` como `env = OPENROUTER_API_KEY=...`
+  (fuera del repo)**. Si falta, el endpoint devuelve 422 con mensaje claro.
+- Verificado en producción con la factura real: 9/9 ítems con el
+  producto correcto como primer candidato (esta factura no trae códigos,
+  todo fue por similitud de nombre — muy buena precisión).
+- Pendiente: nada se guarda solo — es un borrador; el operador confirma.
