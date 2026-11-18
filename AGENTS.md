@@ -281,3 +281,25 @@ Portado del repo de referencia ERPOutlet + adaptado a nuestro flujo:
   producto correcto como primer candidato (esta factura no trae códigos,
   todo fue por similitud de nombre — muy buena precisión).
 - Pendiente: nada se guarda solo — es un borrador; el operador confirma.
+
+## Conteo físico 18/11 — AVEGUAY 90328 (6→4)
+
+Yasmin reportó 2 cajas de menos vs sistema. Auditoría completa del libro de
+movimientos: TODO cuadra — conteo nocturno 12/11=20, −11 ventas 13-16/11,
+hoy +2 restauradas (cta.cte. #334 eliminada y venta #6883 anulada, ambas
+re-registradas enseguida) y −5 entregadas → 6. Las 2 cajas faltantes no
+tienen movimiento: salida física no registrada o cobrada como SOY ALAS
+(90351). Normalizado 6→4 vía adjust_stock (ref conteo-fisico).
+
+**Sospecha nueva descubierta:** al eliminar cta.cte. #334 se restauró +1 a
+pata muslo SOY 90348 (0→1) pero el re-registro #350 descontó SSEBA 90370 —
+Yasmin cambió el SKU al re-cargar. 90348 quedó con +1 fantasma y 90370 con
+−1 de más. Verificar con ella en el próximo conteo.
+
+## SSL renovado 18/11
+
+`erp.multiliderestech.online` vencía hoy → renovado hasta 16/02/2027 con
+`/home/ubuntu/DJENV/bin/certbot renew` (authenticator standalone: parar
+lighttpd → renew → start). El deploy-hook rebuilda combined.pem solo.
+Fallaron 9 certs por NXDOMAIN en `*.multilideres.com` (DNS caído) y
+shoppingformosa.online apunta a otra IP — revisar DNS o limpiar esos certs.
