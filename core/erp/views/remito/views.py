@@ -251,7 +251,7 @@ class RemitoDetailView(LoginRequiredMixin, PermissionRequiredMixin, DetailView):
                         * (Decimal('1') + (p.freight_percentage or Decimal('0')) / Decimal('100'))
                     margin = p.margin_percentage or Decimal('0')
                     nuevo_pvp = Decimal(math.ceil(float(cost_eff * (Decimal('1') + margin / Decimal('100')))))
-                    rate = p.iva_rate or Decimal('0.21')
+                    rate = p.iva_rate if p.iva_rate is not None else Decimal('0.21')
                     if rate > Decimal('1'):
                         rate = rate / Decimal('100')
                     d.pvp_antes = p.pvp_final or Decimal('0')
@@ -268,7 +268,7 @@ class RemitoDetailView(LoginRequiredMixin, PermissionRequiredMixin, DetailView):
             discount = p.get_supplier_discount()
             cost_after_discount = cost_base * (Decimal('1') - discount / Decimal('100'))
             cost_efectivo = cost_after_discount * (Decimal('1') + (p.freight_percentage or Decimal('0')) / Decimal('100'))
-            iva_rate = p.iva_rate or Decimal('0.21')
+            iva_rate = p.iva_rate if p.iva_rate is not None else Decimal('0.21')
             if iva_rate > Decimal('1'):
                 iva_rate = iva_rate / 100
             productos_margen.append({
@@ -410,7 +410,7 @@ def procesar_remito(request, pk):
                         cost_with_freight = cost_after_discount * (Decimal('1') + (producto.freight_percentage or Decimal('0')) / Decimal('100'))
                         new_pvp = (cost_with_freight * (Decimal('1') + margin / Decimal('100'))).quantize(Decimal('0.01'))
                         producto.pvp = Decimal(math.ceil(float(new_pvp)))
-                        rate = producto.iva_rate or Decimal('0.21')
+                        rate = producto.iva_rate if producto.iva_rate is not None else Decimal('0.21')
                         if rate > Decimal('1'):
                             rate = rate / Decimal('100')
                         producto.pvp_final = (producto.pvp * (Decimal('1') + rate)).quantize(Decimal('0.01'))
@@ -553,7 +553,7 @@ def actualizar_margen_remito(request, pk):
                 if remito.company_id and prod.company_id and prod.company_id != remito.company_id:
                     continue
 
-                rate = prod.iva_rate or Decimal('0.21')
+                rate = prod.iva_rate if prod.iva_rate is not None else Decimal('0.21')
                 if rate > Decimal('1'):
                     rate = rate / Decimal('100')
                 discount = prod.get_supplier_discount()

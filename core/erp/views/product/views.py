@@ -179,7 +179,7 @@ class ProductListView(ValidatePermissionRequiredMixin, LoginRequiredMixin, ListV
                                 prod.pvp = Decimal(math.ceil(float(new_pvp)))
 
                                 # Recalcular pvp_final
-                                rate = prod.iva_rate or Decimal('0.21')
+                                rate = prod.iva_rate if prod.iva_rate is not None else Decimal('0.21')
                                 if rate > Decimal('1'):
                                     rate = rate / 100
                                 prod.pvp_final = (prod.pvp * (1 + rate)).quantize(Decimal('0.01'))
@@ -254,7 +254,7 @@ class ProductListView(ValidatePermissionRequiredMixin, LoginRequiredMixin, ListV
                                 margin_rate = (prod.margin_percentage or Decimal('0')) / 100
                                 new_pvp = (cost_with_freight * (1 + margin_rate)).quantize(Decimal('0.01'))
                                 prod.pvp = Decimal(math.ceil(float(new_pvp)))
-                                rate = prod.iva_rate or Decimal('0.21')
+                                rate = prod.iva_rate if prod.iva_rate is not None else Decimal('0.21')
                                 if rate > Decimal('1'):
                                     rate = rate / 100
                                 prod.pvp_final = (prod.pvp * (1 + rate)).quantize(Decimal('0.01'))

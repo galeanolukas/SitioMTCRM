@@ -642,7 +642,7 @@ class PriceList(models.Model):
                 cost_with_freight = cost_after_discount * (1 + (prod.freight_percentage or Decimal('0')) / 100)
                 margin_rate = (prod.margin_percentage or Decimal('0')) / 100
                 prod.pvp = Decimal(math.ceil(float(cost_with_freight * (1 + margin_rate))))
-                rate = prod.iva_rate or Decimal('0.21')
+                rate = prod.iva_rate if prod.iva_rate is not None else Decimal('0.21')
                 if rate > Decimal('1'):
                     rate = rate / 100
                 prod.pvp_final = (prod.pvp * (1 + rate)).quantize(Decimal('0.01'))
