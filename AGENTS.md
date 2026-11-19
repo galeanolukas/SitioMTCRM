@@ -303,3 +303,33 @@ Yasmin cambió el SKU al re-cargar. 90348 quedó con +1 fantasma y 90370 con
 lighttpd → renew → start). El deploy-hook rebuilda combined.pem solo.
 Fallaron 9 certs por NXDOMAIN en `*.multilideres.com` (DNS caído) y
 shoppingformosa.online apunta a otra IP — revisar DNS o limpiar esos certs.
+
+## Fix 19/11 — pvp_final corrupto en productos con iva_rate=0 (DJP, emp 7)
+
+Reporte de Pablo: el POS le mostraba el precio "con el IVA sumando" en
+productos que siempre vendió planos. Caso disparador: BATERIA 9V DURACELL
+(cod. interno 672, prod 89143) saltó de ~$9.494 a $11.488,95 tras procesar
+el remito R-008914 (12/11) — Pablo la vendió 2 veces anuladas y terminó
+vendiendo a $9.000 manual (ventas 6900/6902/6911).
+
+- **Bug:** `prod.iva_rate or Decimal('0.21')` en 7 puntos — trataba IVA 0
+  como "sin dato" y recalculaba `pvp_final = pvp × 1.21`. El POS muestra
+  `pvp_final` → cobraba 21% de más. Corregido a
+  `iva_rate if iva_rate is not None else 0.21` en: `procesar_remito`,
+  proyección de impacto, datos del modal de margen,
+  `actualizar_margen_remito` (remito/views.py), `adjust_margin`,
+  `increase_cost` (product/views.py) y apply de costo (models.py).
+  OJO: `_line_iva_rate` se dejó igual a propósito — para EXTRAER el neto
+  de un precio con IVA sí corresponde caer al % del remito.
+- **Dato:** 50 productos emp7 con `iva_rate=0` quedaron con
+  `pvp_final = pvp × 1.21` (corruptos por ajustes de margen del 3/11 y
+  17/11 y remitos R-000010/R-000015/R-008913/A0004-88675/R-088676).
+  Snapshots de MarginAdjustmentHistory prueban que antes tenían
+  `pvp_final == pvp`. Corregidos en producción: `pvp_final = pvp`,
+  `synced_to_server=False`. Incluye las guitarras del remito R-088676
+  (90374/90375): ahora $120.000 plano, no $145.200.
+- Empresas 4 y 10 verificadas: 0 productos afectados.
+- Regla de lectura: en DJP conviven productos `iva_rate=0.21` (neto+IVA,
+  pvp_final=pvp×1.21) y `iva_rate=0` (precio plano, pvp_final=pvp).
+  Cualquier cálculo de pvp_final debe respetar el 0.
+- Commit `f8777061` pusheado y deployado (GET / → 200).
