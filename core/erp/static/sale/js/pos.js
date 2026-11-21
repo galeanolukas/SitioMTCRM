@@ -385,6 +385,7 @@
             btnStock.on('click', function(e) {
               e.preventDefault();
               e.stopPropagation();
+              if (!confirm(`"${p.name}" no tiene stock. ¿Sumar 1 unidad al stock para venderla?`)) return;
               quickAddStock(p.id, 1).done(r => {
                 if (r.error) return;
                 p.stock = r.stock;
