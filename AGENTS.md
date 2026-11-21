@@ -333,3 +333,14 @@ vendiendo a $9.000 manual (ventas 6900/6902/6911).
   pvp_final=pvp×1.21) y `iva_rate=0` (precio plano, pvp_final=pvp).
   Cualquier cálculo de pvp_final debe respetar el 0.
 - Commit `f8777061` pusheado y deployado (GET / → 200).
+
+## 21/11 — Stock fantasma por carga rápida del POS (DJP)
+
+Pablo reportó guitarra 90197 (7 cuerdas Solar) con stock 1 debiendo ser 0.
+Auditoría: venta 6714 (13/11 21:22) la dejó en 0; 3 min después un
+`quick_add` +1 ("Carga rápida desde la venta", user djp) la volvió a 1 —
+clic accidental en el botón "+1" de las sugerencias del buscador del POS,
+que sumaba stock SIN confirmación (el Enter por código sí preguntaba).
+- Stock corregido a 0 vía adjust_stock (manual, auditado).
+- Commit `4c72692f`: el botón "+1" ahora pide `confirm()` igual que el
+  camino por Enter. Bump `?v=20261121`. Deployado (GET / → 200).
