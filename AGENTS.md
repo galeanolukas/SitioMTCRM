@@ -359,3 +359,8 @@ ya usaba 80mm.
 - Para otra empresa con impresora 58: `update(ticket_width_mm=58)`
   (o el ancho real del rollo; contenido queda ancho−2mm).
 - Commit `6ff655ac` pusheado y deployado; migración aplicada, GET / → 200.
+- Commit `c243db2e`: logo de empresa en el encabezado del ticket (venta y
+  presupuesto), chico (~12mm) y forzado a escala de grises + contraste via
+  CSS `filter` — estilo controlador fiscal. Solo si `company.logo` existe;
+  usa `company.get_logo_url` (cae a `logo_remote_url` si el archivo no está
+  local).
