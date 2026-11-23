@@ -1268,11 +1268,14 @@ def ticket_print(request, pk):
         if punto_venta:
             punto_venta_afip = f"{punto_venta.numero:04d}"
 
+    paper_mm = getattr(company, 'ticket_width_mm', None) or 48
     ctx = {
         'sale': sale,
         'dets': dets,
         'company': company,
         'punto_venta_afip': punto_venta_afip,
+        'paper_mm': paper_mm,
+        'content_mm': paper_mm - 2,
     }
     return render(request, 'sale/ticket_print.html', ctx)
 
@@ -1308,12 +1311,15 @@ def ticket_budget_print(request, pk):
         # CFT = total con recargo - subtotal original (sin recargo)
         cft_amount = float(sale.total) - (float(sale.total) / float(sale.card_plan.multiplier))
 
+    paper_mm = getattr(company, 'ticket_width_mm', None) or 48
     ctx = {
         'sale': sale,
         'dets': dets,
         'company': company,
         'installment_amount': installment_amount,
         'cft_amount': cft_amount,
+        'paper_mm': paper_mm,
+        'content_mm': paper_mm - 2,
     }
     return render(request, 'sale/ticket_budget.html', ctx)
 

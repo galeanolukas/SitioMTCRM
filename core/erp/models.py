@@ -117,6 +117,7 @@ class Company(models.Model):
     logo_round = models.BooleanField(default=False, verbose_name='Logo Redondo', help_text='Mostrar logo con forma redonda en el login')
     custom_title = models.CharField(max_length=150, blank=True, null=True, verbose_name='Título Personalizado', help_text='Título personalizado para mostrar en el login')
     logo_remote_url = models.CharField(max_length=500, blank=True, null=True, verbose_name='URL Remota del Logo', help_text='URL remota del logo para usar en servidores locales (ej: https://servidor.com/media/company/logo.png)')
+    ticket_width_mm = models.PositiveSmallIntegerField(default=48, verbose_name='Ancho de ticket (mm)', help_text='Ancho del papel de la impresora térmica en mm (48, 58 u 80).')
 
     def __str__(self):
         return self.name

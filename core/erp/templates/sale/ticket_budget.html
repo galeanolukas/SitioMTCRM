@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Presupuesto {{ sale.id }}</title>
   <style>
-    @page { size: 48mm 210mm; margin: 1mm; }
+    @page { size: {{ paper_mm|default:48 }}mm 210mm; margin: 1mm; }
     * { box-sizing: border-box; }
     body { margin: 0; padding: 0; font-family: 'Courier New', monospace; font-size: 9pt; color: #000; background: #fff; }
-    .ticket { width: 46mm; padding: 1mm 0.5mm; margin: 0 auto; }
+    .ticket { width: {{ content_mm|default:46 }}mm; padding: 1mm 0.5mm; margin: 0 auto; }
     .center { text-align: center; }
     .right { text-align: right; }
     .line { border-top: 1px solid #000; margin: 3px 0; }
@@ -21,7 +21,7 @@
     th { border-bottom: 1px solid #000; font-weight: bold; }
     .totals td { padding: 2px 0.5px; }
     .prod-name {
-      width: 24mm;
+      width: 56%;
       white-space: normal;
       overflow: visible;
       font-size: 8pt;
@@ -29,7 +29,7 @@
       line-height: 1.1;
     }
     .amount {
-      width: 16mm;
+      width: 35%;
       text-align: right;
       font-size: 8pt;
       font-weight: bold;
@@ -39,7 +39,7 @@
     .no-print { margin: 10px 0; text-align: center; }
     @media print {
       .no-print { display: none; }
-      @page { size: 48mm 210mm; margin: 0.5mm; }
+      @page { size: {{ paper_mm|default:48 }}mm 210mm; margin: 0.5mm; }
       body { margin: 0; padding: 0; }
       .ticket { margin: 0; padding: 0.5mm; }
       * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
@@ -102,16 +102,16 @@
     <table>
       <thead>
         <tr>
-          <th style="text-align:left;width:26mm;">Descripción</th>
-          <th style="text-align:center;width:8mm;">Cant</th>
-          <th style="text-align:right;width:14mm;">Importe</th>
+          <th style="text-align:left;width:56%;">Descripción</th>
+          <th style="text-align:center;width:15%;">Cant</th>
+          <th style="text-align:right;width:29%;">Importe</th>
         </tr>
       </thead>
       <tbody>
         {% for d in dets %}
         <tr>
           <td class="prod-name">{{ d.prod.name }}</td>
-          <td class="center" style="width:8mm;">{{ d.cant|floatformat:0 }}</td>
+          <td class="center" style="width:15%;">{{ d.cant|floatformat:0 }}</td>
           <td class="amount" style="font-size: 8pt;">
             ${{ d.subtotal|floatformat:"-2" }}
           </td>
@@ -126,29 +126,29 @@
     <table class="totals">
       {% if sale.subtotal_original > 0 and sale.discount_amount > 0 %}
       <tr>
-        <td style="width:32mm;">Subtotal</td>
-        <td class="amount" style="width:16mm; font-size: 8pt; padding-right: 0.5mm;">
+        <td style="width:62%;">Subtotal</td>
+        <td class="amount" style="width:35%; font-size: 8pt; padding-right: 0.5mm;">
           ${{ sale.subtotal_original|floatformat:"-2" }}
         </td>
       </tr>
       <tr>
-        <td style="width:32mm;">Descuento{% if sale.price_list %} ({{ sale.price_list.name }}){% endif %}</td>
-        <td class="amount" style="width:16mm; font-size: 8pt; padding-right: 0.5mm;">
+        <td style="width:62%;">Descuento{% if sale.price_list %} ({{ sale.price_list.name }}){% endif %}</td>
+        <td class="amount" style="width:35%; font-size: 8pt; padding-right: 0.5mm;">
           -${{ sale.discount_amount|floatformat:"-2" }}
         </td>
       </tr>
       {% endif %}
       {% if sale.iva > 0 %}
       <tr>
-        <td style="width:32mm;">IVA Incluido</td>
-        <td class="amount" style="width:16mm; font-size: 8pt; padding-right: 0.5mm;">
+        <td style="width:62%;">IVA Incluido</td>
+        <td class="amount" style="width:35%; font-size: 8pt; padding-right: 0.5mm;">
           ${{ sale.iva|floatformat:"-2" }}
         </td>
       </tr>
       {% endif %}
       <tr>
-        <td class="bold" style="width:32mm;">TOTAL</td>
-        <td class="amount" style="width:16mm; font-size: 8pt; padding-right: 0.5mm;">
+        <td class="bold" style="width:62%;">TOTAL</td>
+        <td class="amount" style="width:35%; font-size: 8pt; padding-right: 0.5mm;">
           ${{ sale.total|floatformat:"-2" }}
         </td>
       </tr>
