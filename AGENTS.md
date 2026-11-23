@@ -344,3 +344,18 @@ que sumaba stock SIN confirmación (el Enter por código sí preguntaba).
 - Stock corregido a 0 vía adjust_stock (manual, auditado).
 - Commit `4c72692f`: el botón "+1" ahora pide `confirm()` igual que el
   camino por Enter. Bump `?v=20261121`. Deployado (GET / → 200).
+
+## 21/11 — Ticket térmico chico/corrido en impresora 80mm (DJP)
+
+Pablo reportó que el ticket salía chico y a la izquierda "como config de
+58mm". Los templates `ticket_print.html` y `ticket_budget.html` estaban
+hardcodeados a **48mm** (`@page 48mm`, `.ticket 46mm`); `ticket_x.html`
+ya usaba 80mm.
+
+- Nuevo campo `Company.ticket_width_mm` (default 48 = comportamiento
+  anterior, migración `erp.0024`). Las vistas pasan `paper_mm` /
+  `content_mm` (paper−2) a ambos templates; columnas en % para escalar.
+- Producción: emp7 (DJP) seteada a **80** → `Company.objects.filter(pk=7).update(ticket_width_mm=80)`.
+- Para otra empresa con impresora 58: `update(ticket_width_mm=58)`
+  (o el ancho real del rollo; contenido queda ancho−2mm).
+- Commit `6ff655ac` pusheado y deployado; migración aplicada, GET / → 200.
