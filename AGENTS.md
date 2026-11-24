@@ -364,3 +364,17 @@ ya usaba 80mm.
   CSS `filter` — estilo controlador fiscal. Solo si `company.logo` existe;
   usa `company.get_logo_url` (cae a `logo_remote_url` si el archivo no está
   local).
+
+## 24/11 — Fix "Cannot reinitialise DataTable" en Movimientos de Stock
+
+Error tn/3 en `/erp/stock-movement/list/` (reportado por Yasmin, afectaba
+a todos). Causa: `{% block javascript %}` está declarado DOS veces en la
+jerarquía — en `base/list.html` (dentro de `content`, línea ~50) y en
+`base/home.html` (final, línea ~54). Django inserta el contenido del
+bloque hijo en AMBAS posiciones → el init inline corría 2 veces.
+Las demás listas no fallaban porque cargan su init en `list.js` externos
+vía `head_list` (aunque sus handlers inline en `javascript` igual se
+bindean doble — latente). Fix: `stock_movement/list.html` usa
+`{% block extra_js %}` (declarado una sola vez). Commit `b11bd8af`.
+OJO al crear listados nuevos: si el script es inline, usar `extra_js`,
+no `javascript`.
