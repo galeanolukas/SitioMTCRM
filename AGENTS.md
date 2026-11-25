@@ -378,3 +378,51 @@ bindean doble — latente). Fix: `stock_movement/list.html` usa
 `{% block extra_js %}` (declarado una sola vez). Commit `b11bd8af`.
 OJO al crear listados nuevos: si el script es inline, usar `extra_js`,
 no `javascript`.
+
+## 25/11 — Fix raíz del doble render: `block javascript` renombrado en base/list.html
+
+El problema del bloque duplicado (ver 24/11) no era solo el DataTable:
+**TODO** el script inline de `{% block javascript %}` en cualquier hija
+de `base/list.html` se incluía y ejecutaba DOS veces → todos los
+handlers `$(document).on('click', ...)` quedaban bindeados doble → cada
+click en botones de modal generaba 2 POST en paralelo.
+
+Daño medido en producción (auditado vía StockMovement + uwsgi.log):
+
+- **Ajuste de stock del modal duplicado siempre**: 9 pares de
+  StockMovement 'manual' a <50ms (prods 88632, 89212, 89456, 89638,
+  89728 — user djp; y un producto borrado — user AcroActivo). Ej. hoy:
+  Pablo puso 89728 en 0 por conteo físico → se aplicó -1 DOS veces
+  (quedó -1) → al procesar remito 188 (0003-00012746) sumó +1 → quedó
+  0 en vez de 1. El remito nunca falló; el dato de partida estaba mal.
+- **Ajustar Margen / Aumento de Costos también doble**: registros de
+  `MarginAdjustmentHistory` en pares idénticos a <1s (ids 19/20 +5%
+  sobre 231 prods, 17/18 +20% sobre 28, 15/16, 13/14, 10/11, 7/8 —
+  todos emp7). Los aumentos que Pablo quiso aplicar una vez se aplicaron
+  DOS veces desde octubre → **márgenes/PVP de DJP posiblemente
+  inflados** (ej. 17/11 quiso +5% y quedó +10%; 4/11 quiso +20% y quedó
+  +40%). Los `snapshot` de cada registro tienen los valores previos por
+  producto si se decide revertir, pero pisan cambios posteriores —
+  decisión pendiente con Pablo.
+- Productos con posible +1 fantasma por conteo físico duplicado del
+  17/11 (verificar físicamente): **89212, 89456, 89638**; 88632 con
+  historia confusa (conteo 19/11 -1×2, 20/11 +1×2 → desfasado).
+
+Fix (commit `d45eb283`, deployado 25/11, GET / → 200):
+
+- `base/list.html`: `{% block javascript %}` → `{% block list_javascript %}`
+  (conserva el script btnTest en una sola posición). Ahora `javascript`
+  solo se declara en `base/home.html` → el override del hijo renderiza
+  una única vez al final del body. Verificado: `btnConfirmAdjustStock`
+  pasa de 4 a 2 ocurrencias en el HTML renderizado.
+- `adjust_stock` en `ProductListView.post`: delta calculado bajo
+  `select_for_update`; si `delta==0` responde "sin cambios" sin crear
+  movimiento → un doble submit futuro es no-op (idempotente).
+- Dato corregido: prod 89728 (#1553) +1 → stock 1 (físico 0 + remito 1),
+  movimiento 'manual' con nota explicativa, user djp.
+
+Regla nueva: **nunca redeclarar `{% block javascript %}` ni
+`{% block extra_js %}`** en templates intermedios — si un bloque se
+declara en dos posiciones de la cadena, el override del hijo se emite
+en ambas. Los `{% block %}` de scripts deben tener nombres únicos por
+posición.
