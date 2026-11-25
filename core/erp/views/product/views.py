@@ -347,13 +347,21 @@ class ProductListView(ValidatePermissionRequiredMixin, LoginRequiredMixin, ListV
                     data = {'error': 'Debe indicar el motivo del ajuste'}
                     return JsonResponse(data)
                 obs = (request.POST.get('notes') or '').strip()
-                delta = new_stock - Decimal(str(prod.stock or 0))
-                resultante = adjust_stock(
-                    prod.id, delta, movement_type='manual', user=request.user,
-                    ref=f'Ajuste manual - {prod.name}',
-                    notes=reason + (f': {obs}' if obs else ''))
-                data = {'success': True, 'stock': float(resultante),
-                        'message': f'Stock de {prod.name} actualizado a {resultante}'}
+                # Delta calculado bajo lock: si llegan dos requests en paralelo,
+                # la segunda ve el stock ya ajustado y resulta no-op (idempotente).
+                with transaction.atomic():
+                    prod = Product.objects.select_for_update().get(pk=prod.pk)
+                    delta = new_stock - Decimal(str(prod.stock or 0))
+                    if delta == 0:
+                        data = {'success': True, 'stock': float(prod.stock or 0),
+                                'message': f'Stock de {prod.name} sin cambios ({prod.stock})'}
+                    else:
+                        resultante = adjust_stock(
+                            prod.id, delta, movement_type='manual', user=request.user,
+                            ref=f'Ajuste manual - {prod.name}',
+                            notes=reason + (f': {obs}' if obs else ''))
+                        data = {'success': True, 'stock': float(resultante),
+                                'message': f'Stock de {prod.name} actualizado a {resultante}'}
             elif action == 'stock_history':
                 movs = StockMovement.objects.filter(product_id=request.POST.get('product_id'))
                 active_cid = get_active_company_id(request)
